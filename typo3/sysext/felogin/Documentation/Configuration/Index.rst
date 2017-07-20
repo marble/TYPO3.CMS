@@ -679,7 +679,7 @@ userfields
          template (e.g. ###FEUSER\_USERNAME###)
 
    Default
-         ::
+      .. code-block:: typoscript
 
             username {
                 htmlSpecialChars = 1
@@ -960,11 +960,11 @@ exposeNonexistentUserInForgotPasswordDialog
          CSS included in the page containing the login form
 
    Default
-         ::
+      .. code-block:: typoscript
 
-            .tx-felogin-pi1 label {
-                display: block;
-            }
+         .tx-felogin-pi1 label {
+             display: block;
+         }
 
 
 .. _default-pi-vars:
