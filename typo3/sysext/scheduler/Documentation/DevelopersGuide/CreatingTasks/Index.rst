@@ -1,7 +1,3 @@
-﻿.. ==================================================
-.. FOR YOUR INFORMATION
-.. --------------------------------------------------
-.. -*- coding: utf-8 -*- with BOM.
 
 .. include:: ../../Includes.txt
 
@@ -196,7 +192,7 @@ does not contain any harmful input (for example, XSS).
 The safest way to proceed is to very strictly handle input. For
 example, if all you expect is some integer number, pass the value
 through a typecast to (int). If it's a string, but you don't
-expect any markup in it, run it through :code:`strip\_tags()` . Such
+expect any markup in it, run it through :code:`strip_tags()` . Such
 simple measures can filter most of the harmful code.
 
 One more thing to mind. In the :code:`getAdditionalFields()` method,
@@ -217,7 +213,7 @@ Naming of additional fields
 """""""""""""""""""""""""""
 
 The Scheduler expects all fields in the add/edit form to be named
-:code:`tx\_scheduler[...]` . Values from fields that don't follow this
+:code:`tx_scheduler[...]` . Values from fields that don't follow this
 pattern will **not** appear in the :code:`$submittedData` array.
 
 It is also important to think about using field names that will not
@@ -268,7 +264,7 @@ Declaring the task class
 
 As a last step, the task class must be declared so the Scheduler knows
 of its existence. The declaration must be placed in the
-:code:`ext\_localconf.php` file of the extension that provides the
+:code:`ext_localconf.php` file of the extension that provides the
 task. Let's look at one of the base classes declaration as an example:
 
 ::
