@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Configuration\Exception;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,12 @@ namespace TYPO3\CMS\Form\Domain\Configuration\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Domain\Configuration\Exception;
+
 use TYPO3\CMS\Form\Domain\Exception;
 
 /**
  * This exception is thrown if a form prototype for a given name was not found.
- *
- * @api
  */
 class PrototypeNotFoundException extends Exception
 {

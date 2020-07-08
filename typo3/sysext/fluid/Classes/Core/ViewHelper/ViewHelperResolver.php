@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Core\ViewHelper;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Fluid\Core\ViewHelper;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Core\ViewHelper;
 
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -45,6 +46,8 @@ use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
  * to automatically add or extend namespaces which then become
  * available in every Fluid template file without having to
  * register the namespace.
+ *
+ * @internal This is a helper class which is not considered part of TYPO3's Public API.
  */
 class ViewHelperResolver extends \TYPO3Fluid\Fluid\Core\ViewHelper\ViewHelperResolver
 {
@@ -58,12 +61,11 @@ class ViewHelperResolver extends \TYPO3Fluid\Fluid\Core\ViewHelper\ViewHelperRes
     public function __construct()
     {
         $this->namespaces = $GLOBALS['TYPO3_CONF_VARS']['SYS']['fluid']['namespaces'];
-        $configuration = $this->getBackendUser()->uc['TSFE_adminConfig'];
-        if (TYPO3_MODE === 'FE'
-            && isset($configuration['preview_showFluidDebug'])
-            && $configuration['preview_showFluidDebug']
-        ) {
-            $this->namespaces['f'][] = 'TYPO3\\CMS\\Fluid\\ViewHelpers\\Debug';
+        if (TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_FE && $this->getBackendUser() instanceof BackendUserAuthentication) {
+            $configuration = $this->getBackendUser()->uc['AdminPanel'];
+            if (isset($configuration['preview_showFluidDebug']) && $configuration['preview_showFluidDebug']) {
+                $this->namespaces['f'][] = 'TYPO3\\CMS\\Fluid\\ViewHelpers\\Debug';
+            }
         }
     }
 

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Beuser\Domain\Repository;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Beuser\Domain\Repository;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Beuser\Domain\Repository;
+
 use TYPO3\CMS\Beuser\Domain\Model\Demand;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -26,6 +27,7 @@ use TYPO3\CMS\Extbase\Persistence\QueryInterface;
 
 /**
  * Repository for \TYPO3\CMS\Beuser\Domain\Model\BackendUser
+ * @internal This class is a TYPO3 Backend implementation and is not considered part of the Public TYPO3 API.
  */
 class BackendUserRepository extends BackendUserGroupRepository
 {
@@ -33,7 +35,7 @@ class BackendUserRepository extends BackendUserGroupRepository
      * Finds Backend Users on a given list of uids
      *
      * @param array $uidList
-     * @return \TYPO3\CMS\Extbase\Persistence\Generic\QueryResult<\TYPO3\CMS\Beuser\Domain\Model\BackendUser>
+     * @return \TYPO3\CMS\Extbase\Persistence\Generic\QueryResult
      */
     public function findByUidList(array $uidList)
     {
@@ -48,7 +50,7 @@ class BackendUserRepository extends BackendUserGroupRepository
      * Find Backend Users matching to Demand object properties
      *
      * @param Demand $demand
-     * @return \TYPO3\CMS\Extbase\Persistence\Generic\QueryResult<\TYPO3\CMS\Beuser\Domain\Model\BackendUser>
+     * @return \TYPO3\CMS\Extbase\Persistence\Generic\QueryResult
      */
     public function findDemanded(Demand $demand)
     {
@@ -63,7 +65,8 @@ class BackendUserRepository extends BackendUserGroupRepository
             $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('be_users');
             foreach (['userName', 'uid', 'realName'] as $field) {
                 $searchConstraints[] = $query->like(
-                    $field, '%' . $queryBuilder->escapeLikeWildcards($demand->getUserName()) . '%'
+                    $field,
+                    '%' . $queryBuilder->escapeLikeWildcards($demand->getUserName()) . '%'
                 );
             }
             $constraints[] = $query->logicalOr($searchConstraints);
@@ -96,12 +99,11 @@ class BackendUserRepository extends BackendUserGroupRepository
         // @TODO: Refactor for real n:m relations
         if ($demand->getBackendUserGroup()) {
             $constraints[] = $query->logicalOr([
-                $query->equals('usergroup', (int)$demand->getBackendUserGroup()->getUid()),
-                $query->like('usergroup', (int)$demand->getBackendUserGroup()->getUid() . ',%'),
-                $query->like('usergroup', '%,' . (int)$demand->getBackendUserGroup()->getUid()),
-                $query->like('usergroup', '%,' . (int)$demand->getBackendUserGroup()->getUid() . ',%')
+                $query->equals('usergroup', (int)$demand->getBackendUserGroup()),
+                $query->like('usergroup', (int)$demand->getBackendUserGroup() . ',%'),
+                $query->like('usergroup', '%,' . (int)$demand->getBackendUserGroup()),
+                $query->like('usergroup', '%,' . (int)$demand->getBackendUserGroup() . ',%')
             ]);
-            $query->contains('usergroup', $demand->getBackendUserGroup());
         }
         $query->matching($query->logicalAnd($constraints));
         /** @var QueryResult $result */
@@ -112,7 +114,7 @@ class BackendUserRepository extends BackendUserGroupRepository
     /**
      * Find Backend Users currently online
      *
-     * @return \TYPO3\CMS\Extbase\Persistence\Generic\QueryResult<\TYPO3\CMS\Beuser\Domain\Model\BackendUser>
+     * @return \TYPO3\CMS\Extbase\Persistence\Generic\QueryResult
      */
     public function findOnline()
     {

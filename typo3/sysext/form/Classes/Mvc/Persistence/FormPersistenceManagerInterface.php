@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Mvc\Persistence;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\Mvc\Persistence;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Mvc\Persistence;
 
 use TYPO3\CMS\Core\Resource\Folder;
 
@@ -32,7 +36,6 @@ interface FormPersistenceManagerInterface
      *
      * @param string $persistenceIdentifier
      * @return array
-     * @api
      */
     public function load(string $persistenceIdentifier): array;
 
@@ -41,7 +44,6 @@ interface FormPersistenceManagerInterface
      *
      * @param string $persistenceIdentifier
      * @param array $formDefinition
-     * @api
      */
     public function save(string $persistenceIdentifier, array $formDefinition);
 
@@ -50,7 +52,6 @@ interface FormPersistenceManagerInterface
      *
      * @param string $persistenceIdentifier
      * @return bool TRUE if a form with the given $persistenceIdentifier can be loaded, otherwise FALSE
-     * @api
      */
     public function exists(string $persistenceIdentifier): bool;
 
@@ -58,7 +59,6 @@ interface FormPersistenceManagerInterface
      * Delete the form representation identified by $persistenceIdentifier
      *
      * @param string $persistenceIdentifier
-     * @api
      */
     public function delete(string $persistenceIdentifier);
 
@@ -70,7 +70,6 @@ interface FormPersistenceManagerInterface
      * and 'persistenceIdentifier' (the unique identifier for the Form Persistence Manager e.g. the path to the saved form definition).
      *
      * @return array in the format [['name' => 'Form 01', 'persistenceIdentifier' => 'path1'], [ .... ]]
-     * @api
      */
     public function listForms(): array;
 
@@ -78,7 +77,6 @@ interface FormPersistenceManagerInterface
      * Return a list of all accessible file mount points
      *
      * @return Folder[]
-     * @api
      */
     public function getAccessibleFormStorageFolders(): array;
 
@@ -86,7 +84,6 @@ interface FormPersistenceManagerInterface
      * Return a list of all accessible extension folders
      *
      * @return array
-     * @api
      */
     public function getAccessibleExtensionFolders(): array;
 
@@ -96,16 +93,14 @@ interface FormPersistenceManagerInterface
      * @param string $formIdentifier
      * @param string $savePath
      * @return string
-     * @api
      */
     public function getUniquePersistenceIdentifier(string $formIdentifier, string $savePath): string;
 
     /**
-     * Check if a identifier is already used by a formDefintion.
+     * Check if an identifier is already used by a formDefinition.
      *
      * @param string $identifier
      * @return bool
-     * @api
      */
     public function checkForDuplicateIdentifier(string $identifier): bool;
 }

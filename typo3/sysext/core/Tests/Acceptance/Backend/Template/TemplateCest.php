@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Template;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,9 @@ namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Template;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
+namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Template;
+
+use TYPO3\CMS\Core\Tests\Acceptance\Support\BackendTester;
 
 /**
  * Template tests
@@ -22,43 +25,38 @@ use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
 class TemplateCest
 {
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function _before(Admin $I)
+    public function _before(BackendTester $I)
     {
-        $I->useExistingSession();
-        // Ensure main content frame is fully loaded, otherwise there are load-race-conditions
-        $I->switchToIFrame('list_frame');
-        $I->waitForText('Web Content Management System');
-        $I->switchToIFrame();
+        $I->useExistingSession('admin');
 
         $I->see('Template');
         $I->click('Template');
 
-        // switch to content iframe
-        $I->switchToIFrame('list_frame');
+        $I->switchToContentFrame();
         $I->waitForElementVisible('#ts-overview');
         $I->see('Template tools');
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function pagesWithNoTemplateShouldShowButtonsToCreateTemplates(Admin $I)
+    public function pagesWithNoTemplateShouldShowButtonsToCreateTemplates(BackendTester $I)
     {
         $I->wantTo('show templates overview on root page (uid = 0)');
-        $I->switchToIFrame();
+        $I->switchToMainFrame();
         // click on root page
-        $I->click('#extdd-1');
-        $I->switchToIFrame('list_frame');
+        $I->click('.node.identifier-0_0');
+        $I->switchToContentFrame();
         $I->waitForElementVisible('#ts-overview');
         $I->see('This is an overview of the pages in the database containing one or more template records. Click a page title to go to the page.');
 
         $I->wantTo('show templates overview on website root page (uid = 1 and pid = 0)');
-        $I->switchToIFrame();
+        $I->switchToMainFrame();
         // click on website root page
-        $I->click('#extdd-3');
-        $I->switchToIFrame('list_frame');
+        $I->click('.node.identifier-0_1');
+        $I->switchToContentFrame();
         $I->waitForText('No template');
         $I->see('There was no template on this page!');
         $I->see('You need to create a template record below in order to edit your configuration.');
@@ -74,14 +72,14 @@ class TemplateCest
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function addANewSiteTemplate(Admin $I)
+    public function addANewSiteTemplate(BackendTester $I)
     {
         $I->wantTo('create a new site template');
-        $I->switchToIFrame();
-        $I->click('#extdd-3');
-        $I->switchToIFrame('list_frame');
+        $I->switchToMainFrame();
+        $I->click('.node.identifier-0_1');
+        $I->switchToContentFrame();
         $I->waitForText('Create new website');
         $I->click("//input[@name='newWebsite']");
         $I->waitForText('Edit constants for template');
@@ -102,15 +100,19 @@ class TemplateCest
         // fill title input field
         $I->fillField('//input[@data-formengine-input-name="data[sys_template][1][title]"]', 'Acceptance Test Site');
         $I->click("//button[@name='_savedok']");
+        $I->waitForElementNotVisible('#t3js-ui-block', 30);
         $I->waitForElement('#EditDocumentController');
+        $I->waitForElementNotVisible('#t3js-ui-block');
 
         $I->wantTo('change the setup, save the template and close the form');
-        // grap and fill setup textarea
+        // grab and fill setup textarea
         $config = $I->grabTextFrom('//textarea[@data-formengine-input-name="data[sys_template][1][config]"]');
         $config = str_replace('HELLO WORLD!', 'Hello Acceptance Test!', $config);
         $I->fillField('//textarea[@data-formengine-input-name="data[sys_template][1][config]"]', $config);
-        $I->click('.btn-toolbar .btn-group.t3js-splitbutton button.btn:nth-child(2)');
-        $I->click('//a[@data-name="_saveandclosedok"]');
+
+        $I->click('//*/button[@name="_savedok"][1]');
+        $I->waitForElement('a.t3js-editform-close');
+        $I->click('a.t3js-editform-close');
 
         $I->wantTo('see the changed title');
         $I->waitForElement('.table-fit');
@@ -124,16 +126,17 @@ class TemplateCest
         $I->waitForText('SETUP ROOT');
         // find and open [page] in tree
         $I->see('[page] = PAGE');
-        $I->click('//span[@class="list-tree-label"]/a[text()=\'page\']/../../../a');
+        $I->click('//span[@class="list-tree-label"]/a[text()=\'page\']/../../a');
         // find and open [page][10] in tree
         $I->waitForText('[10] = TEXT');
-        $I->click('//span[@class="list-tree-label"]/a[text()=\'page\']/../../../ul//span[@class="list-tree-label"]/a[text()=\'10\']/../../../a');
+        $I->click('//span[@class="list-tree-label"]/a[text()=\'page\']/../../../ul//span[@class="list-tree-label"]/a[text()=\'10\']/../../a');
         // find and edit [page][10][value] in tree
         $I->waitForText('[value] = Hello Acceptance Test!');
         $I->click('//span[@class="list-tree-label"]/a[text()=\'10\']/../../../ul//span[@class="list-tree-label"]/a[text()=\'value\']');
         $I->waitForText('page.10.value =');
         $I->fillField('//input[@name="data[page.10.value][value]"]', 'HELLO WORLD!');
         $I->click('//input[@name="update_value"]');
+        $I->wait(2);
         $I->waitForText('Value updated');
         $I->see('page.10.value = HELLO WORLD!');
         $I->see('[value] = HELLO WORLD!');

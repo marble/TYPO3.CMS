@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,28 +13,33 @@ namespace TYPO3\CMS\Extbase\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Domain\Model;
+
+use TYPO3\CMS\Core\Resource\ResourceInterface;
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
+
 /**
  * A file object (File Abstraction Layer)
  *
- * @api experimental! This class is experimental and subject to change!
+ * @internal experimental! This class is experimental and subject to change!
  */
-abstract class AbstractFileFolder extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
+abstract class AbstractFileFolder extends AbstractEntity
 {
     /**
-     * @var \TYPO3\CMS\Core\Resource\ResourceInterface|\TYPO3\CMS\Core\Resource\AbstractFile|\TYPO3\CMS\Core\Resource\Folder|\TYPO3\CMS\Core\Resource\FileReference
+     * @var \TYPO3\CMS\Core\Resource\ResourceInterface
      */
     protected $originalResource;
 
     /**
      * @param \TYPO3\CMS\Core\Resource\ResourceInterface $originalResource
      */
-    public function setOriginalResource(\TYPO3\CMS\Core\Resource\ResourceInterface $originalResource)
+    public function setOriginalResource(ResourceInterface $originalResource)
     {
         $this->originalResource = $originalResource;
     }
 
     /**
-     * @return \TYPO3\CMS\Core\Resource\ResourceInterface|\TYPO3\CMS\Core\Resource\Folder|\TYPO3\CMS\Core\Resource\AbstractFile
+     * @return \TYPO3\CMS\Core\Resource\ResourceInterface
      */
     public function getOriginalResource()
     {

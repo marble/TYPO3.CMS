@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Scheduler\Task;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,26 +13,37 @@ namespace TYPO3\CMS\Scheduler\Task;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Scheduler\Task;
+
+use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\StorageRepository;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
+use TYPO3\CMS\Scheduler\AdditionalFieldProviderInterface;
+use TYPO3\CMS\Scheduler\Controller\SchedulerModuleController;
+
 /**
  * Additional BE fields for tasks which indexes files in a storage
+ * @internal This class is a specific scheduler task implementation is not considered part of the Public TYPO3 API.
  */
-class FileStorageIndexingAdditionalFieldProvider implements \TYPO3\CMS\Scheduler\AdditionalFieldProviderInterface
+class FileStorageIndexingAdditionalFieldProvider implements AdditionalFieldProviderInterface
 {
     /**
      * Add additional fields
      *
      * @param array $taskInfo Reference to the array containing the info used in the add/edit form
-     * @param AbstractTask|NULL $task When editing, reference to the current task. NULL when adding.
+     * @param AbstractTask|null $task When editing, reference to the current task. NULL when adding.
      * @param \TYPO3\CMS\Scheduler\Controller\SchedulerModuleController $parentObject Reference to the calling object (Scheduler's BE module)
      * @return array Array containing all the information pertaining to the additional fields
      * @throws \InvalidArgumentException
      */
-    public function getAdditionalFields(array &$taskInfo, $task, \TYPO3\CMS\Scheduler\Controller\SchedulerModuleController $parentObject)
+    public function getAdditionalFields(array &$taskInfo, $task, SchedulerModuleController $parentObject)
     {
         if ($task !== null && !$task instanceof FileStorageIndexingTask) {
             throw new \InvalidArgumentException('Task not of type FileStorageExtractionTask', 1384275696);
         }
-        $additionalFields['scheduler_fileStorageIndexing_storage'] = $this->getAllStoragesField($task);
+        $additionalFields = [];
+        $additionalFields['scheduler_fileStorageIndexing_storage'] = $this->getAllStoragesField($task, $taskInfo);
         return $additionalFields;
     }
 
@@ -41,19 +51,22 @@ class FileStorageIndexingAdditionalFieldProvider implements \TYPO3\CMS\Scheduler
      * Add a select field of available storages.
      *
      * @param FileStorageIndexingTask $task When editing, reference to the current task object. NULL when adding.
+     * @param array $taskInfo
      * @return array Array containing all the information pertaining to the additional fields
      */
-    protected function getAllStoragesField(FileStorageIndexingTask $task = null)
+    protected function getAllStoragesField(FileStorageIndexingTask $task = null, $taskInfo)
     {
         /** @var \TYPO3\CMS\Core\Resource\ResourceStorage[] $storages */
-        $storages = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Resource\StorageRepository::class)->findAll();
+        $storages = GeneralUtility::makeInstance(StorageRepository::class)->findAll();
         $options = [];
         foreach ($storages as $storage) {
-            if ($task != null && $task->storageUid === $storage->getUid()) {
-                $options[] = '<option value="' . $storage->getUid() . '" selected="selected">' . $storage->getName() . '</option>';
-            } else {
-                $options[] = '<option value="' . $storage->getUid() . '">' . $storage->getName() . '</option>';
+            $selected = '';
+            if ($task !== null && $task->storageUid === $storage->getUid()) {
+                $selected = ' selected="selected"';
+            } elseif ((int)$taskInfo['scheduler_fileStorageIndexing_storage'] === $storage->getUid()) {
+                $selected = ' selected="selected"';
             }
+            $options[] = '<option value="' . $storage->getUid() . '" ' . $selected . ' >' . $storage->getName() . '</option>';
         }
 
         $fieldName = 'tx_scheduler[scheduler_fileStorageIndexing_storage]';
@@ -76,12 +89,13 @@ class FileStorageIndexingAdditionalFieldProvider implements \TYPO3\CMS\Scheduler
      * @param \TYPO3\CMS\Scheduler\Controller\SchedulerModuleController $parentObject Reference to the calling object (Scheduler's BE module)
      * @return bool True if validation was ok (or selected class is not relevant), false otherwise
      */
-    public function validateAdditionalFields(array &$submittedData, \TYPO3\CMS\Scheduler\Controller\SchedulerModuleController $parentObject)
+    public function validateAdditionalFields(array &$submittedData, SchedulerModuleController $parentObject)
     {
         $value = $submittedData['scheduler_fileStorageIndexing_storage'];
-        if (!\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($value)) {
+        if (!MathUtility::canBeInterpretedAsInteger($value)) {
             return false;
-        } elseif (\TYPO3\CMS\Core\Resource\ResourceFactory::getInstance()->getStorageObject($submittedData['scheduler_fileStorageIndexing_storage']) !== null) {
+        }
+        if (GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject($submittedData['scheduler_fileStorageIndexing_storage']) !== null) {
             return true;
         }
         return false;
@@ -94,7 +108,7 @@ class FileStorageIndexingAdditionalFieldProvider implements \TYPO3\CMS\Scheduler
      * @param \TYPO3\CMS\Scheduler\Task\AbstractTask $task Reference to the current task object
      * @throws \InvalidArgumentException
      */
-    public function saveAdditionalFields(array $submittedData, \TYPO3\CMS\Scheduler\Task\AbstractTask $task)
+    public function saveAdditionalFields(array $submittedData, AbstractTask $task)
     {
         if (!$task instanceof FileStorageIndexingTask) {
             throw new \InvalidArgumentException('Task not of type FileStorageExtractionTask', 1384275697);

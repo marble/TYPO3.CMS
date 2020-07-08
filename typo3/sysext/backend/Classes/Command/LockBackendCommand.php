@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Command;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,11 +12,15 @@ namespace TYPO3\CMS\Backend\Command;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Command;
+
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -44,6 +47,7 @@ class LockBackendCommand extends Command
      *
      * @param InputInterface $input
      * @param OutputInterface $output
+     * @return int
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
@@ -63,6 +67,7 @@ class LockBackendCommand extends Command
         }
         GeneralUtility::writeFile($lockFile, $lockFileContent);
         $io->success($output);
+        return 0;
     }
 
     /**
@@ -72,6 +77,6 @@ class LockBackendCommand extends Command
      */
     protected function getLockFileName()
     {
-        return PATH_typo3conf . 'LOCK_BACKEND';
+        return Environment::getLegacyConfigPath() . '/LOCK_BACKEND';
     }
 }

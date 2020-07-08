@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,28 @@ namespace TYPO3\CMS\Extensionmanager\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Utility;
+
+use TYPO3\CMS\Core\Utility\VersionNumberUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extensionmanager\Domain\Model\Dependency;
+use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
+
 /**
  * Utility for dealing with extension model related helper functions
+ * @internal This class is a specific ExtensionManager implementation and is not part of the Public TYPO3 API.
  */
 class ExtensionModelUtility
 {
     /**
-     * @var \TYPO3\CMS\Extbase\Object\ObjectManager
+     * @var ObjectManager
      */
     protected $objectManager;
 
     /**
-     * @param \TYPO3\CMS\Extbase\Object\ObjectManager $objectManager
+     * @param ObjectManager $objectManager
      */
-    public function injectObjectManager(\TYPO3\CMS\Extbase\Object\ObjectManager $objectManager)
+    public function injectObjectManager(ObjectManager $objectManager)
     {
         $this->objectManager = $objectManager;
     }
@@ -36,12 +43,11 @@ class ExtensionModelUtility
      * Map a legacy extension array to an object
      *
      * @param array $extensionArray
-     * @return \TYPO3\CMS\Extensionmanager\Domain\Model\Extension
+     * @return Extension
      */
     public function mapExtensionArrayToModel(array $extensionArray)
     {
-        /** @var \TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extension */
-        $extension = $this->objectManager->get(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class);
+        $extension = $this->objectManager->get(Extension::class);
         $extension->setExtensionKey($extensionArray['key']);
         if (isset($extensionArray['version'])) {
             $extension->setVersion($extensionArray['version']);
@@ -61,7 +67,7 @@ class ExtensionModelUtility
     public function convertDependenciesToObjects($dependencies)
     {
         $dependenciesObject = new \SplObjectStorage();
-        $unserializedDependencies = unserialize($dependencies);
+        $unserializedDependencies = unserialize($dependencies, ['allowed_classes' => false]);
         if (!is_array($unserializedDependencies)) {
             return $dependenciesObject;
         }
@@ -72,15 +78,14 @@ class ExtensionModelUtility
             }
             foreach ($dependencyValues as $dependency => $versions) {
                 if ($dependencyType && $dependency) {
-                    $versionNumbers = \TYPO3\CMS\Core\Utility\VersionNumberUtility::convertVersionsStringToVersionNumbers($versions);
+                    $versionNumbers = VersionNumberUtility::convertVersionsStringToVersionNumbers($versions);
                     $lowest = $versionNumbers[0];
                     if (count($versionNumbers) === 2) {
                         $highest = $versionNumbers[1];
                     } else {
                         $highest = '';
                     }
-                    /** @var $dependencyObject \TYPO3\CMS\Extensionmanager\Domain\Model\Dependency */
-                    $dependencyObject = $this->objectManager->get(\TYPO3\CMS\Extensionmanager\Domain\Model\Dependency::class);
+                    $dependencyObject = $this->objectManager->get(Dependency::class);
                     $dependencyObject->setType($dependencyType);
                     // dynamically migrate 'cms' dependency to 'core' dependency
                     // see also \TYPO3\CMS\Core\Package\Package::getPackageMetaData

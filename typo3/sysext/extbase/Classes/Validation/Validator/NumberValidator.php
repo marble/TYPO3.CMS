@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Validation\Validator;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,10 @@ namespace TYPO3\CMS\Extbase\Validation\Validator;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Validation\Validator;
+
 /**
  * Validator for general numbers.
- *
- * @api
  */
 class NumberValidator extends AbstractValidator
 {
@@ -30,10 +29,12 @@ class NumberValidator extends AbstractValidator
     {
         if (!is_numeric($value)) {
             $this->addError(
-            $this->translateErrorMessage(
-                'validator.number.notvalid',
-                'extbase'
-            ), 1221563685);
+                $this->translateErrorMessage(
+                    'validator.number.notvalid',
+                    'extbase'
+                ),
+                1221563685
+            );
         }
     }
 }

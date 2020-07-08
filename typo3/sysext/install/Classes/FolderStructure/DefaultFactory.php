@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\FolderStructure;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,13 @@ namespace TYPO3\CMS\Install\FolderStructure;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Core\Bootstrap;
+namespace TYPO3\CMS\Install\FolderStructure;
+
+use TYPO3\CMS\Core\Core\Environment;
 
 /**
  * Factory returns default folder structure object hierarchy
+ * @internal This class is only meant to be used within EXT:install and is not part of the TYPO3 Core API.
  */
 class DefaultFactory
 {
@@ -29,8 +31,7 @@ class DefaultFactory
     public function getStructure()
     {
         $rootNode = new RootNode($this->getDefaultStructureDefinition(), null);
-        $structureFacade = new StructureFacade($rootNode);
-        return $structureFacade;
+        return new StructureFacade($rootNode);
     }
 
     /**
@@ -39,73 +40,152 @@ class DefaultFactory
      *
      * @return array
      */
-    protected function getDefaultStructureDefinition()
+    protected function getDefaultStructureDefinition(): array
     {
         $filePermission = $GLOBALS['TYPO3_CONF_VARS']['SYS']['fileCreateMask'];
         $directoryPermission = $GLOBALS['TYPO3_CONF_VARS']['SYS']['folderCreateMask'];
-
-        if (Bootstrap::usesComposerClassLoading()) {
-            // In composer mode the links are configurable and might even be actual files
-            // Ignore this structure in this case
-            $structureAdditional = [];
-        } else {
-            $structureAdditional = [
-                [
-                    'name' => 'index.php',
-                    'type' => LinkNode::class,
-                    'target' => 'typo3_src/index.php',
-                ],
-                [
-                    'name' => 'typo3',
-                    'type' => LinkNode::class,
-                    'target' => 'typo3_src/typo3',
-                ],
-            ];
-        }
-        $structureBase = [
-            [
-                'name' => 'typo3temp',
-                'type' => DirectoryNode::class,
+        if (Environment::getPublicPath() === Environment::getProjectPath()) {
+            $structure = [
+                // Note that root node has no trailing slash like all others
+                'name' => Environment::getPublicPath(),
                 'targetPermission' => $directoryPermission,
                 'children' => [
                     [
-                        'name' => 'index.html',
-                        'type' => FileNode::class,
-                        'targetPermission' => $filePermission,
-                        'targetContent' => '',
-                    ],
-                    [
-                        'name' => 'assets',
+                        'name' => 'typo3temp',
                         'type' => DirectoryNode::class,
                         'targetPermission' => $directoryPermission,
                         'children' => [
                             [
-                                'name' => 'compressed',
-                                'type' => DirectoryNode::class,
-                                'targetPermission' => $directoryPermission
+                                'name' => 'index.html',
+                                'type' => FileNode::class,
+                                'targetPermission' => $filePermission,
+                                'targetContent' => '',
                             ],
+                            $this->getTemporaryAssetsFolderStructure(),
                             [
-                                'name' => 'css',
+                                'name' => 'var',
                                 'type' => DirectoryNode::class,
-                                'targetPermission' => $directoryPermission
+                                'targetPermission' => $directoryPermission,
+                                'children' => [
+                                    [
+                                        'name' => '.htaccess',
+                                        'type' => FileNode::class,
+                                        'targetPermission' => $filePermission,
+                                        'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/typo3temp-var-htaccess',
+                                    ],
+                                    [
+                                        'name' => 'charset',
+                                        'type' => DirectoryNode::class,
+                                        'targetPermission' => $directoryPermission,
+                                    ],
+                                    [
+                                        'name' => 'cache',
+                                        'type' => DirectoryNode::class,
+                                        'targetPermission' => $directoryPermission,
+                                    ],
+                                    [
+                                        'name' => 'lock',
+                                        'type' => DirectoryNode::class,
+                                        'targetPermission' => $directoryPermission,
+                                    ]
+                                ]
                             ],
-                            [
-                                'name' => 'js',
-                                'type' => DirectoryNode::class,
-                                'targetPermission' => $directoryPermission
-                            ],
-                            [
-                                'name' => 'images',
-                                'type' => DirectoryNode::class,
-                                'targetPermission' => $directoryPermission
-                            ],
-                            [
-                                'name' => '_processed_',
-                                'type' => DirectoryNode::class,
-                                'targetPermission' => $directoryPermission
-                            ]
-                        ]
+                        ],
                     ],
+                    [
+                        'name' => 'typo3conf',
+                        'type' => DirectoryNode::class,
+                        'targetPermission' => $directoryPermission,
+                        'children' => [
+                            [
+                                'name' => 'ext',
+                                'type' => DirectoryNode::class,
+                                'targetPermission' => $directoryPermission,
+                            ],
+                            [
+                                'name' => 'l10n',
+                                'type' => DirectoryNode::class,
+                                'targetPermission' => $directoryPermission,
+                            ],
+                        ],
+                    ],
+                    $this->getFileadminStructure(),
+                ],
+            ];
+
+            // Have a default .htaccess if running apache web server or a default web.config if running IIS
+            if ($this->isApacheServer()) {
+                $structure['children'][] = [
+                    'name' => '.htaccess',
+                    'type' => FileNode::class,
+                    'targetPermission' => $filePermission,
+                    'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/root-htaccess',
+                ];
+            } elseif ($this->isMicrosoftIisServer()) {
+                $structure['children'][] = [
+                    'name' => 'web.config',
+                    'type' => FileNode::class,
+                    'targetPermission' => $filePermission,
+                    'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/root-web-config',
+                ];
+            }
+        } else {
+            // This is when the public path is a subfolder (e.g. public/ or web/)
+            $publicPath = substr(Environment::getPublicPath(), strlen(Environment::getProjectPath())+1);
+
+            $publicPathSubStructure = [
+                [
+                    'name' => 'typo3temp',
+                    'type' => DirectoryNode::class,
+                    'targetPermission' => $directoryPermission,
+                    'children' => [
+                        [
+                            'name' => 'index.html',
+                            'type' => FileNode::class,
+                            'targetPermission' => $filePermission,
+                            'targetContent' => '',
+                        ],
+                        $this->getTemporaryAssetsFolderStructure(),
+                    ],
+                ],
+                [
+                    'name' => 'typo3conf',
+                    'type' => DirectoryNode::class,
+                    'targetPermission' => $directoryPermission,
+                    'children' => [
+                        [
+                            'name' => 'ext',
+                            'type' => DirectoryNode::class,
+                            'targetPermission' => $directoryPermission,
+                        ],
+                    ],
+                ],
+                $this->getFileadminStructure(),
+            ];
+
+            // Have a default .htaccess if running apache web server or a default web.config if running IIS
+            if ($this->isApacheServer()) {
+                $publicPathSubStructure[] = [
+                    'name' => '.htaccess',
+                    'type' => FileNode::class,
+                    'targetPermission' => $filePermission,
+                    'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/root-htaccess',
+                ];
+            } elseif ($this->isMicrosoftIisServer()) {
+                $publicPathSubStructure[] = [
+                    'name' => 'web.config',
+                    'type' => FileNode::class,
+                    'targetPermission' => $filePermission,
+                    'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/root-web-config',
+                ];
+            }
+
+            $structure = [
+                // Note that root node has no trailing slash like all others
+                'name' => Environment::getProjectPath(),
+                'targetPermission' => $directoryPermission,
+                'children' => [
+                    $this->getPublicStructure($publicPath, $publicPathSubStructure),
                     [
                         'name' => 'var',
                         'type' => DirectoryNode::class,
@@ -115,7 +195,7 @@ class DefaultFactory
                                 'name' => '.htaccess',
                                 'type' => FileNode::class,
                                 'targetPermission' => $filePermission,
-                                'targetContentFile' => PATH_site . 'typo3/sysext/install/Resources/Private/FolderStructureTemplateFiles/typo3temp-var-htaccess',
+                                'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/typo3temp-var-htaccess',
                             ],
                             [
                                 'name' => 'charset',
@@ -123,140 +203,184 @@ class DefaultFactory
                                 'targetPermission' => $directoryPermission,
                             ],
                             [
-                                'name' => 'Cache',
+                                'name' => 'cache',
                                 'type' => DirectoryNode::class,
                                 'targetPermission' => $directoryPermission,
                             ],
                             [
-                                'name' => 'locks',
+                                'name' => 'labels',
                                 'type' => DirectoryNode::class,
                                 'targetPermission' => $directoryPermission,
-                            ]
+                            ],
+                            [
+                                'name' => 'lock',
+                                'type' => DirectoryNode::class,
+                                'targetPermission' => $directoryPermission,
+                            ],
                         ]
-                    ],
+                    ]
                 ],
-            ],
-            [
-                'name' => 'typo3conf',
+            ];
+        }
+        return $structure;
+    }
+
+    /**
+     * Get public path structure while resolving nested paths
+     *
+     * @param string $publicPath
+     * @param array $subStructure
+     * @return array
+     */
+    protected function getPublicStructure(string $publicPath, array $subStructure): array
+    {
+        $directoryPermission = $GLOBALS['TYPO3_CONF_VARS']['SYS']['folderCreateMask'];
+        $publicPathParts = array_reverse(mb_split('/', $publicPath));
+
+        $lastNode = null;
+        foreach ($publicPathParts as $publicPathPart) {
+            $node = [
+                'name' => $publicPathPart,
                 'type' => DirectoryNode::class,
                 'targetPermission' => $directoryPermission,
-                'children' => [
-                    [
-                        'name' => 'ext',
-                        'type' => DirectoryNode::class,
-                        'targetPermission' => $directoryPermission,
-                    ],
-                    [
-                        'name' => 'l10n',
-                        'type' => DirectoryNode::class,
-                        'targetPermission' => $directoryPermission,
-                    ],
-                ],
-            ],
-            [
-                'name' => 'uploads',
-                'type' => DirectoryNode::class,
-                'targetPermission' => $directoryPermission,
-                'children' => [
-                    [
-                        'name' => 'index.html',
-                        'type' => FileNode::class,
-                        'targetPermission' => $filePermission,
-                        'targetContentFile' => PATH_site . 'typo3/sysext/install/Resources/Private/FolderStructureTemplateFiles/uploads-index.html',
-                    ],
-                    [
-                        'name' => 'media',
-                        'type' => DirectoryNode::class,
-                        'targetPermission' => $directoryPermission,
-                        'children' => [
-                            [
-                                'name' => 'index.html',
-                                'type' => FileNode::class,
-                                'targetPermission' => $filePermission,
-                                'targetContent' => '',
-                            ],
+            ];
+            if ($lastNode !== null) {
+                $node['children'][] = $lastNode;
+            } else {
+                $node['children'] = $subStructure;
+            }
+            $lastNode = $node;
+        }
+
+        return $lastNode;
+    }
+
+    protected function getFileadminStructure(): array
+    {
+        $filePermission = $GLOBALS['TYPO3_CONF_VARS']['SYS']['fileCreateMask'];
+        $directoryPermission = $GLOBALS['TYPO3_CONF_VARS']['SYS']['folderCreateMask'];
+        return [
+            'name' => !empty($GLOBALS['TYPO3_CONF_VARS']['BE']['fileadminDir']) ? rtrim($GLOBALS['TYPO3_CONF_VARS']['BE']['fileadminDir'], '/') : 'fileadmin',
+            'type' => DirectoryNode::class,
+            'targetPermission' => $directoryPermission,
+            'children' => [
+                [
+                    'name' => '_temp_',
+                    'type' => DirectoryNode::class,
+                    'targetPermission' => $directoryPermission,
+                    'children' => [
+                        [
+                            'name' => '.htaccess',
+                            'type' => FileNode::class,
+                            'targetPermission' => $filePermission,
+                            'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/fileadmin-temp-htaccess',
+                        ],
+                        [
+                            'name' => 'index.html',
+                            'type' => FileNode::class,
+                            'targetPermission' => $filePermission,
+                            'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/fileadmin-temp-index.html',
                         ],
                     ],
                 ],
-            ],
-            [
-                'name' => !empty($GLOBALS['TYPO3_CONF_VARS']['BE']['fileadminDir']) ? rtrim($GLOBALS['TYPO3_CONF_VARS']['BE']['fileadminDir'], '/') : 'fileadmin',
-                'type' => DirectoryNode::class,
-                'targetPermission' => $directoryPermission,
-                'children' => [
-                    [
-                        'name' => '_temp_',
-                        'type' => DirectoryNode::class,
-                        'targetPermission' => $directoryPermission,
-                        'children' => [
-                            [
-                                'name' => '.htaccess',
-                                'type' => FileNode::class,
-                                'targetPermission' => $filePermission,
-                                'targetContentFile' => PATH_site . 'typo3/sysext/install/Resources/Private/FolderStructureTemplateFiles/fileadmin-temp-htaccess',
-                            ],
-                            [
-                                'name' => 'index.html',
-                                'type' => FileNode::class,
-                                'targetPermission' => $filePermission,
-                                'targetContentFile' => PATH_site . 'typo3/sysext/install/Resources/Private/FolderStructureTemplateFiles/fileadmin-temp-index.html',
-                            ],
-                        ],
-                    ],
-                    [
-                        'name' => 'user_upload',
-                        'type' => DirectoryNode::class,
-                        'targetPermission' => $directoryPermission,
-                        'children' => [
-                            [
-                                'name' => '_temp_',
-                                'type' => DirectoryNode::class,
-                                'targetPermission' => $directoryPermission,
-                                'children' => [
-                                    [
-                                        'name' => 'index.html',
-                                        'type' => FileNode::class,
-                                        'targetPermission' => $filePermission,
-                                        'targetContent' => '',
-                                    ],
-                                    [
-                                        'name' => 'importexport',
-                                        'type' => DirectoryNode::class,
-                                        'targetPermission' => $directoryPermission,
-                                        'children' => [
-                                            [
-                                                'name' => '.htaccess',
-                                                'type' => FileNode::class,
-                                                'targetPermission' => $filePermission,
-                                                'targetContentFile' => PATH_site . 'typo3/sysext/install/Resources/Private/FolderStructureTemplateFiles/fileadmin-user_upload-temp-importexport-htaccess',
-                                            ],
-                                            [
-                                                'name' => 'index.html',
-                                                'type' => FileNode::class,
-                                                'targetPermission' => $filePermission,
-                                                'targetContentFile' => PATH_site . 'typo3/sysext/install/Resources/Private/FolderStructureTemplateFiles/fileadmin-temp-index.html',
-                                            ],
+                [
+                    'name' => 'user_upload',
+                    'type' => DirectoryNode::class,
+                    'targetPermission' => $directoryPermission,
+                    'children' => [
+                        [
+                            'name' => '_temp_',
+                            'type' => DirectoryNode::class,
+                            'targetPermission' => $directoryPermission,
+                            'children' => [
+                                [
+                                    'name' => 'index.html',
+                                    'type' => FileNode::class,
+                                    'targetPermission' => $filePermission,
+                                    'targetContent' => '',
+                                ],
+                                [
+                                    'name' => 'importexport',
+                                    'type' => DirectoryNode::class,
+                                    'targetPermission' => $directoryPermission,
+                                    'children' => [
+                                        [
+                                            'name' => '.htaccess',
+                                            'type' => FileNode::class,
+                                            'targetPermission' => $filePermission,
+                                            'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/fileadmin-user_upload-temp-importexport-htaccess',
+                                        ],
+                                        [
+                                            'name' => 'index.html',
+                                            'type' => FileNode::class,
+                                            'targetPermission' => $filePermission,
+                                            'targetContentFile' => Environment::getFrameworkBasePath() . '/install/Resources/Private/FolderStructureTemplateFiles/fileadmin-temp-index.html',
                                         ],
                                     ],
                                 ],
                             ],
-                            [
-                                'name' => 'index.html',
-                                'type' => FileNode::class,
-                                'targetPermission' => $filePermission,
-                                'targetContent' => '',
-                            ],
+                        ],
+                        [
+                            'name' => 'index.html',
+                            'type' => FileNode::class,
+                            'targetPermission' => $filePermission,
+                            'targetContent' => '',
                         ],
                     ],
                 ],
             ],
         ];
+    }
 
+    /**
+     * This defines the structure for typo3temp/assets
+     *
+     * @return array
+     */
+    protected function getTemporaryAssetsFolderStructure(): array
+    {
+        $directoryPermission = $GLOBALS['TYPO3_CONF_VARS']['SYS']['folderCreateMask'];
         return [
-            // Cut off trailing forward / from PATH_site, so root node has no trailing slash like all others
-            'name' => substr(PATH_site, 0, -1),
+            'name' => 'assets',
+            'type' => DirectoryNode::class,
             'targetPermission' => $directoryPermission,
-            'children' => array_merge($structureAdditional, $structureBase)
+            'children' => [
+                [
+                    'name' => 'compressed',
+                    'type' => DirectoryNode::class,
+                    'targetPermission' => $directoryPermission
+                ],
+                [
+                    'name' => 'css',
+                    'type' => DirectoryNode::class,
+                    'targetPermission' => $directoryPermission
+                ],
+                [
+                    'name' => 'js',
+                    'type' => DirectoryNode::class,
+                    'targetPermission' => $directoryPermission
+                ],
+                [
+                    'name' => 'images',
+                    'type' => DirectoryNode::class,
+                    'targetPermission' => $directoryPermission
+                ],
+                [
+                    'name' => '_processed_',
+                    'type' => DirectoryNode::class,
+                    'targetPermission' => $directoryPermission
+                ]
+            ]
         ];
+    }
+
+    protected function isApacheServer(): bool
+    {
+        return isset($_SERVER['SERVER_SOFTWARE']) && strpos($_SERVER['SERVER_SOFTWARE'], 'Apache') === 0;
+    }
+
+    protected function isMicrosoftIisServer(): bool
+    {
+        return isset($_SERVER['SERVER_SOFTWARE']) && strpos($_SERVER['SERVER_SOFTWARE'], 'Microsoft-IIS') === 0;
     }
 }

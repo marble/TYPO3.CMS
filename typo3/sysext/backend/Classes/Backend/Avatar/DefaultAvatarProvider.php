@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Backend\Avatar;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Backend\Avatar;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Backend\Avatar;
 
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
@@ -31,15 +32,18 @@ class DefaultAvatarProvider implements AvatarProviderInterface
      *
      * @param array $backendUser be_users record
      * @param int $size
-     * @return Image|NULL
+     * @return Image|null
      */
     public function getImage(array $backendUser, $size)
     {
         $fileUid = $this->getAvatarFileUid($backendUser['uid']);
-
+        if ($fileUid === 0) {
+            // Early return if there is no valid image file UID
+            return null;
+        }
         // Get file object
         try {
-            $file = ResourceFactory::getInstance()->getFileObject($fileUid);
+            $file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObject($fileUid);
             $processedImage = $file->process(
                 ProcessedFile::CONTEXT_IMAGECROPSCALEMASK,
                 ['width' => $size . 'c', 'height' => $size . 'c']

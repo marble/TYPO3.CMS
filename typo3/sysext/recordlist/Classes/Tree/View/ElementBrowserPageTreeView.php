@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recordlist\Tree\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,16 @@ namespace TYPO3\CMS\Recordlist\Tree\View;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recordlist\Tree\View;
+
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
 
 /**
  * Extension class for the TBE record browser
+ * @internal
  */
 class ElementBrowserPageTreeView extends \TYPO3\CMS\Backend\Tree\View\ElementBrowserPageTreeView
 {
@@ -38,10 +41,10 @@ class ElementBrowserPageTreeView extends \TYPO3\CMS\Backend\Tree\View\ElementBro
     /**
      * Wrapping the title in a link, if applicable.
      *
-     * @param string $title Title, ready for output.
+     * @param string $title Title, ready for output (already html-escaped)
      * @param array $v The record
      * @param bool $ext_pArrPages If set, pages clicked will return immediately, otherwise reload page.
-     * @return string Wrapping title string.
+     * @return string Wrapped title string
      */
     public function wrapTitle($title, $v, $ext_pArrPages = false)
     {
@@ -54,7 +57,7 @@ class ElementBrowserPageTreeView extends \TYPO3\CMS\Backend\Tree\View\ElementBro
             return $out;
         }
 
-        $parameters = GeneralUtility::implodeArrayForUrl('', $this->linkParameterProvider->getUrlParameters(['pid' => $v['uid']]));
-        return '<a href="#" onclick="return jumpToUrl(' . htmlspecialchars(GeneralUtility::quoteJSvalue($this->getThisScript() . ltrim($parameters, '&'))) . ');">' . $title . '</a>';
+        $parameters = HttpUtility::buildQueryString($this->linkParameterProvider->getUrlParameters(['pid' => $v['uid']]));
+        return '<a href="' . htmlspecialchars($this->getThisScript() . $parameters) . '">' . $title . '</a>';
     }
 }

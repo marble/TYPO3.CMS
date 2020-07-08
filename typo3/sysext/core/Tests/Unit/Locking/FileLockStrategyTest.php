@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Locking;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,22 +13,26 @@ namespace TYPO3\CMS\Core\Tests\Unit\Locking;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Locking;
+
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Locking\FileLockStrategy;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Locking\FileLockStrategy
  */
-class FileLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FileLockStrategyTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function constructorCreatesLockDirectoryIfNotExisting()
     {
-        GeneralUtility::rmdir(PATH_site . FileLockStrategy::FILE_LOCK_FOLDER, true);
+        GeneralUtility::rmdir(Environment::getVarPath() . '/' . FileLockStrategy::FILE_LOCK_FOLDER, true);
         new FileLockStrategy('999999999');
-        $this->assertTrue(is_dir(PATH_site . FileLockStrategy::FILE_LOCK_FOLDER));
+        self::assertTrue(is_dir(Environment::getVarPath() . '/' . FileLockStrategy::FILE_LOCK_FOLDER));
     }
 
     /**
@@ -38,6 +41,25 @@ class FileLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function constructorSetsFilePathToExpectedValue()
     {
         $lock = $this->getAccessibleMock(FileLockStrategy::class, ['dummy'], ['999999999']);
-        $this->assertSame(PATH_site . FileLockStrategy::FILE_LOCK_FOLDER . 'flock_' . md5('999999999'), $lock->_get('filePath'));
+        self::assertSame(Environment::getVarPath() . '/' . FileLockStrategy::FILE_LOCK_FOLDER . 'flock_' . md5('999999999'), $lock->_get('filePath'));
+    }
+
+    /**
+     * @test
+     */
+    public function getPriorityReturnsDefaultPriority()
+    {
+        self::assertEquals(FileLockStrategy::getPriority(), FileLockStrategy::DEFAULT_PRIORITY);
+    }
+
+    /**
+     * @test
+     */
+    public function setPriority()
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['locking']['strategies'][FileLockStrategy::class]['priority'] = 10;
+
+        self::assertEquals(10, FileLockStrategy::getPriority());
+        unset($GLOBALS['TYPO3_CONF_VARS']['SYS']['locking']['strategies'][FileLockStrategy::class]['priority']);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Reflection\Fixture;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,10 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Reflection\Fixture;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Unit\Reflection\Fixture;
+
 /**
  * ArrayAccess class for the Reflection tests
- *
- * @license http://www.gnu.org/licenses/lgpl.html GNU Lesser General Public License, version 3 or later
  */
 class ArrayAccessClass implements \ArrayAccess
 {
@@ -74,6 +73,6 @@ class ArrayAccessClass implements \ArrayAccess
      */
     public function getVirtual()
     {
-        return isset($this->array['virtual']) ? $this->array['virtual'] : 'default-value';
+        return $this->array['virtual'] ?? 'default-value';
     }
 }

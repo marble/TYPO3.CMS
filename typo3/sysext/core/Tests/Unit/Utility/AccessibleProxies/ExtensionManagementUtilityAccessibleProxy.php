@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Utility\AccessibleProxies;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,10 @@ namespace TYPO3\CMS\Core\Tests\Unit\Utility\AccessibleProxies;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Utility\AccessibleProxies;
+
 use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 
 /**
@@ -52,9 +54,9 @@ class ExtensionManagementUtilityAccessibleProxy extends ExtensionManagementUtili
         self::$extTablesWasReadFromCacheOnce = false;
     }
 
-    public static function createExtLocalconfCacheEntry()
+    public static function createExtLocalconfCacheEntry(FrontendInterface $cache)
     {
-        parent::createExtLocalconfCacheEntry();
+        parent::createExtLocalconfCacheEntry($cache);
     }
 
     public static function createExtTablesCacheEntry()
@@ -72,7 +74,7 @@ class ExtensionManagementUtilityAccessibleProxy extends ExtensionManagementUtili
         $GLOBALS['TCA'] = [];
     }
 
-    public static function emitTcaIsBeingBuiltSignal(array $tca)
+    public static function dispatchTcaIsBeingBuiltEvent(array $tca)
     {
     }
 

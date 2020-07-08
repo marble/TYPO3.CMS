@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,12 @@ namespace TYPO3\CMS\Extbase\Persistence;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence;
+
+use TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface;
+
 /**
  * Contract for a repository
- *
- * @api
  */
 interface RepositoryInterface
 {
@@ -25,7 +26,6 @@ interface RepositoryInterface
      * Adds an object to this repository.
      *
      * @param object $object The object to add
-     * @api
      */
     public function add($object);
 
@@ -33,7 +33,6 @@ interface RepositoryInterface
      * Removes an object from this repository.
      *
      * @param object $object The object to remove
-     * @api
      */
     public function remove($object);
 
@@ -41,7 +40,6 @@ interface RepositoryInterface
      * Replaces an existing object with the same identifier by the given object
      *
      * @param object $modifiedObject The modified object
-     * @api
      */
     public function update($modifiedObject);
 
@@ -49,7 +47,6 @@ interface RepositoryInterface
      * Returns all objects of this repository.
      *
      * @return \TYPO3\CMS\Extbase\Persistence\QueryResultInterface|array The query result
-     * @api
      */
     public function findAll();
 
@@ -57,15 +54,12 @@ interface RepositoryInterface
      * Returns the total number objects of this repository.
      *
      * @return int The object count
-     * @api
      */
     public function countAll();
 
     /**
      * Removes all objects of this repository as if remove() was called for
      * all of them.
-     *
-     * @api
      */
     public function removeAll();
 
@@ -74,7 +68,6 @@ interface RepositoryInterface
      *
      * @param int $uid The identifier of the object to find
      * @return object The matching object if found, otherwise NULL
-     * @api
      */
     public function findByUid($uid);
 
@@ -83,7 +76,6 @@ interface RepositoryInterface
      *
      * @param mixed $identifier The identifier of the object to find
      * @return object The matching object if found, otherwise NULL
-     * @api
      */
     public function findByIdentifier($identifier);
 
@@ -96,7 +88,6 @@ interface RepositoryInterface
      * )
      *
      * @param array $defaultOrderings The property names to order by
-     * @api
      */
     public function setDefaultOrderings(array $defaultOrderings);
 
@@ -104,15 +95,13 @@ interface RepositoryInterface
      * Sets the default query settings to be used in this repository
      *
      * @param \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface $defaultQuerySettings The query settings to be used by default
-     * @api
      */
-    public function setDefaultQuerySettings(\TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface $defaultQuerySettings);
+    public function setDefaultQuerySettings(QuerySettingsInterface $defaultQuerySettings);
 
     /**
      * Returns a query for objects of this repository
      *
      * @return \TYPO3\CMS\Extbase\Persistence\QueryInterface
-     * @api
      */
     public function createQuery();
 }

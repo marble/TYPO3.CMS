@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Imaging\IconProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,30 +13,35 @@ namespace TYPO3\CMS\Core\Tests\Unit\Imaging\IconProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Imaging\IconProvider;
+
 use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconProvider\FontawesomeIconProvider;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Imaging\IconProvider\FontawesomeIconProvider
  */
-class FontawesomeIconProviderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FontawesomeIconProviderTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Core\Imaging\IconProvider\FontawesomeIconProvider
      */
-    protected $subject = null;
+    protected $subject;
 
     /**
      * @var Icon
      */
-    protected $icon = null;
+    protected $icon;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = new \TYPO3\CMS\Core\Imaging\IconProvider\FontawesomeIconProvider();
+        parent::setUp();
+        $this->subject = new FontawesomeIconProvider();
         $this->icon = GeneralUtility::makeInstance(Icon::class);
         $this->icon->setIdentifier('foo');
         $this->icon->setSize(Icon::SIZE_SMALL);
@@ -49,7 +53,7 @@ class FontawesomeIconProviderTest extends \TYPO3\TestingFramework\Core\Unit\Unit
     public function prepareIconMarkupWithNameReturnsInstanceOfIconWithCorrectMarkup()
     {
         $this->subject->prepareIconMarkup($this->icon, ['name' => 'times']);
-        $this->assertEquals('<span class="icon-unify"><i class="fa fa-times"></i></span>', $this->icon->getMarkup());
+        self::assertEquals('<span class="icon-unify"><i class="fa fa-times"></i></span>', $this->icon->getMarkup());
     }
 
     /**

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Type\Fixture\Enumeration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Type\Fixture\Enumeration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Type\Fixture\Enumeration;
+
+use TYPO3\CMS\Core\Type\Enumeration;
+
 /**
- * This is an complete enumeration with all possible constant values
+ * This is a complete enumeration with all possible constant values
  */
-class CompleteEnumeration extends \TYPO3\CMS\Core\Type\Enumeration
+final class CompleteEnumeration extends Enumeration
 {
     const __default = self::INTEGER_VALUE;
     const INTEGER_VALUE = 1;
+    const STRING_INTEGER_VALUE = '2';
     const STRING_VALUE = 'foo';
 }

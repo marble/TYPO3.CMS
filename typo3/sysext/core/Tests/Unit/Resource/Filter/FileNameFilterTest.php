@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource\Filter;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,13 +12,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource\Filter;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\Resource\Filter;
+
 use TYPO3\CMS\Core\Resource\Driver\DriverInterface;
 use TYPO3\CMS\Core\Resource\Filter\FileNameFilter;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for the filename filter of the TYPO3 VFS
  */
-class FileNameFilterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FileNameFilterTest extends UnitTestCase
 {
     /**
      * Return combinations of files and paths to test against.
@@ -60,12 +63,17 @@ class FileNameFilterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function filterHiddenFilesAndFoldersFiltersHiddenFilesAndFolders($itemName, $itemIdentifier, $expected)
     {
-        /** @var DriverInterface|\PHPUnit_Framework_MockObject_MockObject $driverMock */
+        /** @var DriverInterface|\PHPUnit\Framework\MockObject\MockObject $driverMock */
+        FileNameFilter::setShowHiddenFilesAndFolders(false);
         $driverMock = $this->createMock(DriverInterface::class);
-        $this->assertSame(
+        self::assertSame(
             $expected,
             FileNameFilter::filterHiddenFilesAndFolders(
-                $itemName, $itemIdentifier, '', [], $driverMock
+                $itemName,
+                $itemIdentifier,
+                '',
+                [],
+                $driverMock
             )
         );
     }
@@ -79,12 +87,16 @@ class FileNameFilterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function filterHiddenFilesAndFoldersAllowsHiddenFilesAndFolders($itemName, $itemIdentifier, $expected)
     {
-        /** @var DriverInterface|\PHPUnit_Framework_MockObject_MockObject $driverMock */
+        /** @var DriverInterface|\PHPUnit\Framework\MockObject\MockObject $driverMock */
         $driverMock = $this->createMock(DriverInterface::class);
         FileNameFilter::setShowHiddenFilesAndFolders(true);
-        $this->assertSame(
+        self::assertSame(
             FileNameFilter::filterHiddenFilesAndFolders(
-                $itemName, $itemIdentifier, '', [], $driverMock
+                $itemName,
+                $itemIdentifier,
+                '',
+                [],
+                $driverMock
             ),
             $expected
         );

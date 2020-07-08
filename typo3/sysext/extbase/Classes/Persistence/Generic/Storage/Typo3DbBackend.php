@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Storage;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +15,40 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Storage;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Storage;
+
 use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Platforms\SQLServerPlatform;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\WorkspaceAspect;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 use TYPO3\CMS\Extbase\DomainObject\AbstractValueObject;
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
+use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper;
 use TYPO3\CMS\Extbase\Persistence\Generic\Qom;
+use TYPO3\CMS\Extbase\Persistence\Generic\Qom\JoinInterface;
+use TYPO3\CMS\Extbase\Persistence\Generic\Qom\SelectorInterface;
+use TYPO3\CMS\Extbase\Persistence\Generic\Qom\SourceInterface;
+use TYPO3\CMS\Extbase\Persistence\Generic\Qom\Statement;
+use TYPO3\CMS\Extbase\Persistence\Generic\Query;
+use TYPO3\CMS\Extbase\Persistence\Generic\Storage\Exception\BadConstraintException;
 use TYPO3\CMS\Extbase\Persistence\Generic\Storage\Exception\SqlErrorException;
 use TYPO3\CMS\Extbase\Persistence\QueryInterface;
+use TYPO3\CMS\Extbase\Service\CacheService;
+use TYPO3\CMS\Extbase\Service\EnvironmentService;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 /**
  * A Storage backend
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class Typo3DbBackend implements BackendInterface, SingletonInterface
 {
@@ -40,80 +58,61 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
     protected $connectionPool;
 
     /**
-     * @var \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper
-     */
-    protected $dataMapper;
-
-    /**
-     * The TYPO3 page repository. Used for language and workspace overlay
-     *
-     * @var \TYPO3\CMS\Frontend\Page\PageRepository
-     */
-    protected $pageRepository;
-
-    /**
-     * A first-level TypoScript configuration cache
-     *
-     * @var array
-     */
-    protected $pageTSConfigCache = [];
-
-    /**
-     * @var \TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface
+     * @var ConfigurationManagerInterface
      */
     protected $configurationManager;
 
     /**
-     * @var \TYPO3\CMS\Extbase\Service\CacheService
+     * @var CacheService
      */
     protected $cacheService;
 
     /**
-     * @var \TYPO3\CMS\Extbase\Service\EnvironmentService
+     * @var EnvironmentService
      */
     protected $environmentService;
 
     /**
-     * @var \TYPO3\CMS\Extbase\Object\ObjectManagerInterface
+     * @var ObjectManagerInterface
      */
     protected $objectManager;
 
     /**
-     * @param \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper $dataMapper
+     * As determining the table columns is a costly operation this is done only once per table during runtime and cached then
+     *
+     * @var array
+     * @see clearPageCache()
      */
-    public function injectDataMapper(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper $dataMapper)
-    {
-        $this->dataMapper = $dataMapper;
-    }
+    protected $hasPidColumn = [];
 
     /**
-     * @param \TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface $configurationManager
+     * @param ConfigurationManagerInterface $configurationManager
      */
-    public function injectConfigurationManager(ConfigurationManagerInterface $configurationManager)
+    public function injectConfigurationManager(ConfigurationManagerInterface $configurationManager): void
     {
         $this->configurationManager = $configurationManager;
     }
 
     /**
-     * @param \TYPO3\CMS\Extbase\Service\CacheService $cacheService
+     * @param CacheService $cacheService
      */
-    public function injectCacheService(\TYPO3\CMS\Extbase\Service\CacheService $cacheService)
+    public function injectCacheService(CacheService $cacheService): void
     {
         $this->cacheService = $cacheService;
     }
 
     /**
-     * @param \TYPO3\CMS\Extbase\Service\EnvironmentService $environmentService
+     * @param EnvironmentService $environmentService
      */
-    public function injectEnvironmentService(\TYPO3\CMS\Extbase\Service\EnvironmentService $environmentService)
+    public function injectEnvironmentService(EnvironmentService $environmentService): void
     {
         $this->environmentService = $environmentService;
     }
 
     /**
-     * @param \TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager
+     * @param ObjectManagerInterface $objectManager
      */
-    public function injectObjectManager(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager)
+    public function injectObjectManager(ObjectManagerInterface $objectManager): void
     {
         $this->objectManager = $objectManager;
     }
@@ -135,7 +134,7 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * @return int The uid of the inserted row
      * @throws SqlErrorException
      */
-    public function addRow($tableName, array $fieldValues, $isRelation = false)
+    public function addRow(string $tableName, array $fieldValues, bool $isRelation = false): int
     {
         if (isset($fieldValues['uid'])) {
             unset($fieldValues['uid']);
@@ -155,16 +154,16 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
 
             $connection->insert($tableName, $fieldValues, $types);
         } catch (DBALException $e) {
-            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230766);
+            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230766, $e);
         }
 
         $uid = 0;
         if (!$isRelation) {
             // Relation tables have no auto_increment column, so no retrieval must be tried.
-            $uid = $connection->lastInsertId($tableName);
+            $uid = (int)$connection->lastInsertId($tableName);
             $this->clearPageCache($tableName, $uid);
         }
-        return (int)$uid;
+        return $uid;
     }
 
     /**
@@ -175,9 +174,8 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * @param bool $isRelation TRUE if we are currently inserting into a relation table, FALSE by default
      * @throws \InvalidArgumentException
      * @throws SqlErrorException
-     * @return bool
      */
-    public function updateRow($tableName, array $fieldValues, $isRelation = false)
+    public function updateRow(string $tableName, array $fieldValues, bool $isRelation = false): void
     {
         if (!isset($fieldValues['uid'])) {
             throw new \InvalidArgumentException('The given row must contain a value for "uid".', 1476045164);
@@ -195,21 +193,19 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
                 // mssql needs to set proper PARAM_LOB and others to update fields
                 $tableDetails = $connection->getSchemaManager()->listTableDetails($tableName);
                 foreach ($fieldValues as $columnName => $columnValue) {
+                    $columnName = (string)$columnName;
                     $types[$columnName] = $tableDetails->getColumn($columnName)->getType()->getBindingType();
                 }
             }
 
             $connection->update($tableName, $fieldValues, ['uid' => $uid], $types);
         } catch (DBALException $e) {
-            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230767);
+            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230767, $e);
         }
 
         if (!$isRelation) {
             $this->clearPageCache($tableName, $uid);
         }
-
-        // always returns true
-        return true;
     }
 
     /**
@@ -217,18 +213,19 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      *
      * @param string $tableName The database relation table name
      * @param array $fieldValues The row to be updated
-     * @throws \InvalidArgumentException
-     * @return bool
      * @throws SqlErrorException
+     * @throws \InvalidArgumentException
      */
-    public function updateRelationTableRow($tableName, array $fieldValues)
+    public function updateRelationTableRow(string $tableName, array $fieldValues): void
     {
         if (!isset($fieldValues['uid_local']) && !isset($fieldValues['uid_foreign'])) {
             throw new \InvalidArgumentException(
-                'The given fieldValues must contain a value for "uid_local" and "uid_foreign".', 1360500126
+                'The given fieldValues must contain a value for "uid_local" and "uid_foreign".',
+                1360500126
             );
         }
 
+        $where = [];
         $where['uid_local'] = (int)$fieldValues['uid_local'];
         $where['uid_foreign'] = (int)$fieldValues['uid_foreign'];
         unset($fieldValues['uid_local']);
@@ -244,14 +241,10 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
         }
 
         try {
-            $this->connectionPool->getConnectionForTable($tableName)
-                ->update($tableName, $fieldValues, $where);
+            $this->connectionPool->getConnectionForTable($tableName)->update($tableName, $fieldValues, $where);
         } catch (DBALException $e) {
-            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230768);
+            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230768, $e);
         }
-
-        // always returns true
-        return true;
     }
 
     /**
@@ -260,23 +253,19 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * @param string $tableName The database table name
      * @param array $where An array of where array('fieldname' => value).
      * @param bool $isRelation TRUE if we are currently manipulating a relation table, FALSE by default
-     * @return bool
      * @throws SqlErrorException
      */
-    public function removeRow($tableName, array $where, $isRelation = false)
+    public function removeRow(string $tableName, array $where, bool $isRelation = false): void
     {
         try {
             $this->connectionPool->getConnectionForTable($tableName)->delete($tableName, $where);
         } catch (DBALException $e) {
-            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230769);
+            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230769, $e);
         }
 
         if (!$isRelation && isset($where['uid'])) {
-            $this->clearPageCache($tableName, $where['uid']);
+            $this->clearPageCache($tableName, (int)$where['uid']);
         }
-
-        // always returns true
-        return true;
     }
 
     /**
@@ -288,7 +277,7 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * @return mixed the max value
      * @throws SqlErrorException
      */
-    public function getMaxValueFromTable($tableName, array $where, $columnName)
+    public function getMaxValueFromTable(string $tableName, array $where, string $columnName)
     {
         try {
             $queryBuilder = $this->connectionPool->getQueryBuilderForTable($tableName);
@@ -307,7 +296,7 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
 
             $result = $queryBuilder->execute()->fetchColumn(0);
         } catch (DBALException $e) {
-            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230770);
+            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230770, $e);
         }
         return $result;
     }
@@ -320,8 +309,10 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * @return array|bool
      * @throws SqlErrorException
      */
-    public function getRowByIdentifier($tableName, array $where)
+    public function getRowByIdentifier(string $tableName, array $where)
     {
+        // todo: this method is not in use, consider removing it.
+
         try {
             $queryBuilder = $this->connectionPool->getQueryBuilderForTable($tableName);
             $queryBuilder->getRestrictions()->removeAll();
@@ -336,10 +327,10 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
             }
 
             $row = $queryBuilder->execute()->fetch();
+            return is_array($row) ? $row : false;
         } catch (DBALException $e) {
-            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230771);
+            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470230771, $e);
         }
-        return $row ?: false;
     }
 
     /**
@@ -349,14 +340,29 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * @return array
      * @throws SqlErrorException
      */
-    public function getObjectDataByQuery(QueryInterface $query)
+    public function getObjectDataByQuery(QueryInterface $query): array
     {
         $statement = $query->getStatement();
-        if ($statement instanceof Qom\Statement) {
+        // todo: remove instanceof checks as soon as getStatement() strictly returns Qom\Statement only
+        if ($statement instanceof Statement
+            && !$statement->getStatement() instanceof QueryBuilder
+        ) {
             $rows = $this->getObjectDataByRawQuery($statement);
         } else {
-            $queryBuilder = $this->objectManager->get(Typo3DbQueryParser::class)
-                    ->convertQueryToDoctrineQueryBuilder($query);
+            /** @var Typo3DbQueryParser $queryParser */
+            $queryParser = $this->objectManager->get(Typo3DbQueryParser::class);
+            if ($statement instanceof Statement
+                && $statement->getStatement() instanceof QueryBuilder
+            ) {
+                $queryBuilder = $statement->getStatement();
+            } else {
+                $queryBuilder = $queryParser->convertQueryToDoctrineQueryBuilder($query);
+            }
+            $selectParts = $queryBuilder->getQueryPart('select');
+            if ($queryParser->isDistinctQuerySuggested() && !empty($selectParts)) {
+                $selectParts[0] = 'DISTINCT ' . $selectParts[0];
+                $queryBuilder->selectLiteral(...$selectParts);
+            }
             if ($query->getOffset()) {
                 $queryBuilder->setFirstResult($query->getOffset());
             }
@@ -366,11 +372,14 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
             try {
                 $rows = $queryBuilder->execute()->fetchAll();
             } catch (DBALException $e) {
-                throw new SqlErrorException($e->getPrevious()->getMessage(), 1472074485);
+                throw new SqlErrorException($e->getPrevious()->getMessage(), 1472074485, $e);
             }
         }
 
-        $rows = $this->doLanguageAndWorkspaceOverlay($query->getSource(), $rows, $query->getQuerySettings());
+        if (!empty($rows)) {
+            $rows = $this->overlayLanguageAndWorkspace($query->getSource(), $rows, $query);
+        }
+
         return $rows;
     }
 
@@ -381,7 +390,7 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * @return array
      * @throws SqlErrorException when the raw SQL statement fails in the database
      */
-    protected function getObjectDataByRawQuery(Qom\Statement $statement)
+    protected function getObjectDataByRawQuery(Statement $statement): array
     {
         $realStatement = $statement->getStatement();
         $parameters = $statement->getBoundVariables();
@@ -392,14 +401,14 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
             try {
                 $result = $realStatement->execute();
             } catch (DBALException $e) {
-                throw new SqlErrorException($e->getPrevious()->getMessage(), 1472064721);
+                throw new SqlErrorException($e->getPrevious()->getMessage(), 1472064721, $e);
             }
             $rows = $result->fetchAll();
         } elseif ($realStatement instanceof \Doctrine\DBAL\Statement) {
             try {
                 $realStatement->execute($parameters);
             } catch (DBALException $e) {
-                throw new SqlErrorException($e->getPrevious()->getMessage(), 1481281404);
+                throw new SqlErrorException($e->getPrevious()->getMessage(), 1481281404, $e);
             }
             $rows = $realStatement->fetchAll();
         } else {
@@ -410,7 +419,7 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
                 $connection = $this->connectionPool->getConnectionByName(ConnectionPool::DEFAULT_CONNECTION_NAME);
                 $statement = $connection->executeQuery($realStatement, $parameters);
             } catch (DBALException $e) {
-                throw new SqlErrorException($e->getPrevious()->getMessage(), 1472064775);
+                throw new SqlErrorException($e->getPrevious()->getMessage(), 1472064775, $e);
             }
 
             $rows = $statement->fetchAll();
@@ -423,41 +432,51 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * Returns the number of tuples matching the query.
      *
      * @param QueryInterface $query
-     * @throws Exception\BadConstraintException
      * @return int The number of matching tuples
+     * @throws BadConstraintException
      * @throws SqlErrorException
      */
-    public function getObjectCountByQuery(QueryInterface $query)
+    public function getObjectCountByQuery(QueryInterface $query): int
     {
-        if ($query->getConstraint() instanceof Qom\Statement) {
-            throw new \TYPO3\CMS\Extbase\Persistence\Generic\Storage\Exception\BadConstraintException('Could not execute count on queries with a constraint of type TYPO3\\CMS\\Extbase\\Persistence\\Generic\\Qom\\Statement', 1256661045);
+        if ($query->getConstraint() instanceof Statement) {
+            throw new BadConstraintException('Could not execute count on queries with a constraint of type TYPO3\\CMS\\Extbase\\Persistence\\Generic\\Qom\\Statement', 1256661045);
         }
 
-        $queryBuilder = $this->objectManager->get(Typo3DbQueryParser::class)
-            ->convertQueryToDoctrineQueryBuilder($query)
-            ->resetQueryPart('orderBy');
-
-        if (count($queryBuilder->getQueryPart('groupBy')) !== 0) {
-            $source = $queryBuilder->getQueryPart('from')[0];
-            // Tablename is already quoted for the DBMS, we need to treat table and field names separately
-            $tableName = $source['alias'] ?: $source['table'];
-            $fieldName = $queryBuilder->quoteIdentifier('uid');
-            $queryBuilder->resetQueryPart('groupBy')
-                ->selectLiteral(sprintf('COUNT(DISTINCT %s.%s)', $tableName, $fieldName));
+        $statement = $query->getStatement();
+        if ($statement instanceof Statement
+            && !$statement->getStatement() instanceof QueryBuilder
+        ) {
+            $rows = $this->getObjectDataByQuery($query);
+            $count = count($rows);
         } else {
-            $queryBuilder->count('*');
-        }
+            /** @var Typo3DbQueryParser $queryParser */
+            $queryParser  = $this->objectManager->get(Typo3DbQueryParser::class);
+            $queryBuilder = $queryParser
+                ->convertQueryToDoctrineQueryBuilder($query)
+                ->resetQueryPart('orderBy');
 
-        try {
-            $count = $queryBuilder->execute()->fetchColumn(0);
-        } catch (DBALException $e) {
-            throw new SqlErrorException($e->getPrevious()->getMessage(), 1472074379);
-        }
-        if ($query->getOffset()) {
-            $count -= $query->getOffset();
-        }
-        if ($query->getLimit()) {
-            $count = min($count, $query->getLimit());
+            if ($queryParser->isDistinctQuerySuggested()) {
+                $source = $queryBuilder->getQueryPart('from')[0];
+                // Tablename is already quoted for the DBMS, we need to treat table and field names separately
+                $tableName = $source['alias'] ?: $source['table'];
+                $fieldName = $queryBuilder->quoteIdentifier('uid');
+                $queryBuilder->resetQueryPart('groupBy')
+                    ->selectLiteral(sprintf('COUNT(DISTINCT %s.%s)', $tableName, $fieldName));
+            } else {
+                $queryBuilder->count('*');
+            }
+
+            try {
+                $count = $queryBuilder->execute()->fetchColumn(0);
+            } catch (DBALException $e) {
+                throw new SqlErrorException($e->getPrevious()->getMessage(), 1472074379, $e);
+            }
+            if ($query->getOffset()) {
+                $count -= $query->getOffset();
+            }
+            if ($query->getLimit()) {
+                $count = min($count, $query->getLimit());
+            }
         }
         return (int)max(0, $count);
     }
@@ -466,12 +485,14 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * Checks if a Value Object equal to the given Object exists in the database
      *
      * @param AbstractValueObject $object The Value Object
-     * @return mixed The matching uid if an object was found, else FALSE
+     * @return int|null The matching uid if an object was found, else FALSE
      * @throws SqlErrorException
      */
-    public function getUidOfAlreadyPersistedValueObject(AbstractValueObject $object)
+    public function getUidOfAlreadyPersistedValueObject(AbstractValueObject $object): ?int
     {
-        $dataMap = $this->dataMapper->getDataMap(get_class($object));
+        /** @var DataMapper $dataMapper */
+        $dataMapper = $this->objectManager->get(DataMapper::class);
+        $dataMap = $dataMapper->getDataMap(get_class($object));
         $tableName = $dataMap->getTableName();
         $queryBuilder = $this->connectionPool->getQueryBuilderForTable($tableName);
         if ($this->environmentService->isEnvironmentInFrontendMode()) {
@@ -481,13 +502,15 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
         // loop over all properties of the object to exactly set the values of each database field
         $properties = $object->_getProperties();
         foreach ($properties as $propertyName => $propertyValue) {
+            $propertyName = (string)$propertyName;
+
             // @todo We couple the Backend to the Entity implementation (uid, isClone); changes there breaks this method
             if ($dataMap->isPersistableProperty($propertyName) && $propertyName !== 'uid' && $propertyName !== 'pid' && $propertyName !== 'isClone') {
                 $fieldName = $dataMap->getColumnMap($propertyName)->getColumnName();
                 if ($propertyValue === null) {
                     $whereClause[] = $queryBuilder->expr()->isNull($fieldName);
                 } else {
-                    $whereClause[] = $queryBuilder->expr()->eq($fieldName, $queryBuilder->createNamedParameter($this->dataMapper->getPlainValue($propertyValue)));
+                    $whereClause[] = $queryBuilder->expr()->eq($fieldName, $queryBuilder->createNamedParameter($dataMapper->getPlainValue($propertyValue)));
                 }
             }
         }
@@ -502,11 +525,10 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
                 ->fetchColumn(0);
             if ($uid > 0) {
                 return $uid;
-            } else {
-                return false;
             }
+            return null;
         } catch (DBALException $e) {
-            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470231748);
+            throw new SqlErrorException($e->getPrevious()->getMessage(), 1470231748, $e);
         }
     }
 
@@ -514,17 +536,18 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * Performs workspace and language overlay on the given row array. The language and workspace id is automatically
      * detected (depending on FE or BE context). You can also explicitly set the language/workspace id.
      *
-     * @param Qom\SourceInterface $source The source (selector od join)
+     * @param Qom\SourceInterface $source The source (selector or join)
      * @param array $rows
-     * @param \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface $querySettings The TYPO3 CMS specific query settings
-     * @param null|int $workspaceUid
+     * @param QueryInterface $query
+     * @param int|null $workspaceUid
      * @return array
+     * @throws \TYPO3\CMS\Core\Context\Exception\AspectNotFoundException
      */
-    protected function doLanguageAndWorkspaceOverlay(Qom\SourceInterface $source, array $rows, \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface $querySettings, $workspaceUid = null)
+    protected function overlayLanguageAndWorkspace(SourceInterface $source, array $rows, QueryInterface $query, int $workspaceUid = null): array
     {
-        if ($source instanceof Qom\SelectorInterface) {
+        if ($source instanceof SelectorInterface) {
             $tableName = $source->getSelectorName();
-        } elseif ($source instanceof Qom\JoinInterface) {
+        } elseif ($source instanceof JoinInterface) {
             $tableName = $source->getRight()->getSelectorName();
         } else {
             // No proper source, so we do not have a table name here
@@ -532,30 +555,31 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
             return $rows;
         }
 
-        $pageRepository = $this->getPageRepository();
-        if (is_object($GLOBALS['TSFE'])) {
-            if ($workspaceUid !== null) {
-                $pageRepository->versioningWorkspaceId = $workspaceUid;
-            }
+        /** @var Context $context */
+        $context = $this->objectManager->get(Context::class);
+        if ($workspaceUid === null) {
+            $workspaceUid = (int)$context->getPropertyFromAspect('workspace', 'id');
         } else {
-            if ($workspaceUid === null) {
-                $workspaceUid = $GLOBALS['BE_USER']->workspace;
-            }
-            $pageRepository->versioningWorkspaceId = $workspaceUid;
+            // A custom query is needed, so a custom context is cloned
+            $context = clone $context;
+            $context->setAspect('workspace', $this->objectManager->get(WorkspaceAspect::class, $workspaceUid));
         }
+        /** @var PageRepository $pageRepository */
+        $pageRepository = $this->objectManager->get(PageRepository::class, $context);
 
         // Fetches the move-placeholder in case it is supported
         // by the table and if there's only one row in the result set
         // (applying this to all rows does not work, since the sorting
         // order would be destroyed and possible limits not met anymore)
-        if (!empty($pageRepository->versioningWorkspaceId)
+        if (!empty($workspaceUid)
             && BackendUtility::isTableWorkspaceEnabled($tableName)
             && count($rows) === 1
         ) {
-            $versionId = $pageRepository->versioningWorkspaceId;
+            $versionId = $workspaceUid;
             $queryBuilder = $this->connectionPool->getQueryBuilderForTable($tableName);
             $queryBuilder->getRestrictions()->removeAll();
-            $movePlaceholder = $queryBuilder->select($tableName . '.*')
+            $movePlaceholder = $queryBuilder
+                ->select($tableName . '.*')
                 ->from($tableName)
                 ->where(
                     $queryBuilder->expr()->eq('t3ver_state', $queryBuilder->createNamedParameter(3, \PDO::PARAM_INT)),
@@ -564,55 +588,38 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
                 )
                 ->setMaxResults(1)
                 ->execute()
-                ->fetch();
+                ->fetchAll();
             if (!empty($movePlaceholder)) {
-                $rows = [$movePlaceholder];
+                $rows = $movePlaceholder;
             }
         }
-
         $overlaidRows = [];
         foreach ($rows as $row) {
-            // If current row is a translation select its parent
-            if (isset($tableName) && isset($GLOBALS['TCA'][$tableName])
-                && isset($GLOBALS['TCA'][$tableName]['ctrl']['languageField'])
-                && isset($GLOBALS['TCA'][$tableName]['ctrl']['transOrigPointerField'])
-                && $tableName !== 'pages_language_overlay'
-            ) {
-                if (isset($row[$GLOBALS['TCA'][$tableName]['ctrl']['transOrigPointerField']])
-                    && $row[$GLOBALS['TCA'][$tableName]['ctrl']['transOrigPointerField']] > 0
-                ) {
-                    $queryBuilder = $this->connectionPool->getQueryBuilderForTable($tableName);
-                    $queryBuilder->getRestrictions()->removeAll();
-                    $row = $queryBuilder->select($tableName . '.*')
-                        ->from($tableName)
-                        ->where(
-                            $queryBuilder->expr()->eq(
-                                $tableName . '.uid',
-                                $queryBuilder->createNamedParameter(
-                                    $row[$GLOBALS['TCA'][$tableName]['ctrl']['transOrigPointerField']],
-                                    \PDO::PARAM_INT
-                                )
-                            ),
-                            $queryBuilder->expr()->eq(
-                                $tableName . '.' . $GLOBALS['TCA'][$tableName]['ctrl']['languageField'],
-                                $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
-                            )
-                        )
-                        ->setMaxResults(1)
-                        ->execute()
-                        ->fetch();
-                }
-            }
             $pageRepository->versionOL($tableName, $row, true);
-            if ($tableName === 'pages') {
-                $row = $pageRepository->getPageOverlay($row, $querySettings->getLanguageUid());
-            } elseif (isset($GLOBALS['TCA'][$tableName]['ctrl']['languageField'])
-                      && $GLOBALS['TCA'][$tableName]['ctrl']['languageField'] !== ''
-                      && $tableName !== 'pages_language_overlay'
-            ) {
-                if (in_array($row[$GLOBALS['TCA'][$tableName]['ctrl']['languageField']], [-1, 0])) {
-                    $overlayMode = $querySettings->getLanguageMode() === 'strict' ? 'hideNonTranslated' : '';
-                    $row = $pageRepository->getRecordOverlay($tableName, $row, $querySettings->getLanguageUid(), $overlayMode);
+            $querySettings = $query->getQuerySettings();
+            if (is_array($row) && $querySettings->getLanguageOverlayMode()) {
+                if ($tableName === 'pages') {
+                    $row = $pageRepository->getPageOverlay($row, $querySettings->getLanguageUid());
+                } else {
+                    // todo: remove type cast once getLanguageUid strictly returns an int
+                    $languageUid = (int)$querySettings->getLanguageUid();
+                    if (!$querySettings->getRespectSysLanguage()
+                        && isset($row[$GLOBALS['TCA'][$tableName]['ctrl']['languageField']])
+                        && $row[$GLOBALS['TCA'][$tableName]['ctrl']['languageField']] > 0
+                        && (!$query instanceof Query || !$query->getParentQuery())
+                    ) {
+                        //no parent query means we're processing the aggregate root.
+                        //respectSysLanguage is false which means that records returned by the query
+                        //might be from different languages (which is desired).
+                        //So we need to force language used for overlay to the language of the current record.
+                        $languageUid = $row[$GLOBALS['TCA'][$tableName]['ctrl']['languageField']];
+                    }
+                    if (isset($GLOBALS['TCA'][$tableName]['ctrl']['transOrigPointerField']) && $row[$GLOBALS['TCA'][$tableName]['ctrl']['transOrigPointerField']] > 0) {
+                        //force overlay by faking default language record, as getRecordOverlay can only handle default language records
+                        $row['uid'] = $row[$GLOBALS['TCA'][$tableName]['ctrl']['transOrigPointerField']];
+                        $row[$GLOBALS['TCA'][$tableName]['ctrl']['languageField']] = 0;
+                    }
+                    $row = $pageRepository->getRecordOverlay($tableName, $row, $languageUid, (string)$querySettings->getLanguageOverlayMode());
                 }
             }
             if ($row !== null && is_array($row)) {
@@ -620,22 +627,6 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
             }
         }
         return $overlaidRows;
-    }
-
-    /**
-     * @return \TYPO3\CMS\Frontend\Page\PageRepository
-     */
-    protected function getPageRepository()
-    {
-        if (!$this->pageRepository instanceof \TYPO3\CMS\Frontend\Page\PageRepository) {
-            if ($this->environmentService->isEnvironmentInFrontendMode() && is_object($GLOBALS['TSFE'])) {
-                $this->pageRepository = $GLOBALS['TSFE']->sys_page;
-            } else {
-                $this->pageRepository = GeneralUtility::makeInstance(\TYPO3\CMS\Frontend\Page\PageRepository::class);
-            }
-        }
-
-        return $this->pageRepository;
     }
 
     /**
@@ -648,21 +639,26 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
      * @param string $tableName Table name of the record
      * @param int $uid UID of the record
      */
-    protected function clearPageCache($tableName, $uid)
+    protected function clearPageCache(string $tableName, int $uid): void
     {
         $frameworkConfiguration = $this->configurationManager->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FRAMEWORK);
-        if (isset($frameworkConfiguration['persistence']['enableAutomaticCacheClearing']) && $frameworkConfiguration['persistence']['enableAutomaticCacheClearing'] === '1') {
-        } else {
-            // if disabled, return
+        if (empty($frameworkConfiguration['persistence']['enableAutomaticCacheClearing'])) {
             return;
         }
         $pageIdsToClear = [];
         $storagePage = null;
-        $columns = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getConnectionForTable($tableName)
-            ->getSchemaManager()
-            ->listTableColumns($tableName);
-        if (array_key_exists('pid', $columns)) {
+
+        // As determining the table columns is a costly operation this is done only once per table during runtime and cached then
+        if (!isset($this->hasPidColumn[$tableName])) {
+            $columns = $this->connectionPool
+                ->getConnectionForTable($tableName)
+                ->getSchemaManager()
+                ->listTableColumns($tableName);
+            $this->hasPidColumn[$tableName] = array_key_exists('pid', $columns);
+        }
+
+        $tsfe = $this->getTSFE();
+        if ($this->hasPidColumn[$tableName]) {
             $queryBuilder = $this->connectionPool->getQueryBuilderForTable($tableName);
             $queryBuilder->getRestrictions()->removeAll();
             $result = $queryBuilder
@@ -679,19 +675,18 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
                 $storagePage = $row['pid'];
                 $pageIdsToClear[] = $storagePage;
             }
-        } elseif (isset($GLOBALS['TSFE'])) {
+        } elseif (isset($tsfe)) {
             // No PID column - we can do a best-effort to clear the cache of the current page if in FE
-            $storagePage = $GLOBALS['TSFE']->id;
+            $storagePage = $tsfe->id;
             $pageIdsToClear[] = $storagePage;
         }
         if ($storagePage === null) {
             return;
         }
-        if (!isset($this->pageTSConfigCache[$storagePage])) {
-            $this->pageTSConfigCache[$storagePage] = BackendUtility::getPagesTSconfig($storagePage);
-        }
-        if (isset($this->pageTSConfigCache[$storagePage]['TCEMAIN.']['clearCacheCmd'])) {
-            $clearCacheCommands = GeneralUtility::trimExplode(',', strtolower($this->pageTSConfigCache[$storagePage]['TCEMAIN.']['clearCacheCmd']), true);
+
+        $pageTS = BackendUtility::getPagesTSconfig($storagePage);
+        if (isset($pageTS['TCEMAIN.']['clearCacheCmd'])) {
+            $clearCacheCommands = GeneralUtility::trimExplode(',', strtolower($pageTS['TCEMAIN.']['clearCacheCmd']), true);
             $clearCacheCommands = array_unique($clearCacheCommands);
             foreach ($clearCacheCommands as $clearCacheCommand) {
                 if (MathUtility::canBeInterpretedAsInteger($clearCacheCommand)) {
@@ -703,5 +698,13 @@ class Typo3DbBackend implements BackendInterface, SingletonInterface
         foreach ($pageIdsToClear as $pageIdToClear) {
             $this->cacheService->getPageIdStack()->push($pageIdToClear);
         }
+    }
+
+    /**
+     * @return TypoScriptFrontendController|null
+     */
+    protected function getTSFE(): ?TypoScriptFrontendController
+    {
+        return $GLOBALS['TSFE'] ?? null;
     }
 }

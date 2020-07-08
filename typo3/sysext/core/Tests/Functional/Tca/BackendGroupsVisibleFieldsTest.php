@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Tca;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +13,14 @@ namespace TYPO3\CMS\Core\Tests\Unit\Tca;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\Tca;
+
 use TYPO3\CMS\Backend\Tests\Functional\Form\FormTestService;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-class BackendGroupsVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class BackendGroupsVisibleFieldsTest extends FunctionalTestCase
 {
     protected static $backendGroupsFields = [
         'hidden',
@@ -32,13 +34,11 @@ class BackendGroupsVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functi
         'non_exclude_fields',
         'explicit_allowdeny',
         'allowed_languages',
-        'workspace_perms',
         'db_mountpoints',
         'file_mountpoints',
         'file_permissions',
         'category_perms',
         'lockToDomain',
-        'hide_in_lists',
         'TSconfig',
     ];
 
@@ -54,7 +54,7 @@ class BackendGroupsVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functi
         $formResult = $formEngineTestService->createNewRecordForm('be_groups');
 
         foreach (static::$backendGroupsFields as $expectedField) {
-            $this->assertNotFalse(
+            self::assertNotFalse(
                 $formEngineTestService->formHtmlContainsField($expectedField, $formResult['html']),
                 'The field ' . $expectedField . ' is not in the HTML'
             );

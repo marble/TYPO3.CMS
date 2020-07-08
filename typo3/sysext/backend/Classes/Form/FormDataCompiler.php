@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,10 @@ namespace TYPO3\CMS\Backend\Form;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form;
+
+use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
  * Create and return a defined array of data ready to be used by the
@@ -82,8 +85,8 @@ class FormDataCompiler
                 }
             }
             if ($dataKey === 'vanillaUid') {
-                if (!is_int($dataValue)) {
-                    throw new \InvalidArgumentException('$vanillaUid is not an integer', 1437654247);
+                if (!MathUtility::canBeInterpretedAsInteger($dataValue) && strpos($dataValue, 'NEW') !== 0) {
+                    throw new \InvalidArgumentException('$vanillaUid is not an integer or "NEW..." string ID', 1437654247);
                 }
                 if (isset($initialData['command']) && $initialData['command'] === 'edit' && $dataValue < 0) {
                     throw new \InvalidArgumentException('Negative $vanillaUid is not supported with $command="edit', 1437654332);
@@ -140,13 +143,14 @@ class FormDataCompiler
             'command' => '',
             // Table name of the handled row
             'tableName' => '',
-            // Forced integer of otherwise not changed uid of the record, meaning of value depends on context (new / edit)
+            // Not changed uid of the record, meaning of value depends on context (new / edit)
             // * If $command is "edit"
             // ** $vanillaUid is a positive integer > 0 pointing to the record in the table
             // * If $command is "new":
             // ** If $vanillaUid > 0, it is the uid of a page the record should be added at
             // ** If $vanillaUid < 0, it is the uid of a record in the same table after which the new record should be added
             // ** If $vanillaUid = 0, a new record is added on page 0
+            // ** If $vanillaUid = "NEW..." Id of a parent page record if an inline child is added to a not yet persisted page
             'vanillaUid' => 0,
             // Url to return to
             'returnUrl' => null,
@@ -155,6 +159,9 @@ class FormDataCompiler
             // Parent page record is either the full row of the parent page the record is located at or should
             // be added to, or it is NULL, if a record is added or edited below the root page node.
             'parentPageRow' => null,
+            // If a translated page is handled, the page row of the default language (the page against all page checks
+            // are made) is set here
+            'defaultLanguagePageRow' => null,
             // Holds the "neighbor" row if incoming vanillaUid is negative and record creation is relative to a row of the same table.
             'neighborRow' => null,
             // For "new" this is the fully initialized row with defaults
@@ -166,6 +173,8 @@ class FormDataCompiler
             'effectivePid' => 0,
             // Rootline of page the record that is handled is located at as created by BackendUtility::BEgetRootline()
             'rootline' => [],
+            // The resolved SiteInterface object of the page or page given record is located on.
+            'site' => null,
             // For "edit", this is the permission bitmask of the page that is edited, or of the page a record is located at
             // For "new", this is the permission bitmask of the page the record is added to
             // @todo: Remove if not needed on a lower level
@@ -177,8 +186,6 @@ class FormDataCompiler
             // of handled record was determined, record type specific settings [TCEFORM.][tableName.][field.][types.][type.]
             // are merged into [TCEFORM.][tableName.][field.]. Array keys still contain the concatenation dots.
             'pageTsConfig' => [],
-            // Not changed TCA of parent page row if record is edited or added below a page and not root node
-            'vanillaParentPageTca' => null,
             // List of available system languages. Array key is the system language uid, value array
             // contains details of the record, with iso code resolved. Key is the sys_language_uid uid.
             'systemLanguageRows' => [],
@@ -187,7 +194,7 @@ class FormDataCompiler
             'pageLanguageOverlayRows' => [],
             // If the handled row is a localized row, this entry hold the default language row array
             'defaultLanguageRow' => null,
-            // If the handled row is a localived row and $TCA[<tableName>]['ctrl']['translationSource'] is configured,
+            // If the handled row is a localized row and $TCA[<tableName>]['ctrl']['translationSource'] is configured,
             // This entry holds the row of the language source record.
             'sourceLanguageRow' => null,
             // If the handled row is a localized row and a transOrigDiffSourceField is defined, this
@@ -225,7 +232,7 @@ class FormDataCompiler
 
             // BackendUser->uc['inlineView'] - This array holds status of expand / collapsed inline items
             // This array is "flat", an inline structure with parent uid 1 having firstChild uid 2 having secondChild uid 3
-            // firstChild and secondChild are not nested. If an uid is set it means "record is expanded", example:
+            // firstChild and secondChild are not nested. If a uid is set it means "record is expanded", example:
             // 'parent' => [
             //     1 => [
             //         'firstChild' => [ 2 ], // record 2 of firstChild table is open in inline context to parent 1
@@ -235,7 +242,8 @@ class FormDataCompiler
             'inlineExpandCollapseStateArray' => [],
             // The "entry" pid for inline records. Nested inline records can potentially hang around on different
             // pid's, but the entry pid is needed for AJAX calls, so that they would know where the action takes
-            // place on the page structure.
+            // place on the page structure. This is usually an int, but can be a "NEW..." string if an inline relation
+            // is added to a currently being created page.
             'inlineFirstPid' => null,
             // The "config" section of an inline parent, prepared and sanitized by TcaInlineConfiguration provider
             'inlineParentConfig' => [],
@@ -258,7 +266,7 @@ class FormDataCompiler
             // Field name of the top most parent element
             'inlineTopMostParentFieldName' => '',
 
-            // If is on symetric side of an inline child parent reference.
+            // If is on symmetric side of an inline child parent reference.
             // symmetric side can be achieved in case of an mm relation to the same table. If record A has a relation
             // to record B, the symmetric side is set in case that record B gets edited.
             // Record A (table1) <=> mm <=> Record B (table1)
@@ -272,8 +280,8 @@ class FormDataCompiler
             // configuration - of the new intermediate sys_file_reference record. Data provider that are called later
             // will then use this relation to resolve for instance input placeholder relation values.
             'inlineChildChildUid' => null,
-            // Inline scenario: A localized parent record is handled and localizationMode is set to "select", so inline
-            // parents can have localized children. This value is set to TRUE if this array represents a default language
+            // Inline scenario: A localized parent record is handled, so inline parents can have localized children.
+            // This value is set to TRUE if this array represents a default language
             // child record that was not yet localized.
             'isInlineDefaultLanguageRecordInLocalizedParentContext' => false,
             // If set, inline children will be resolved. This is set to FALSE in inline ajax context where new children
@@ -288,9 +296,15 @@ class FormDataCompiler
             'tabAndInlineStack' => [],
             'inlineData' => [],
             'inlineStructure' => [],
+
             // This array of fields will be set as hidden-fields instead of rendered normally!
             // This is used by EditDocumentController to force some field values if set as "overrideVals" in _GP
             'overrideValues' => [],
+            // Default values for fields. This is for example used in DatabaseRowInitializeNew data provider to set
+            // fields to specific values if new records are created. Values are often carried around as "defVals" GET
+            // parameters and hand over by controllers to FormEngine using this array. Array structure is
+            // ['aTableName']['aFieldName'] = 'aValue'.
+            'defaultValues' => [],
 
             // This array must NOT be set / manipulated by data providers but is instead used by the render part
             // of FormEngine to add runtime data. Containers and elements add data here which is given to

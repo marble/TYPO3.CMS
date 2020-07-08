@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\IndexedSearch\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,11 @@ namespace TYPO3\CMS\IndexedSearch\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\IndexedSearch\ViewHelpers;
+
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
@@ -39,7 +40,6 @@ class PageBrowsingResultsViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('numberOfResults', 'int', '', true);
         $this->registerArgument('resultsPerPage', 'int', '', true);
         $this->registerArgument('currentPage', 'int', '', false, 1);
@@ -47,7 +47,7 @@ class PageBrowsingResultsViewHelper extends AbstractViewHelper
 
     /**
      * @param array $arguments
-     * @param callable|\Closure $renderChildrenClosure
+     * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext
      * @return string
      */

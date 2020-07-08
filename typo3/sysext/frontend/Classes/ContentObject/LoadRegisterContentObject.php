@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\ContentObject;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject;
 
 /**
  * Contains LOAD_REGISTER class object.
@@ -33,7 +34,7 @@ class LoadRegisterContentObject extends AbstractContentObject
             $isExecuted = [];
             foreach ($conf as $theKey => $theValue) {
                 $register = rtrim($theKey, '.');
-                if (!$isExecuted[$register]) {
+                if (!isset($isExecuted[$register]) || !$isExecuted[$register]) {
                     $registerProperties = $register . '.';
                     if (isset($conf[$register]) && isset($conf[$registerProperties])) {
                         $theValue = $this->cObj->stdWrap($conf[$register], $conf[$registerProperties]);

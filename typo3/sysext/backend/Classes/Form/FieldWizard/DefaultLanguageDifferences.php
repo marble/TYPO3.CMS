@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Form\FieldWizard;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Backend\Form\FieldWizard;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FieldWizard;
 
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
@@ -69,7 +71,7 @@ class DefaultLanguageDifferences extends AbstractNode
             );
             $html[] = '<div class="t3-form-original-language-diff">';
             $html[] =   '<div class="t3-form-original-language-diffheader">';
-            $html[] =       htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.changeInOrig'));
+            $html[] =       htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.changeInOrig'));
             $html[] =   '</div>';
             $html[] =   '<div class="t3-form-original-language-diffcontent">';
             $html[] =       '<div class="diff">';

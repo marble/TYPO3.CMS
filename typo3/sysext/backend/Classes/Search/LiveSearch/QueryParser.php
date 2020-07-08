@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Search\LiveSearch;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Backend\Search\LiveSearch;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Search\LiveSearch;
+
 /**
  * Class for parsing query parameters in backend live search.
  * Detects searches for #pages:23 or #content:mycontent
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class QueryParser
 {
@@ -44,11 +46,10 @@ class QueryParser
      * Retrieve the validated command key
      *
      * @param string $query
-     * @return string Command name
      */
     protected function extractKeyFromQuery($query)
     {
-        list($this->commandKey) = explode(':', substr($query, 1));
+        [$this->commandKey] = explode(':', substr($query, 1));
     }
 
     /**
@@ -80,7 +81,7 @@ class QueryParser
     }
 
     /**
-     * Verify if an given query contains a page jump command.
+     * Verify if a given query contains a page jump command.
      *
      * @param string $query A valid value looks like '#14'
      * @return int
@@ -106,7 +107,7 @@ class QueryParser
     }
 
     /**
-     * Verify if an given query contains an registered command key.
+     * Verify if a given query contains a registered command key.
      *
      * @param string $query
      * @return bool

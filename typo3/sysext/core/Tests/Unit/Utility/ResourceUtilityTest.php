@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Core\Tests\Unit\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Utility;
+
 use TYPO3\CMS\Core\Utility\ResourceUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for class \TYPO3\CMS\Core\Utility\ResourceUtility
  */
-class ResourceUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ResourceUtilityTest extends UnitTestCase
 {
     /**
      * @return array
@@ -75,6 +77,6 @@ class ResourceUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             $result,
             [ResourceUtility::class, 'recursiveFileListSortingHelper']
         );
-        $this->assertSame($expectedList, $result);
+        self::assertSame($expectedList, $result);
     }
 }

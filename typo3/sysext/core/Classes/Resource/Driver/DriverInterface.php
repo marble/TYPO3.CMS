@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Driver;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Resource\Driver;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource\Driver;
 
 /**
  * An interface Drivers have to implement to fulfil the needs
@@ -42,7 +43,7 @@ interface DriverInterface
      * Returns the capabilities of this driver.
      *
      * @return int
-     * @see Storage::CAPABILITY_* constants
+     * @see ResourceStorageInterface::CAPABILITY_ constants
      */
     public function getCapabilities();
 
@@ -119,10 +120,10 @@ interface DriverInterface
 
     /**
      * Returns the public URL to a file.
-     * Either fully qualified URL or relative to PATH_site (rawurlencoded).
+     * Either fully qualified URL or relative to public web path (rawurlencoded).
      *
      * @param string $identifier
-     * @return string
+     * @return string|null NULL if file is missing or deleted, the generated url otherwise
      */
     public function getPublicUrl($identifier);
 
@@ -185,7 +186,7 @@ interface DriverInterface
      * further check is done here! After a successful the original file must
      * not exist anymore.
      *
-     * @param string $localFilePath (within PATH_site)
+     * @param string $localFilePath within public web path
      * @param string $targetFolderIdentifier
      * @param string $newFileName optional, if not given original name is used
      * @param bool $removeOriginal if set the original file will be removed

@@ -1,5 +1,4 @@
 <?php
-namespace typo3\sysext\backend\Tests\Unit\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,23 @@ namespace typo3\sysext\backend\Tests\Unit\Form\Element;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\Element;
+
 use Prophecy\Argument;
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Backend\Form\Element\InputDateTimeElement;
+use TYPO3\CMS\Backend\Form\NodeExpansion\FieldInformation;
 use TYPO3\CMS\Backend\Form\NodeFactory;
+use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class InputDateTimeElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class InputDateTimeElementTest extends UnitTestCase
 {
     /**
      * @var string Selected timezone backup
@@ -36,7 +42,7 @@ class InputDateTimeElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      * current timezone setting, set it to UTC explicitly and reconstitute it
      * again in tearDown()
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->timezoneBackup = date_default_timezone_get();
     }
@@ -44,7 +50,7 @@ class InputDateTimeElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * Tear down
      */
-    protected function tearDown()
+    protected function tearDown(): void
     {
         date_default_timezone_set($this->timezoneBackup);
         parent::tearDown();
@@ -87,6 +93,11 @@ class InputDateTimeElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         date_default_timezone_set($serverTimezone);
         $data = [
+            'tableName' => 'table_foo',
+            'fieldName' => 'field_bar',
+            'databaseRow' => [
+                'uid' => 5,
+            ],
             'parameterArray' => [
                 'tableName' => 'table_foo',
                 'fieldName' => 'field_bar',
@@ -98,22 +109,30 @@ class InputDateTimeElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                         'default' => '0000-00-00 00:00:00'
                     ]
                 ],
+                'itemFormElName' => 'myItemFormElName',
                 'itemFormElValue' => $input
             ]
         ];
         $abstractNode = $this->prophesize(AbstractNode::class);
         $abstractNode->render(Argument::cetera())->willReturn([
             'additionalJavaScriptPost' => [],
-            'additionalJavaScriptSubmit' => [],
             'additionalHiddenFields' => [],
             'stylesheetFiles' => [],
         ]);
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+        $iconProphecy = $this->prophesize(Icon::class);
+        $iconProphecy->render()->willReturn('');
+        $iconFactoryProphecy->getIcon(Argument::cetera())->willReturn($iconProphecy->reveal());
         $nodeFactoryProphecy = $this->prophesize(NodeFactory::class);
         $nodeFactoryProphecy->create(Argument::cetera())->willReturn($abstractNode->reveal());
+        $fieldInformationProphecy = $this->prophesize(FieldInformation::class);
+        $fieldInformationProphecy->render(Argument::cetera())->willReturn(['html' => '']);
+        $nodeFactoryProphecy->create(Argument::cetera())->willReturn($fieldInformationProphecy->reveal());
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
         $subject = new InputDateTimeElement($nodeFactoryProphecy->reveal(), $data);
         $result = $subject->render();
-        $this->assertContains('<input type="hidden" name="" value="' . $expectedOutput . '" />', $result['html']);
+        self::assertStringContainsString('<input type="hidden" name="myItemFormElName" value="' . $expectedOutput . '" />', $result['html']);
     }
 }

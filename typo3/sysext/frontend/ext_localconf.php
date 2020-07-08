@@ -1,14 +1,6 @@
 <?php
-defined('TYPO3_MODE') or die();
 
-if (TYPO3_MODE === 'FE' && !isset($_REQUEST['eID'])) {
-    \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\SignalSlot\Dispatcher::class)->connect(
-        \TYPO3\CMS\Core\Resource\Index\MetaDataRepository::class,
-        'recordPostRetrieval',
-        \TYPO3\CMS\Frontend\Aspect\FileMetadataOverlayAspect::class,
-        'languageAndWorkspaceOverlay'
-    );
-}
+defined('TYPO3_MODE') or die();
 
 // Register all available content objects
 $GLOBALS['TYPO3_CONF_VARS']['FE']['ContentObjects'] = array_merge($GLOBALS['TYPO3_CONF_VARS']['FE']['ContentObjects'], [
@@ -18,7 +10,6 @@ $GLOBALS['TYPO3_CONF_VARS']['FE']['ContentObjects'] = array_merge($GLOBALS['TYPO
     'COA_INT'          => \TYPO3\CMS\Frontend\ContentObject\ContentObjectArrayInternalContentObject::class,
     'USER'             => \TYPO3\CMS\Frontend\ContentObject\UserContentObject::class,
     'USER_INT'         => \TYPO3\CMS\Frontend\ContentObject\UserInternalContentObject::class,
-    'FILE'             => \TYPO3\CMS\Frontend\ContentObject\FileContentObject::class,
     'FILES'            => \TYPO3\CMS\Frontend\ContentObject\FilesContentObject::class,
     'IMAGE'            => \TYPO3\CMS\Frontend\ContentObject\ImageContentObject::class,
     'IMG_RESOURCE'     => \TYPO3\CMS\Frontend\ContentObject\ImageResourceContentObject::class,
@@ -27,7 +18,6 @@ $GLOBALS['TYPO3_CONF_VARS']['FE']['ContentObjects'] = array_merge($GLOBALS['TYPO
     'HMENU'            => \TYPO3\CMS\Frontend\ContentObject\HierarchicalMenuContentObject::class,
     'LOAD_REGISTER'    => \TYPO3\CMS\Frontend\ContentObject\LoadRegisterContentObject::class,
     'RESTORE_REGISTER' => \TYPO3\CMS\Frontend\ContentObject\RestoreRegisterContentObject::class,
-    'TEMPLATE'         => \TYPO3\CMS\Frontend\ContentObject\TemplateContentObject::class,
     'FLUIDTEMPLATE'    => \TYPO3\CMS\Frontend\ContentObject\FluidTemplateContentObject::class,
     'SVG'              => \TYPO3\CMS\Frontend\ContentObject\ScalableVectorGraphicsContentObject::class,
     'EDITPANEL'        => \TYPO3\CMS\Frontend\ContentObject\EditPanelContentObject::class
@@ -80,10 +70,7 @@ $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['proc
 $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['processCmdmapClass'][] = \TYPO3\CMS\Frontend\Hooks\TreelistCacheUpdateHooks::class;
 $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['moveRecordClass'][] = \TYPO3\CMS\Frontend\Hooks\TreelistCacheUpdateHooks::class;
 
-// Register hook to show preview info
-$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_previewInfo']['cms'] = \TYPO3\CMS\Frontend\Hooks\FrontendHooks::class . '->hook_previewInfo';
-
-// Register for hookss to show preview of tt_content elements in page module
+// Register for hooks to show preview of tt_content elements in page module
 $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php']['tt_content_drawItem']['image'] =
     \TYPO3\CMS\Frontend\Hooks\PageLayoutView\ImagePreviewRenderer::class;
 $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php']['tt_content_drawItem']['textpic'] =
@@ -96,11 +83,6 @@ $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php'][
 // Register search key shortcuts
 $GLOBALS['TYPO3_CONF_VARS']['SYS']['livesearch']['content'] = 'tt_content';
 
-// Register URL handler for external pages.
-$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['urlProcessing']['urlHandlers']['frontendExternalUrl'] = [
-    'handler' => \TYPO3\CMS\Frontend\Page\ExternalPageUrlHandler::class,
-];
-
 \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Imaging\IconRegistry::class)
     ->registerIcon(
         'wizard-backendlayout',
@@ -110,9 +92,9 @@ $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['urlProcessing']['urlHandlers']['front
 
 // Include new content elements to modWizards
 \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addPageTSConfig(
-    '<INCLUDE_TYPOSCRIPT: source="FILE:EXT:frontend/Configuration/TSconfig/Page/Mod/Wizards/NewContentElement.txt">'
+    "@import 'EXT:frontend/Configuration/TSconfig/Page/Mod/Wizards/NewContentElement.tsconfig'"
 );
 // Include FormEngine adjustments
 \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addPageTSConfig(
-    '<INCLUDE_TYPOSCRIPT: source="FILE:EXT:frontend/Configuration/TSconfig/Page/TCEFORM.txt">'
+    "@import 'EXT:frontend/Configuration/TSconfig/Page/TCEFORM.tsconfig'"
 );

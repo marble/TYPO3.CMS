@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Mvc\Property\TypeConverter;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,16 +15,24 @@ namespace TYPO3\CMS\Form\Mvc\Property\TypeConverter;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Mvc\Property\TypeConverter;
+
+use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Resource\File as File;
 use TYPO3\CMS\Core\Resource\FileReference as CoreFileReference;
+use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\Security\FileNameValidator;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Domain\Model\AbstractFileFolder;
 use TYPO3\CMS\Extbase\Domain\Model\FileReference as ExtbaseFileReference;
 use TYPO3\CMS\Extbase\Error\Error;
-use TYPO3\CMS\Extbase\Property\Exception\TypeConverterException;
+use TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface;
 use TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface;
 use TYPO3\CMS\Extbase\Property\TypeConverter\AbstractTypeConverter;
+use TYPO3\CMS\Extbase\Security\Cryptography\HashService;
 use TYPO3\CMS\Extbase\Validation\Validator\AbstractValidator;
+use TYPO3\CMS\Form\Mvc\Property\Exception\TypeConverterException;
+use TYPO3\CMS\Form\Service\TranslationService;
 
 /**
  * Class UploadedFileReferenceConverter
@@ -103,7 +111,7 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
      * @param \TYPO3\CMS\Core\Resource\ResourceFactory $resourceFactory
      * @internal
      */
-    public function injectResourceFactory(\TYPO3\CMS\Core\Resource\ResourceFactory $resourceFactory)
+    public function injectResourceFactory(ResourceFactory $resourceFactory)
     {
         $this->resourceFactory = $resourceFactory;
     }
@@ -112,7 +120,7 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
      * @param \TYPO3\CMS\Extbase\Security\Cryptography\HashService $hashService
      * @internal
      */
-    public function injectHashService(\TYPO3\CMS\Extbase\Security\Cryptography\HashService $hashService)
+    public function injectHashService(HashService $hashService)
     {
         $this->hashService = $hashService;
     }
@@ -121,7 +129,7 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
      * @param \TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface $persistenceManager
      * @internal
      */
-    public function injectPersistenceManager(\TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface $persistenceManager)
+    public function injectPersistenceManager(PersistenceManagerInterface $persistenceManager)
     {
         $this->persistenceManager = $persistenceManager;
     }
@@ -130,11 +138,11 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
      * Actually convert from $source to $targetType, taking into account the fully
      * built $convertedChildProperties and $configuration.
      *
-     * @param string|int $source
+     * @param array $source
      * @param string $targetType
      * @param array $convertedChildProperties
      * @param PropertyMappingConfigurationInterface $configuration
-     * @return AbstractFileFolder
+     * @return AbstractFileFolder|Error|null
      * @internal
      */
     public function convertFrom($source, $targetType, array $convertedChildProperties = [], PropertyMappingConfigurationInterface $configuration = null)
@@ -142,13 +150,17 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
         if (!isset($source['error']) || $source['error'] === \UPLOAD_ERR_NO_FILE) {
             if (isset($source['submittedFile']['resourcePointer'])) {
                 try {
+                    // File references use numeric resource pointers, direct
+                    // file relations are using "file:" prefix (e.g. "file:5")
                     $resourcePointer = $this->hashService->validateAndStripHmac($source['submittedFile']['resourcePointer']);
                     if (strpos($resourcePointer, 'file:') === 0) {
-                        $fileUid = substr($resourcePointer, 5);
+                        $fileUid = (int)substr($resourcePointer, 5);
                         return $this->createFileReferenceFromFalFileObject($this->resourceFactory->getFileObject($fileUid));
-                    } else {
-                        return $this->createFileReferenceFromFalFileReferenceObject($this->resourceFactory->getFileReferenceObject($resourcePointer), $resourcePointer);
                     }
+                    return $this->createFileReferenceFromFalFileReferenceObject(
+                        $this->resourceFactory->getFileReferenceObject($resourcePointer),
+                        (int)$resourcePointer
+                    );
                 } catch (\InvalidArgumentException $e) {
                     // Nothing to do. No file is uploaded and resource pointer is invalid. Discard!
                 }
@@ -166,6 +178,8 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
 
         try {
             $resource = $this->importUploadedResource($source, $configuration);
+        } catch (TypeConverterException $e) {
+            return $e->getError();
         } catch (\Exception $e) {
             return $this->objectManager->get(Error::class, $e->getMessage(), $e->getCode());
         }
@@ -180,13 +194,12 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
      * @param array $uploadInfo
      * @param PropertyMappingConfigurationInterface $configuration
      * @return ExtbaseFileReference
-     * @throws TypeConverterException
      */
     protected function importUploadedResource(
         array $uploadInfo,
         PropertyMappingConfigurationInterface $configuration
     ): ExtbaseFileReference {
-        if (!GeneralUtility::verifyFilenameAgainstDenyPattern($uploadInfo['name'])) {
+        if (!GeneralUtility::makeInstance(FileNameValidator::class)->isValid($uploadInfo['name'])) {
             throw new TypeConverterException('Uploading files with PHP file extensions is not allowed!', 1471710357);
         }
 
@@ -194,7 +207,7 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
         $conflictMode = $configuration->getConfigurationValue(self::class, self::CONFIGURATION_UPLOAD_CONFLICT_MODE) ?: $this->defaultConflictMode;
 
         $uploadFolder = $this->resourceFactory->retrieveFileOrFolderObject($uploadFolderId);
-        $uploadedFile =  $uploadFolder->addUploadedFile($uploadInfo, $conflictMode);
+        $uploadedFile = $uploadFolder->addUploadedFile($uploadInfo, $conflictMode);
 
         $validators = $configuration->getConfigurationValue(self::class, self::CONFIGURATION_FILE_VALIDATORS);
         if (is_array($validators)) {
@@ -203,14 +216,14 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
                     $validationResult = $validator->validate($uploadedFile);
                     if ($validationResult->hasErrors()) {
                         $uploadedFile->getStorage()->deleteFile($uploadedFile);
-                        throw new TypeConverterException($validationResult->getErrors()[0]->getMessage(), 1471708999);
+                        throw TypeConverterException::fromError($validationResult->getErrors()[0]);
                     }
                 }
             }
         }
 
         $resourcePointer = isset($uploadInfo['submittedFile']['resourcePointer']) && strpos($uploadInfo['submittedFile']['resourcePointer'], 'file:') === false
-            ? $this->hashService->validateAndStripHmac($uploadInfo['submittedFile']['resourcePointer'])
+            ? (int)$this->hashService->validateAndStripHmac($uploadInfo['submittedFile']['resourcePointer'])
             : null;
 
         $fileReferenceModel = $this->createFileReferenceFromFalFileObject($uploadedFile, $resourcePointer);
@@ -239,6 +252,10 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
     }
 
     /**
+     * In case no $resourcePointer is given a new file reference domain object
+     * will be returned. Otherwise the file reference is reconstituted from
+     * storage and will be updated(!) with the provided $falFileReference.
+     *
      * @param CoreFileReference $falFileReference
      * @param int $resourcePointer
      * @return ExtbaseFileReference
@@ -266,23 +283,32 @@ class UploadedFileReferenceConverter extends AbstractTypeConverter
      */
     protected function getUploadErrorMessage(int $errorCode): string
     {
+        $logger = GeneralUtility::makeInstance(LogManager::class)->getLogger(static::class);
         switch ($errorCode) {
             case \UPLOAD_ERR_INI_SIZE:
-                return 'The uploaded file exceeds the upload_max_filesize directive in php.ini';
+                $logger->error('The uploaded file exceeds the upload_max_filesize directive in php.ini.', []);
+                return TranslationService::getInstance()->translate('upload.error.150530345', null, 'EXT:form/Resources/Private/Language/locallang.xlf');
             case \UPLOAD_ERR_FORM_SIZE:
-                return 'The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form';
+                $logger->error('The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form.', []);
+                return TranslationService::getInstance()->translate('upload.error.150530345', null, 'EXT:form/Resources/Private/Language/locallang.xlf');
             case \UPLOAD_ERR_PARTIAL:
-                return 'The uploaded file was only partially uploaded';
+                $logger->error('The uploaded file was only partially uploaded.', []);
+                return TranslationService::getInstance()->translate('upload.error.150530346', null, 'EXT:form/Resources/Private/Language/locallang.xlf');
             case \UPLOAD_ERR_NO_FILE:
-                return 'No file was uploaded';
+                $logger->error('No file was uploaded.', []);
+                return TranslationService::getInstance()->translate('upload.error.150530347', null, 'EXT:form/Resources/Private/Language/locallang.xlf');
             case \UPLOAD_ERR_NO_TMP_DIR:
-                return 'Missing a temporary folder';
+                $logger->error('Missing a temporary folder.', []);
+                return TranslationService::getInstance()->translate('upload.error.150530348', null, 'EXT:form/Resources/Private/Language/locallang.xlf');
             case \UPLOAD_ERR_CANT_WRITE:
-                return 'Failed to write file to disk';
+                $logger->error('Failed to write file to disk.', []);
+                return TranslationService::getInstance()->translate('upload.error.150530348', null, 'EXT:form/Resources/Private/Language/locallang.xlf');
             case \UPLOAD_ERR_EXTENSION:
-                return 'File upload stopped by extension';
+                $logger->error('File upload stopped by extension.', []);
+                return TranslationService::getInstance()->translate('upload.error.150530348', null, 'EXT:form/Resources/Private/Language/locallang.xlf');
             default:
-                return 'Unknown upload error';
+                $logger->error('Unknown upload error.', []);
+                return TranslationService::getInstance()->translate('upload.error.150530348', null, 'EXT:form/Resources/Private/Language/locallang.xlf');
         }
     }
 }

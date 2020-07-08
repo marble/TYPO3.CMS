@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 use TYPO3\CMS\Fluid\ViewHelpers\Format\HtmlentitiesDecodeViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
@@ -34,7 +35,7 @@ class HtmlentitiesDecodeViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $defaultArguments;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new HtmlentitiesDecodeViewHelper();
@@ -53,7 +54,7 @@ class HtmlentitiesDecodeViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Some string', $actualResult);
+        self::assertEquals('Some string', $actualResult);
     }
 
     /**
@@ -68,7 +69,7 @@ class HtmlentitiesDecodeViewHelperTest extends ViewHelperBaseTestcase
         );
         $this->setArgumentsUnderTest($this->viewHelper);
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Some string', $actualResult);
+        self::assertEquals('Some string', $actualResult);
     }
 
     /**
@@ -84,7 +85,7 @@ class HtmlentitiesDecodeViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertSame($source, $actualResult);
+        self::assertSame($source, $actualResult);
     }
 
     /**
@@ -101,7 +102,7 @@ class HtmlentitiesDecodeViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -119,7 +120,7 @@ class HtmlentitiesDecodeViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -137,7 +138,7 @@ class HtmlentitiesDecodeViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -153,6 +154,6 @@ class HtmlentitiesDecodeViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->render();
-        $this->assertSame($source, $actualResult);
+        self::assertSame($source, $actualResult);
     }
 }

@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Database\Query;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,11 +15,18 @@ namespace TYPO3\CMS\Core\Database\Query;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database\Query;
+
+use Doctrine\DBAL\Platforms\MySqlPlatform;
+use Doctrine\DBAL\Platforms\OraclePlatform;
+use Doctrine\DBAL\Platforms\PostgreSqlPlatform;
+use Doctrine\DBAL\Platforms\SqlitePlatform;
 use Doctrine\DBAL\Platforms\SQLServerPlatform;
 use Doctrine\DBAL\Query\Expression\CompositeExpression;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\DefaultRestrictionContainer;
+use TYPO3\CMS\Core\Database\Query\Restriction\LimitToTablesRestrictionContainer;
 use TYPO3\CMS\Core\Database\Query\Restriction\QueryRestrictionContainerInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -59,19 +66,27 @@ class QueryBuilder
     protected $restrictionContainer;
 
     /**
+     * @var array
+     */
+    protected $additionalRestrictions;
+
+    /**
      * Initializes a new QueryBuilder.
      *
      * @param Connection $connection The DBAL Connection.
      * @param QueryRestrictionContainerInterface $restrictionContainer
      * @param \Doctrine\DBAL\Query\QueryBuilder $concreteQueryBuilder
+     * @param array $additionalRestrictions
      */
     public function __construct(
         Connection $connection,
         QueryRestrictionContainerInterface $restrictionContainer = null,
-        \Doctrine\DBAL\Query\QueryBuilder $concreteQueryBuilder = null
+        \Doctrine\DBAL\Query\QueryBuilder $concreteQueryBuilder = null,
+        array $additionalRestrictions = null
     ) {
         $this->connection = $connection;
-        $this->restrictionContainer = $restrictionContainer ?: GeneralUtility::makeInstance(DefaultRestrictionContainer::class);
+        $this->additionalRestrictions = $additionalRestrictions ?: $GLOBALS['TYPO3_CONF_VARS']['DB']['additionalQueryRestrictions'] ?? [];
+        $this->setRestrictions($restrictionContainer ?: GeneralUtility::makeInstance(DefaultRestrictionContainer::class));
         $this->concreteQueryBuilder = $concreteQueryBuilder ?: GeneralUtility::makeInstance(\Doctrine\DBAL\Query\QueryBuilder::class, $connection);
     }
 
@@ -88,7 +103,23 @@ class QueryBuilder
      */
     public function setRestrictions(QueryRestrictionContainerInterface $restrictionContainer)
     {
+        foreach ($this->additionalRestrictions as $restrictionClass => $options) {
+            if (empty($options['disabled'])) {
+                $restriction = GeneralUtility::makeInstance($restrictionClass);
+                $restrictionContainer->add($restriction);
+            }
+        }
         $this->restrictionContainer = $restrictionContainer;
+    }
+
+    /**
+     * Limits ALL currently active restrictions of the restriction container to the table aliases given
+     *
+     * @param array $tableAliases
+     */
+    public function limitRestrictionsToTables(array $tableAliases): void
+    {
+        $this->restrictionContainer = GeneralUtility::makeInstance(LimitToTablesRestrictionContainer::class)->addForTables($this->restrictionContainer, $tableAliases);
     }
 
     /**
@@ -96,7 +127,7 @@ class QueryBuilder
      */
     public function resetRestrictions()
     {
-        $this->restrictionContainer = GeneralUtility::makeInstance(DefaultRestrictionContainer::class);
+        $this->setRestrictions(GeneralUtility::makeInstance(DefaultRestrictionContainer::class));
     }
 
     /**
@@ -337,12 +368,12 @@ class QueryBuilder
      * 'groupBy', 'having' and 'orderBy'.
      *
      * @param string $sqlPartName
-     * @param string $sqlPart
+     * @param string|array $sqlPart
      * @param bool $append
      *
      * @return QueryBuilder This QueryBuilder instance.
      */
-    public function add(string $sqlPartName, string $sqlPart, bool $append = false): QueryBuilder
+    public function add(string $sqlPartName, $sqlPart, bool $append = false): QueryBuilder
     {
         $this->concreteQueryBuilder->add($sqlPartName, $sqlPart, $append);
 
@@ -370,7 +401,7 @@ class QueryBuilder
      * Specifies items that are to be returned in the query result.
      * Replaces any previously specified selections, if any.
      *
-     * @param string[] $selects
+     * @param array<int,string> $selects
      * @return QueryBuilder This QueryBuilder instance.
      */
     public function select(string ...$selects): QueryBuilder
@@ -383,7 +414,7 @@ class QueryBuilder
     /**
      * Adds an item that is to be returned in the query result.
      *
-     * @param string[] $selects The selection expression.
+     * @param array<int,string> $selects The selection expression.
      *
      * @return QueryBuilder This QueryBuilder instance.
      */
@@ -400,7 +431,7 @@ class QueryBuilder
      * This should only be used for literal SQL expressions as no
      * quoting/escaping of any kind will be performed on the items.
      *
-     * @param string[] $selects Literal SQL expressions to be selected. Warning: No quoting will be done!
+     * @param array<int,string> $selects Literal SQL expressions to be selected. Warning: No quoting will be done!
      * @return QueryBuilder This QueryBuilder instance.
      */
     public function selectLiteral(string ...$selects): QueryBuilder
@@ -415,7 +446,7 @@ class QueryBuilder
      * only be used for literal SQL expressions as no quoting/escaping of
      * any kind will be performed on the items.
      *
-     * @param string[] $selects Literal SQL expressions to be selected.
+     * @param array<int,string> $selects Literal SQL expressions to be selected.
      * @return QueryBuilder This QueryBuilder instance.
      */
     public function addSelectLiteral(string ...$selects): QueryBuilder
@@ -593,14 +624,15 @@ class QueryBuilder
      * @param string $key The column to set.
      * @param string $value The value, expression, placeholder, etc.
      * @param bool $createNamedParameter Automatically create a named parameter for the value
+     * @param int $type
      *
      * @return QueryBuilder This QueryBuilder instance.
      */
-    public function set(string $key, $value, bool $createNamedParameter = true): QueryBuilder
+    public function set(string $key, $value, bool $createNamedParameter = true, int $type = \PDO::PARAM_STR): QueryBuilder
     {
         $this->concreteQueryBuilder->set(
             $this->quoteIdentifier($key),
-            $createNamedParameter ? $this->createNamedParameter($value) : $value
+            $createNamedParameter ? $this->createNamedParameter($value, $type) : $value
         );
 
         return $this;
@@ -610,7 +642,7 @@ class QueryBuilder
      * Specifies one or more restrictions to the query result.
      * Replaces any previously specified restrictions, if any.
      *
-     * @param mixed,... $predicates
+     * @param array<int,mixed> $predicates
      * @return QueryBuilder This QueryBuilder instance.
      */
     public function where(...$predicates): QueryBuilder
@@ -624,7 +656,7 @@ class QueryBuilder
      * Adds one or more restrictions to the query results, forming a logical
      * conjunction with any previously specified restrictions.
      *
-     * @param mixed,... $where The query restrictions.
+     * @param array<int,string> $where The query restrictions.
      *
      * @return QueryBuilder This QueryBuilder instance.
      *
@@ -641,7 +673,7 @@ class QueryBuilder
      * Adds one or more restrictions to the query results, forming a logical
      * disjunction with any previously specified restrictions.
      *
-     * @param mixed,... $where The WHERE statement.
+     * @param array<int,string> $where The WHERE statement.
      *
      * @return QueryBuilder This QueryBuilder instance.
      *
@@ -658,7 +690,7 @@ class QueryBuilder
      * Specifies a grouping over the results of the query.
      * Replaces any previously specified groupings, if any.
      *
-     * @param mixed,... $groupBy The grouping expression.
+     * @param array<int,string> $groupBy The grouping expression.
      *
      * @return QueryBuilder This QueryBuilder instance.
      */
@@ -672,7 +704,7 @@ class QueryBuilder
     /**
      * Adds a grouping expression to the query.
      *
-     * @param mixed,... $groupBy The grouping expression.
+     * @param array<int,string> $groupBy The grouping expression.
      *
      * @return QueryBuilder This QueryBuilder instance.
      */
@@ -728,7 +760,7 @@ class QueryBuilder
      * Specifies a restriction over the groups of the query.
      * Replaces any previous having restrictions, if any.
      *
-     * @param mixed,... $having The restriction over the groups.
+     * @param array<int,string> $having The restriction over the groups.
      *
      * @return QueryBuilder This QueryBuilder instance.
      */
@@ -742,7 +774,7 @@ class QueryBuilder
      * Adds a restriction over the groups of the query, forming a logical
      * conjunction with any existing having restrictions.
      *
-     * @param mixed,... $having The restriction to append.
+     * @param array<int,string> $having The restriction to append.
      *
      * @return QueryBuilder This QueryBuilder instance.
      */
@@ -757,7 +789,7 @@ class QueryBuilder
      * Adds a restriction over the groups of the query, forming a logical
      * disjunction with any existing having restrictions.
      *
-     * @param mixed,... $having The restriction to add.
+     * @param array<int,string> $having The restriction to add.
      *
      * @return QueryBuilder This QueryBuilder instance.
      */
@@ -969,10 +1001,19 @@ class QueryBuilder
     public function quoteIdentifiersForSelect(array $input): array
     {
         foreach ($input as &$select) {
-            list($fieldName, $alias, $suffix) = GeneralUtility::trimExplode(' AS ', $select, 3);
+            [$fieldName, $alias, $suffix] = array_pad(
+                GeneralUtility::trimExplode(
+                    ' AS ',
+                    str_ireplace(' as ', ' AS ', $select),
+                    true,
+                    3
+                ),
+                3,
+                null
+            );
             if (!empty($suffix)) {
                 throw new \InvalidArgumentException(
-                    'QueryBuilder::quoteIdentifiersForSelect() could not parse the input "' . $input . '"',
+                    'QueryBuilder::quoteIdentifiersForSelect() could not parse the select ' . $select . '.',
                     1461170686
                 );
             }
@@ -1008,6 +1049,46 @@ class QueryBuilder
     public function quoteColumnValuePairs(array $input): array
     {
         return $this->getConnection()->quoteColumnValuePairs($input);
+    }
+
+    /**
+     * Creates a cast of the $fieldName to a text datatype depending on the database management system.
+     *
+     * @param string $fieldName The fieldname will be quoted and casted according to database platform automatically
+     * @return string
+     */
+    public function castFieldToTextType(string $fieldName): string
+    {
+        $databasePlatform = $this->connection->getDatabasePlatform();
+        // https://dev.mysql.com/doc/refman/5.7/en/cast-functions.html#function_convert
+        if ($databasePlatform instanceof MySqlPlatform) {
+            return sprintf('CONVERT(%s, CHAR)', $this->connection->quoteIdentifier($fieldName));
+        }
+        // https://www.postgresql.org/docs/current/sql-createcast.html
+        if ($databasePlatform instanceof PostgreSqlPlatform) {
+            return sprintf('%s::text', $this->connection->quoteIdentifier($fieldName));
+        }
+        // https://www.sqlite.org/lang_expr.html#castexpr
+        if ($databasePlatform instanceof SqlitePlatform) {
+            return sprintf('CAST(%s as TEXT)', $this->connection->quoteIdentifier($fieldName));
+        }
+        // https://docs.microsoft.com/en-us/sql/t-sql/functions/cast-and-convert-transact-sql?view=sql-server-ver15#implicit-conversions
+        if ($databasePlatform instanceof SQLServerPlatform) {
+            return sprintf('CAST(%s as VARCHAR)', $this->connection->quoteIdentifier($fieldName));
+        }
+        // https://docs.oracle.com/javadb/10.8.3.0/ref/rrefsqlj33562.html
+        if ($databasePlatform instanceof OraclePlatform) {
+            return sprintf('CAST(%s as VARCHAR)', $this->connection->quoteIdentifier($fieldName));
+        }
+
+        throw new \RuntimeException(
+            sprintf(
+                '%s is not implemented for the used database platform "%s", yet!',
+                __METHOD__,
+                get_class($this->connection->getDatabasePlatform())
+            ),
+            1584637096
+        );
     }
 
     /**
@@ -1088,8 +1169,16 @@ class QueryBuilder
             $this->concreteQueryBuilder->andWhere($expression);
         }
 
-        // @todo add hook to be able to add additional restrictions
-
         return $originalWhereConditions;
+    }
+
+    /**
+     * Deep clone of the QueryBuilder
+     * @see \Doctrine\DBAL\Query\QueryBuilder::__clone()
+     */
+    public function __clone()
+    {
+        $this->concreteQueryBuilder = clone $this->concreteQueryBuilder;
+        $this->restrictionContainer = clone $this->restrictionContainer;
     }
 }

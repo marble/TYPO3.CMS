@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tree;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,10 @@ namespace TYPO3\CMS\Backend\Tree;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tree;
+
+use TYPO3\CMS\Backend\Tree\Renderer\AbstractTreeRenderer;
+
 /**
  * Abstract Tree
  */
@@ -24,19 +27,19 @@ abstract class AbstractTree
      *
      * @var \TYPO3\CMS\Backend\Tree\AbstractTreeDataProvider
      */
-    protected $dataProvider = null;
+    protected $dataProvider;
 
     /**
      * Tree Node Decorator
      *
      * @var \TYPO3\CMS\Backend\Tree\Renderer\AbstractTreeRenderer
      */
-    protected $nodeRenderer = null;
+    protected $nodeRenderer;
 
     /**
      * @param \TYPO3\CMS\Backend\Tree\AbstractTreeDataProvider $dataProvider
      */
-    public function setDataProvider(\TYPO3\CMS\Backend\Tree\AbstractTreeDataProvider $dataProvider)
+    public function setDataProvider(AbstractTreeDataProvider $dataProvider)
     {
         $this->dataProvider = $dataProvider;
     }
@@ -52,7 +55,7 @@ abstract class AbstractTree
     /**
      * @param \TYPO3\CMS\Backend\Tree\Renderer\AbstractTreeRenderer $nodeRenderer
      */
-    public function setNodeRenderer(\TYPO3\CMS\Backend\Tree\Renderer\AbstractTreeRenderer $nodeRenderer)
+    public function setNodeRenderer(AbstractTreeRenderer $nodeRenderer)
     {
         $this->nodeRenderer = $nodeRenderer;
     }

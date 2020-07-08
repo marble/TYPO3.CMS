@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,28 +13,39 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
+
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractTagBasedViewHelper;
+
 /**
- * A view helper for creating links to external targets.
+ * A ViewHelper for creating links to external targets.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code>
- * <f:link.external uri="http://www.typo3.org" target="_blank">external link</f:link.external>
- * </code>
- * <output>
- * <a href="http://www.typo3.org" target="_blank">external link</a>
- * </output>
+ * Default
+ * -------
  *
- * <code title="custom default scheme">
- * <f:link.external uri="typo3.org" defaultScheme="ftp">external ftp link</f:link.external>
- * </code>
- * <output>
- * <a href="ftp://typo3.org">external ftp link</a>
- * </output>
+ * ::
  *
- * @api
+ *    <f:link.external uri="http://www.typo3.org" target="_blank">external link</f:link.external>
+ *
+ * Output::
+ *
+ *    <a href="http://www.typo3.org" target="_blank">external link</a>
+ *
+ * Custom default scheme
+ * ---------------------
+ *
+ * ::
+ *
+ *    <f:link.external uri="typo3.org" defaultScheme="ftp">external ftp link</f:link.external>
+ *
+ * Output::
+ *
+ *    <a href="ftp://typo3.org">external ftp link</a>
  */
-class ExternalViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractTagBasedViewHelper
+class ExternalViewHelper extends AbstractTagBasedViewHelper
 {
     /**
      * @var string
@@ -44,8 +54,6 @@ class ExternalViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractTagBas
 
     /**
      * Initialize arguments
-     *
-     * @api
      */
     public function initializeArguments()
     {
@@ -61,7 +69,6 @@ class ExternalViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractTagBas
 
     /**
      * @return string Rendered link
-     * @api
      */
     public function render()
     {

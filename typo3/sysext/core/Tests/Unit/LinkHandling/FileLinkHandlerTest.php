@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +15,23 @@ namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
+
 use TYPO3\CMS\Core\LinkHandling\FileLinkHandler;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-class FileLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FileLinkHandlerTest extends UnitTestCase
 {
-
-    /**
-     * testing folders
-     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->resetSingletonInstances = true;
+    }
 
     /**
      * Data provider for pointing to files
@@ -46,6 +52,17 @@ class FileLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
                 't3://file?identifier=fileadmin%2Fdeep%2Fdown.jpg'
             ],
+            'file without FAL and anchor - cool style' => [
+                [
+                    'identifier' => 'fileadmin/deep/down.jpg',
+                    'fragment' => 'page-13'
+                ],
+                [
+                    'file' => 'fileadmin/deep/down.jpg',
+                    'fragment' => 'page-13'
+                ],
+                't3://file?identifier=fileadmin%2Fdeep%2Fdown.jpg#page-13'
+            ],
             'file with FAL uid - cool style' => [
                 [
                     'uid' => 23
@@ -55,6 +72,17 @@ class FileLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
                 't3://file?uid=23'
             ],
+            'file with FAL uid and anchor - cool style' => [
+                [
+                    'uid' => 23,
+                    'fragment' => 'page-13'
+                ],
+                [
+                    'file' => 23,
+                    'fragment' => 'page-13'
+                ],
+                't3://file?uid=23#page-13'
+            ],
         ];
     }
 
@@ -63,32 +91,32 @@ class FileLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      *
      * @test
      *
-     * @param string $input
+     * @param array $input
      * @param array  $expected
-     * @param string $finalString
      *
      * @dataProvider resolveParametersForFilesDataProvider
      */
-    public function resolveFileReferencesToSplitParameters($input, $expected, $finalString)
+    public function resolveFileReferencesToSplitParameters(array $input, array $expected): void
     {
-        /** @var ResourceStorage|\PHPUnit_Framework_MockObject_MockObject $storageMock */
+        /** @var ResourceStorage|\PHPUnit\Framework\MockObject\MockObject $storageMock */
         $storage = $this->getMockBuilder(ResourceStorage::class)
             ->disableOriginalConstructor()
             ->getMock();
-        /** @var ResourceFactory|\PHPUnit_Framework_MockObject_MockObject $storageMock */
+        /** @var ResourceFactory|\PHPUnit\Framework\MockObject\MockObject $storageMock */
         $factory = $this->getMockBuilder(ResourceFactory::class)
             ->disableOriginalConstructor()
             ->getMock();
 
         // fake methods to return proper objects
-        $fileObject = new File(['identifier' => $expected['file']], $storage);
-        $factory->expects($this->any())->method('getFileObject')->with($expected['file'])->willReturn($fileObject);
+        $fileObject = new File(['identifier' => $expected['file'], 'name' => 'foobar.txt'], $storage);
+        $factory->method('getFileObject')->with($expected['file'])->willReturn($fileObject);
+        $factory->method('getFileObjectFromCombinedIdentifier')->with($expected['file'])->willReturn($fileObject);
         $expected['file'] = $fileObject;
+        GeneralUtility::setSingletonInstance(ResourceFactory::class, $factory);
 
-        /** @var FileLinkHandler|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(FileLinkHandler::class, ['dummy']);
-        $subject->_set('resourceFactory', $factory);
-        $this->assertEquals($expected, $subject->resolveHandlerData($input));
+        $subject = new FileLinkHandler();
+
+        self::assertEquals($expected, $subject->resolveHandlerData($input));
     }
 
     /**
@@ -96,16 +124,16 @@ class FileLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      *
      * @test
      *
-     * @param string $input
+     * @param array $input
      * @param array  $parameters
      * @param string $expected
      *
      * @dataProvider resolveParametersForFilesDataProvider
      */
-    public function splitParametersToUnifiedIdentifierForFiles($input, $parameters, $expected)
+    public function splitParametersToUnifiedIdentifierForFiles(array $input, array $parameters, string $expected): void
     {
         $fileObject = $this->getMockBuilder(File::class)
-            ->setMethods(['getUid', 'getIdentifier'])
+            ->onlyMethods(['getUid', 'getIdentifier'])
             ->disableOriginalConstructor()
             ->getMock();
 
@@ -113,11 +141,11 @@ class FileLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         if (MathUtility::canBeInterpretedAsInteger($parameters['file'])) {
             $uid = $parameters['file'];
         }
-        $fileObject->expects($this->once())->method('getUid')->willReturn($uid);
-        $fileObject->expects($this->any())->method('getIdentifier')->willReturn($parameters['file']);
+        $fileObject->expects(self::once())->method('getUid')->willReturn($uid);
+        $fileObject->method('getIdentifier')->willReturn($parameters['file']);
         $parameters['file'] = $fileObject;
 
         $subject = new FileLinkHandler();
-        $this->assertEquals($expected, $subject->asString($parameters));
+        self::assertEquals($expected, $subject->asString($parameters));
     }
 }

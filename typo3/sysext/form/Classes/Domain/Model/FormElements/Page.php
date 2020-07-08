@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Model\FormElements;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\Domain\Model\FormElements;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Model\FormElements;
 
 use TYPO3\CMS\Form\Domain\Model\FormDefinition;
 use TYPO3\CMS\Form\Domain\Model\Renderable\CompositeRenderableInterface;
@@ -45,7 +49,6 @@ class Page extends AbstractSection
      * @param string $identifier The Page's identifier
      * @param string $type The Page's type
      * @throws \TYPO3\CMS\Form\Domain\Exception\IdentifierNotValidException if the identifier was no non-empty string
-     * @api
      */
     public function __construct(string $identifier, string $type = 'Page')
     {
@@ -57,7 +60,6 @@ class Page extends AbstractSection
      *
      * @param CompositeRenderableInterface $parentRenderable
      * @throws FormException
-     * @api
      */
     public function setParentRenderable(CompositeRenderableInterface $parentRenderable)
     {

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recordlist\LinkHandler;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Recordlist\LinkHandler;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recordlist\LinkHandler;
+
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Tree\View\ElementBrowserPageTreeView;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Query\Restriction\BackendWorkspaceRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\LinkHandling\LinkService;
 use TYPO3\CMS\Core\Page\PageRenderer;
@@ -29,6 +31,7 @@ use TYPO3\CMS\Recordlist\Tree\View\LinkParameterProviderInterface;
 
 /**
  * Link handler for page (and content) links
+ * @internal This class is a specific LinkHandler implementation and is not part of the TYPO3's Core API.
  */
 class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterface, LinkParameterProviderInterface
 {
@@ -58,34 +61,7 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
         if (!$linkParts['url']) {
             return false;
         }
-
         $data = $linkParts['url'];
-        // Checking if the id-parameter is an alias.
-        if (isset($data['pagealias'])) {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                ->getQueryBuilderForTable('pages');
-            $queryBuilder->getRestrictions()
-                ->removeAll()
-                ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-                ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
-
-            $pageUid = $queryBuilder->select('uid')
-                ->from('pages')
-                ->where(
-                    $queryBuilder->expr()->eq(
-                        'alias',
-                        $queryBuilder->createNamedParameter($data['pagealias'], \PDO::PARAM_STR)
-                    )
-                )
-                ->setMaxResults(1)
-                ->execute()
-                ->fetchColumn(0);
-
-            if ($pageUid === false) {
-                return false;
-            }
-            $data['pageuid'] = (int)$pageUid;
-        }
         // Check if the page still exists
         if ((int)$data['pageuid'] > 0) {
             $pageRow = BackendUtility::getRecordWSOL('pages', $data['pageuid']);
@@ -110,11 +86,11 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
         $lang = $this->getLanguageService();
         $titleLen = (int)$this->getBackendUser()->uc['titleLen'];
 
-        $id = $this->linkParts['url']['pageuid'];
+        $id = (int)$this->linkParts['url']['pageuid'];
         $pageRow = BackendUtility::getRecordWSOL('pages', $id);
 
-        return htmlspecialchars($lang->getLL('page'))
-            . ' \'' . htmlspecialchars(GeneralUtility::fixed_lgd_cs($pageRow['title'], $titleLen)) . '\''
+        return $lang->getLL('page')
+            . ' \'' . GeneralUtility::fixed_lgd_cs($pageRow['title'], $titleLen) . '\''
             . ' (ID: ' . $id . ($this->linkParts['url']['fragment'] ? ', #' . $this->linkParts['url']['fragment'] : '') . ')';
     }
 
@@ -132,14 +108,13 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
         $this->expandPage = isset($request->getQueryParams()['expandPage']) ? (int)$request->getQueryParams()['expandPage'] : 0;
         $this->setTemporaryDbMounts();
 
-        $backendUser = $this->getBackendUser();
+        $userTsConfig = $this->getBackendUser()->getTSConfig();
 
-        /** @var ElementBrowserPageTreeView $pageTree */
         $pageTree = GeneralUtility::makeInstance(ElementBrowserPageTreeView::class);
         $pageTree->setLinkParameterProvider($this);
-        $pageTree->ext_showNavTitle = (bool)$backendUser->getTSConfigVal('options.pageTree.showNavTitle');
-        $pageTree->ext_showPageId = (bool)$backendUser->getTSConfigVal('options.pageTree.showPageIdWithTitle');
-        $pageTree->ext_showPathAboveMounts = (bool)$backendUser->getTSConfigVal('options.pageTree.showPathAboveMounts');
+        $pageTree->ext_showNavTitle = (bool)($userTsConfig['options.']['pageTree.']['showNavTitle'] ?? false);
+        $pageTree->ext_showPageId = (bool)($userTsConfig['options.']['pageTree.']['showPageIdWithTitle'] ?? false);
+        $pageTree->ext_showPathAboveMounts = (bool)($userTsConfig['options.']['pageTree.']['showPathAboveMounts'] ?? false);
         $pageTree->addField('nav_title');
 
         $this->view->assign('temporaryTreeMountCancelLink', $this->getTemporaryTreeMountCancelNotice());
@@ -179,15 +154,21 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
             $queryBuilder->getRestrictions()
                 ->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-                ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
+                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, (int)$this->getBackendUser()->workspace));
 
             $contentElements = $queryBuilder
                 ->select('*')
                 ->from('tt_content')
                 ->where(
-                    $queryBuilder->expr()->eq(
-                        'pid',
-                        $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                    $queryBuilder->expr()->andX(
+                        $queryBuilder->expr()->eq(
+                            'pid',
+                            $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                        ),
+                        $queryBuilder->expr()->in(
+                            'sys_language_uid',
+                            $queryBuilder->createNamedParameter([$activePageRecord['sys_language_uid'], -1], Connection::PARAM_INT_ARRAY)
+                        )
                     )
                 )
                 ->orderBy('colPos')
@@ -197,6 +178,7 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
 
             // Enrich list of records
             foreach ($contentElements as &$contentElement) {
+                BackendUtility::workspaceOL('tt_content', $contentElement);
                 $contentElement['url'] = GeneralUtility::makeInstance(LinkService::class)->asString(['type' => LinkService::TYPE_PAGE, 'pageuid' => (int)$pageId, 'fragment' => $contentElement['uid']]);
                 $contentElement['isSelected'] = !empty($this->linkParts) && (int)$this->linkParts['url']['fragment'] === (int)$contentElement['uid'];
                 $contentElement['icon'] = $this->iconFactory->getIconForRecord('tt_content', $contentElement, Icon::SIZE_SMALL)->render();
@@ -215,9 +197,8 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
     {
         if ((int)$this->getBackendUser()->getSessionData('pageTree_temporaryMountPoint') > 0) {
             return GeneralUtility::linkThisScript(['setTempDBmount' => 0]);
-        } else {
-            return '';
         }
+        return '';
     }
 
     /**
@@ -277,20 +258,21 @@ class PageLinkHandler extends AbstractLinkHandler implements LinkHandlerInterfac
     public function modifyLinkAttributes(array $fieldDefinitions)
     {
         $configuration = $this->linkBrowser->getConfiguration();
-        if (!empty($configuration['pageIdSelector.']['enabled'])) {
+        // Depending where the configuration is set it can be 'pageIdSelector' (CKEditor yaml) or 'pageIdSelector.' (TSconfig)
+        if (!empty($configuration['pageIdSelector']['enabled']) || !empty($configuration['pageIdSelector.']['enabled'])) {
             $this->linkAttributes[] = 'pageIdSelector';
             $fieldDefinitions['pageIdSelector'] = '
-				<tr>
-					<td>
-						<label>
-							' . htmlspecialchars($this->getLanguageService()->getLL('page_id')) . ':
+				<form class="form-horizontal"><div class="form-group form-group-sm">
+					<label class="col-xs-4 control-label">
+						' . htmlspecialchars($this->getLanguageService()->getLL('page_id')) . '
 						</label>
-					</td>
-					<td colspan="3">
-						<input type="text" size="6" name="luid" id="luid" /> <input class="btn btn-default t3js-pageLink" type="submit" value="'
-            . htmlspecialchars($this->getLanguageService()->getLL('setLink')) . '" />
-					</td>
-				</tr>';
+					<div class="col-xs-2">
+						<input type="number" size="6" name="luid" id="luid" class="form-control" />
+					</div>
+					<div class="col-xs-6">
+						<input class="btn btn-default t3js-pageLink" type="submit" value="' . htmlspecialchars($this->getLanguageService()->getLL('setLink')) . '" />
+					</div>
+				</div></form>';
         }
         return $fieldDefinitions;
     }

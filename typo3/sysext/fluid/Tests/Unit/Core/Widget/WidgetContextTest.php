@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,24 +12,28 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
+
 use TYPO3\CMS\Fluid\Core\Widget\WidgetContext;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+use TYPO3Fluid\Fluid\Core\Parser\SyntaxTree\RootNode;
+use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 
 /**
  * Test case
  */
-class WidgetContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class WidgetContextTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Fluid\Core\Widget\WidgetContext
      */
     protected $widgetContext;
 
-    /**
-
-     */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->widgetContext = new \TYPO3\CMS\Fluid\Core\Widget\WidgetContext();
+        parent::setUp();
+        $this->widgetContext = new WidgetContext();
     }
 
     /**
@@ -45,7 +48,7 @@ class WidgetContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $property->setAccessible(true);
         $property->setValue($this->widgetContext, $value);
         $method = 'get' . ucfirst($name);
-        $this->assertEquals($value, call_user_func_array([$this->widgetContext, $method], []));
+        self::assertEquals($value, call_user_func_array([$this->widgetContext, $method], []));
     }
 
     /**
@@ -57,8 +60,9 @@ class WidgetContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setterMethodSetsPropertyValue($name, $value)
     {
         $method = 'set' . ucfirst($name);
+        $getter = 'get' . ucfirst($name);
         call_user_func_array([$this->widgetContext, $method], [$value]);
-        $this->assertAttributeEquals($value, $name, $this->widgetContext);
+        self::assertEquals($value, $this->widgetContext->$getter());
     }
 
     /**
@@ -80,7 +84,7 @@ class WidgetContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function widgetIdentifierCanBeReadAgain()
     {
         $this->widgetContext->setWidgetIdentifier('myWidgetIdentifier');
-        $this->assertEquals('myWidgetIdentifier', $this->widgetContext->getWidgetIdentifier());
+        self::assertEquals('myWidgetIdentifier', $this->widgetContext->getWidgetIdentifier());
     }
 
     /**
@@ -89,7 +93,7 @@ class WidgetContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function ajaxWidgetIdentifierCanBeReadAgain()
     {
         $this->widgetContext->setAjaxWidgetIdentifier(42);
-        $this->assertEquals(42, $this->widgetContext->getAjaxWidgetIdentifier());
+        self::assertEquals(42, $this->widgetContext->getAjaxWidgetIdentifier());
     }
 
     /**
@@ -98,7 +102,7 @@ class WidgetContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function widgetConfigurationCanBeReadAgain()
     {
         $this->widgetContext->setWidgetConfiguration(['key' => 'value']);
-        $this->assertEquals(['key' => 'value'], $this->widgetContext->getWidgetConfiguration());
+        self::assertEquals(['key' => 'value'], $this->widgetContext->getWidgetConfiguration());
     }
 
     /**
@@ -107,7 +111,7 @@ class WidgetContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function controllerObjectNameCanBeReadAgain()
     {
         $this->widgetContext->setControllerObjectName('Tx_Fluid_Object_Name');
-        $this->assertEquals('Tx_Fluid_Object_Name', $this->widgetContext->getControllerObjectName());
+        self::assertEquals('Tx_Fluid_Object_Name', $this->widgetContext->getControllerObjectName());
     }
 
     /**
@@ -115,11 +119,11 @@ class WidgetContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function viewHelperChildNodesCanBeReadAgain()
     {
-        $viewHelperChildNodes = $this->createMock(\TYPO3\CMS\Fluid\Core\Parser\SyntaxTree\RootNode::class);
-        $renderingContext = $this->createMock(\TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface::class);
+        $viewHelperChildNodes = $this->createMock(RootNode::class);
+        $renderingContext = $this->createMock(RenderingContextInterface::class);
         $this->widgetContext->setViewHelperChildNodes($viewHelperChildNodes, $renderingContext);
-        $this->assertSame($viewHelperChildNodes, $this->widgetContext->getViewHelperChildNodes());
-        $this->assertSame($renderingContext, $this->widgetContext->getViewHelperChildNodeRenderingContext());
+        self::assertSame($viewHelperChildNodes, $this->widgetContext->getViewHelperChildNodes());
+        self::assertSame($renderingContext, $this->widgetContext->getViewHelperChildNodeRenderingContext());
     }
 
     /**
@@ -127,7 +131,7 @@ class WidgetContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function sleepReturnsExpectedPropertyNames()
     {
-        $this->assertEquals(
+        self::assertEquals(
             [
                 'widgetIdentifier', 'ajaxWidgetIdentifier', 'widgetConfiguration', 'controllerObjectName',
                 'parentPluginNamespace', 'parentExtensionName', 'parentPluginName', 'widgetViewHelperClassName'

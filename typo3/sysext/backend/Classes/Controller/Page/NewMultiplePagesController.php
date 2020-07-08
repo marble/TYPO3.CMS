@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Controller\Page;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Backend\Controller\Page;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller\Page;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
@@ -23,6 +25,7 @@ use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -33,6 +36,8 @@ use TYPO3\CMS\Fluid\View\StandaloneView;
 
 /**
  * "Create multiple pages" controller
+ *
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class NewMultiplePagesController
 {
@@ -46,7 +51,7 @@ class NewMultiplePagesController
     /**
      * Constructor Method
      *
-     * @var $moduleTemplate ModuleTemplate
+     * @var ModuleTemplate $moduleTemplate
      */
     public function __construct(ModuleTemplate $moduleTemplate = null)
     {
@@ -56,11 +61,10 @@ class NewMultiplePagesController
     /**
      * Main function Handling input variables and rendering main view
      *
-     * @param $request ServerRequestInterface
-     * @param $response ResponseInterface
+     * @param ServerRequestInterface $request
      * @return ResponseInterface Response
      */
-    public function mainAction(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    public function mainAction(ServerRequestInterface $request): ResponseInterface
     {
         $backendUser = $this->getBackendUser();
         $pageUid = (int)$request->getQueryParams()['id'];
@@ -70,8 +74,7 @@ class NewMultiplePagesController
         if (!is_array($pageRecord)) {
             // User has no permission on parent page, should not happen, just render an empty page
             $this->moduleTemplate->setContent('');
-            $response->getBody()->write($this->moduleTemplate->renderContent());
-            return $response;
+            return new HtmlResponse($this->moduleTemplate->renderContent());
         }
 
         // Doc header handling
@@ -83,7 +86,7 @@ class NewMultiplePagesController
             ->setFieldName('pages_new');
         $viewButton = $buttonBar->makeLinkButton()
             ->setOnClick(BackendUtility::viewOnClick($pageUid, '', BackendUtility::BEgetRootLine($pageUid)))
-            ->setTitle($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
+            ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
             ->setIcon($iconFactory->getIcon('actions-view-page', Icon::SIZE_SMALL))
             ->setHref('#');
         $shortcutButton = $buttonBar->makeShortcutButton()
@@ -130,8 +133,7 @@ class NewMultiplePagesController
         }
 
         $this->moduleTemplate->setContent($view->render());
-        $response->getBody()->write($this->moduleTemplate->renderContent());
-        return $response;
+        return new HtmlResponse($this->moduleTemplate->renderContent());
     }
 
     /**
@@ -154,7 +156,7 @@ class NewMultiplePagesController
             $subPages = $this->getSubPagesOfPage($pageUid);
             $lastPage = end($subPages);
             if (isset($lastPage['uid']) && MathUtility::canBeInterpretedAsInteger($lastPage['uid'])) {
-                $firstPid = -(int)($lastPage['uid']);
+                $firstPid = -(int)$lastPage['uid'];
             }
         }
 
@@ -164,30 +166,23 @@ class NewMultiplePagesController
         foreach ($newPagesData as $identifier => $data) {
             if (!trim($data['title'])) {
                 continue;
-            } else {
-                $commandArray['pages'][$identifier]['hidden'] = $hidePages;
-                $commandArray['pages'][$identifier]['nav_hide'] = $hidePagesInMenu;
-                $commandArray['pages'][$identifier]['title'] = $data['title'];
-                $commandArray['pages'][$identifier]['doktype'] = $data['doktype'];
-                if ($firstRecord) {
-                    $firstRecord = false;
-                    $commandArray['pages'][$identifier]['pid'] = $firstPid;
-                } else {
-                    $commandArray['pages'][$identifier]['pid'] = '-' . $previousIdentifier;
-                }
-                $previousIdentifier = $identifier;
             }
+            $commandArray['pages'][$identifier]['hidden'] = (int)$hidePages;
+            $commandArray['pages'][$identifier]['nav_hide'] = (int)$hidePagesInMenu;
+            $commandArray['pages'][$identifier]['title'] = $data['title'];
+            $commandArray['pages'][$identifier]['doktype'] = $data['doktype'];
+            if ($firstRecord) {
+                $firstRecord = false;
+                $commandArray['pages'][$identifier]['pid'] = $firstPid;
+            } else {
+                $commandArray['pages'][$identifier]['pid'] = '-' . $previousIdentifier;
+            }
+            $previousIdentifier = $identifier;
         }
 
         if (!empty($commandArray)) {
             $pagesCreated = true;
             $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
-            // Set default TCA values specific for the user
-            $backendUser = $this->getBackendUser();
-            $tcaDefaultOverride = $backendUser->getTSConfigProp('TCAdefaults');
-            if (is_array($tcaDefaultOverride)) {
-                $dataHandler->setDefaultsFromUserTS($tcaDefaultOverride);
-            }
             $dataHandler->start($commandArray, []);
             $dataHandler->process_datamap();
             BackendUtility::setUpdateSignal('updatePageTree');
@@ -260,6 +255,10 @@ class NewMultiplePagesController
                 $queryBuilder->expr()->eq(
                     'pid',
                     $queryBuilder->createNamedParameter($pageUid, \PDO::PARAM_INT)
+                ),
+                $queryBuilder->expr()->eq(
+                    $GLOBALS['TCA']['pages']['ctrl']['languageField'],
+                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
                 )
             )
             ->orderBy('sorting')

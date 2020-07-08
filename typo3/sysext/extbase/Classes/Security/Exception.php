@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Security;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +15,15 @@ namespace TYPO3\CMS\Extbase\Security;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Security;
+
+use TYPO3\CMS\Extbase\Exception as ExtbaseException;
+
 /**
  * A hash service which should be used to generate and validate hashes.
  *
  * It will use some salt / encryption key in the future.
- *
- * @license http://www.gnu.org/licenses/lgpl.html GNU Lesser Public License, version 3 or later
  */
-class Exception extends \TYPO3\CMS\Extbase\Exception
+class Exception extends ExtbaseException
 {
 }

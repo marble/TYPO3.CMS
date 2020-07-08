@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Category;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Core\Category;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Category;
+
+use TYPO3\CMS\Core\Database\Event\AlterTableDefinitionStatementsEvent;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
@@ -49,6 +51,7 @@ class CategoryRegistry implements SingletonInterface
      * Returns a class instance
      *
      * @return CategoryRegistry
+     * @internal
      */
     public static function getInstance()
     {
@@ -81,6 +84,7 @@ class CategoryRegistry implements SingletonInterface
      * @return bool
      * @throws \InvalidArgumentException
      * @throws \RuntimeException
+     * @internal
      */
     public function add($extensionKey, $tableName, $fieldName = 'categories', array $options = [], $override = false)
     {
@@ -113,6 +117,7 @@ class CategoryRegistry implements SingletonInterface
      * Gets all extension keys that registered a category configuration.
      *
      * @return array
+     * @internal
      */
     public function getExtensionKeys()
     {
@@ -123,6 +128,7 @@ class CategoryRegistry implements SingletonInterface
      * Gets all categorized tables
      *
      * @return array
+     * @internal
      */
     public function getCategorizedTables()
     {
@@ -135,23 +141,14 @@ class CategoryRegistry implements SingletonInterface
      *
      * @param array $configuration Current field configuration
      * @throws \UnexpectedValueException
+     * @internal
      */
     public function getCategoryFieldsForTable(array &$configuration)
     {
         $table = $configuration['config']['itemsProcConfig']['table'] ?? '';
-        // Lookup table for legacy menu content element
-        if (empty($table)) {
-            $menuType = $configuration['row']['menu_type'][0] ?? '';
-            // Define the table being looked up from the type of menu
-            if ($menuType === 'categorized_pages') {
-                $table = 'pages';
-            } elseif ($menuType === 'categorized_content') {
-                $table = 'tt_content';
-            }
-        }
         // Return early if no table is defined
         if (empty($table)) {
-            throw new \UnexpectedValueException('The given menu_type is not supported.', 1381823570);
+            throw new \UnexpectedValueException('No table is given.', 1381823570);
         }
         // Loop on all registries and find entries for the correct table
         foreach ($this->registry as $tableName => $fields) {
@@ -170,6 +167,7 @@ class CategoryRegistry implements SingletonInterface
      * @param string $tableName Name of the table to be looked up
      * @param string $fieldName Name of the field to be looked up
      * @return bool
+     * @internal
      */
     public function isRegistered($tableName, $fieldName = 'categories')
     {
@@ -180,6 +178,7 @@ class CategoryRegistry implements SingletonInterface
      * Generates tables definitions for all registered tables.
      *
      * @return string
+     * @internal
      */
     public function getDatabaseTableDefinitions()
     {
@@ -195,6 +194,7 @@ class CategoryRegistry implements SingletonInterface
      *
      * @param string $extensionKey Extension key to have the database definitions created for
      * @return string
+     * @internal
      */
     public function getDatabaseTableDefinition($extensionKey)
     {
@@ -303,7 +303,7 @@ class CategoryRegistry implements SingletonInterface
     {
         $fieldList = '';
         if (!isset($this->addedCategoryTabs[$tableName])) {
-            $fieldList .= '--div--;LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_category.tabs.category, ';
+            $fieldList .= '--div--;LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_category.tabs.category, ';
             $this->addedCategoryTabs[$tableName] = $tableName;
         }
         $fieldList .= $fieldName;
@@ -327,7 +327,7 @@ class CategoryRegistry implements SingletonInterface
         // Makes sure to add more TCA to an existing structure
         if (isset($GLOBALS['TCA'][$tableName]['columns'])) {
             // Take specific label into account
-            $label = 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_category.categories';
+            $label = 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_category.categories';
             if (!empty($options['label'])) {
                 $label = $options['label'];
             }
@@ -357,6 +357,9 @@ class CategoryRegistry implements SingletonInterface
             if (isset($options['displayCond'])) {
                 $columns[$fieldName]['displayCond'] = $options['displayCond'];
             }
+            if (isset($options['onChange'])) {
+                $columns[$fieldName]['onChange'] = $options['onChange'];
+            }
 
             // Register opposite references for the foreign side of a relation
             if (empty($GLOBALS['TCA']['sys_category']['columns']['items']['config']['MM_oppositeUsage'][$tableName])) {
@@ -364,15 +367,6 @@ class CategoryRegistry implements SingletonInterface
             }
             if (!in_array($fieldName, $GLOBALS['TCA']['sys_category']['columns']['items']['config']['MM_oppositeUsage'][$tableName])) {
                 $GLOBALS['TCA']['sys_category']['columns']['items']['config']['MM_oppositeUsage'][$tableName][] = $fieldName;
-            }
-
-            // Add field to interface list per default (unless the 'interface' property is FALSE)
-            if (
-                (!isset($options['interface']) || $options['interface'])
-                && !empty($GLOBALS['TCA'][$tableName]['interface']['showRecordFieldList'])
-                && !GeneralUtility::inList($GLOBALS['TCA'][$tableName]['interface']['showRecordFieldList'], $fieldName)
-            ) {
-                $GLOBALS['TCA'][$tableName]['interface']['showRecordFieldList'] .= ',' . $fieldName;
             }
 
             // Adding fields to an existing table definition
@@ -389,7 +383,6 @@ class CategoryRegistry implements SingletonInterface
      * @param string $fieldName The field name (default categories)
      * @param array $fieldConfigurationOverride Changes to the default configuration
      * @return array
-     * @api
      */
     public static function getTcaFieldConfiguration($tableName, $fieldName = 'categories', array $fieldConfigurationOverride = [])
     {
@@ -398,7 +391,7 @@ class CategoryRegistry implements SingletonInterface
             'type' => 'select',
             'renderType' => 'selectTree',
             'foreign_table' => 'sys_category',
-            'foreign_table_where' => ' AND sys_category.sys_language_uid IN (-1, 0) ORDER BY sys_category.sorting ASC',
+            'foreign_table_where' => ' AND sys_category.sys_language_uid IN (-1, 0)',
             'MM' => 'sys_category_record_mm',
             'MM_opposite_field' => 'items',
             'MM_match_fields' => [
@@ -429,31 +422,16 @@ class CategoryRegistry implements SingletonInterface
     }
 
     /**
-     * A slot method to inject the required category database fields to the
+     * A event listener to inject the required category database fields to the
      * tables definition string
      *
-     * @param array $sqlString
-     * @return array
+     * @param AlterTableDefinitionStatementsEvent $event
+     * @internal
      */
-    public function addCategoryDatabaseSchemaToTablesDefinition(array $sqlString)
+    public function addCategoryDatabaseSchema(AlterTableDefinitionStatementsEvent $event): void
     {
         $this->registerDefaultCategorizedTables();
-        $sqlString[] = $this->getDatabaseTableDefinitions();
-        return ['sqlString' => $sqlString];
-    }
-
-    /**
-     * A slot method to inject the required category database fields of an
-     * extension to the tables definition string
-     *
-     * @param array $sqlString
-     * @param string $extensionKey
-     * @return array
-     */
-    public function addExtensionCategoryDatabaseSchemaToTablesDefinition(array $sqlString, $extensionKey)
-    {
-        $sqlString[] = $this->getDatabaseTableDefinition($extensionKey);
-        return ['sqlString' => $sqlString, 'extensionKey' => $extensionKey];
+        $event->addSqlData($this->getDatabaseTableDefinitions());
     }
 
     /**

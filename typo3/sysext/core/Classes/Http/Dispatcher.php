@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Core\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Http;
+
+use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -22,23 +24,33 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * Dispatcher which resolves a target, which was given to the request to call a controller and method (but also a callable)
  * where the request contains a "target" as attribute.
  *
- * Used in eID Frontend Requests, see EidRequestHandler
+ * Used in eID Frontend Requests, see EidHandler
  */
 class Dispatcher implements DispatcherInterface
 {
     /**
+     * @var ContainerInterface
+     */
+    protected $container;
+
+    public function __construct(ContainerInterface $container)
+    {
+        $this->container = $container;
+    }
+
+    /**
      * Main method that fetches the target from the request and calls the target directly
      *
      * @param ServerRequestInterface $request the current server request
-     * @param ResponseInterface $response the prepared response
-     * @return ResponseInterface the filled response by the callable / controller/action
+     * @return ResponseInterface the filled response by the callable/controller/action
      * @throws \InvalidArgumentException if the defined target is invalid
      */
-    public function dispatch(ServerRequestInterface $request, ResponseInterface $response)
+    public function dispatch(ServerRequestInterface $request): ResponseInterface
     {
         $targetIdentifier = $request->getAttribute('target');
         $target = $this->getCallableFromTarget($targetIdentifier);
-        return call_user_func_array($target, [$request, $response]);
+        $arguments = [$request];
+        return call_user_func_array($target, $arguments);
     }
 
     /**
@@ -61,7 +73,7 @@ class Dispatcher implements DispatcherInterface
 
         // Only a class name is given
         if (is_string($target) && strpos($target, ':') === false) {
-            $targetObject = GeneralUtility::makeInstance($target);
+            $targetObject = $this->container->has($target) ? $this->container->get($target) : GeneralUtility::makeInstance($target);
             if (!method_exists($targetObject, '__invoke')) {
                 throw new \InvalidArgumentException('Object "' . $target . '" doesn\'t implement an __invoke() method and cannot be used as target.', 1442431631);
             }
@@ -70,12 +82,12 @@ class Dispatcher implements DispatcherInterface
 
         // Check if the target is a concatenated string of "className::actionMethod"
         if (is_string($target) && strpos($target, '::') !== false) {
-            list($className, $methodName) = explode('::', $target, 2);
-            $targetObject = GeneralUtility::makeInstance($className);
+            [$className, $methodName] = explode('::', $target, 2);
+            $targetObject = $this->container->has($className) ? $this->container->get($className) : GeneralUtility::makeInstance($className);
             return [$targetObject, $methodName];
         }
 
-        // This needs to be checked at last as a string with object::method is recognize as callable
+        // Closures needs to be checked at last as a string with object::method is recognized as callable
         if (is_callable($target)) {
             return $target;
         }

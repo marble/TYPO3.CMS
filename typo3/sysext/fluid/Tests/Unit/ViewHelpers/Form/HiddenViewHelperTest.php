@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,25 +12,27 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Form\HiddenViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder;
 
 /**
  * Test for the "Hidden" Form view helper
  */
-class HiddenViewHelperTest extends \TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form\FormFieldViewHelperBaseTestcase
+class HiddenViewHelperTest extends FormFieldViewHelperBaseTestcase
 {
     /**
      * @var \TYPO3\CMS\Fluid\ViewHelpers\Form\HiddenViewHelper
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = $this->getAccessibleMock(HiddenViewHelper::class, ['setErrorClassAttribute', 'getName', 'getValueAttribute', 'registerFieldNameForFormTokenGeneration']);
         $this->injectDependenciesIntoViewHelper($this->viewHelper);
-        $this->viewHelper->initializeArguments();
     }
 
     /**
@@ -39,20 +40,19 @@ class HiddenViewHelperTest extends \TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form\
      */
     public function renderCorrectlySetsTagNameAndDefaultAttributes()
     {
-        $mockTagBuilder = $this->getMockBuilder(TagBuilder::class)
-            ->setMethods(['setTagName', 'addAttribute'])
-            ->getMock();
-        $mockTagBuilder->expects($this->once())->method('setTagName')->with('input');
-        $mockTagBuilder->expects($this->at(1))->method('addAttribute')->with('type', 'hidden');
-        $mockTagBuilder->expects($this->at(2))->method('addAttribute')->with('name', 'foo');
-        $this->viewHelper->expects($this->once())->method('registerFieldNameForFormTokenGeneration')->with('foo');
-        $mockTagBuilder->expects($this->at(3))->method('addAttribute')->with('value', 'bar');
+        $tagBuilder = $this->prophesize(TagBuilder::class);
+        $tagBuilder->render()->shouldBeCalled();
+        $tagBuilder->reset()->shouldBeCalled();
+        $tagBuilder->addAttribute('type', 'hidden')->shouldBeCalled();
+        $tagBuilder->addAttribute('name', 'foo')->shouldBeCalled();
+        $tagBuilder->addAttribute('value', 'bar')->shouldBeCalled();
+        $tagBuilder->setTagName('input')->shouldBeCalled();
+        $this->viewHelper->expects(self::once())->method('registerFieldNameForFormTokenGeneration')->with('foo');
 
-        $this->viewHelper->expects($this->once())->method('getName')->will($this->returnValue('foo'));
-        $this->viewHelper->expects($this->once())->method('getValueAttribute')->will($this->returnValue('bar'));
-        $this->viewHelper->_set('tag', $mockTagBuilder);
+        $this->viewHelper->expects(self::once())->method('getName')->willReturn('foo');
+        $this->viewHelper->expects(self::once())->method('getValueAttribute')->willReturn('bar');
+        $this->viewHelper->setTagBuilder($tagBuilder->reveal());
 
-        $this->viewHelper->initialize();
-        $this->viewHelper->render();
+        $this->viewHelper->initializeArgumentsAndRender();
     }
 }

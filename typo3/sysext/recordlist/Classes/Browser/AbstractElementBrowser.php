@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recordlist\Browser;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,10 @@ namespace TYPO3\CMS\Recordlist\Browser;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Routing\Router;
+namespace TYPO3\CMS\Recordlist\Browser;
+
 use TYPO3\CMS\Backend\Routing\UriBuilder;
-use TYPO3\CMS\Backend\Template\DocumentTemplate;
-use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -28,18 +27,19 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * Base class for element browsers
  *
  * NOTE: This class should only be used internally. Extensions must implement the ElementBrowserInterface.
+ * @internal This class is a specific LinkBrowser implementation and is not part of the TYPO3's Core API.
  */
 abstract class AbstractElementBrowser
 {
     /**
-    * @var DocumentTemplate
-    */
-    protected $doc;
+     * @var ModuleTemplate
+     */
+    protected $moduleTemplate;
 
     /**
      * @var PageRenderer
      */
-    protected $pageRenderer = null;
+    protected $pageRenderer;
 
     /**
      * URL of current request
@@ -58,16 +58,12 @@ abstract class AbstractElementBrowser
      * opens - thus allows us to make references back to the main window in which the form is.
      * Example value: "data[pages][39][bodytext]|||tt_content|"
      * or "data[tt_content][NEW3fba56fde763d][image]|||gif,jpg,jpeg,tif,bmp,pcx,tga,png,pdf,ai|"
-     *
      * Values:
      * 0: form field name reference, eg. "data[tt_content][123][image]"
      * 1: htmlArea RTE parameters: editorNo:contentTypo3Language
      * 2: RTE config parameters: RTEtsConfigParams
      * 3: allowed types. Eg. "tt_content" or "gif,jpg,jpeg,tif,bmp,pcx,tga,png,pdf,ai"
-     * 4: IRRE uniqueness: target level object-id to perform actions/checks on, eg. "data[79][tt_address][1][<field>][<foreign_table>]"
-     * 5: IRRE uniqueness: name of function in opener window that checks if element is already used, eg. "inline.checkUniqueElement"
-     * 6: IRRE uniqueness: name of function in opener window that performs some additional(!) action, eg. "inline.setUniqueElement"
-     * 7: IRRE uniqueness: name of function in opener window that performs action instead of using addElement/insertElement, eg. "inline.importElement"
+     * 4: IRRE uniqueness: target level object-id to perform actions/checks on, eg. "data-4-pages-4-nav_icon-sys_file_reference" ("data-<uid>-<table>-<pid>-<field>-<foreign_table>")
      *
      * $pArr = explode('|', $this->bparams);
      * $formFieldName = $pArr[0];
@@ -82,12 +78,12 @@ abstract class AbstractElementBrowser
      */
     public function __construct()
     {
-        $this->doc = GeneralUtility::makeInstance(DocumentTemplate::class);
+        $this->moduleTemplate = GeneralUtility::makeInstance(ModuleTemplate::class);
+        $this->moduleTemplate->getDocHeaderComponent()->disable();
+        $this->moduleTemplate->getView()->setTemplate('ElementBrowser');
         $this->iconFactory = GeneralUtility::makeInstance(IconFactory::class);
         $this->pageRenderer = GeneralUtility::makeInstance(PageRenderer::class);
-        $this->pageRenderer->loadJquery();
         $this->pageRenderer->loadRequireJsModule('TYPO3/CMS/Recordlist/ElementBrowser');
-
         $this->initialize();
     }
 
@@ -106,19 +102,13 @@ abstract class AbstractElementBrowser
     protected function determineScriptUrl()
     {
         if ($routePath = GeneralUtility::_GP('route')) {
-            $router = GeneralUtility::makeInstance(Router::class);
-            $route = $router->match($routePath);
             $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-            $this->thisScript = (string)$uriBuilder->buildUriFromRoute($route->getOption('_identifier'));
-        } elseif ($moduleName = GeneralUtility::_GP('M')) {
-            $this->thisScript = BackendUtility::getModuleUrl($moduleName);
+            $this->thisScript = (string)$uriBuilder->buildUriFromRoutePath($routePath);
         } else {
             $this->thisScript = GeneralUtility::getIndpEnv('SCRIPT_NAME');
         }
     }
 
-    /**
-     */
     protected function initVariables()
     {
         $this->bparams = GeneralUtility::_GP('bparams');
@@ -128,20 +118,17 @@ abstract class AbstractElementBrowser
     }
 
     /**
-     * Initialize document template object
+     * Initialize the body tag for the module
      */
-    protected function initDocumentTemplate()
+    protected function setBodyTagParameters()
     {
         $bodyDataAttributes = array_merge(
             $this->getBParamDataAttributes(),
             $this->getBodyTagAttributes()
         );
-        foreach ($bodyDataAttributes as $attributeName => $value) {
-            $this->doc->bodyTagAdditions .= ' ' . $attributeName . '="' . htmlspecialchars($value) . '"';
-        }
-
-        // unset the default jumpToUrl() function as we ship our own
-        unset($this->doc->JScodeArray['jumpToUrl']);
+        $bodyTag = $this->moduleTemplate->getBodyTag();
+        $bodyTag = str_replace('>', ' ' . GeneralUtility::implodeAttributes($bodyDataAttributes, true, true) . '>', $bodyTag);
+        $this->moduleTemplate->setBodyTag($bodyTag);
     }
 
     /**
@@ -156,7 +143,7 @@ abstract class AbstractElementBrowser
      */
     protected function getBParamDataAttributes()
     {
-        list($fieldRef, $rteParams, $rteConfig, , $irreObjectId, $irreCheckUniqueAction, $irreAddAction, $irreInsertAction) = explode('|', $this->bparams);
+        [$fieldRef, $rteParams, $rteConfig, , $irreObjectId] = explode('|', $this->bparams);
 
         return [
             'data-this-script-url' => strpos($this->thisScript, '?') === false ? $this->thisScript . '?' : $this->thisScript . '&',
@@ -166,9 +153,6 @@ abstract class AbstractElementBrowser
             'data-rte-parameters' => $rteParams,
             'data-rte-configuration' => $rteConfig,
             'data-irre-object-id' => $irreObjectId,
-            'data-irre-check-unique-action' => $irreCheckUniqueAction,
-            'data-irre-add-action' => $irreAddAction,
-            'data-irre-insert-action' => $irreInsertAction,
         ];
     }
 

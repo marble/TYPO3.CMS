@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,30 +13,39 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\ViewHelpers\Format;
+
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithContentArgumentAndRenderStatic;
 
 /**
- * Applies htmlentities() escaping to a value
- * @see http://www.php.net/manual/function.htmlentities.php
+ * Applies :php:`htmlentities()` escaping to a value.
+ * See https://www.php.net/manual/function.htmlentities.php.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="default notation">
- * <f:format.htmlentities>{text}</f:format.htmlentities>
- * </code>
- * <output>
- * Text with & " ' < > * replaced by HTML entities (htmlentities applied).
- * </output>
+ * Default notation
+ * ----------------
  *
- * <code title="inline notation">
- * {text -> f:format.htmlentities(encoding: 'ISO-8859-1')}
- * </code>
- * <output>
- * Text with & " ' < > * replaced by HTML entities (htmlentities applied).
- * </output>
+ * ::
  *
- * @api
+ *    <f:format.htmlentities>{text}</f:format.htmlentities>
+ *
+ * Text containing the following signs ``&`` ``"`` ``'`` ``<`` ``>`` will be processed by :php:`htmlentities()`.
+ * These will result in: ``&amp;`` ``&quot;`` ``&#039;`` ``&lt;`` ``&gt;``.
+ *
+ * Inline notation
+ * ---------------
+ *
+ * ::
+ *
+ *    {text -> f:format.htmlentities(encoding: 'ISO-8859-1')}
+ *
+ * Text containing the following signs ``&`` ``"`` ``'`` ``<`` ``>`` will be processed by :php:`htmlentities()`.
+ * These will result in: ``&amp;`` ``&quot;`` ``&#039;`` ``&lt;`` ``&gt;``.
+ *
+ * But encoded as ISO-8859-1.
  */
 class HtmlentitiesViewHelper extends AbstractEncodingViewHelper
 {
@@ -71,7 +79,7 @@ class HtmlentitiesViewHelper extends AbstractEncodingViewHelper
     /**
      * Escapes special characters with their escaped counterparts as needed using PHPs htmlentities() function.
      *
-     * @see http://www.php.net/manual/function.htmlentities.php
+     * @see https://www.php.net/manual/function.htmlentities.php
      * @param array $arguments
      * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext
@@ -84,13 +92,13 @@ class HtmlentitiesViewHelper extends AbstractEncodingViewHelper
         $keepQuotes = $arguments['keepQuotes'];
         $doubleEncode = $arguments['doubleEncode'];
 
-        if (!is_string($value)) {
+        if (!is_string($value) && !(is_object($value) && method_exists($value, '__toString'))) {
             return $value;
         }
         if ($encoding === null) {
             $encoding = self::resolveDefaultEncoding();
         }
-        $flags = $keepQuotes ? ENT_NOQUOTES : ENT_COMPAT;
-        return htmlentities($value, $flags, $encoding, $doubleEncode);
+        $flags = $keepQuotes ? ENT_NOQUOTES : ENT_QUOTES;
+        return htmlentities((string)$value, $flags, $encoding, $doubleEncode);
     }
 }

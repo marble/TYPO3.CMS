@@ -1,25 +1,27 @@
 <?php
+
+declare(strict_types=1);
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Extbase\Property\TypeConverter;
 
-/*                                                                        *
- * This script belongs to the Extbase framework                           *
- *                                                                        *
- * It is free software; you can redistribute it and/or modify it under    *
- * the terms of the GNU Lesser General Public License as published by the *
- * Free Software Foundation, either version 3 of the License, or (at your *
- * option) any later version.                                             *
- *                                                                        *
- * This script is distributed in the hope that it will be useful, but     *
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHAN-    *
- * TABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser       *
- * General Public License for more details.                               *
- *                                                                        *
- * You should have received a copy of the GNU Lesser General Public       *
- * License along with the script.                                         *
- * If not, see http://www.gnu.org/licenses/lgpl.html                      *
- *                                                                        *
- * The TYPO3 project - inspiring people to share!                         *
- *                                                                        */
+use TYPO3\CMS\Extbase\Error\Error;
+use TYPO3\CMS\Extbase\Property\Exception\InvalidPropertyMappingConfigurationException;
+use TYPO3\CMS\Extbase\Property\Exception\TypeConverterException;
+use TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface;
+
 /**
  * Converter which transforms from different input formats into DateTime objects.
  *
@@ -57,10 +59,8 @@ namespace TYPO3\CMS\Extbase\Property\TypeConverter;
  *   'month' => '<month>', // integer
  *   'year' => '<year>', // integer
  *  );
- *
- * @api
  */
-class DateTimeConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\AbstractTypeConverter
+class DateTimeConverter extends AbstractTypeConverter
 {
     /**
      * @var string
@@ -76,14 +76,14 @@ class DateTimeConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\Abstra
     const DEFAULT_DATE_FORMAT = \DateTime::W3C;
 
     /**
-     * @var array<string>
+     * @var string[]
      */
     protected $sourceTypes = ['string', 'integer', 'array'];
 
     /**
      * @var string
      */
-    protected $targetType = 'DateTime';
+    protected $targetType = \DateTime::class;
 
     /**
      * @var int
@@ -93,13 +93,15 @@ class DateTimeConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\Abstra
     /**
      * If conversion is possible.
      *
-     * @param string $source
+     * @param string|array|int $source
      * @param string $targetType
      * @return bool
+     * @internal only to be used within Extbase, not part of TYPO3 Core API.
      */
-    public function canConvertFrom($source, $targetType)
+    public function canConvertFrom($source, string $targetType): bool
     {
         if (!is_callable([$targetType, 'createFromFormat'])) {
+            // todo: this check does not make sense as this converter is only called on \DateTime targets
             return false;
         }
         if (is_array($source)) {
@@ -118,28 +120,29 @@ class DateTimeConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\Abstra
      * @param string $targetType must be "DateTime"
      * @param array $convertedChildProperties not used currently
      * @param \TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface $configuration
-     * @return \DateTime
+     * @return \DateTime|\TYPO3\CMS\Extbase\Error\Error|null
      * @throws \TYPO3\CMS\Extbase\Property\Exception\TypeConverterException
+     * @internal only to be used within Extbase, not part of TYPO3 Core API.
      */
-    public function convertFrom($source, $targetType, array $convertedChildProperties = [], \TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface $configuration = null)
+    public function convertFrom($source, string $targetType, array $convertedChildProperties = [], PropertyMappingConfigurationInterface $configuration = null): ?object
     {
         $dateFormat = $this->getDefaultDateFormat($configuration);
         if (is_string($source)) {
             $dateAsString = $source;
         } elseif (is_int($source)) {
-            $dateAsString = strval($source);
+            $dateAsString = (string)$source;
         } else {
             if (isset($source['date']) && is_string($source['date'])) {
                 $dateAsString = $source['date'];
             } elseif (isset($source['date']) && is_int($source['date'])) {
-                $dateAsString = strval($source['date']);
+                $dateAsString = (string)$source['date'];
             } elseif ($this->isDatePartKeysProvided($source)) {
                 if ($source['day'] < 1 || $source['month'] < 1 || $source['year'] < 1) {
-                    return new \TYPO3\CMS\Extbase\Error\Error('Could not convert the given date parts into a DateTime object because one or more parts were 0.', 1333032779);
+                    return new Error('Could not convert the given date parts into a DateTime object because one or more parts were 0.', 1333032779);
                 }
                 $dateAsString = sprintf('%d-%d-%d', $source['year'], $source['month'], $source['day']);
             } else {
-                throw new \TYPO3\CMS\Extbase\Property\Exception\TypeConverterException('Could not convert the given source into a DateTime object because it was not an array with a valid date as a string', 1308003914);
+                throw new TypeConverterException('Could not convert the given source into a DateTime object because it was not an array with a valid date as a string', 1308003914);
             }
             if (isset($source['dateFormat']) && $source['dateFormat'] !== '') {
                 $dateFormat = $source['dateFormat'];
@@ -149,13 +152,14 @@ class DateTimeConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\Abstra
             return null;
         }
         if (ctype_digit($dateAsString) && $configuration === null && (!is_array($source) || !isset($source['dateFormat']))) {
+            // todo: type converters are never called without a property mapping configuration
             $dateFormat = 'U';
         }
         if (is_array($source) && isset($source['timezone']) && (string)$source['timezone'] !== '') {
             try {
                 $timezone = new \DateTimeZone($source['timezone']);
             } catch (\Exception $e) {
-                throw new \TYPO3\CMS\Extbase\Property\Exception\TypeConverterException('The specified timezone "' . $source['timezone'] . '" is invalid.', 1308240974);
+                throw new TypeConverterException('The specified timezone "' . $source['timezone'] . '" is invalid.', 1308240974);
             }
             $date = $targetType::createFromFormat($dateFormat, $dateAsString, $timezone);
         } else {
@@ -165,7 +169,7 @@ class DateTimeConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\Abstra
             return new \TYPO3\CMS\Extbase\Validation\Error('The date "%s" was not recognized (for format "%s").', 1307719788, [$dateAsString, $dateFormat]);
         }
         if (is_array($source)) {
-            $this->overrideTimeIfSpecified($date, $source);
+            $date = $this->overrideTimeIfSpecified($date, $source);
         }
         return $date;
     }
@@ -176,7 +180,7 @@ class DateTimeConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\Abstra
      * @param array $source
      * @return bool
      */
-    protected function isDatePartKeysProvided(array $source)
+    protected function isDatePartKeysProvided(array $source): bool
     {
         return isset($source['day']) && ctype_digit($source['day'])
             && isset($source['month']) && ctype_digit($source['month'])
@@ -191,16 +195,18 @@ class DateTimeConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\Abstra
      * @return string
      * @throws \TYPO3\CMS\Extbase\Property\Exception\InvalidPropertyMappingConfigurationException
      */
-    protected function getDefaultDateFormat(\TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface $configuration = null)
+    protected function getDefaultDateFormat(PropertyMappingConfigurationInterface $configuration = null): string
     {
         if ($configuration === null) {
+            // todo: type converters are never called without a property mapping configuration
             return self::DEFAULT_DATE_FORMAT;
         }
-        $dateFormat = $configuration->getConfigurationValue(\TYPO3\CMS\Extbase\Property\TypeConverter\DateTimeConverter::class, self::CONFIGURATION_DATE_FORMAT);
+        $dateFormat = $configuration->getConfigurationValue(DateTimeConverter::class, self::CONFIGURATION_DATE_FORMAT);
         if ($dateFormat === null) {
             return self::DEFAULT_DATE_FORMAT;
-        } elseif ($dateFormat !== null && !is_string($dateFormat)) {
-            throw new \TYPO3\CMS\Extbase\Property\Exception\InvalidPropertyMappingConfigurationException('CONFIGURATION_DATE_FORMAT must be of type string, "' . (is_object($dateFormat) ? get_class($dateFormat) : gettype($dateFormat)) . '" given', 1307719569);
+        }
+        if ($dateFormat !== null && !is_string($dateFormat)) {
+            throw new InvalidPropertyMappingConfigurationException('CONFIGURATION_DATE_FORMAT must be of type string, "' . (is_object($dateFormat) ? get_class($dateFormat) : gettype($dateFormat)) . '" given', 1307719569);
         }
         return $dateFormat;
     }
@@ -210,15 +216,16 @@ class DateTimeConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\Abstra
      *
      * @param \DateTime $date
      * @param array $source
+     * @return \DateTime
      */
-    protected function overrideTimeIfSpecified(\DateTime $date, array $source)
+    protected function overrideTimeIfSpecified(\DateTime $date, array $source): \DateTime
     {
         if (!isset($source['hour']) && !isset($source['minute']) && !isset($source['second'])) {
-            return;
+            return $date;
         }
         $hour = isset($source['hour']) ? (int)$source['hour'] : 0;
         $minute = isset($source['minute']) ? (int)$source['minute'] : 0;
         $second = isset($source['second']) ? (int)$source['second'] : 0;
-        $date->setTime($hour, $minute, $second);
+        return $date->setTime($hour, $minute, $second);
     }
 }

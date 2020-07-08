@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Tca;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,18 @@ namespace TYPO3\CMS\Core\Tests\Unit\Tca;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\Tca;
+
 use TYPO3\CMS\Backend\Tests\Functional\Form\FormTestService;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Frontend\Page\PageRepository;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-class PagesVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class PagesVisibleFieldsTest extends FunctionalTestCase
 {
     /**
-     * These form fields a visisble in the default page types.
+     * These form fields are visible in the default page types.
      *
      * @var array
      */
@@ -47,11 +49,9 @@ class PagesVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\Fun
         'backend_layout',
         'backend_layout_next_level',
         'content_from_pid',
-        'alias',
         'target',
         'cache_timeout',
         'cache_tags',
-        'no_cache',
         'l18n_cfg',
         'is_siteroot',
         'no_search',
@@ -83,7 +83,6 @@ class PagesVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\Fun
                 'content_from_pid',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'module',
             ],
         ],
@@ -98,13 +97,11 @@ class PagesVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\Fun
                 'content_from_pid',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'module',
             ],
         ],
         PageRepository::DOKTYPE_LINK => [
             'additionalFields' => [
-                'urltype',
                 'url',
             ],
             'hiddenFields' => [
@@ -113,7 +110,6 @@ class PagesVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\Fun
                 'content_from_pid',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'module',
             ],
         ],
@@ -137,13 +133,10 @@ class PagesVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\Fun
                 'content_from_pid',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'content_from_pid',
-                'alias',
                 'target',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'l18n_cfg',
                 'is_siteroot',
                 'no_search',
@@ -172,13 +165,10 @@ class PagesVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\Fun
                 'content_from_pid',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'content_from_pid',
-                'alias',
                 'target',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'l18n_cfg',
                 'is_siteroot',
                 'no_search',
@@ -200,26 +190,19 @@ class PagesVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\Fun
                 'author_email',
                 'layout',
                 'newUntil',
-                'backend_layout',
-                'backend_layout_next_level',
                 'module',
                 'content_from_pid',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'content_from_pid',
-                'alias',
                 'target',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'l18n_cfg',
                 'is_siteroot',
                 'no_search',
                 'php_tree_stop',
                 'media',
-                'tsconfig_includes',
-                'TSconfig',
             ],
         ],
     ];
@@ -263,14 +246,14 @@ class PagesVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\Fun
         $formResult = $formEngineTestService->createNewRecordForm('pages', ['doktype' => $doktype]);
 
         foreach ($expectedFields as $expectedField) {
-            $this->assertNotFalse(
+            self::assertNotFalse(
                 $formEngineTestService->formHtmlContainsField($expectedField, $formResult['html']),
                 'The field ' . $expectedField . ' is not in the HTML'
             );
         }
 
         foreach ($hiddenFields as $hiddenField) {
-            $this->assertFalse(
+            self::assertFalse(
                 $formEngineTestService->formHtmlContainsField($hiddenField, $formResult['html']),
                 'The field ' . $hiddenField . ' is in the HTML'
             );

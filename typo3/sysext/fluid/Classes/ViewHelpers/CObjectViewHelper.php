@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,41 +13,80 @@ namespace TYPO3\CMS\Fluid\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\ViewHelpers;
+
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Http\ServerRequestFactory;
+use TYPO3\CMS\Core\Routing\PageArguments;
+use TYPO3\CMS\Core\Site\Entity\SiteInterface;
+use TYPO3\CMS\Core\Site\SiteFinder;
+use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\Reflection\ObjectAccess;
+use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
+use TYPO3Fluid\Fluid\Core\ViewHelper\Exception;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithContentArgumentAndRenderStatic;
 
 /**
  * This ViewHelper renders CObjects from the global TypoScript configuration.
- * NOTE: You have to ensure proper escaping (htmlspecialchars/intval/etc.) on your own!
  *
- * = Examples =
+ * .. note::
+ *    You have to ensure proper escaping (htmlspecialchars/intval/etc.) on your own!
  *
- * <code title="Render lib object">
- * <f:cObject typoscriptObjectPath="lib.someLibObject" />
- * </code>
- * <output>
- * rendered lib.someLibObject
- * </output>
+ * Examples
+ * ========
  *
- * <code title="Specify cObject data & current value">
- * <f:cObject typoscriptObjectPath="lib.customHeader" data="{article}" currentValueKey="title" />
- * </code>
- * <output>
- * rendered lib.customHeader. data and current value will be available in TypoScript
- * </output>
+ * Render lib object
+ * -----------------
  *
- * <code title="inline notation">
- * {article -> f:cObject(typoscriptObjectPath: 'lib.customHeader')}
- * </code>
- * <output>
- * rendered lib.customHeader. data will be available in TypoScript
- * </output>
+ * ::
+ *
+ *    <f:cObject typoscriptObjectPath="lib.someLibObject" />
+ *
+ * Rendered :ts:`lib.someLibObject`.
+ *
+ * Specify cObject data & current value
+ * ------------------------------------
+ *
+ * ::
+ *
+ *    <f:cObject typoscriptObjectPath="lib.customHeader" data="{article}" currentValueKey="title" />
+ *
+ * Rendered :ts:`lib.customHeader`. Data and current value will be available in TypoScript.
+ *
+ * Inline notation
+ * ---------------
+ *
+ * ::
+ *
+ *    {article -> f:cObject(typoscriptObjectPath: 'lib.customHeader')}
+ *
+ * Rendered :ts:`lib.customHeader`. Data will be available in TypoScript.
+ *
+ * Accessing the data in TypoScript
+ * --------------------------------
+ *
+ * ::
+ *
+ *    lib.customHeader = COA
+ *    lib.customHeader {
+ *        10 = TEXT
+ *        10.field = author
+ *        20 = TEXT
+ *        20.current = 1
+ *    }
+ *
+ * When passing an object with ``{data}``, the properties of the object are accessible with :ts:`.field` in
+ * TypoScript. If only a single value is passed or the ``currentValueKey`` is specified, :ts:`.current = 1`
+ * can be used in the TypoScript.
  */
-class CObjectViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper
+class CObjectViewHelper extends AbstractViewHelper
 {
     use CompileWithContentArgumentAndRenderStatic;
 
@@ -78,7 +116,6 @@ class CObjectViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHel
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('data', 'mixed', 'the data to be used for rendering the cObject. Can be an object, array or string. If this argument is not set, child nodes will be used');
         $this->registerArgument('typoscriptObjectPath', 'string', 'the TypoScript setup path of the TypoScript object to render', true);
         $this->registerArgument('currentValueKey', 'string', 'currentValueKey');
@@ -92,7 +129,7 @@ class CObjectViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHel
      * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext
      * @return mixed
-     * @throws \TYPO3\CMS\Fluid\Core\ViewHelper\Exception
+     * @throws \TYPO3Fluid\Fluid\Core\ViewHelper\Exception
      */
     public static function renderStatic(array $arguments, \Closure $renderChildrenClosure, RenderingContextInterface $renderingContext)
     {
@@ -101,12 +138,12 @@ class CObjectViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHel
         $currentValueKey = $arguments['currentValueKey'];
         $table = $arguments['table'];
         $contentObjectRenderer = static::getContentObjectRenderer();
-        if (TYPO3_MODE === 'BE') {
+        if (!isset($GLOBALS['TSFE']) || !($GLOBALS['TSFE'] instanceof TypoScriptFrontendController)) {
             static::simulateFrontendEnvironment();
         }
         $currentValue = null;
         if (is_object($data)) {
-            $data = \TYPO3\CMS\Extbase\Reflection\ObjectAccess::getGettableProperties($data);
+            $data = ObjectAccess::getGettableProperties($data);
         } elseif (is_string($data) || is_numeric($data)) {
             $currentValue = (string)$data;
             $data = [$data];
@@ -121,14 +158,47 @@ class CObjectViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHel
         $lastSegment = array_pop($pathSegments);
         $setup = static::getConfigurationManager()->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FULL_TYPOSCRIPT);
         foreach ($pathSegments as $segment) {
-            if (!array_key_exists(($segment . '.'), $setup)) {
-                throw new \TYPO3\CMS\Fluid\Core\ViewHelper\Exception('TypoScript object path "' . htmlspecialchars($typoscriptObjectPath) . '" does not exist', 1253191023);
+            if (!array_key_exists($segment . '.', $setup)) {
+                throw new Exception(
+                    'TypoScript object path "' . $typoscriptObjectPath . '" does not exist',
+                    1253191023
+                );
             }
             $setup = $setup[$segment . '.'];
         }
-        $content = $contentObjectRenderer->cObjGetSingle($setup[$lastSegment], $setup[$lastSegment . '.']);
-        if (TYPO3_MODE === 'BE') {
+        if (!isset($setup[$lastSegment])) {
+            throw new Exception(
+                'No Content Object definition found at TypoScript object path "' . $typoscriptObjectPath . '"',
+                1540246570
+            );
+        }
+        $content = self::renderContentObject($contentObjectRenderer, $setup, $typoscriptObjectPath, $lastSegment);
+        if (!isset($GLOBALS['TSFE']) || !($GLOBALS['TSFE'] instanceof TypoScriptFrontendController)) {
             static::resetFrontendEnvironment();
+        }
+        return $content;
+    }
+
+    /**
+     * Renders single content object and increases time tracker stack pointer
+     *
+     * @param ContentObjectRenderer $contentObjectRenderer
+     * @param array $setup
+     * @param string $typoscriptObjectPath
+     * @param string $lastSegment
+     * @return string
+     */
+    protected static function renderContentObject(ContentObjectRenderer $contentObjectRenderer, array $setup, string $typoscriptObjectPath, string $lastSegment): string
+    {
+        $timeTracker = GeneralUtility::makeInstance(TimeTracker::class);
+        if ($timeTracker->LR) {
+            $timeTracker->push('/f:cObject/', '<' . $typoscriptObjectPath);
+        }
+        $timeTracker->incStackPointer();
+        $content = $contentObjectRenderer->cObjGetSingle($setup[$lastSegment], $setup[$lastSegment . '.'] ?? [], $typoscriptObjectPath);
+        $timeTracker->decStackPointer();
+        if ($timeTracker->LR) {
+            $timeTracker->pull($content);
         }
         return $content;
     }
@@ -146,7 +216,27 @@ class CObjectViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHel
      */
     protected static function getContentObjectRenderer()
     {
-        return $GLOBALS['TSFE']->cObj;
+        if (($GLOBALS['TSFE'] ?? null) instanceof TypoScriptFrontendController) {
+            $tsfe = $GLOBALS['TSFE'];
+        } else {
+            $globalRequest = $GLOBALS['TYPO3_REQUEST'] ?? ServerRequestFactory::fromGlobals();
+            $site = $globalRequest->getAttribute('site');
+            if (!($site instanceof SiteInterface)) {
+                $sites = GeneralUtility::makeInstance(SiteFinder::class)->getAllSites();
+                $site = reset($sites);
+            }
+            $language = $globalRequest->getAttribute('language') ?? $site->getDefaultLanguage();
+            $pageArguments = $globalRequest->getAttribute('routing') ?? new PageArguments(0, 0, []);
+            $tsfe = GeneralUtility::makeInstance(
+                TypoScriptFrontendController::class,
+                GeneralUtility::makeInstance(Context::class),
+                $site,
+                $language,
+                $pageArguments,
+                GeneralUtility::makeInstance(FrontendUserAuthentication::class)
+            );
+        }
+        return GeneralUtility::makeInstance(ContentObjectRenderer::class, $tsfe);
     }
 
     /**
@@ -155,7 +245,7 @@ class CObjectViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHel
      */
     protected static function simulateFrontendEnvironment()
     {
-        static::$tsfeBackup = isset($GLOBALS['TSFE']) ? $GLOBALS['TSFE'] : null;
+        static::$tsfeBackup = $GLOBALS['TSFE'] ?? null;
         $GLOBALS['TSFE'] = new \stdClass();
         $GLOBALS['TSFE']->cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class);
         $GLOBALS['TSFE']->cObjectDepthCounter = 100;

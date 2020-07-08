@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
+
 /**
  * Abstract parser for EM related TYPO3 xml files.
+ * @internal This class is a specific ExtensionManager implementation and is not part of the Public TYPO3 API.
  */
 abstract class AbstractXmlParser implements \SplSubject
 {
@@ -45,7 +47,8 @@ abstract class AbstractXmlParser implements \SplSubject
      * Method attaches an observer.
      *
      * @param \SplObserver $observer an observer to attach
-     * @see $observers, detach(), notify()
+     * @see detach()
+     * @see notify()
      */
     public function attach(\SplObserver $observer)
     {
@@ -56,7 +59,8 @@ abstract class AbstractXmlParser implements \SplSubject
      * Method detaches an attached observer
      *
      * @param \SplObserver $observer an observer to detach
-     * @see $observers, attach(), notify()
+     * @see attach()
+     * @see notify()
      */
     public function detach(\SplObserver $observer)
     {
@@ -69,8 +73,8 @@ abstract class AbstractXmlParser implements \SplSubject
     /**
      * Method notifies attached observers.
      *
-     * @access public
-     * @see $observers, attach(), detach()
+     * @see attach()
+     * @see detach()
      */
     public function notify()
     {
@@ -84,7 +88,6 @@ abstract class AbstractXmlParser implements \SplSubject
      *
      * Method tries to load the extension if necessary and possible.
      *
-     * @access public
      * @return bool TRUE, if PHP extension is available, otherwise FALSE
      */
     public function isAvailable()

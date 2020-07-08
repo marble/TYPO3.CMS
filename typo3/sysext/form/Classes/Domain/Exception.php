@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,12 @@ namespace TYPO3\CMS\Form\Domain;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Domain;
+
 use TYPO3\CMS\Form\Exception as FormException;
 
 /**
  * A generic Form domain Exception
- *
- * @api
  */
 class Exception extends FormException
 {

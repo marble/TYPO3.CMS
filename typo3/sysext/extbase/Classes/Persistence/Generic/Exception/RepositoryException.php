@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Exception;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +15,14 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Exception;
+
+use RuntimeException;
+
 /**
  * Main exception thrown by classes in this package. May contain an error
  * message and/or another nested exception.
- *
- * @license http://www.gnu.org/licenses/lgpl.html GNU Lesser General Public License, version 3 or later
  */
-class RepositoryException extends \RuntimeException
+class RepositoryException extends RuntimeException
 {
 }

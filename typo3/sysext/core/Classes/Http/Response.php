@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Core\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Http;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
+use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
  * Default implementation for the ResponseInterface of the PSR-7 standard.
@@ -47,6 +49,7 @@ class Response extends Message implements ResponseInterface
         100 => 'Continue',
         101 => 'Switching Protocols',
         102 => 'Processing',
+        103 => 'Early Hints',
         // SUCCESS CODES
         200 => 'OK',
         201 => 'Created',
@@ -55,8 +58,9 @@ class Response extends Message implements ResponseInterface
         204 => 'No Content',
         205 => 'Reset Content',
         206 => 'Partial Content',
-        207 => 'Multi-status',
+        207 => 'Multi-Status',
         208 => 'Already Reported',
+        226 => 'IM Used',
         // REDIRECTION CODES
         300 => 'Multiple Choices',
         301 => 'Moved Permanently',
@@ -66,6 +70,7 @@ class Response extends Message implements ResponseInterface
         305 => 'Use Proxy',
         306 => 'Switch Proxy', // Deprecated
         307 => 'Temporary Redirect',
+        308 => 'Permanent Redirect',
         // CLIENT ERROR
         400 => 'Bad Request',
         401 => 'Unauthorized',
@@ -75,17 +80,18 @@ class Response extends Message implements ResponseInterface
         405 => 'Method Not Allowed',
         406 => 'Not Acceptable',
         407 => 'Proxy Authentication Required',
-        408 => 'Request Time-out',
+        408 => 'Request Timeout',
         409 => 'Conflict',
         410 => 'Gone',
         411 => 'Length Required',
         412 => 'Precondition Failed',
-        413 => 'Request Entity Too Large',
-        414 => 'Request-URI Too Large',
+        413 => 'Payload Too Large',
+        414 => 'URI Too Long',
         415 => 'Unsupported Media Type',
-        416 => 'Requested range not satisfiable',
+        416 => 'Range Not Satisfiable',
         417 => 'Expectation Failed',
         418 => 'I\'m a teapot',
+        421 => 'Misdirected Request',
         422 => 'Unprocessable Entity',
         423 => 'Locked',
         424 => 'Failed Dependency',
@@ -94,17 +100,19 @@ class Response extends Message implements ResponseInterface
         428 => 'Precondition Required',
         429 => 'Too Many Requests',
         431 => 'Request Header Fields Too Large',
+        451 => 'Unavailable For Legal Reasons',
         // SERVER ERROR
         500 => 'Internal Server Error',
         501 => 'Not Implemented',
         502 => 'Bad Gateway',
         503 => 'Service Unavailable',
-        504 => 'Gateway Time-out',
-        505 => 'HTTP Version not supported',
+        504 => 'Gateway Timeout',
+        505 => 'HTTP Version Not Supported',
         506 => 'Variant Also Negotiates',
         507 => 'Insufficient Storage',
         508 => 'Loop Detected',
         509 => 'Bandwidth Limit Exceeded',
+        510 => 'Not Extended',
         511 => 'Network Authentication Required'
     ];
 
@@ -114,27 +122,28 @@ class Response extends Message implements ResponseInterface
      * @param StreamInterface|string $body
      * @param int $statusCode
      * @param array $headers
+     * @param string $reasonPhrase
      * @throws \InvalidArgumentException if any of the given arguments are given
      */
-    public function __construct($body = 'php://temp', $statusCode = 200, $headers = [])
+    public function __construct($body = 'php://temp', $statusCode = 200, $headers = [], string $reasonPhrase = '')
     {
         // Build a streamable object for the body
-        if (!is_string($body) && !is_resource($body) && !$body instanceof StreamInterface) {
+        if ($body !== null && !is_string($body) && !is_resource($body) && !$body instanceof StreamInterface) {
             throw new \InvalidArgumentException('Body must be a string stream resource identifier, a stream resource, or a StreamInterface instance', 1436717277);
         }
 
-        if (!$body instanceof StreamInterface) {
+        if ($body !== null && !$body instanceof StreamInterface) {
             $body = new Stream($body, 'rw');
         }
         $this->body = $body;
 
-        if (\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($statusCode) === false || !array_key_exists((int)$statusCode, $this->availableStatusCodes)) {
+        if (MathUtility::canBeInterpretedAsInteger($statusCode) === false || !array_key_exists((int)$statusCode, $this->availableStatusCodes)) {
             throw new \InvalidArgumentException('The given status code is not a valid HTTP status code.', 1436717278);
         }
         $this->statusCode = (int)$statusCode;
 
-        $this->reasonPhrase = $this->availableStatusCodes[$this->statusCode];
-        $headers = $this->filterHeaders($headers)[1];
+        $this->reasonPhrase = $reasonPhrase === '' ? $this->availableStatusCodes[$this->statusCode] : $reasonPhrase;
+        [$this->lowercasedHeaderNames, $headers] = $this->filterHeaders($headers);
         $this->assertHeaders($headers);
         $this->headers = $headers;
     }
@@ -163,23 +172,23 @@ class Response extends Message implements ResponseInterface
      * immutability of the message, and MUST return an instance that has the
      * updated status and reason phrase.
      *
-     * @link http://tools.ietf.org/html/rfc7231#section-6
+     * @link https://tools.ietf.org/html/rfc7231#section-6
      * @link http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
      *
      * @param int $code The 3-digit integer result code to set.
      * @param string $reasonPhrase The reason phrase to use with the
      *     provided status code; if none is provided, implementations MAY
      *     use the defaults as suggested in the HTTP specification.
-     * @return Response
+     * @return static
      * @throws \InvalidArgumentException For invalid status code arguments.
      */
     public function withStatus($code, $reasonPhrase = '')
     {
-        if (\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($code) === false || !array_key_exists((int)$code, $this->availableStatusCodes)) {
+        if (MathUtility::canBeInterpretedAsInteger($code) === false || !array_key_exists((int)$code, $this->availableStatusCodes)) {
             throw new \InvalidArgumentException('The given status code is not a valid HTTP status code', 1436717279);
         }
         $clonedObject = clone $this;
-        $clonedObject->statusCode = $code;
+        $clonedObject->statusCode = (int)$code;
         $clonedObject->reasonPhrase = $reasonPhrase !== '' ? $reasonPhrase : $this->availableStatusCodes[$code];
         return $clonedObject;
     }
@@ -193,7 +202,7 @@ class Response extends Message implements ResponseInterface
      * listed in the IANA HTTP Status Code Registry) for the response's
      * status code.
      *
-     * @link http://tools.ietf.org/html/rfc7231#section-6
+     * @link https://tools.ietf.org/html/rfc7231#section-6
      * @link http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
      * @return string Reason phrase; must return an empty string if none present.
      */

@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,14 +15,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\CreateTableStatement;
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\ReferenceDefinition;
 use TYPO3\CMS\Core\Database\Schema\Parser\Parser;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for ReferenceDefinition
  */
-class ReferenceDefinitionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ReferenceDefinitionTest extends UnitTestCase
 {
     /**
      * Each parameter array consists of the following values:
@@ -191,16 +193,16 @@ class ReferenceDefinitionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTest
         $statement = sprintf('CREATE TABLE `aTable`(`aField` INT(11) %s);', $columnAttribute);
         $subject = $this->createSubject($statement);
 
-        $this->assertInstanceOf(ReferenceDefinition::class, $subject);
-        $this->assertSame($table, $subject->tableName->schemaObjectName);
-        $this->assertSame($match, $subject->match);
-        $this->assertSame($onDelete, $subject->onDelete);
-        $this->assertSame($onUpdate, $subject->onUpdate);
+        self::assertInstanceOf(ReferenceDefinition::class, $subject);
+        self::assertSame($table, $subject->tableName->schemaObjectName);
+        self::assertSame($match, $subject->match);
+        self::assertSame($onDelete, $subject->onDelete);
+        self::assertSame($onUpdate, $subject->onUpdate);
 
         foreach ($columns as $index => $column) {
-            $this->assertSame($column[0], $subject->columnNames[$index]->columnName->schemaObjectName);
-            $this->assertSame($column[1], $subject->columnNames[$index]->length);
-            $this->assertSame($column[2], $subject->columnNames[$index]->direction);
+            self::assertSame($column[0], $subject->columnNames[$index]->columnName->schemaObjectName);
+            self::assertSame($column[1], $subject->columnNames[$index]->length);
+            self::assertSame($column[2], $subject->columnNames[$index]->direction);
         }
     }
 

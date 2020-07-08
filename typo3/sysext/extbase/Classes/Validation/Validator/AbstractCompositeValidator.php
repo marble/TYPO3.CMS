@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Validation\Validator;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,13 @@ namespace TYPO3\CMS\Extbase\Validation\Validator;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Validation\Validator;
+
+use TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationOptionsException;
+use TYPO3\CMS\Extbase\Validation\Exception\NoSuchValidatorException;
+
 /**
  * An abstract composite validator consisting of other validators
- *
- * @api
  */
 abstract class AbstractCompositeValidator implements ObjectValidatorInterface, \Countable
 {
@@ -48,27 +50,26 @@ abstract class AbstractCompositeValidator implements ObjectValidatorInterface, \
      *
      * @param array $options Options for the validator
      * @throws \TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationOptionsException
-     * @api
      */
     public function __construct(array $options = [])
     {
         // check for options given but not supported
         if (($unsupportedOptions = array_diff_key($options, $this->supportedOptions)) !== []) {
-            throw new \TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationOptionsException('Unsupported validation option(s) found: ' . implode(', ', array_keys($unsupportedOptions)), 1339079804);
+            throw new InvalidValidationOptionsException('Unsupported validation option(s) found: ' . implode(', ', array_keys($unsupportedOptions)), 1339079804);
         }
 
-            // check for required options being set
+        // check for required options being set
         array_walk(
             $this->supportedOptions,
             function ($supportedOptionData, $supportedOptionName, $options) {
                 if (isset($supportedOptionData[3]) && !array_key_exists($supportedOptionName, $options)) {
-                    throw new \TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationOptionsException('Required validation option not set: ' . $supportedOptionName, 1339163922);
+                    throw new InvalidValidationOptionsException('Required validation option not set: ' . $supportedOptionName, 1339163922);
                 }
             },
             $options
         );
 
-            // merge with default values
+        // merge with default values
         $this->options = array_merge(
             array_map(
                 function ($value) {
@@ -85,12 +86,11 @@ abstract class AbstractCompositeValidator implements ObjectValidatorInterface, \
      * Adds a new validator to the conjunction.
      *
      * @param \TYPO3\CMS\Extbase\Validation\Validator\ValidatorInterface $validator The validator that should be added
-     * @api
      */
-    public function addValidator(\TYPO3\CMS\Extbase\Validation\Validator\ValidatorInterface $validator)
+    public function addValidator(ValidatorInterface $validator)
     {
         if ($validator instanceof ObjectValidatorInterface) {
-            // @todo: provide bugfix as soon as it is fixed in TYPO3.Flow (http://forge.typo3.org/issues/48093)
+            // @todo: provide bugfix as soon as it is fixed in TYPO3.Flow (https://forge.typo3.org/issues/48093)
             $validator->setValidatedInstancesContainer = $this->validatedInstancesContainer;
         }
         $this->validators->attach($validator);
@@ -102,10 +102,10 @@ abstract class AbstractCompositeValidator implements ObjectValidatorInterface, \
      * @param \TYPO3\CMS\Extbase\Validation\Validator\ValidatorInterface $validator The validator to remove
      * @throws \TYPO3\CMS\Extbase\Validation\Exception\NoSuchValidatorException
      */
-    public function removeValidator(\TYPO3\CMS\Extbase\Validation\Validator\ValidatorInterface $validator)
+    public function removeValidator(ValidatorInterface $validator)
     {
         if (!$this->validators->contains($validator)) {
-            throw new \TYPO3\CMS\Extbase\Validation\Exception\NoSuchValidatorException('Cannot remove validator because its not in the conjunction.', 1207020177);
+            throw new NoSuchValidatorException('Cannot remove validator because its not in the conjunction.', 1207020177);
         }
         $this->validators->detach($validator);
     }
@@ -114,7 +114,6 @@ abstract class AbstractCompositeValidator implements ObjectValidatorInterface, \
      * Returns the number of validators contained in this conjunction.
      *
      * @return int The number of validators
-     * @api
      */
     public function count()
     {
@@ -145,7 +144,6 @@ abstract class AbstractCompositeValidator implements ObjectValidatorInterface, \
      * Allows to set a container to keep track of validated instances.
      *
      * @param \SplObjectStorage $validatedInstancesContainer A container to keep track of validated instances
-     * @api
      */
     public function setValidatedInstancesContainer(\SplObjectStorage $validatedInstancesContainer)
     {

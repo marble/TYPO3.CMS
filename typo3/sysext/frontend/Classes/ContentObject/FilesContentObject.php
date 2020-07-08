@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\ContentObject;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject;
 
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -65,7 +66,9 @@ class FilesContentObject extends AbstractContentObject
 
         $end = MathUtility::forceIntegerInRange($start + $limit, $start, $availableFileObjectCount);
 
-        $GLOBALS['TSFE']->register['FILES_COUNT'] = min($limit, $availableFileObjectCount);
+        if (isset($GLOBALS['TSFE'])) {
+            $GLOBALS['TSFE']->register['FILES_COUNT'] = min($limit, $availableFileObjectCount);
+        }
         $fileObjectCounter = 0;
         $keys = array_keys($fileObjects);
 
@@ -74,9 +77,11 @@ class FilesContentObject extends AbstractContentObject
             $key = $keys[$i];
             $fileObject = $fileObjects[$key];
 
-            $GLOBALS['TSFE']->register['FILE_NUM_CURRENT'] = $fileObjectCounter;
+            if (isset($GLOBALS['TSFE'])) {
+                $GLOBALS['TSFE']->register['FILE_NUM_CURRENT'] = $fileObjectCounter;
+            }
             $this->cObj->setCurrentFile($fileObject);
-            $content .= $this->cObj->cObjGetSingle($splitConf[$key]['renderObj'], $splitConf[$key]['renderObj.']);
+            $content .= $this->cObj->cObjGetSingle($splitConf[$key]['renderObj'], $splitConf[$key]['renderObj.'], 'renderObj');
             $fileObjectCounter++;
         }
 
@@ -84,7 +89,7 @@ class FilesContentObject extends AbstractContentObject
         // so e.g. stdWrap is not working on the last current file applied, thus avoiding side-effects
         $this->cObj->setCurrentFile($originalFileInContentObject);
 
-        return $this->cObj->stdWrap($content, $conf['stdWrap.']);
+        return $this->cObj->stdWrap($content, $conf['stdWrap.'] ?? []);
     }
 
     /**
@@ -99,7 +104,7 @@ class FilesContentObject extends AbstractContentObject
         $fileCollector = $this->getFileCollector();
 
         // Getting the files
-        if ($conf['references'] || $conf['references.']) {
+        if ((isset($conf['references']) && $conf['references']) || (isset($conf['references.']) && $conf['references.'])) {
             /*
             The TypoScript could look like this:
             # all items related to the page.media field:
@@ -120,7 +125,7 @@ class FilesContentObject extends AbstractContentObject
             }
         }
 
-        if ($conf['files'] || $conf['files.']) {
+        if ((isset($conf['files']) && $conf['files']) || (isset($conf['files.']) && $conf['files.'])) {
             /*
             The TypoScript could look like this:
             # with sys_file UIDs:
@@ -131,23 +136,23 @@ class FilesContentObject extends AbstractContentObject
             $fileCollector->addFiles($fileUids);
         }
 
-        if ($conf['collections'] || $conf['collections.']) {
+        if ((isset($conf['collections']) && $conf['collections']) || (isset($conf['collections.']) && $conf['collections.'])) {
             $collectionUids = GeneralUtility::intExplode(',', $this->cObj->stdWrapValue('collections', $conf), true);
             $fileCollector->addFilesFromFileCollections($collectionUids);
         }
 
-        if ($conf['folders'] || $conf['folders.']) {
+        if ((isset($conf['folders']) && $conf['folders']) || (isset($conf['folders.']) && $conf['folders.'])) {
             $folderIdentifiers = GeneralUtility::trimExplode(',', $this->cObj->stdWrapValue('folders', $conf));
             $fileCollector->addFilesFromFolders($folderIdentifiers, !empty($conf['folders.']['recursive']));
         }
 
         // Enable sorting for multiple fileObjects
         $sortingProperty = '';
-        if ($conf['sorting'] || $conf['sorting.']) {
+        if ((isset($conf['sorting']) && $conf['sorting']) || (isset($conf['sorting.']) && $conf['sorting.'])) {
             $sortingProperty = $this->cObj->stdWrapValue('sorting', $conf);
         }
         if ($sortingProperty !== '') {
-            $sortingDirection = isset($conf['sorting.']['direction']) ? $conf['sorting.']['direction'] : '';
+            $sortingDirection = $conf['sorting.']['direction'] ?? '';
             if (isset($conf['sorting.']['direction.'])) {
                 $sortingDirection = $this->cObj->stdWrap($sortingDirection, $conf['sorting.']['direction.']);
             }
@@ -163,7 +168,6 @@ class FilesContentObject extends AbstractContentObject
      * @param array $configuration TypoScript configuration
      * @param array $element The parent element referencing to files
      * @param FileCollector $fileCollector
-     * @return array
      */
     protected function addFileReferences(array $configuration, array $element, FileCollector $fileCollector)
     {
@@ -189,15 +193,8 @@ class FilesContentObject extends AbstractContentObject
             $element = $pageRepository->getRawRecord($referencesForeignTable, $referencesForeignUid);
 
             $pageRepository->versionOL($referencesForeignTable, $element, true);
-            if ($referencesForeignTable === 'pages') {
-                $element = $pageRepository->getPageOverlay($element);
-            } else {
-                $element = $pageRepository->getRecordOverlay(
-                    $referencesForeignTable,
-                    $element,
-                    $GLOBALS['TSFE']->sys_language_content,
-                    $GLOBALS['TSFE']->sys_language_contentOL
-                );
+            if (is_array($element)) {
+                $element = $pageRepository->getLanguageOverlay($referencesForeignTable, $element);
             }
         }
 
@@ -207,7 +204,7 @@ class FilesContentObject extends AbstractContentObject
     }
 
     /**
-     * @return \TYPO3\CMS\Frontend\Page\PageRepository
+     * @return \TYPO3\CMS\Core\Domain\Repository\PageRepository
      */
     protected function getPageRepository()
     {

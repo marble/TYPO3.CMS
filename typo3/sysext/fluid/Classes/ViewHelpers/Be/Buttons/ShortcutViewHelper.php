@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Be\Buttons;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,34 +13,39 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Be\Buttons;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Template\DocumentTemplate;
+namespace TYPO3\CMS\Fluid\ViewHelpers\Be\Buttons;
+
+use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Fluid\ViewHelpers\Be\AbstractBackendViewHelper;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 
 /**
- * View helper which returns shortcut button with icon
- * Note: This view helper is experimental!
+ * ViewHelper which returns shortcut button with icon.
  *
- * = Examples =
+ * .. note::
+ *    This ViewHelper is experimental!
  *
- * <code title="Default">
- * <f:be.buttons.shortcut />
- * </code>
- * <output>
+ * Examples
+ * ========
+ *
+ * Default::
+ *
+ *    <f:be.buttons.shortcut />
+ *
  * Shortcut button as known from the TYPO3 backend.
- * By default the current page id, module name and all module arguments will be stored
- * </output>
+ * By default the current page id, module name and all module arguments will be stored.
  *
- * <code title="Explicitly set parameters to be stored in the shortcut">
- * <f:be.buttons.shortcut getVars="{0: 'M', 1: 'myOwnPrefix'}" setVars="{0: 'function'}" />
- * </code>
- * <output>
+ * Explicitly set parameters to be stored in the shortcut::
+ *
+ *    <f:be.buttons.shortcut getVars="{0: 'route', 1: 'myOwnPrefix'}" setVars="{0: 'function'}" />
+ *
  * Shortcut button as known from the TYPO3 backend.
  * This time only the specified GET parameters and SET[]-settings will be stored.
- * Note:
- * Normally you won't need to set getVars & setVars parameters in Extbase modules
- * </output>
+ *
+ * .. note:
+ *
+ *    Normally you won't need to set getVars & setVars parameters in Extbase modules.
  */
 class ShortcutViewHelper extends AbstractBackendViewHelper
 {
@@ -61,14 +65,14 @@ class ShortcutViewHelper extends AbstractBackendViewHelper
     {
         parent::initializeArguments();
         $this->registerArgument('getVars', 'array', 'List of GET variables to store. By default the current id, module and all module arguments will be stored', false, []);
-        $this->registerArgument('setVars', 'array', 'List of SET[] variables to store. See DocumentTemplate::makeShortcutIcon(). Normally won\'t be used by Extbase modules', false, []);
+        $this->registerArgument('setVars', 'array', 'List of SET[] variables to store. See ModuleTemplate::makeShortcutIcon(). Normally won\'t be used by Extbase modules', false, []);
     }
 
     /**
      * Renders a shortcut button as known from the TYPO3 backend
      *
      * @return string the rendered shortcut button
-     * @see \TYPO3\CMS\Backend\Template\DocumentTemplate::makeShortcutIcon()
+     * @see ModuleTemplate::makeShortcutIcon()
      */
     public function render()
     {
@@ -93,17 +97,17 @@ class ShortcutViewHelper extends AbstractBackendViewHelper
         $mayMakeShortcut = $GLOBALS['BE_USER']->mayMakeShortcut();
 
         if ($mayMakeShortcut) {
-            $doc = GeneralUtility::makeInstance(DocumentTemplate::class);
+            $moduleTemplate = GeneralUtility::makeInstance(ModuleTemplate::class);
             $currentRequest = $renderingContext->getControllerContext()->getRequest();
             $extensionName = $currentRequest->getControllerExtensionName();
             $moduleName = $currentRequest->getPluginName();
             if (count($getVars) === 0) {
                 $modulePrefix = strtolower('tx_' . $extensionName . '_' . $moduleName);
-                $getVars = ['id', 'M', $modulePrefix];
+                $getVars = ['id', 'route', $modulePrefix];
             }
             $getList = implode(',', $getVars);
             $setList = implode(',', $setVars);
-            return $doc->makeShortcutIcon($getList, $setList, $moduleName);
+            return $moduleTemplate->makeShortcutIcon($getList, $setList, $moduleName);
         }
         return '';
     }

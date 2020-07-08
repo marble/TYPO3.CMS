@@ -1,7 +1,8 @@
 <?php
+
 return [
     'ctrl' => [
-        'title' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xml:tx_blogexample_domain_model_blog',
+        'title' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xlf:tx_blogexample_domain_model_blog',
         'label' => 'title',
         'tstamp' => 'tstamp',
         'crdate' => 'crdate',
@@ -17,29 +18,27 @@ return [
         ],
         'iconfile' => 'EXT:blog_example/Resources/Public/Icons/icon_tx_blogexample_domain_model_blog.gif'
     ],
-    'interface' => [
-        'showRecordFieldList' => 'title, posts, administrator'
-    ],
     'columns' => [
         'sys_language_uid' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.language',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.language',
             'config' => [
                 'type' => 'select',
                 'renderType' => 'selectSingle',
-                'foreign_table' => 'sys_language',
-                'foreign_table_where' => 'ORDER BY sys_language.title',
+                'special' => 'languages',
                 'items' => [
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.allLanguages', -1],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.default_value', 0]
+                    [
+                        'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.allLanguages',
+                        -1,
+                        'flags-multiple'
+                    ],
                 ],
                 'default' => 0
             ]
         ],
         'l18n_parent' => [
             'displayCond' => 'FIELD:sys_language_uid:>:0',
-            'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.l18n_parent',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.l18n_parent',
             'config' => [
                 'type' => 'select',
                 'renderType' => 'selectSingle',
@@ -51,29 +50,21 @@ return [
             ]
         ],
         'l18n_diffsource' => [
-            'config'=>[
+            'config' => [
                 'type' => 'passthrough',
                 'default' => ''
             ]
         ],
-        't3ver_label' => [
-            'displayCond' => 'FIELD:t3ver_label:REQ:true',
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.versionLabel',
-            'config' => [
-                'type'=>'none',
-                'cols' => 27
-            ]
-        ],
         'hidden' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xml:LGL.hidden',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.hidden',
             'config' => [
                 'type' => 'check'
             ]
         ],
         'fe_group' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.fe_group',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.fe_group',
             'config' => [
                 'type' => 'select',
                 'renderType' => 'selectMultipleSideBySide',
@@ -81,25 +72,24 @@ return [
                 'maxitems' => 20,
                 'items' => [
                     [
-                        'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.hide_at_login',
+                        'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.hide_at_login',
                         -1,
                     ],
                     [
-                        'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.any_login',
+                        'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.any_login',
                         -2,
                     ],
                     [
-                        'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.usergroups',
+                        'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.usergroups',
                         '--div--',
                     ],
                 ],
                 'exclusiveKeys' => '-1,-2',
                 'foreign_table' => 'fe_groups',
-                'foreign_table_where' => 'ORDER BY fe_groups.title',
             ],
         ],
         'title' => [
-            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xml:tx_blogexample_domain_model_blog.title',
+            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xlf:tx_blogexample_domain_model_blog.title',
             'config' => [
                 'type' => 'input',
                 'size' => 20,
@@ -107,9 +97,18 @@ return [
                 'max' => 256
             ]
         ],
+        'subtitle' => [
+            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xlf:tx_blogexample_domain_model_post.subtitle',
+            'config' => [
+                'type' => 'input',
+                'size' => 20,
+                'eval' => 'trim',
+                'max' => 256
+            ]
+        ],
         'description' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xml:tx_blogexample_domain_model_blog.description',
+            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xlf:tx_blogexample_domain_model_blog.description',
             'config' => [
                 'type' => 'text',
                 'eval' => 'required',
@@ -119,21 +118,12 @@ return [
         ],
         'logo' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xml:tx_blogexample_domain_model_blog.logo',
-            'config' => [
-                'type' => 'group',
-                'internal_type' => 'file',
-                'allowed' => $GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'],
-                'max_size' => 3000,
-                'uploadfolder' => 'uploads/pics',
-                'size' => 1,
-                'maxitems' => 1,
-                'minitems' => 0
-            ]
+            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xlf:tx_blogexample_domain_model_blog.logo',
+            'config' => \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::getFileFieldTCAConfig('logo')
         ],
         'posts' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xml:tx_blogexample_domain_model_blog.posts',
+            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xlf:tx_blogexample_domain_model_blog.posts',
             'config' => [
                 'type' => 'inline',
                 'foreign_table' => 'tx_blogexample_domain_model_post',
@@ -147,12 +137,12 @@ return [
         ],
         'administrator' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xml:tx_blogexample_domain_model_blog.administrator',
+            'label' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xlf:tx_blogexample_domain_model_blog.administrator',
             'config' => [
                 'type' => 'select',
                 'renderType' => 'selectSingle',
                 'foreign_table' => 'fe_users',
-                'foreign_table_where' => "AND fe_users.tx_extbase_type='Tx_BlogExample_Domain_Model_Administrator'",
+                'foreign_table_where' => "AND fe_users.tx_extbase_type='ExtbaseTeam\\\\BlogExample\\\\Domain\\\\Model\\\\Administrator'",
                 'items' => [
                     ['--none--', 0],
                 ],

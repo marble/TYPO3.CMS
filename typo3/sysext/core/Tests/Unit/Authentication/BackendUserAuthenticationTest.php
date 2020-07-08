@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Authentication;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +15,18 @@ namespace TYPO3\CMS\Core\Tests\Unit\Authentication;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Authentication;
+
+use PHPUnit\Framework\MockObject\MockObject;
 use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
+use Psr\Log\NullLogger;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
+use TYPO3\CMS\Core\FormProtection\BackendFormProtection;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Tests\Unit\Database\Mocks\MockPlatform;
@@ -56,10 +62,16 @@ class BackendUserAuthenticationTest extends UnitTestCase
         'recursivedeleteFolder' => false
     ];
 
+    protected function setUp(): void
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['BE']['lockIP'] = 4;
+        $GLOBALS['TYPO3_CONF_VARS']['BE']['lockIPv6'] = 8;
+    }
+
     /**
      * Tear down
      */
-    protected function tearDown()
+    protected function tearDown(): void
     {
         FormProtectionFactory::purgeInstances();
         parent::tearDown();
@@ -71,7 +83,7 @@ class BackendUserAuthenticationTest extends UnitTestCase
     /**
      * @test
      */
-    public function logoffCleansFormProtectionIfBackendUserIsLoggedIn()
+    public function logoffCleansFormProtectionIfBackendUserIsLoggedIn(): void
     {
         /** @var ObjectProphecy|Connection $connection */
         $connection = $this->prophesize(Connection::class);
@@ -83,18 +95,8 @@ class BackendUserAuthenticationTest extends UnitTestCase
 
         GeneralUtility::addInstance(ConnectionPool::class, $connectionPool->reveal());
 
-        /** @var ObjectProphecy|Connection $connection */
-        $connection = $this->prophesize(Connection::class);
-        $connection->delete('be_sessions', Argument::cetera())->willReturn(1);
-
-        /** @var ObjectProphecy|ConnectionPool $connectionPool */
-        $connectionPool = $this->prophesize(ConnectionPool::class);
-        $connectionPool->getConnectionForTable(Argument::cetera())->willReturn($connection->reveal());
-
-        GeneralUtility::addInstance(ConnectionPool::class, $connectionPool->reveal());
-
         /** @var ObjectProphecy|\TYPO3\CMS\Core\FormProtection\AbstractFormProtection $formProtection */
-        $formProtection = $this->prophesize(\TYPO3\CMS\Core\FormProtection\BackendFormProtection::class);
+        $formProtection = $this->prophesize(BackendFormProtection::class);
         $formProtection->clean()->shouldBeCalled();
 
         FormProtectionFactory::set(
@@ -103,179 +105,26 @@ class BackendUserAuthenticationTest extends UnitTestCase
         );
 
         $GLOBALS['BE_USER'] = $this->getMockBuilder(BackendUserAuthentication::class)->getMock();
-        $GLOBALS['BE_USER']->user = ['uid' => $this->getUniqueId()];
+        $GLOBALS['BE_USER']->user = [
+            'uid' => 4711,
+            'ses_backuserid' => 0,
+        ];
+        $GLOBALS['BE_USER']->setLogger(new NullLogger());
 
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
             ->setMethods(['dummy'])
             ->disableOriginalConstructor()
             ->getMock();
 
+        $subject->setLogger(new NullLogger());
         $subject->logoff();
     }
 
     /**
      * @return array
      */
-    public function getTSConfigDataProvider()
-    {
-        $completeConfiguration = [
-            'value' => 'oneValue',
-            'value.' => ['oneProperty' => 'oneValue'],
-            'permissions.' => [
-                'file.' => [
-                    'default.' => ['readAction' => '1'],
-                    '1.' => ['writeAction' => '1'],
-                    '0.' => ['readAction' => '0'],
-                ],
-            ]
-        ];
-
-        return [
-            'single level string' => [
-                $completeConfiguration,
-                'permissions',
-                [
-                    'value' => null,
-                    'properties' =>
-                    [
-                        'file.' => [
-                            'default.' => ['readAction' => '1'],
-                            '1.' => ['writeAction' => '1'],
-                            '0.' => ['readAction' => '0'],
-                        ],
-                    ],
-                ],
-            ],
-            'two levels string' => [
-                $completeConfiguration,
-                'permissions.file',
-                [
-                    'value' => null,
-                    'properties' =>
-                    [
-                        'default.' => ['readAction' => '1'],
-                        '1.' => ['writeAction' => '1'],
-                        '0.' => ['readAction' => '0'],
-                    ],
-                ],
-            ],
-            'three levels string' => [
-                $completeConfiguration,
-                'permissions.file.default',
-                [
-                    'value' => null,
-                    'properties' =>
-                    ['readAction' => '1'],
-                ],
-            ],
-            'three levels string with integer property' => [
-                $completeConfiguration,
-                'permissions.file.1',
-                [
-                    'value' => null,
-                    'properties' => ['writeAction' => '1'],
-                ],
-            ],
-            'three levels string with integer zero property' => [
-                $completeConfiguration,
-                'permissions.file.0',
-                [
-                    'value' => null,
-                    'properties' => ['readAction' => '0'],
-                ],
-            ],
-            'four levels string with integer zero property, value, no properties' => [
-                $completeConfiguration,
-                'permissions.file.0.readAction',
-                [
-                    'value' => '0',
-                    'properties' => null,
-                ],
-            ],
-            'four levels string with integer property, value, no properties' => [
-                $completeConfiguration,
-                'permissions.file.1.writeAction',
-                [
-                    'value' => '1',
-                    'properties' => null,
-                ],
-            ],
-            'one level, not existent string' => [
-                $completeConfiguration,
-                'foo',
-                [
-                    'value' => null,
-                    'properties' => null,
-                ],
-            ],
-            'two level, not existent string' => [
-                $completeConfiguration,
-                'foo.bar',
-                [
-                    'value' => null,
-                    'properties' => null,
-                ],
-            ],
-            'two level, where second level does not exist' => [
-                $completeConfiguration,
-                'permissions.bar',
-                [
-                    'value' => null,
-                    'properties' => null,
-                ],
-            ],
-            'three level, where third level does not exist' => [
-                $completeConfiguration,
-                'permissions.file.foo',
-                [
-                    'value' => null,
-                    'properties' => null,
-                ],
-            ],
-            'three level, where second and third level does not exist' => [
-                $completeConfiguration,
-                'permissions.foo.bar',
-                [
-                    'value' => null,
-                    'properties' => null,
-                ],
-            ],
-            'value and properties' => [
-                $completeConfiguration,
-                'value',
-                [
-                    'value' => 'oneValue',
-                    'properties' => ['oneProperty' => 'oneValue'],
-                ],
-            ],
-        ];
-    }
-
-    /**
-     * @param array $completeConfiguration
-     * @param string $objectString
-     * @param array $expectedConfiguration
-     * @dataProvider getTSConfigDataProvider
-     * @test
-     */
-    public function getTSConfigReturnsCorrectArrayForGivenObjectString(array $completeConfiguration, $objectString, array $expectedConfiguration)
-    {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
-        $subject = $this->getMockBuilder(BackendUserAuthentication::class)
-            ->setMethods(['dummy'])
-            ->disableOriginalConstructor()
-            ->getMock();
-        $subject->userTS = $completeConfiguration;
-
-        $actualConfiguration = $subject->getTSConfig($objectString);
-        $this->assertSame($expectedConfiguration, $actualConfiguration);
-    }
-
-    /**
-     * @return array
-     */
-    public function getFilePermissionsTakesUserDefaultAndStoragePermissionsIntoAccountIfUserIsNotAdminDataProvider()
+    public function getFilePermissionsTakesUserDefaultAndStoragePermissionsIntoAccountIfUserIsNotAdminDataProvider(): array
     {
         return [
             'Only read permissions' => [
@@ -329,25 +178,29 @@ class BackendUserAuthenticationTest extends UnitTestCase
      * @test
      * @dataProvider getFilePermissionsTakesUserDefaultAndStoragePermissionsIntoAccountIfUserIsNotAdminDataProvider
      */
-    public function getFilePermissionsTakesUserDefaultPermissionsFromTsConfigIntoAccountIfUserIsNotAdmin(array $userTsConfiguration)
+    public function getFilePermissionsTakesUserDefaultPermissionsFromTsConfigIntoAccountIfUserIsNotAdmin(array $userTsConfiguration): void
     {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
-            ->setMethods(['isAdmin'])
+            ->setMethods(['isAdmin', 'getTSConfig'])
             ->getMock();
 
         $subject
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('isAdmin')
-            ->will($this->returnValue(false));
+            ->willReturn(false);
 
-        $subject->userTS = [
-            'permissions.' => [
-                'file.' => [
-                    'default.' => $userTsConfiguration
-                ],
-            ]
-        ];
+        $subject->setLogger(new NullLogger());
+        $subject
+            ->expects(self::any())
+            ->method('getTSConfig')
+            ->willReturn([
+                'permissions.' => [
+                    'file.' => [
+                        'default.' => $userTsConfiguration
+                    ],
+                ]
+            ]);
 
         $expectedPermissions = array_merge($this->defaultFilePermissions, $userTsConfiguration);
         array_walk(
@@ -357,13 +210,13 @@ class BackendUserAuthenticationTest extends UnitTestCase
             }
         );
 
-        $this->assertEquals($expectedPermissions, $subject->getFilePermissions());
+        self::assertEquals($expectedPermissions, $subject->getFilePermissions());
     }
 
     /**
      * @return array
      */
-    public function getFilePermissionsFromStorageDataProvider()
+    public function getFilePermissionsFromStorageDataProvider(): array
     {
         $defaultPermissions = [
             'addFile' => true,
@@ -467,36 +320,39 @@ class BackendUserAuthenticationTest extends UnitTestCase
      * @test
      * @dataProvider getFilePermissionsFromStorageDataProvider
      */
-    public function getFilePermissionsFromStorageOverwritesDefaultPermissions(array $defaultPermissions, $storageUid, array $storagePermissions, array $expectedPermissions)
+    public function getFilePermissionsFromStorageOverwritesDefaultPermissions(array $defaultPermissions, $storageUid, array $storagePermissions, array $expectedPermissions): void
     {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
-            ->setMethods(['isAdmin', 'getFilePermissions'])
+            ->setMethods(['isAdmin', 'getFilePermissions', 'getTSConfig'])
             ->getMock();
         $storageMock = $this->createMock(ResourceStorage::class);
-        $storageMock->expects($this->any())->method('getUid')->will($this->returnValue($storageUid));
+        $storageMock->expects(self::any())->method('getUid')->willReturn($storageUid);
 
         $subject
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('isAdmin')
-            ->will($this->returnValue(false));
+            ->willReturn(false);
 
         $subject
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getFilePermissions')
-            ->will($this->returnValue($defaultPermissions));
+            ->willReturn($defaultPermissions);
 
-        $subject->userTS = [
-            'permissions.' => [
-                'file.' => [
-                    'storage.' => [
-                        $storageUid . '.' => $storagePermissions
+        $subject
+            ->expects(self::any())
+            ->method('getTSConfig')
+            ->willReturn([
+                'permissions.' => [
+                    'file.' => [
+                        'storage.' => [
+                            $storageUid . '.' => $storagePermissions
+                        ],
                     ],
-                ],
-            ]
-        ];
+                ]
+            ]);
 
-        $this->assertEquals($expectedPermissions, $subject->getFilePermissionsForStorage($storageMock));
+        self::assertEquals($expectedPermissions, $subject->getFilePermissionsForStorage($storageMock));
     }
 
     /**
@@ -506,42 +362,45 @@ class BackendUserAuthenticationTest extends UnitTestCase
      * @test
      * @dataProvider getFilePermissionsFromStorageDataProvider
      */
-    public function getFilePermissionsFromStorageAlwaysReturnsDefaultPermissionsForAdmins(array $defaultPermissions, $storageUid, array $storagePermissions)
+    public function getFilePermissionsFromStorageAlwaysReturnsDefaultPermissionsForAdmins(array $defaultPermissions, $storageUid, array $storagePermissions): void
     {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
-            ->setMethods(['isAdmin', 'getFilePermissions'])
+            ->setMethods(['isAdmin', 'getFilePermissions', 'getTSConfig'])
             ->getMock();
         $storageMock = $this->createMock(ResourceStorage::class);
-        $storageMock->expects($this->any())->method('getUid')->will($this->returnValue($storageUid));
+        $storageMock->expects(self::any())->method('getUid')->willReturn($storageUid);
 
         $subject
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('isAdmin')
-            ->will($this->returnValue(true));
+            ->willReturn(true);
 
         $subject
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getFilePermissions')
-            ->will($this->returnValue($defaultPermissions));
+            ->willReturn($defaultPermissions);
 
-        $subject->userTS = [
-            'permissions.' => [
-                'file.' => [
-                    'storage.' => [
-                        $storageUid . '.' => $storagePermissions
+        $subject
+            ->expects(self::any())
+            ->method('getTSConfig')
+            ->willReturn([
+                'permissions.' => [
+                    'file.' => [
+                        'storage.' => [
+                            $storageUid . '.' => $storagePermissions
+                        ],
                     ],
-                ],
-            ]
-        ];
+                ]
+            ]);
 
-        $this->assertEquals($defaultPermissions, $subject->getFilePermissionsForStorage($storageMock));
+        self::assertEquals($defaultPermissions, $subject->getFilePermissionsForStorage($storageMock));
     }
 
     /**
      * @return array
      */
-    public function getFilePermissionsTakesUserDefaultPermissionsFromRecordIntoAccountIfUserIsNotAdminDataProvider()
+    public function getFilePermissionsTakesUserDefaultPermissionsFromRecordIntoAccountIfUserIsNotAdminDataProvider(): array
     {
         return [
             'No permission' => [
@@ -655,37 +514,40 @@ class BackendUserAuthenticationTest extends UnitTestCase
      *
      * @dataProvider getFilePermissionsTakesUserDefaultPermissionsFromRecordIntoAccountIfUserIsNotAdminDataProvider
      */
-    public function getFilePermissionsTakesUserDefaultPermissionsFromRecordIntoAccountIfUserIsNotAdmin(string $permissionValue, array $expectedPermissions)
+    public function getFilePermissionsTakesUserDefaultPermissionsFromRecordIntoAccountIfUserIsNotAdmin(string $permissionValue, array $expectedPermissions): void
     {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
-            ->setMethods(['isAdmin'])
+            ->setMethods(['isAdmin', 'getTSConfig'])
             ->getMock();
 
         $subject
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('isAdmin')
-            ->will($this->returnValue(false));
+            ->willReturn(false);
 
-        $subject->userTS = [];
+        $subject
+            ->expects(self::any())
+            ->method('getTSConfig')
+            ->willReturn([]);
         $subject->groupData['file_permissions'] = $permissionValue;
-        $this->assertEquals($expectedPermissions, $subject->getFilePermissions());
+        self::assertEquals($expectedPermissions, $subject->getFilePermissions());
     }
 
     /**
      * @test
      */
-    public function getFilePermissionsGrantsAllPermissionsToAdminUsers()
+    public function getFilePermissionsGrantsAllPermissionsToAdminUsers(): void
     {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
             ->setMethods(['isAdmin'])
             ->getMock();
 
         $subject
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('isAdmin')
-            ->will($this->returnValue(true));
+            ->willReturn(true);
 
         $expectedPermissions = [
             'addFile' => true,
@@ -705,65 +567,127 @@ class BackendUserAuthenticationTest extends UnitTestCase
             'recursivedeleteFolder' => true
         ];
 
-        $this->assertEquals($expectedPermissions, $subject->getFilePermissions());
+        self::assertEquals($expectedPermissions, $subject->getFilePermissions());
     }
 
     /**
      * @test
      */
-    public function jsConfirmationReturnsTrueIfPassedValueEqualsConfiguration()
+    public function jsConfirmationReturnsTrueIfPassedValueEqualsConfiguration(): void
     {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
             ->setMethods(['getTSConfig'])
             ->getMock();
-        $subject->method('getTSConfig')->with('options.alertPopups')->willReturn(['value' => 1]);
-
-        $this->assertTrue($subject->jsConfirmation(JsConfirmation::TYPE_CHANGE));
-        $this->assertFalse($subject->jsConfirmation(JsConfirmation::COPY_MOVE_PASTE));
+        $subject->method('getTSConfig')->with()->willReturn([
+            'options.' => [
+                'alertPopups' => 1
+            ],
+        ]);
+        self::assertTrue($subject->jsConfirmation(JsConfirmation::TYPE_CHANGE));
+        self::assertFalse($subject->jsConfirmation(JsConfirmation::COPY_MOVE_PASTE));
     }
 
     /**
      * @test
      */
-    public function jsConfirmationAllowsSettingMultipleBitsInValue()
+    public function jsConfirmationAllowsSettingMultipleBitsInValue(): void
     {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
             ->setMethods(['getTSConfig'])
             ->getMock();
-        $subject->method('getTSConfig')->with('options.alertPopups')->willReturn(['value' => 3]);
+        $subject->method('getTSConfig')->with()->willReturn([
+            'options.' => [
+                'alertPopups' => 3
+            ],
+        ]);
+        self::assertTrue($subject->jsConfirmation(JsConfirmation::TYPE_CHANGE));
+        self::assertTrue($subject->jsConfirmation(JsConfirmation::COPY_MOVE_PASTE));
+    }
 
-        $this->assertTrue($subject->jsConfirmation(JsConfirmation::TYPE_CHANGE));
-        $this->assertTrue($subject->jsConfirmation(JsConfirmation::COPY_MOVE_PASTE));
+    /**
+     * @test
+     * @dataProvider jsConfirmationsWithUnsetBits
+     *
+     * @param int $jsConfirmation
+     * @param int $typeChangeAllowed
+     * @param int $copyMovePasteAllowed
+     * @param int $deleteAllowed
+     * @param int $feEditAllowed
+     * @param int $otherAllowed
+     */
+    public function jsConfirmationAllowsUnsettingBitsInValue($jsConfirmation, $typeChangeAllowed, $copyMovePasteAllowed, $deleteAllowed, $feEditAllowed, $otherAllowed): void
+    {
+        $subject = $this->getMockBuilder(BackendUserAuthentication::class)
+            ->setMethods(['getTSConfig'])
+            ->getMock();
+        $subject->method('getTSConfig')->with()->willReturn([
+            'options.' => [
+                'alertPopups' => $jsConfirmation
+            ],
+        ]);
+        self::assertEquals($typeChangeAllowed, $subject->jsConfirmation(JsConfirmation::TYPE_CHANGE));
+        self::assertEquals($copyMovePasteAllowed, $subject->jsConfirmation(JsConfirmation::COPY_MOVE_PASTE));
+        self::assertEquals($deleteAllowed, $subject->jsConfirmation(JsConfirmation::DELETE));
+        self::assertEquals($feEditAllowed, $subject->jsConfirmation(JsConfirmation::FE_EDIT));
+        self::assertEquals($otherAllowed, $subject->jsConfirmation(JsConfirmation::OTHER));
+    }
+
+    /**
+     * @return array
+     */
+    public function jsConfirmationsWithUnsetBits(): array
+    {
+        return [
+            'All except "type change" and "copy/move/paste"' => [
+                252,
+                false,
+                false,
+                true,
+                true,
+                true,
+            ],
+            'All except "other"' => [
+                127,
+                true,
+                true,
+                true,
+                true,
+                false,
+            ],
+        ];
     }
 
     /**
      * @test
      */
-    public function jsConfirmationAlwaysReturnsFalseIfNoConfirmationIsSet()
+    public function jsConfirmationAlwaysReturnsFalseIfNoConfirmationIsSet(): void
     {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
             ->setMethods(['getTSConfig'])
             ->getMock();
-        $subject->method('getTSConfig')->with('options.alertPopups')->willReturn(['value' => 0]);
-
-        $this->assertFalse($subject->jsConfirmation(JsConfirmation::TYPE_CHANGE));
-        $this->assertFalse($subject->jsConfirmation(JsConfirmation::COPY_MOVE_PASTE));
+        $subject->method('getTSConfig')->with()->willReturn([
+            'options.' => [
+                'alertPopups' => 0
+            ],
+        ]);
+        self::assertFalse($subject->jsConfirmation(JsConfirmation::TYPE_CHANGE));
+        self::assertFalse($subject->jsConfirmation(JsConfirmation::COPY_MOVE_PASTE));
     }
 
     /**
      * @test
      */
-    public function jsConfirmationReturnsTrueIfConfigurationIsMissing()
+    public function jsConfirmationReturnsTrueIfConfigurationIsMissing(): void
     {
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
             ->setMethods(['getTSConfig'])
             ->getMock();
 
-        $this->assertTrue($subject->jsConfirmation(JsConfirmation::TYPE_CHANGE));
+        self::assertTrue($subject->jsConfirmation(JsConfirmation::TYPE_CHANGE));
     }
 
     /**
@@ -817,7 +741,7 @@ class BackendUserAuthenticationTest extends UnitTestCase
      * @param string $groups
      * @param string $expected
      */
-    public function getPagePermissionsClauseWithValidUser(int $perms, bool $admin, string $groups, string $expected)
+    public function getPagePermissionsClauseWithValidUser(int $perms, bool $admin, string $groups, string $expected): void
     {
         // We only need to setup the mocking for the non-admin cases
         // If this setup is done for admin cases the FIFO behavior
@@ -845,17 +769,92 @@ class BackendUserAuthenticationTest extends UnitTestCase
             GeneralUtility::addInstance(ConnectionPool::class, $databaseProphecy->reveal());
         }
 
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $subject */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(BackendUserAuthentication::class)
             ->setMethods(['isAdmin'])
             ->getMock();
-        $subject->expects($this->any())
+        $subject->setLogger(new NullLogger());
+        $subject->expects(self::any())
             ->method('isAdmin')
-            ->will($this->returnValue($admin));
+            ->willReturn($admin);
 
         $subject->user = ['uid' => 123];
         $subject->groupList = $groups;
 
-        $this->assertEquals($expected, $subject->getPagePermsClause($perms));
+        self::assertEquals($expected, $subject->getPagePermsClause($perms));
+    }
+
+    /**
+     * @test
+     * @dataProvider checkAuthModeReturnsExpectedValueDataProvider
+     * @param string $theValue
+     * @param string $authMode
+     * @param bool $expectedResult
+     */
+    public function checkAuthModeReturnsExpectedValue(string $theValue, string $authMode, bool $expectedResult)
+    {
+        /** @var BackendUserAuthentication|MockObject $subject */
+        $subject = $this->getMockBuilder(BackendUserAuthentication::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['isAdmin'])
+            ->getMock();
+
+        $subject
+            ->expects(self::any())
+            ->method('isAdmin')
+            ->willReturn(false);
+
+        $subject->groupData['explicit_allowdeny'] =
+            'dummytable:dummyfield:explicitly_allowed_value:ALLOW,'
+            . 'dummytable:dummyfield:explicitly_denied_value:DENY';
+
+        $result = $subject->checkAuthMode('dummytable', 'dummyfield', $theValue, $authMode);
+        self::assertEquals($expectedResult, $result);
+    }
+
+    public function checkAuthModeReturnsExpectedValueDataProvider(): array
+    {
+        return [
+            'explicit allow, not allowed value' => [
+                'non_allowed_field',
+                'explicitAllow',
+                false,
+            ],
+            'explicit allow, allowed value' => [
+                'explicitly_allowed_value',
+                'explicitAllow',
+                true,
+            ],
+            'explicit deny, not denied value' => [
+                'non_denied_field',
+                'explicitDeny',
+                true,
+            ],
+            'explicit deny, denied value' => [
+                'explicitly_denied_value',
+                'explicitDeny',
+                false,
+            ],
+            'invalid value colon' => [
+                'containing:invalid:chars',
+                'does not matter',
+                false,
+            ],
+            'invalid value comma' => [
+                'containing,invalid,chars',
+                'does not matter',
+                false,
+            ],
+            'blank value' => [
+                '',
+                'does not matter',
+                true,
+            ],
+            'divider' => [
+                '--div--',
+                'explicitAllow',
+                true,
+            ],
+        ];
     }
 }

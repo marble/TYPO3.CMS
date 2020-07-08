@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Log;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,7 @@ namespace TYPO3\CMS\Core\Log;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Core\Bootstrap;
+namespace TYPO3\CMS\Core\Log;
 
 /**
  * Log record
@@ -45,7 +44,7 @@ class LogRecord implements \ArrayAccess
     /**
      * Severity level
      *
-     * @var int
+     * @var string
      */
     protected $level = LogLevel::INFO;
 
@@ -92,13 +91,14 @@ class LogRecord implements \ArrayAccess
      * Constructor.
      *
      * @param string $component Affected component
-     * @param int $level Severity level (see \TYPO3\CMS\Core\Log\Level)
+     * @param string $level Severity level (see \TYPO3\CMS\Core\Log\Level)
      * @param string $message Log message
      * @param array $data Additional data
+     * @param string $requestId Unique ID of the request
      */
-    public function __construct($component = '', $level, $message, array $data = [])
+    public function __construct(string $component, string $level, string $message, array $data = [], string $requestId = '')
     {
-        $this->setRequestId(Bootstrap::getInstance()->getRequestId())
+        $this->setRequestId($requestId)
             ->setCreated(microtime(true))
             ->setComponent($component)
             ->setLevel($level)
@@ -110,7 +110,7 @@ class LogRecord implements \ArrayAccess
      * Sets the affected component
      *
      * @param string $component Component key
-     * @return \TYPO3\CMS\Core\Log\LogRecord
+     * @return LogRecord
      */
     public function setComponent($component)
     {
@@ -132,7 +132,7 @@ class LogRecord implements \ArrayAccess
      * Sets the the creation time
      *
      * @param float $created Creation time as float
-     * @return \TYPO3\CMS\Core\Log\LogRecord
+     * @return LogRecord
      */
     public function setCreated($created)
     {
@@ -153,13 +153,13 @@ class LogRecord implements \ArrayAccess
     /**
      * Sets the severity level
      *
-     * @param int $level Severity level
-     * @return \TYPO3\CMS\Core\Log\LogRecord
+     * @param string $level Severity level
+     * @return LogRecord
      * @see \TYPO3\CMS\Core\Log\Level
      */
-    public function setLevel($level)
+    public function setLevel(string $level)
     {
-        LogLevel::validateLevel($level);
+        LogLevel::validateLevel(LogLevel::normalizeLevel($level));
         $this->level = $level;
         return $this;
     }
@@ -168,9 +168,9 @@ class LogRecord implements \ArrayAccess
      * Returns the severity level
      *
      * @see \TYPO3\CMS\Core\Log\Level
-     * @return int Severity level
+     * @return string Severity level
      */
-    public function getLevel()
+    public function getLevel(): string
     {
         return $this->level;
     }
@@ -179,7 +179,7 @@ class LogRecord implements \ArrayAccess
      * Sets log data array
      *
      * @param array $data
-     * @return \TYPO3\CMS\Core\Log\LogRecord
+     * @return LogRecord
      */
     public function setData($data)
     {
@@ -202,7 +202,7 @@ class LogRecord implements \ArrayAccess
      * and overwrites previously data using the same array keys.
      *
      * @param array $data
-     * @return \TYPO3\CMS\Core\Log\LogRecord
+     * @return LogRecord
      */
     public function addData(array $data)
     {
@@ -214,7 +214,7 @@ class LogRecord implements \ArrayAccess
      * Sets the log message
      *
      * @param string|object $message Log message. Usually a string, or an object that can be casted to string (implements __toString())
-     * @return \TYPO3\CMS\Core\Log\LogRecord
+     * @return LogRecord
      */
     public function setMessage($message)
     {
@@ -236,7 +236,7 @@ class LogRecord implements \ArrayAccess
      * Sets the request ID
      *
      * @param string $requestId
-     * @return \TYPO3\CMS\Core\Log\LogRecord
+     * @return LogRecord
      */
     public function setRequestId($requestId)
     {
@@ -263,7 +263,7 @@ class LogRecord implements \ArrayAccess
     public function __toString()
     {
         $timestamp = date('r', (int)$this->created);
-        $levelName = LogLevel::getName($this->level);
+        $levelName = strtoupper($this->level);
         $data = '';
         if (!empty($this->data)) {
             // According to PSR3 the exception-key may hold an \Exception

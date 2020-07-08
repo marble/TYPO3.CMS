@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Log;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +15,32 @@ namespace TYPO3\CMS\Core\Tests\Unit\Log;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Log;
+
+use Psr\Log\InvalidArgumentException;
+use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Log\LogRecord;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class LogRecordTest extends UnitTestCase
 {
     /**
-     * Returns a \TYPO3\CMS\Core\Log\LogRecord
+     * Returns a LogRecord
      *
-     * @param array $parameters Parameters to set in \TYPO3\CMS\Core\Log\LogRecord constructor.
+     * @param array $parameters Parameters to set in LogRecord constructor.
      * @return LogRecord
      */
-    protected function getRecord(array $parameters = [])
+    protected function getRecord(array $parameters = []): LogRecord
     {
-        /** @var $record LogRecord */
-        $record = new LogRecord($parameters['component'] ?: 'test.core.log', $parameters['level'] ?: \TYPO3\CMS\Core\Log\LogLevel::DEBUG, $parameters['message'] ?: 'test message', $parameters['data'] ?: []);
+        $record = new LogRecord(
+            $parameters['component'] ?? 'test.core.log',
+            $parameters['level'] ?? LogLevel::DEBUG,
+            $parameters['message'] ?? 'test message',
+            $parameters['data'] ?? []
+        );
         return $record;
     }
 
@@ -41,7 +51,7 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $component = 'test.core.log';
         $record = $this->getRecord(['component' => $component]);
-        $this->assertEquals($component, $record->getComponent());
+        self::assertEquals($component, $record->getComponent());
     }
 
     /**
@@ -49,9 +59,9 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructorSetsCorrectLogLevel()
     {
-        $logLevel = \TYPO3\CMS\Core\Log\LogLevel::CRITICAL;
+        $logLevel = LogLevel::CRITICAL;
         $record = $this->getRecord(['level' => $logLevel]);
-        $this->assertEquals($logLevel, $record->getLevel());
+        self::assertEquals($logLevel, $record->getLevel());
     }
 
     /**
@@ -61,7 +71,7 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $logMessage = 'test message';
         $record = $this->getRecord(['message' => $logMessage]);
-        $this->assertEquals($logMessage, $record->getMessage());
+        self::assertEquals($logMessage, $record->getMessage());
     }
 
     /**
@@ -73,7 +83,7 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'foo' => 'bar'
         ];
         $record = $this->getRecord(['data' => $dataArray]);
-        $this->assertEquals($dataArray, $record->getData());
+        self::assertEquals($dataArray, $record->getData());
     }
 
     /**
@@ -83,7 +93,7 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $record = $this->getRecord();
         $component = 'testcomponent';
-        $this->assertEquals($component, $record->setComponent($component)->getComponent());
+        self::assertEquals($component, $record->setComponent($component)->getComponent());
     }
 
     /**
@@ -92,8 +102,8 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setLevelSetsLevel()
     {
         $record = $this->getRecord();
-        $level = \TYPO3\CMS\Core\Log\LogLevel::EMERGENCY;
-        $this->assertEquals($level, $record->setLevel($level)->getLevel());
+        $level = LogLevel::EMERGENCY;
+        self::assertEquals($level, $record->setLevel($level)->getLevel());
     }
 
     /**
@@ -101,11 +111,11 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function setLevelValidatesLevel()
     {
-        $this->expectException(\Psr\Log\InvalidArgumentException::class);
-        $this->expectExceptionCode(1321637121);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionCode(1550247164);
 
         $record = $this->getRecord();
-        $record->setLevel(100);
+        $record->setLevel('foo');
     }
 
     /**
@@ -115,7 +125,7 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $record = $this->getRecord();
         $message = 'testmessage';
-        $this->assertEquals($message, $record->setMessage($message)->getMessage());
+        self::assertEquals($message, $record->setMessage($message)->getMessage());
     }
 
     /**
@@ -125,7 +135,7 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $record = $this->getRecord();
         $created = 123.45;
-        $this->assertEquals($created, $record->setCreated($created)->getCreated());
+        self::assertEquals($created, $record->setCreated($created)->getCreated());
     }
 
     /**
@@ -135,7 +145,7 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $record = $this->getRecord();
         $requestId = 'testrequestid';
-        $this->assertEquals($requestId, $record->setRequestId($requestId)->getRequestId());
+        self::assertEquals($requestId, $record->setRequestId($requestId)->getRequestId());
     }
 
     /**
@@ -144,16 +154,16 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function toArrayReturnsCorrectValues()
     {
         $component = 'test.core.log';
-        $level = \TYPO3\CMS\Core\Log\LogLevel::DEBUG;
+        $level = LogLevel::DEBUG;
         $message = 'test message';
         $data = ['foo' => 'bar'];
         /** @var $record LogRecord */
         $record = new LogRecord($component, $level, $message, $data);
         $recordArray = $record->toArray();
-        $this->assertEquals($component, $recordArray['component']);
-        $this->assertEquals($level, $recordArray['level']);
-        $this->assertEquals($message, $recordArray['message']);
-        $this->assertEquals($data, $recordArray['data']);
+        self::assertEquals($component, $recordArray['component']);
+        self::assertEquals($level, $recordArray['level']);
+        self::assertEquals($message, $recordArray['message']);
+        self::assertEquals($data, $recordArray['data']);
     }
 
     /**
@@ -163,7 +173,7 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $dataArray = ['foo' => 'bar'];
         $record = $this->getRecord(['data' => $dataArray]);
-        $this->assertContains(json_encode($dataArray), (string)$record);
+        self::assertStringContainsString(json_encode($dataArray), (string)$record);
     }
 
     /**
@@ -173,6 +183,6 @@ class LogRecordTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $dataArray = ['exception' => new \Exception('foo', 1476049451)];
         $record = $this->getRecord(['data' => $dataArray]);
-        $this->assertContains('Exception: foo', (string)$record);
+        self::assertStringContainsString('Exception: foo', (string)$record);
     }
 }

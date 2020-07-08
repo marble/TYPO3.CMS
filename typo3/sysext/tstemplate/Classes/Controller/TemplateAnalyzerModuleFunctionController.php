@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Tstemplate\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,22 +13,28 @@ namespace TYPO3\CMS\Tstemplate\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Module\AbstractFunctionModule;
+namespace TYPO3\CMS\Tstemplate\Controller;
+
+use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\TypoScript\ExtendedTemplateService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\RootlineUtility;
 use TYPO3\CMS\Fluid\View\StandaloneView;
-use TYPO3\CMS\Frontend\Page\PageRepository;
 
 /**
  * TypoScript template analyzer
+ * @internal This is a specific Backend Controller implementation and is not considered part of the Public TYPO3 API.
  */
-class TemplateAnalyzerModuleFunctionController extends AbstractFunctionModule
+class TemplateAnalyzerModuleFunctionController
 {
+
     /**
      * @var TypoScriptTemplateModuleController
      */
-    public $pObj;
+    protected $pObj;
 
     /**
      * @var string
@@ -48,16 +53,31 @@ class TemplateAnalyzerModuleFunctionController extends AbstractFunctionModule
     protected $templateService;
 
     /**
-     * Init
+     * @var int GET/POST var 'id'
+     */
+    protected $id;
+
+    /**
+     * @var ServerRequestInterface
+     */
+    protected $request;
+
+    /**
+     * Init, called from parent object
      *
      * @param TypoScriptTemplateModuleController $pObj
-     * @param array $conf
+     * @param ServerRequestInterface $request
      */
-    public function init(&$pObj, $conf)
+    public function init($pObj, ServerRequestInterface $request)
     {
-        parent::init($pObj, $conf);
+        $this->pObj = $pObj;
+        $this->request = $request;
+
+        // Setting MOD_MENU items as we need them for logging:
+        $this->pObj->MOD_MENU = array_merge($this->pObj->MOD_MENU, $this->modMenu());
         $this->localLanguageFilePath = 'EXT:tstemplate/Resources/Private/Language/locallang_analyzer.xlf';
         $this->pObj->modMenu_setDefaultList .= ',ts_analyzer_checkLinenum,ts_analyzer_checkSyntax';
+        $this->id = (int)($request->getParsedBody()['id'] ?? $request->getQueryParams()['id'] ?? 0);
     }
 
     /**
@@ -65,7 +85,7 @@ class TemplateAnalyzerModuleFunctionController extends AbstractFunctionModule
      *
      * @return array
      */
-    public function modMenu()
+    protected function modMenu()
     {
         return [
             'ts_analyzer_checkSetup' => '1',
@@ -84,15 +104,14 @@ class TemplateAnalyzerModuleFunctionController extends AbstractFunctionModule
      * @param int $templateUid
      * @return bool
      */
-    public function initialize_editor($pageId, $templateUid = 0)
+    protected function initialize_editor($pageId, $templateUid = 0)
     {
         // Initializes the module. Done in this function because we may need to re-initialize if data is submitted!
         $this->templateService = GeneralUtility::makeInstance(ExtendedTemplateService::class);
-        $this->templateService->init();
 
         // Gets the rootLine
-        $sys_page = GeneralUtility::makeInstance(PageRepository::class);
-        $rootLine = $sys_page->getRootLine($pageId);
+        $rootlineUtility = GeneralUtility::makeInstance(RootlineUtility::class, $pageId);
+        $rootLine = $rootlineUtility->get();
 
         // This generates the constants/config + hierarchy info for the template.
         $this->templateService->runThroughTemplates($rootLine, $templateUid);
@@ -103,7 +122,7 @@ class TemplateAnalyzerModuleFunctionController extends AbstractFunctionModule
     }
 
     /**
-     * Main
+     * Main, called from parent object
      *
      * @return string
      */
@@ -114,13 +133,13 @@ class TemplateAnalyzerModuleFunctionController extends AbstractFunctionModule
 
         $assigns = [];
         $template_uid = 0;
-        $assigns['manyTemplatesMenu'] = $this->pObj->templateMenu();
+        $assigns['manyTemplatesMenu'] = $this->pObj->templateMenu($this->request);
         $assigns['LLPrefix'] = 'LLL:' . $this->localLanguageFilePath . ':';
         if ($assigns['manyTemplatesMenu']) {
             $template_uid = $this->pObj->MOD_SETTINGS['templatesOnPage'];
         }
 
-        $assigns['existTemplate'] = $this->initialize_editor($this->pObj->id, $template_uid);
+        $assigns['existTemplate'] = $this->initialize_editor($this->id, $template_uid);
         if ($assigns['existTemplate']) {
             $assigns['siteTitle'] = trim($this->templateRow['sitetitle']);
             $assigns['templateRecord'] = $this->templateRow;
@@ -131,20 +150,22 @@ class TemplateAnalyzerModuleFunctionController extends AbstractFunctionModule
         $this->templateService->clearList_setup_temp = array_flip($this->templateService->clearList_setup);
         $pointer = count($this->templateService->hierarchyInfo);
         $hierarchyInfo = $this->templateService->ext_process_hierarchyInfo([], $pointer);
-        $assigns['hierarchy'] = implode(array_reverse($this->templateService->ext_getTemplateHierarchyArr(
+        $assigns['hierarchy'] = implode('', array_reverse($this->templateService->ext_getTemplateHierarchyArr(
             $hierarchyInfo,
             '',
             [],
             1
-        )), '');
+        )));
 
         $urlParameters = [
-            'id' => $this->pObj->id,
+            'id' => $this->id,
             'template' => 'all'
         ];
-        $assigns['moduleLink'] = BackendUtility::getModuleUrl('web_ts', $urlParameters);
+        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        $assigns['moduleLink'] = (string)$uriBuilder->buildUriFromRoute('web_ts', $urlParameters);
 
-        $assigns['template'] = $template = GeneralUtility::_GET('template');
+        $assigns['template'] = $template = ($this->request->getQueryParams()['template'] ?? null);
         $addParams = $template ? '&template=' . $template : '';
         $assigns['checkboxes'] = [
             'ts_analyzer_checkLinenum' => [
@@ -170,7 +191,7 @@ class TemplateAnalyzerModuleFunctionController extends AbstractFunctionModule
 
         foreach ($assigns['checkboxes'] as $key => $conf) {
             $assigns['checkboxes'][$key]['label'] = BackendUtility::getFuncCheck(
-                $this->pObj->id,
+                $this->id,
                 'SET[' . $key . ']',
                 $this->pObj->MOD_SETTINGS[$key],
                 '',
@@ -237,5 +258,13 @@ class TemplateAnalyzerModuleFunctionController extends AbstractFunctionModule
         $view->assignMultiple($assigns);
 
         return $view->render();
+    }
+
+    /**
+     * @return LanguageService
+     */
+    protected function getLanguageService(): LanguageService
+    {
+        return $GLOBALS['LANG'];
     }
 }

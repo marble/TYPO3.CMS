@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
+
 use TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Fixtures\TranslateViewHelperFixtureForEmptyString;
 use TYPO3\CMS\Fluid\ViewHelpers\TranslateViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
+use TYPO3Fluid\Fluid\Core\ViewHelper\Exception;
 
 /**
  * Test class for TranslateViewHelper
@@ -36,7 +38,7 @@ class TranslateViewHelperTest extends ViewHelperBaseTestcase
         $this->viewHelper = new TranslateViewHelper();
         $this->injectDependenciesIntoViewHelper($this->viewHelper);
 
-        $this->expectException(\TYPO3\CMS\Fluid\Core\ViewHelper\Exception\InvalidVariableException::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1351584844);
 
         $this->setArgumentsUnderTest(
@@ -66,7 +68,7 @@ class TranslateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('<p>hello world</p>', $actualResult);
+        self::assertEquals('<p>hello world</p>', $actualResult);
     }
 
     /**
@@ -90,7 +92,7 @@ class TranslateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('<p>hello world</p>', $actualResult);
+        self::assertEquals('<p>hello world</p>', $actualResult);
     }
 
     /**
@@ -115,6 +117,6 @@ class TranslateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('default', $actualResult);
+        self::assertEquals('default', $actualResult);
     }
 }

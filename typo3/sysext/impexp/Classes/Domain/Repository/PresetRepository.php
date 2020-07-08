@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp\Domain\Repository;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Impexp\Domain\Repository;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Impexp\Domain\Repository;
+
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
@@ -23,6 +24,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Handling of presets
+ * @internal this is not part of TYPO3's Core API.
  */
 class PresetRepository
 {
@@ -147,7 +149,6 @@ class PresetRepository
                         'preset_data' => serialize($inData)
                     ],
                     ['preset_data' => Connection::PARAM_LOB]
-
                 );
 
                 $msg = 'New preset "' . htmlspecialchars($inData['preset']['title']) . '" is created';
@@ -195,7 +196,7 @@ class PresetRepository
                         $inData = $inData_temp;
                     }
                 } else {
-                    $msg = 'ERROR: No configuratio data found in preset record!';
+                    $msg = 'ERROR: No configuration data found in preset record!';
                     $err = true;
                 }
             } else {
@@ -212,9 +213,9 @@ class PresetRepository
                 $msg,
                 $err ? FlashMessage::ERROR : FlashMessage::INFO
             );
-            /** @var $flashMessageService FlashMessageService */
+            /** @var FlashMessageService $flashMessageService */
             $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
-            /** @var $defaultFlashMessageQueue FlashMessageQueue */
+            /** @var FlashMessageQueue $defaultFlashMessageQueue */
             $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
             $defaultFlashMessageQueue->enqueue($flashMessage);
         }

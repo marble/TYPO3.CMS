@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,47 +13,82 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
+use TYPO3\CMS\Extbase\Service\EnvironmentService;
+use TYPO3\CMS\Fluid\Core\Widget\AjaxWidgetContextHolder;
+use TYPO3\CMS\Fluid\Core\Widget\WidgetContext;
+use TYPO3\CMS\Fluid\Core\Widget\WidgetRequest;
+use TYPO3\CMS\Fluid\Core\Widget\WidgetRequestBuilder;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class WidgetRequestBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class WidgetRequestBuilderTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Fluid\Core\Widget\WidgetRequestBuilder
+     * @var WidgetRequestBuilder
      */
     protected $widgetRequestBuilder;
 
     /**
-     * @var \TYPO3\CMS\Extbase\Object\ObjectManagerInterface
+     * @var ObjectManagerInterface
      */
     protected $mockObjectManager;
 
     /**
-     * @var \TYPO3\CMS\Fluid\Core\Widget\WidgetRequest
+     * @var WidgetRequest
      */
     protected $mockWidgetRequest;
 
     /**
-     * @var \TYPO3\CMS\Fluid\Core\Widget\AjaxWidgetContextHolder
+     * @var AjaxWidgetContextHolder
      */
     protected $mockAjaxWidgetContextHolder;
 
     /**
-     * @var \TYPO3\CMS\Fluid\Core\Widget\WidgetContext
+     * @var WidgetContext
      */
     protected $mockWidgetContext;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->widgetRequestBuilder = $this->getAccessibleMock(\TYPO3\CMS\Fluid\Core\Widget\WidgetRequestBuilder::class, ['setArgumentsFromRawRequestData']);
-        $this->mockWidgetRequest = $this->createMock(\TYPO3\CMS\Fluid\Core\Widget\WidgetRequest::class);
-        $this->mockObjectManager = $this->createMock(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface::class);
-        $this->mockObjectManager->expects($this->once())->method('get')->with(\TYPO3\CMS\Fluid\Core\Widget\WidgetRequest::class)->will($this->returnValue($this->mockWidgetRequest));
+        parent::setUp();
+        $this->widgetRequestBuilder = $this->getAccessibleMock(WidgetRequestBuilder::class, ['setArgumentsFromRawRequestData']);
+        $this->mockWidgetRequest = $this->createMock(WidgetRequest::class);
+        $this->mockObjectManager = $this->createMock(ObjectManagerInterface::class);
+        $this->mockObjectManager->expects(self::any())->method('get')->with(WidgetRequest::class)->willReturn($this->mockWidgetRequest);
         $this->widgetRequestBuilder->_set('objectManager', $this->mockObjectManager);
-        $this->mockWidgetContext = $this->createMock(\TYPO3\CMS\Fluid\Core\Widget\WidgetContext::class);
-        $this->mockAjaxWidgetContextHolder = $this->createMock(\TYPO3\CMS\Fluid\Core\Widget\AjaxWidgetContextHolder::class);
+        $this->mockWidgetContext = $this->createMock(WidgetContext::class);
+        $this->mockAjaxWidgetContextHolder = $this->createMock(AjaxWidgetContextHolder::class);
         $this->widgetRequestBuilder->injectAjaxWidgetContextHolder($this->mockAjaxWidgetContextHolder);
-        $this->mockAjaxWidgetContextHolder->expects($this->once())->method('get')->will($this->returnValue($this->mockWidgetContext));
+        $environmentServiceMock = $this->createMock(EnvironmentService::class);
+        $environmentServiceMock->expects(self::any())->method('isEnvironmentInFrontendMode')->willReturn(true);
+        $environmentServiceMock->expects(self::any())->method('isEnvironmentInBackendMode')->willReturn(false);
+        $this->widgetRequestBuilder->injectEnvironmentService($environmentServiceMock);
+    }
+
+    /**
+     * @test
+     */
+    public function buildThrowsIfNoFluidWidgetIdWasSet()
+    {
+        $_SERVER = [
+            'REMOTE_ADDR' => 'foo',
+            'SSL_SESSION_ID' => 'foo',
+            'REQUEST_URI' => 'foo',
+            'ORIG_SCRIPT_NAME' => 'foo',
+            'REQUEST_METHOD' => 'foo'
+        ];
+        $_GET = [
+            'not-the-fluid-widget-id' => 'foo'
+        ];
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionCode(1521190675);
+        $this->widgetRequestBuilder->build();
     }
 
     /**
@@ -62,8 +96,19 @@ class WidgetRequestBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function buildSetsRequestUri()
     {
-        $requestUri = \TYPO3\CMS\Core\Utility\GeneralUtility::getIndpEnv('TYPO3_REQUEST_URL');
-        $this->mockWidgetRequest->expects($this->once())->method('setRequestURI')->with($requestUri);
+        $_SERVER = [
+            'REMOTE_ADDR' => 'foo',
+            'SSL_SESSION_ID' => 'foo',
+            'REQUEST_URI' => 'foo',
+            'ORIG_SCRIPT_NAME' => 'foo',
+            'REQUEST_METHOD' => 'foo'
+        ];
+        $_GET = [
+            'fluid-widget-id' => 'foo'
+        ];
+        $requestUri = GeneralUtility::getIndpEnv('TYPO3_REQUEST_URL');
+        $this->mockAjaxWidgetContextHolder->expects(self::once())->method('get')->willReturn($this->mockWidgetContext);
+        $this->mockWidgetRequest->expects(self::once())->method('setRequestURI')->with($requestUri);
         $this->widgetRequestBuilder->build();
     }
 
@@ -72,8 +117,19 @@ class WidgetRequestBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function buildSetsBaseUri()
     {
-        $baseUri = \TYPO3\CMS\Core\Utility\GeneralUtility::getIndpEnv('TYPO3_SITE_URL');
-        $this->mockWidgetRequest->expects($this->once())->method('setBaseURI')->with($baseUri);
+        $_SERVER = [
+            'REMOTE_ADDR' => 'foo',
+            'SSL_SESSION_ID' => 'foo',
+            'REQUEST_URI' => 'foo',
+            'ORIG_SCRIPT_NAME' => 'foo',
+            'REQUEST_METHOD' => 'foo'
+        ];
+        $_GET = [
+            'fluid-widget-id' => 'foo'
+        ];
+        $baseUri = GeneralUtility::getIndpEnv('TYPO3_SITE_URL');
+        $this->mockAjaxWidgetContextHolder->expects(self::once())->method('get')->willReturn($this->mockWidgetContext);
+        $this->mockWidgetRequest->expects(self::once())->method('setBaseURI')->with($baseUri);
         $this->widgetRequestBuilder->build();
     }
 
@@ -82,8 +138,18 @@ class WidgetRequestBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function buildSetsRequestMethod()
     {
-        $_SERVER['REQUEST_METHOD'] = 'POST';
-        $this->mockWidgetRequest->expects($this->once())->method('setMethod')->with('POST');
+        $_SERVER = [
+            'REMOTE_ADDR' => 'foo',
+            'SSL_SESSION_ID' => 'foo',
+            'REQUEST_URI' => 'foo',
+            'ORIG_SCRIPT_NAME' => 'foo',
+            'REQUEST_METHOD' => 'POST'
+        ];
+        $_GET = [
+            'fluid-widget-id' => 'foo'
+        ];
+        $this->mockAjaxWidgetContextHolder->expects(self::once())->method('get')->willReturn($this->mockWidgetContext);
+        $this->mockWidgetRequest->expects(self::once())->method('setMethod')->with('POST');
         $this->widgetRequestBuilder->build();
     }
 
@@ -92,10 +158,22 @@ class WidgetRequestBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function buildSetsPostArgumentsFromRequest()
     {
-        $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_GET = ['get' => 'foo'];
-        $_POST = ['post' => 'bar'];
-        $this->mockWidgetRequest->expects($this->once())->method('setArguments')->with($_POST);
+        $_SERVER = [
+            'REMOTE_ADDR' => 'foo',
+            'SSL_SESSION_ID' => 'foo',
+            'REQUEST_URI' => 'foo',
+            'ORIG_SCRIPT_NAME' => 'foo',
+            'REQUEST_METHOD' => 'POST'
+        ];
+        $_GET = [
+            'get' => 'foo',
+            'fluid-widget-id' => 'foo'
+        ];
+        $_POST = [
+            'post' => 'bar'
+        ];
+        $this->mockAjaxWidgetContextHolder->expects(self::once())->method('get')->willReturn($this->mockWidgetContext);
+        $this->mockWidgetRequest->expects(self::once())->method('setArguments')->with($_POST);
         $this->widgetRequestBuilder->build();
     }
 
@@ -104,10 +182,22 @@ class WidgetRequestBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function buildSetsGetArgumentsFromRequest()
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-        $_GET = ['get' => 'foo'];
-        $_POST = ['post' => 'bar'];
-        $this->mockWidgetRequest->expects($this->once())->method('setArguments')->with($_GET);
+        $_SERVER = [
+            'REMOTE_ADDR' => 'foo',
+            'SSL_SESSION_ID' => 'foo',
+            'REQUEST_URI' => 'foo',
+            'ORIG_SCRIPT_NAME' => 'foo',
+            'REQUEST_METHOD' => 'GET'
+        ];
+        $_GET = [
+            'get' => 'foo',
+            'fluid-widget-id' => 'foo'
+        ];
+        $_POST = [
+            'post' => 'bar'
+        ];
+        $this->mockAjaxWidgetContextHolder->expects(self::once())->method('get')->willReturn($this->mockWidgetContext);
+        $this->mockWidgetRequest->expects(self::once())->method('setArguments')->with($_GET);
         $this->widgetRequestBuilder->build();
     }
 
@@ -116,8 +206,19 @@ class WidgetRequestBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function buildSetsControllerActionNameFromGetArguments()
     {
-        $_GET = ['action' => 'myAction'];
-        $this->mockWidgetRequest->expects($this->once())->method('setControllerActionName')->with('myAction');
+        $_SERVER = [
+            'REMOTE_ADDR' => 'foo',
+            'SSL_SESSION_ID' => 'foo',
+            'REQUEST_URI' => 'foo',
+            'ORIG_SCRIPT_NAME' => 'foo',
+            'REQUEST_METHOD' => 'foo'
+        ];
+        $_GET = [
+            'action' => 'myAction',
+            'fluid-widget-id' => 'foo'
+        ];
+        $this->mockAjaxWidgetContextHolder->expects(self::once())->method('get')->willReturn($this->mockWidgetContext);
+        $this->mockWidgetRequest->expects(self::once())->method('setControllerActionName')->with('myAction');
         $this->widgetRequestBuilder->build();
     }
 
@@ -126,9 +227,19 @@ class WidgetRequestBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function buildSetsWidgetContext()
     {
-        $_GET = ['fluid-widget-id' => '123'];
-        $this->mockAjaxWidgetContextHolder->expects($this->once())->method('get')->with('123')->will($this->returnValue($this->mockWidgetContext));
-        $this->mockWidgetRequest->expects($this->once())->method('setWidgetContext')->with($this->mockWidgetContext);
+        $_SERVER = [
+            'REMOTE_ADDR' => 'foo',
+            'SSL_SESSION_ID' => 'foo',
+            'REQUEST_URI' => 'foo',
+            'ORIG_SCRIPT_NAME' => 'foo',
+            'REQUEST_METHOD' => 'foo'
+        ];
+        $_GET = [
+            'fluid-widget-id' => '123'
+        ];
+        $this->mockAjaxWidgetContextHolder->expects(self::once())->method('get')->willReturn($this->mockWidgetContext);
+        $this->mockAjaxWidgetContextHolder->expects(self::once())->method('get')->with('123')->willReturn($this->mockWidgetContext);
+        $this->mockWidgetRequest->expects(self::once())->method('setWidgetContext')->with($this->mockWidgetContext);
         $this->widgetRequestBuilder->build();
     }
 
@@ -137,8 +248,19 @@ class WidgetRequestBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function buildReturnsRequest()
     {
+        $_SERVER = [
+            'REMOTE_ADDR' => 'foo',
+            'SSL_SESSION_ID' => 'foo',
+            'REQUEST_URI' => 'foo',
+            'ORIG_SCRIPT_NAME' => 'foo',
+            'REQUEST_METHOD' => 'foo'
+        ];
+        $_GET = [
+            'fluid-widget-id' => 'foo'
+        ];
+        $this->mockAjaxWidgetContextHolder->expects(self::once())->method('get')->willReturn($this->mockWidgetContext);
         $expected = $this->mockWidgetRequest;
         $actual = $this->widgetRequestBuilder->build();
-        $this->assertSame($expected, $actual);
+        self::assertSame($expected, $actual);
     }
 }

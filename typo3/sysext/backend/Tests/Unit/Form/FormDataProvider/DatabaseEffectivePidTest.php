@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,22 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseEffectivePid;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabaseEffectivePidTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabaseEffectivePidTest extends UnitTestCase
 {
     /**
      * @var DatabaseEffectivePid
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->subject = new DatabaseEffectivePid();
     }
@@ -45,7 +47,7 @@ class DatabaseEffectivePidTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         ];
         $expected = $input;
         $expected['effectivePid'] = 123;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -62,7 +64,7 @@ class DatabaseEffectivePidTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         ];
         $expected = $input;
         $expected['effectivePid'] = 123;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -79,7 +81,7 @@ class DatabaseEffectivePidTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         ];
         $expected = $input;
         $expected['effectivePid'] = 123;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -94,6 +96,6 @@ class DatabaseEffectivePidTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         ];
         $expected = $input;
         $expected['effectivePid'] = 0;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 }

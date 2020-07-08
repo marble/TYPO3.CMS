@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Utility;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +15,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Utility;
+
+use TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures\ArrayUtilityFilterRecursiveCallbackFixture;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ArrayUtilityTest extends UnitTestCase
 {
     ///////////////////////
     // Tests concerning filterByValueRecursive
@@ -163,7 +169,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function filterByValueRecursiveCorrectlyFiltersArray($needle, $haystack, $expectedResult)
     {
-        $this->assertEquals(
+        self::assertEquals(
             $expectedResult,
             ArrayUtility::filterByValueRecursive($needle, $haystack)
         );
@@ -175,7 +181,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function filterByValueRecursiveMatchesReferencesToSameObject()
     {
         $instance = new \stdClass();
-        $this->assertEquals(
+        self::assertEquals(
             [$instance],
             ArrayUtility::filterByValueRecursive($instance, [$instance])
         );
@@ -186,7 +192,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function filterByValueRecursiveDoesNotMatchDifferentInstancesOfSameClass()
     {
-        $this->assertEquals(
+        self::assertEquals(
             [],
             ArrayUtility::filterByValueRecursive(new \stdClass(), [new \stdClass()])
         );
@@ -196,16 +202,11 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     // Tests concerning isValidPath
     ///////////////////////
     /**
-     * Mock the class under test, isValidPath() (method under test), calls
-     * static getValuePath() internally, which is mocked here to return a specific
-     * result. This works because of 'static' keyword'  instead of 'self'
-     * for getValueByPath() call, using late static binding in PHP 5.3
-     *
      * @test
      */
     public function isValidPathReturnsTrueIfPathExists()
     {
-        $this->assertTrue(ArrayUtility::isValidPath(['foo' => 'bar'], 'foo'));
+        self::assertTrue(ArrayUtility::isValidPath(['foo' => 'bar'], 'foo'));
     }
 
     /**
@@ -213,7 +214,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isValidPathReturnsFalseIfPathDoesNotExist()
     {
-        $this->assertFalse(ArrayUtility::isValidPath(['foo' => 'bar'], 'bar'));
+        self::assertFalse(ArrayUtility::isValidPath(['foo' => 'bar'], 'bar'));
     }
 
     ///////////////////////
@@ -246,7 +247,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getValueByPathReturnsFirstIndexIfPathIsZero()
     {
-        $this->assertSame('foo', ArrayUtility::getValueByPath(['foo'], '0'));
+        self::assertSame('foo', ArrayUtility::getValueByPath(['foo'], '0'));
     }
 
     /**
@@ -254,7 +255,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getValueByPathReturnsFirstIndexIfPathSegmentIsZero()
     {
-        $this->assertSame('bar', ArrayUtility::getValueByPath(['foo' => ['bar']], 'foo/0'));
+        self::assertSame('bar', ArrayUtility::getValueByPath(['foo' => ['bar']], 'foo/0'));
     }
 
     /**
@@ -292,6 +293,15 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'foo/bar/baz',
                 false
             ],
+            'last segment is not an array' => [
+                [
+                    'foo' => [
+                        'baz' => 42
+                    ],
+                ],
+                'foo/baz/baz',
+                false
+            ],
             // Negative test: This could be improved and the test moved to
             // the valid data provider if the method supports this
             'doubletick encapsulated quoted doubletick does not work' => [
@@ -327,7 +337,19 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1341397869);
+        ArrayUtility::getValueByPath($array, $path);
+    }
 
+    /**
+     * @test
+     * @dataProvider getValueByPathInvalidPathDataProvider
+     * @param array $array
+     * @param string $path
+     */
+    public function getValueByPathThrowsSpecificExceptionIfPathNotExists(array $array, string $path)
+    {
+        $this->expectException(MissingArrayPathException::class);
+        $this->expectExceptionCode(1341397869);
         ArrayUtility::getValueByPath($array, $path);
     }
 
@@ -412,6 +434,19 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'foo/baz',
                 $testObject
             ],
+            'sub array' => [
+                [
+                    'foo' => [
+                        'bar' => [
+                            'baz' => 42,
+                        ],
+                    ],
+                ],
+                'foo/bar',
+                [
+                    'baz' => 42,
+                ],
+            ],
             'enclosed path' => [
                 [
                     'foo/bar' => [
@@ -433,7 +468,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getValueByPathGetsCorrectValue(array $array, $path, $expectedResult)
     {
-        $this->assertEquals($expectedResult, ArrayUtility::getValueByPath($array, $path));
+        self::assertEquals($expectedResult, ArrayUtility::getValueByPath($array, $path));
     }
 
     /**
@@ -452,7 +487,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $searchPath = 'foo%bar%baz';
         $expected = 42;
         $delimiter = '%';
-        $this->assertEquals(
+        self::assertEquals(
             $expected,
             ArrayUtility::getValueByPath($input, $searchPath, $delimiter)
         );
@@ -499,7 +534,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function setValueByPathCanUseZeroAsPathSegment()
     {
-        $this->assertSame(['foo' => ['value']], ArrayUtility::setValueByPath(['foo' => []], 'foo/0', 'value'));
+        self::assertSame(['foo' => ['value']], ArrayUtility::setValueByPath(['foo' => []], 'foo/0', 'value'));
     }
 
     /**
@@ -507,7 +542,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function setValueByPathCanUseZeroAsPath()
     {
-        $this->assertSame(['value', 'bar'], ArrayUtility::setValueByPath(['foo', 'bar'], '0', 'value'));
+        self::assertSame(['value', 'bar'], ArrayUtility::setValueByPath(['foo', 'bar'], '0', 'value'));
     }
 
     /**
@@ -692,7 +727,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function setValueByPathSetsCorrectValue(array $array, $path, $value, $expectedResult)
     {
-        $this->assertEquals(
+        self::assertEquals(
             $expectedResult,
             ArrayUtility::setValueByPath($array, $path, $value)
         );
@@ -750,7 +785,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'foo' => ['bar']
         ];
 
-        $this->assertSame(['foo' => []], ArrayUtility::removeByPath($inputArray, 'foo/0'));
+        self::assertSame(['foo' => []], ArrayUtility::removeByPath($inputArray, 'foo/0'));
     }
 
     /**
@@ -760,7 +795,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $inputArray = ['bar'];
 
-        $this->assertSame([], ArrayUtility::removeByPath($inputArray, '0'));
+        self::assertSame([], ArrayUtility::removeByPath($inputArray, '0'));
     }
 
     /**
@@ -783,6 +818,23 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
+    public function removeByPathThrowsSpecificExceptionIfPathDoesNotExistInArray()
+    {
+        $inputArray = [
+            'foo' => [
+                'bar' => 42,
+            ]
+        ];
+
+        $this->expectException(MissingArrayPathException::class);
+        $this->expectExceptionCode(1371758436);
+
+        ArrayUtility::removeByPath($inputArray, 'foo/baz');
+    }
+
+    /**
+     * @test
+     */
     public function removeByPathAcceptsGivenDelimiter()
     {
         $inputArray = [
@@ -797,7 +849,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'keep' => 23,
             ],
         ];
-        $this->assertEquals(
+        self::assertEquals(
             $expected,
             ArrayUtility::removeByPath($inputArray, $path, '.')
         );
@@ -860,7 +912,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function removeByPathRemovesCorrectPath(array $array, $path, $expectedResult)
     {
-        $this->assertEquals(
+        self::assertEquals(
             $expectedResult,
             ArrayUtility::removeByPath($array, $path)
         );
@@ -894,7 +946,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
             'z' => null
         ];
-        $this->assertSame($expectedResult, ArrayUtility::sortByKeyRecursive($unsortedArray));
+        self::assertSame($expectedResult, ArrayUtility::sortByKeyRecursive($unsortedArray));
     }
 
     ///////////////////////
@@ -1034,7 +1086,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function sortArraysByKeyCheckIfSortingIsCorrect(array $array, $key, $ascending, $expectedResult)
     {
         $sortedArray = ArrayUtility::sortArraysByKey($array, $key, $ascending);
-        $this->assertSame($expectedResult, $sortedArray);
+        self::assertSame($expectedResult, $sortedArray);
     }
 
     /**
@@ -1087,7 +1139,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '    \'qux\' => 0.1,' . LF .
                 '    \'qux2\' => 1.0E-9,' . LF .
             ']';
-        $this->assertSame($expected, ArrayUtility::arrayExport($array));
+        self::assertSame($expected, ArrayUtility::arrayExport($array));
     }
 
     /**
@@ -1123,7 +1175,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '    23 => \'integer key\',' . LF .
                 '    42 => \'string key representing integer\',' . LF .
             ']';
-        $this->assertSame($expected, ArrayUtility::arrayExport($array));
+        self::assertSame($expected, ArrayUtility::arrayExport($array));
     }
 
     /**
@@ -1142,7 +1194,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '    \'one\',' . LF .
                 '    \'two\',' . LF .
             ']';
-        $this->assertSame($expected, ArrayUtility::arrayExport($array));
+        self::assertSame($expected, ArrayUtility::arrayExport($array));
     }
 
     /**
@@ -1163,7 +1215,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '    3 => \'three\',' . LF .
                 '    4 => \'four\',' . LF .
             ']';
-        $this->assertSame($expected, ArrayUtility::arrayExport($array));
+        self::assertSame($expected, ArrayUtility::arrayExport($array));
     }
 
     ///////////////////////
@@ -1271,7 +1323,129 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function flattenCalculatesExpectedResult(array $array, array $expected)
     {
-        $this->assertEquals($expected, ArrayUtility::flatten($array));
+        self::assertEquals($expected, ArrayUtility::flatten($array));
+    }
+
+    /**
+     * @return array
+     */
+    public function flattenWithKeepDotsCalculatesExpectedResultDataProvider()
+    {
+        return [
+            'plain array' => [
+                [
+                    'first' => 1,
+                    'second' => 2
+                ],
+                [
+                    'first' => 1,
+                    'second' => 2
+                ]
+            ],
+            'plain array with dots' => [
+                [
+                    'first.' => 1,
+                    'second.' => 2
+                ],
+                [
+                    'first.' => 1,
+                    'second.' => 2
+                ]
+            ],
+            'nested array of 2 levels' => [
+                [
+                    'first.' => [
+                        'firstSub' => 1
+                    ],
+                    'second.' => [
+                        'secondSub' => 2
+                    ]
+                ],
+                [
+                    'first.firstSub' => 1,
+                    'second.secondSub' => 2
+                ]
+            ],
+            'nested array of 2 levels with dots' => [
+                [
+                    'first.' => [
+                        'firstSub.' => 1
+                    ],
+                    'second.' => [
+                        'secondSub.' => 2
+                    ]
+                ],
+                [
+                    'first.firstSub.' => 1,
+                    'second.secondSub.' => 2
+                ]
+            ],
+            'nested array of 3 levels' => [
+                [
+                    'first.' => [
+                        'firstSub.' => [
+                            'firstSubSub' => 1
+                        ]
+                    ],
+                    'second.' => [
+                        'secondSub.' => [
+                            'secondSubSub' => 2
+                        ]
+                    ]
+                ],
+                [
+                    'first.firstSub.firstSubSub' => 1,
+                    'second.secondSub.secondSubSub' => 2
+                ]
+            ],
+            'nested array of 3 levels with dots' => [
+                [
+                    'first.' => [
+                        'firstSub.' => [
+                            'firstSubSub.' => 1
+                        ]
+                    ],
+                    'second.' => [
+                        'secondSub.' => [
+                            'secondSubSub.' => 2
+                        ]
+                    ]
+                ],
+                [
+                    'first.firstSub.firstSubSub.' => 1,
+                    'second.secondSub.secondSubSub.' => 2
+                ]
+            ],
+            'nested array of 3 levels with multi dots' => [
+                [
+                    'first.' => [
+                        'firstSub..' => [
+                            'firstSubSub..' => 1
+                        ]
+                    ],
+                    'second.' => [
+                        'secondSub..' => [
+                            'secondSubSub.' => 2
+                        ]
+                    ]
+                ],
+                [
+                    'first.firstSub..firstSubSub..' => 1,
+                    'second.secondSub..secondSubSub.' => 2
+                ]
+            ]
+        ];
+    }
+
+    /**
+     * @test
+     * @param array $array
+     * @param array $expected
+     * @dataProvider flattenWithKeepDotsCalculatesExpectedResultDataProvider
+     */
+    public function flattenWithKeepDotsCalculatesExpectedResult(array $array, array $expected): void
+    {
+        self::assertEquals($expected, ArrayUtility::flatten($array, '', true));
     }
 
     ///////////////////////
@@ -1484,7 +1658,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function intersectRecursiveCalculatesExpectedResult(array $source, array $mask, array $expected)
     {
-        $this->assertSame($expected, ArrayUtility::intersectRecursive($source, $mask));
+        self::assertSame($expected, ArrayUtility::intersectRecursive($source, $mask));
     }
 
     ///////////////////////
@@ -1515,6 +1689,10 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'returns correctly if just a single keys is not numeric' => [
                 [0 => 'Zero', '1' => 'One', 'Two' => 'Two'],
                 [0 => 'Zero', '1' => 'One', 'Two' => 'Two'],
+            ],
+            'returns unchanged if keys end with a dot' => [
+                ['2.' => 'Two', '1.' => 'One', '0.' => 'Zero'],
+                ['2.' => 'Two', '1.' => 'One', '0.' => 'Zero'],
             ],
             'return self with nested numerically keyed array' => [
                 [
@@ -1617,7 +1795,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function renumberKeysToAvoidLeapsIfKeysAreAllNumericReturnsExpectedOrder(array $inputArray, array $expected)
     {
-        $this->assertEquals($expected, ArrayUtility::renumberKeysToAvoidLeapsIfKeysAreAllNumeric($inputArray));
+        self::assertEquals($expected, ArrayUtility::renumberKeysToAvoidLeapsIfKeysAreAllNumeric($inputArray));
     }
 
     /**
@@ -1871,7 +2049,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function mergeRecursiveWithOverruleCalculatesExpectedResult($input1, $input2, $addKeys, $includeEmptyValues, $enableUnsetFeature, $expected)
     {
         ArrayUtility::mergeRecursiveWithOverrule($input1, $input2, $addKeys, $includeEmptyValues, $enableUnsetFeature);
-        $this->assertEquals($expected, $input1);
+        self::assertEquals($expected, $input1);
     }
 
     //////////////////////////////////
@@ -1894,7 +2072,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             '2' => 'test3'
         ];
         $actualResult = ArrayUtility::removeArrayEntryByValue($inputArray, $compareValue);
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -1915,7 +2093,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             '1' => []
         ];
         $actualResult = ArrayUtility::removeArrayEntryByValue($inputArray, $compareValue);
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -1934,7 +2112,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             '2' => 'bar'
         ];
         $actualResult = ArrayUtility::removeArrayEntryByValue($inputArray, $compareValue);
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     //////////////////////////////////
@@ -1949,7 +2127,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function keepItemsInArrayWorksWithOneArgument($search, $array, $expected)
     {
-        $this->assertEquals($expected, ArrayUtility::keepItemsInArray($array, $search));
+        self::assertEquals($expected, ArrayUtility::keepItemsInArray($array, $search));
     }
 
     /**
@@ -1960,6 +2138,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function keepItemsInArrayWorksWithOneArgumentDataProvider()
     {
         $array = [
+            0 => 0,
             'one' => 'one',
             'two' => 'two',
             'three' => 'three'
@@ -1996,7 +2175,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 return $value[0];
             }
         );
-        $this->assertEquals($expected, $match);
+        self::assertEquals($expected, $match);
     }
 
     //////////////////////////////////
@@ -2022,7 +2201,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'three' => 'three'
         ];
         ArrayUtility::remapArrayKeys($array, $keyMapping);
-        $this->assertEquals($expected, $array);
+        self::assertEquals($expected, $array);
     }
 
     //////////////////////////////////////
@@ -2046,7 +2225,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'key2' => 'value2'
         ];
         $actualResult = ArrayUtility::arrayDiffAssocRecursive($array1, $array2);
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -2066,7 +2245,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ]
         ];
         $array2 = [
-            'key1' => 'value1',
+            'key1' => 'valueDoesNotMatter',
             'key2' => [
                 'key21' => 'value21',
                 'key23' => [
@@ -2083,7 +2262,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ]
         ];
         $actualResult = ArrayUtility::arrayDiffAssocRecursive($array1, $array2);
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -2102,14 +2281,40 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $array2 = [
             'key1' => 'value1',
             'key2' => [
-                'key21' => 'value21'
+                'key21' => 'valueDoesNotMatter'
             ]
         ];
         $expectedResult = [
             'key3' => 'value3'
         ];
         $actualResult = ArrayUtility::arrayDiffAssocRecursive($array1, $array2);
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function arrayDiffAssocRecursiveReturnsEmptyIfEqual()
+    {
+        $array1 = [
+            'key1' => [
+                'key11' => 'value11',
+                'key12' => 'value12'
+            ],
+            'key2' => 'value2',
+            'key3' => 'value3'
+        ];
+        $array2 = [
+            'key1' => [
+                'key11' => 'valueDoesNotMatter',
+                'key12' => 'value12'
+            ],
+            'key2' => 'value2',
+            'key3' => 'value3'
+        ];
+        $expectedResult = [];
+        $actualResult = ArrayUtility::arrayDiffAssocRecursive($array1, $array2);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     //////////////////////////////////////
@@ -2148,7 +2353,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'zap'
         ];
         ArrayUtility::naturalKeySortRecursive($testArray);
-        $this->assertEquals($expectedResult, array_values($testArray));
+        self::assertEquals($expectedResult, array_values($testArray));
     }
 
     /**
@@ -2207,9 +2412,9 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'zap'
         ];
         ArrayUtility::naturalKeySortRecursive($testArray);
-        $this->assertEquals($expectedResult, array_values(array_keys($testArray['aaa']['bad'])));
-        $this->assertEquals($expectedResult, array_values(array_keys($testArray['aaa'])));
-        $this->assertEquals($expectedResult, array_values(array_keys($testArray)));
+        self::assertEquals($expectedResult, array_values(array_keys($testArray['aaa']['bad'])));
+        self::assertEquals($expectedResult, array_values(array_keys($testArray['aaa'])));
+        self::assertEquals($expectedResult, array_values(array_keys($testArray)));
     }
 
     /**
@@ -2306,7 +2511,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function filterAndSortByNumericKeysBehavesCorrectlyForAcceptAnyKeysIsTrue($input, $expected)
     {
         $result = ArrayUtility::filterAndSortByNumericKeys($input, true);
-        $this->assertEquals($result, $expected);
+        self::assertEquals($result, $expected);
     }
 
     /**
@@ -2372,7 +2577,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function filterAndSortByNumericKeysBehavesCorrectlyForAcceptAnyKeysIsFalse($input, $expected)
     {
         $result = ArrayUtility::filterAndSortByNumericKeys($input);
-        $this->assertEquals($result, $expected);
+        self::assertEquals($result, $expected);
     }
 
     /**
@@ -2433,7 +2638,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function sortArrayWithIntegerKeysSortsNumericArrays(array $arrayToSort, array $expectedArray)
     {
         $sortedArray = ArrayUtility::sortArrayWithIntegerKeys($arrayToSort);
-        $this->assertSame($sortedArray, $expectedArray);
+        self::assertSame($sortedArray, $expectedArray);
     }
 
     /**
@@ -2505,7 +2710,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertSame($expected, ArrayUtility::sortArrayWithIntegerKeysRecursive($input));
+        self::assertSame($expected, ArrayUtility::sortArrayWithIntegerKeysRecursive($input));
     }
 
     /**
@@ -2527,7 +2732,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             30 => 'c',
         ];
 
-        $this->assertSame($expected, ArrayUtility::sortArrayWithIntegerKeysRecursive($input));
+        self::assertSame($expected, ArrayUtility::sortArrayWithIntegerKeysRecursive($input));
     }
 
     /**
@@ -2557,7 +2762,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertSame($expected, ArrayUtility::reIndexNumericArrayKeysRecursive($input));
+        self::assertSame($expected, ArrayUtility::reIndexNumericArrayKeysRecursive($input));
     }
 
     /**
@@ -2587,7 +2792,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertSame($expected, ArrayUtility::reIndexNumericArrayKeysRecursive($input));
+        self::assertSame($expected, ArrayUtility::reIndexNumericArrayKeysRecursive($input));
     }
 
     /**
@@ -2610,7 +2815,7 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertSame($expected, ArrayUtility::removeNullValuesRecursive($input));
+        self::assertSame($expected, ArrayUtility::removeNullValuesRecursive($input));
     }
 
     /**
@@ -2634,7 +2839,43 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertSame($expected, ArrayUtility::stripTagsFromValuesRecursive($input));
+        self::assertSame($expected, ArrayUtility::stripTagsFromValuesRecursive($input));
+    }
+
+    /**
+     * @test
+     */
+    public function stripTagsFromValuesRecursiveExpectNoTypeCast()
+    {
+        $testObject = new \stdClass();
+
+        $input = [
+            'stringWithTags' => '<b>i am evil</b>',
+            'boolean' => true,
+            'integer' => 1,
+            'float' => 1.9,
+            'object' => $testObject,
+            'objectWithStringConversion' => new class() {
+                /**
+                 * @return string
+                 */
+                public function __toString()
+                {
+                    return 'i am evil <b>too</b>';
+                }
+            },
+        ];
+
+        $expected = [
+            'stringWithTags' => 'i am evil',
+            'boolean' => true,
+            'integer' => 1,
+            'float' => 1.9,
+            'object' => $testObject,
+            'objectWithStringConversion' => 'i am evil too',
+        ];
+
+        self::assertSame($expected, ArrayUtility::stripTagsFromValuesRecursive($input));
     }
 
     /**
@@ -2658,6 +2899,363 @@ class ArrayUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertSame($expected, ArrayUtility::convertBooleanStringsToBooleanRecursive($input));
+        self::assertSame($expected, ArrayUtility::convertBooleanStringsToBooleanRecursive($input));
+    }
+
+    /**
+     * Data provider for arrayFilterRecursiveFiltersFalseElements
+     * @return array
+     */
+    public function filterRecursiveFiltersFalseElementsDataProvider()
+    {
+        return [
+            'filter all values which will be false when converted to boolean' => [
+                // input
+                [
+                    true,
+                    false,
+                    'foo1' => [
+                        'bar' => [
+                            'baz' => [
+                                '1',
+                                null,
+                                '',
+                            ],
+                            '' => 1,
+                            'bbd' => 0,
+                        ]
+                    ],
+                    'foo2' => 'foo',
+                    'foo3' => '',
+                    'foo4' => [
+                        'z' => 'bar',
+                        'bar' => 0,
+                        'baz' => [
+                            'foo' => [
+                                'bar' => '',
+                                'boo' => [],
+                                'bamboo' => 5,
+                                'fooAndBoo' => [0],
+                            ]
+                        ],
+                    ],
+                ],
+                // expected
+                [
+                    true,
+                    'foo1' => [
+                        'bar' => [
+                            'baz' => [
+                                '1',
+                            ],
+                            '' => 1,
+                        ]
+                    ],
+                    'foo2' => 'foo',
+                    'foo4' => [
+                        'z' => 'bar',
+                        'baz' => [
+                            'foo' => [
+                                'bamboo' => 5,
+                                'fooAndBoo' => [],
+                            ]
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider filterRecursiveFiltersFalseElementsDataProvider
+     * @param array $input
+     * @param array $expectedResult
+     */
+    public function filterRecursiveFiltersFalseElements(array $input, array $expectedResult)
+    {
+        // If no callback is supplied, all entries of array equal to FALSE (see converting to boolean) will be removed.
+        $result = ArrayUtility::filterRecursive($input);
+        self::assertEquals($expectedResult, $result);
+    }
+
+    /**
+     * Data provider for filterRecursiveCallbackFiltersEmptyElementsWithoutIntegerByCallback
+     * @return array
+     */
+    public function filterRecursiveCallbackFiltersEmptyElementsWithoutIntegerZeroByCallbackDataProvider()
+    {
+        return [
+            'filter empty values, keep zero integers' => [
+                // input
+                [
+                    true,
+                    false,
+                    'foo1' => [
+                        'bar' => [
+                            'baz' => [
+                                '1',
+                                null,
+                                '',
+                            ],
+                            '' => 1,
+                            'bbd' => 0,
+                        ]
+                    ],
+                    'foo2' => 'foo',
+                    'foo3' => '',
+                    'foo4' => [
+                        'z' => 'bar',
+                        'bar' => 0,
+                        'baz' => [
+                            'foo' => [
+                                'bar' => '',
+                                'boo' => [],
+                                'bamboo' => 5,
+                                'fooAndBoo' => [0],
+                            ]
+                        ],
+                    ],
+                ],
+                // expected
+                [
+                    true,
+                    false,
+                    'foo1' => [
+                        'bar' => [
+                            'baz' => [
+                                '1',
+                            ],
+                            '' => 1,
+                            'bbd' => 0,
+                        ]
+                    ],
+                    'foo2' => 'foo',
+                    'foo4' => [
+                        'z' => 'bar',
+                        'bar' => 0,
+                        'baz' => [
+                            'foo' => [
+                                'bamboo' => 5,
+                                'fooAndBoo' => [0],
+                            ]
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider filterRecursiveCallbackFiltersEmptyElementsWithoutIntegerZeroByCallbackDataProvider
+     * @param array $input
+     * @param array $expectedResult
+     */
+    public function filterRecursiveCallbackFiltersEmptyElementsWithoutIntegerByCallback(array $input, array $expectedResult)
+    {
+        // callback filters empty strings, array and null but keeps zero integers
+        $result = ArrayUtility::filterRecursive(
+            $input,
+            function ($item) {
+                return $item !== '' && $item !== [] && $item !== null;
+            }
+        );
+        self::assertEquals($expectedResult, $result);
+    }
+
+    /**
+     * Data provider for filterRecursiveSupportsCallableCallback
+     * @return array
+     */
+    public function filterRecursiveSupportsCallableCallbackDataProvider()
+    {
+        $input = [
+            'foo' => 'remove',
+            'bar' => [
+                'baz' => 'remove',
+                'keep1' => 'keep'
+            ],
+            'keep2' => 'keep'
+        ];
+        $expectedResult = [
+            'bar' => [
+                'keep1' => 'keep'
+            ],
+            'keep2' => 'keep'
+        ];
+
+        return [
+            'filter using a closure' => [
+                $input,
+                $expectedResult,
+                function ($value): bool {
+                    return is_array($value) || $value === 'keep';
+                },
+            ],
+            'filter using a callable "static class-method call" as string' => [
+                $input,
+                $expectedResult,
+                ArrayUtilityFilterRecursiveCallbackFixture::class . '::callbackViaStaticMethod',
+            ],
+            'filter using a callable "static class-method call" as array' => [
+                $input,
+                $expectedResult,
+                [ArrayUtilityFilterRecursiveCallbackFixture::class, 'callbackViaStaticMethod'],
+            ],
+            'filter using a callable "instance-method call" as array' => [
+                $input,
+                $expectedResult,
+                [new ArrayUtilityFilterRecursiveCallbackFixture(), 'callbackViaInstanceMethod'],
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider filterRecursiveSupportsCallableCallbackDataProvider
+     * @param array    $input
+     * @param array    $expectedResult
+     * @param callable $callback
+     * @see https://forge.typo3.org/issues/84485
+     */
+    public function filterRecursiveSupportsCallableCallback(array $input, array $expectedResult, callable $callback)
+    {
+        $result = ArrayUtility::filterRecursive($input, $callback);
+        self::assertEquals($expectedResult, $result);
+    }
+
+    /**
+     * Data provider for isAssociativeCorrectlyFindsStringKeys
+     * @return array
+     */
+    public function isAssociativeCorrectlyFindsStringKeysDataProvider()
+    {
+        return [
+            'array without string keys' => [
+                [
+                    0 => 'value 0',
+                    1 => 'value 1'
+                ],
+                false
+            ],
+            'array with only string keys' => [
+                [
+                    'key 0' => 'value 0',
+                    'key 1' => 'value 1'
+                ],
+                true
+            ],
+            'array with mixed keys' => [
+                [
+                    0 => 'value 0',
+                    1 => 'value 1',
+                    'key 2' => 'value 2',
+                    'key 3' => 'value 3'
+                ],
+                true
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider isAssociativeCorrectlyFindsStringKeysDataProvider
+     * @param array $array
+     * @param bool  $expectedResult
+     */
+    public function isAssociativeCorrectlyFindsStringKeys(array $array, bool $expectedResult)
+    {
+        $result = ArrayUtility::isAssociative($array);
+        self::assertEquals($expectedResult, $result);
+    }
+
+    /**
+     * Data provider for replaceAndAppendScalarValuesRecursiveCorrectlyMergesArrays
+     * @return array
+     */
+    public function replaceAndAppendScalarValuesRecursiveCorrectlyMergesArraysDataProvider()
+    {
+        return [
+            'merge simple lists' => [
+                [
+                    0 => 'keep'
+                ],
+                [
+                    0 => 'keep'
+                ],
+                [
+                    0 => 'keep',
+                    1 => 'keep'
+                ]
+            ],
+            'merge simple list arrays' => [
+                [
+                    'foo' => [
+                        0 => 'keep'
+                    ]
+                ],
+                [
+                    'foo' => [
+                        0 => 'keep'
+                    ]
+                ],
+                [
+                    'foo' => [
+                        0 => 'keep',
+                        1 => 'keep'
+                    ]
+                ]
+            ],
+            'merge array and simple value' => [
+                [
+                    'foo' => [
+                        0 => 'override'
+                    ]
+                ],
+                [
+                    'foo' => 'keep'
+                ],
+                [
+                    'foo' => 'keep'
+                ]
+            ],
+            'merge simple values' => [
+                [
+                    'foo' => 'override'
+                ],
+                [
+                    'foo' => 'keep'
+                ],
+                [
+                    'foo' => 'keep'
+                ]
+            ],
+            'merge new keys' => [
+                [
+                    'foo' => 'keep'
+                ],
+                [
+                    'bar' => 'keep'
+                ],
+                [
+                    'foo' => 'keep',
+                    'bar' => 'keep'
+                ]
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider replaceAndAppendScalarValuesRecursiveCorrectlyMergesArraysDataProvider
+     * @param array $array1
+     * @param array $array2
+     * @param array $expectedResult
+     */
+    public function replaceAndAppendScalarValuesRecursiveCorrectlyMergesArrays(array $array1, array $array2, array $expectedResult)
+    {
+        $result = ArrayUtility::replaceAndAppendScalarValuesRecursive($array1, $array2);
+        self::assertEquals($expectedResult, $result);
     }
 }

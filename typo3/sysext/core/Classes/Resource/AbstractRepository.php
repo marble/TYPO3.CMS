@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,12 +12,17 @@ namespace TYPO3\CMS\Core\Resource;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource;
+
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
+use TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface;
 use TYPO3\CMS\Extbase\Persistence\RepositoryInterface;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 /**
  * Abstract repository implementing the basic repository methods
@@ -64,7 +68,6 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * Adds an object to this repository.
      *
      * @param object $object The object to add
-     * @api
      */
     public function add($object)
     {
@@ -74,7 +77,6 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * Removes an object from this repository.
      *
      * @param object $object The object to remove
-     * @api
      */
     public function remove($object)
     {
@@ -85,7 +87,6 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      *
      * @param object $existingObject The existing object
      * @param object $newObject The new object
-     * @api
      */
     public function replace($existingObject, $newObject)
     {
@@ -95,7 +96,6 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * Replaces an existing object with the same identifier by the given object
      *
      * @param object $modifiedObject The modified object
-     * @api
      */
     public function update($modifiedObject)
     {
@@ -106,9 +106,11 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * the storage layer.
      *
      * @return array An array of objects
+     * @internal
      */
     public function getAddedObjects()
     {
+        return [];
     }
 
     /**
@@ -116,16 +118,17 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * had been persisted to the storage layer before.
      *
      * @return array
+     * @internal
      */
     public function getRemovedObjects()
     {
+        return [];
     }
 
     /**
      * Returns all objects of this repository.
      *
      * @return array An array of objects, empty if no objects found
-     * @api
      */
     public function findAll()
     {
@@ -168,17 +171,15 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * Returns the total number objects of this repository.
      *
      * @return int The object count
-     * @api
      */
     public function countAll()
     {
+        return 0;
     }
 
     /**
      * Removes all objects of this repository as if remove() was called for
      * all of them.
-     *
-     * @api
      */
     public function removeAll()
     {
@@ -192,7 +193,6 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * @throws \RuntimeException
      * @throws \InvalidArgumentException
      * @return object The matching object
-     * @api
      */
     public function findByUid($uid)
     {
@@ -200,7 +200,7 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
             throw new \InvalidArgumentException('The UID has to be an integer. UID given: "' . $uid . '"', 1316779798);
         }
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->table);
-        if ($this->getEnvironmentMode() === 'FE' && !empty($GLOBALS['TSFE']->sys_page)) {
+        if ($this->getEnvironmentMode() === 'FE') {
             $queryBuilder->setRestrictions(GeneralUtility::makeInstance(FrontendRestrictionContainer::class));
         }
         $row = $queryBuilder
@@ -228,7 +228,6 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * @param array $defaultOrderings The property names to order by
      *
      * @throws \BadMethodCallException
-     * @api
      */
     public function setDefaultOrderings(array $defaultOrderings)
     {
@@ -241,9 +240,8 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * @param \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface $defaultQuerySettings The query settings to be used by default
      *
      * @throws \BadMethodCallException
-     * @api
      */
-    public function setDefaultQuerySettings(\TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface $defaultQuerySettings)
+    public function setDefaultQuerySettings(QuerySettingsInterface $defaultQuerySettings)
     {
         throw new \BadMethodCallException('Repository does not support the setDefaultQuerySettings() method.', 1313185907);
     }
@@ -253,7 +251,6 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      *
      * @throws \BadMethodCallException
      * @return \TYPO3\CMS\Extbase\Persistence\QueryInterface
-     * @api
      */
     public function createQuery()
     {
@@ -264,8 +261,7 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * Finds an object matching the given identifier.
      *
      * @param mixed $identifier The identifier of the object to find
-     * @return object|NULL The matching object if found, otherwise NULL
-     * @api
+     * @return object|null The matching object if found, otherwise NULL
      */
     public function findByIdentifier($identifier)
     {
@@ -279,6 +275,7 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * @param array $arguments The arguments
      *
      * @throws \BadMethodCallException
+     * @internal
      */
     public function __call($method, $arguments)
     {
@@ -289,7 +286,6 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
      * Returns the object type this repository is managing.
      *
      * @return string
-     * @api
      */
     public function getEntityClassName()
     {
@@ -297,13 +293,13 @@ abstract class AbstractRepository implements RepositoryInterface, SingletonInter
     }
 
     /**
-     * Function to return the current TYPO3_MODE.
+     * Function to return the current TYPO3_MODE based on $GLOBALS['TSFE'].
      * This function can be mocked in unit tests to be able to test frontend behaviour.
      *
      * @return string
      */
     protected function getEnvironmentMode()
     {
-        return TYPO3_MODE;
+        return ($GLOBALS['TSFE'] ?? null) instanceof TypoScriptFrontendController ? 'FE' : 'BE';
     }
 }

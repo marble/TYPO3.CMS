@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Persistence\Generic\Storage;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,38 +13,37 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Persistence\Generic\Storage;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Unit\Persistence\Generic\Storage;
+
 use Doctrine\DBAL\Driver\Statement;
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
+use TYPO3\CMS\Extbase\DomainObject\AbstractValueObject;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap;
 use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper;
+use TYPO3\CMS\Extbase\Persistence\Generic\Storage\Typo3DbBackend;
 use TYPO3\CMS\Extbase\Service\EnvironmentService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class Typo3DbBackendTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class Typo3DbBackendTest extends UnitTestCase
 {
     /**
-     * @var DataMapper
+     * Due to nested PageRepository / FrontendRestriction Container issues, the Context object is set
+     * @var bool
      */
-    protected static $dataMapper;
+    protected $resetSingletonInstances = true;
 
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
         $GLOBALS['TSFE'] = new \stdClass();
-        $GLOBALS['TSFE']->gr_list = '';
-    }
-
-    /**
-     * Setup DataMapper
-     */
-    public static function setUpBeforeClass()
-    {
-        self::$dataMapper = new DataMapper();
     }
 
     /**
@@ -65,33 +63,33 @@ class Typo3DbBackendTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function uidOfAlreadyPersistedValueObjectIsDeterminedCorrectly(bool $isFrontendEnvironment)
     {
-        $mockValueObject = $this->getMockBuilder(\TYPO3\CMS\Extbase\DomainObject\AbstractValueObject::class)
+        $mockValueObject = $this->getMockBuilder(AbstractValueObject::class)
             ->setMethods(['_getProperties'])
             ->disableOriginalConstructor()
             ->getMock();
-        $mockValueObject->expects($this->once())->method('_getProperties')
-            ->will($this->returnValue(['propertyName' => 'propertyValue']));
-        $mockColumnMap = $this->getMockBuilder(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap::class)
+        $mockValueObject->expects(self::once())->method('_getProperties')
+            ->willReturn(['propertyName' => 'propertyValue']);
+        $mockColumnMap = $this->getMockBuilder(DataMap::class)
             ->setMethods(['isPersistableProperty', 'getColumnName'])
             ->disableOriginalConstructor()
             ->getMock();
-        $mockColumnMap->expects($this->any())->method('getColumnName')->will($this->returnValue('column_name'));
+        $mockColumnMap->expects(self::any())->method('getColumnName')->willReturn('column_name');
         $tableName = 'tx_foo_table';
-        $mockDataMap = $this->getMockBuilder(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap::class)
+        $mockDataMap = $this->getMockBuilder(DataMap::class)
             ->setMethods(['isPersistableProperty', 'getColumnMap', 'getTableName'])
             ->disableOriginalConstructor()
             ->getMock();
-        $mockDataMap->expects($this->any())->method('isPersistableProperty')->will($this->returnValue(true));
-        $mockDataMap->expects($this->any())->method('getColumnMap')->will($this->returnValue($mockColumnMap));
-        $mockDataMap->expects($this->any())->method('getTableName')->will($this->returnValue($tableName));
-        $mockDataMapper = $this->getMockBuilder(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper::class)
+        $mockDataMap->expects(self::any())->method('isPersistableProperty')->willReturn(true);
+        $mockDataMap->expects(self::any())->method('getColumnMap')->willReturn($mockColumnMap);
+        $mockDataMap->expects(self::any())->method('getTableName')->willReturn($tableName);
+        $mockDataMapper = $this->getMockBuilder(DataMapper::class)
             ->setMethods(['getDataMap', 'getPlainValue'])
             ->disableOriginalConstructor()
             ->getMock();
-        $mockDataMapper->expects($this->once())->method('getDataMap')
-            ->will($this->returnValue($mockDataMap));
-        $mockDataMapper->expects($this->once())->method('getPlainValue')
-            ->will($this->returnValue('plainPropertyValue'));
+        $mockDataMapper->expects(self::once())->method('getDataMap')
+            ->willReturn($mockDataMap);
+        $mockDataMapper->expects(self::once())->method('getPlainValue')
+            ->willReturn('plainPropertyValue');
         $expectedUid = 52;
 
         $expressionBuilderProphet = $this->prophesize(ExpressionBuilder::class);
@@ -117,54 +115,23 @@ class Typo3DbBackendTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         }
 
         $mockTypo3DbBackend = $this->getAccessibleMock(
-            \TYPO3\CMS\Extbase\Persistence\Generic\Storage\Typo3DbBackend::class,
+            Typo3DbBackend::class,
             ['dummy'],
             [],
             '',
             false
         );
+        $mockObjectManager = $this->createMock(ObjectManager::class);
+        $mockObjectManager->expects(self::any())
+            ->method('get')
+            ->with(DataMapper::class)
+            ->willReturn($mockDataMapper);
+
+        $mockTypo3DbBackend->_set('objectManager', $mockObjectManager);
         $mockTypo3DbBackend->_set('dataMapper', $mockDataMapper);
         $mockTypo3DbBackend->_set('connectionPool', $connectionPoolProphet->reveal());
         $mockTypo3DbBackend->_set('environmentService', $environmentServiceProphet->reveal());
-        $result = $mockTypo3DbBackend->_callRef('getUidOfAlreadyPersistedValueObject', $mockValueObject);
-        $this->assertSame($expectedUid, $result);
-    }
-
-    /**
-     * @test
-     */
-    public function doLanguageAndWorkspaceOverlayChangesUidIfInPreview()
-    {
-        $comparisonRow = [
-            'uid' => '42',
-            'pid' => '42',
-            '_ORIG_pid' => '-1',
-            '_ORIG_uid' => '43'
-        ];
-        $row = [
-            'uid' => '42',
-            'pid' => '42'
-        ];
-        $workspaceVersion = [
-            'uid' => '43',
-            'pid' => '-1'
-        ];
-        /** @var \TYPO3\CMS\Extbase\Persistence\Generic\Typo3QuerySettings|\PHPUnit_Framework_MockObject_MockObject $querySettings */
-        $mockQuerySettings = $this->getMockBuilder(\TYPO3\CMS\Extbase\Persistence\Generic\Typo3QuerySettings::class)
-            ->setMethods(['dummy'])
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $workspaceUid = 2;
-        $sourceMock = new \TYPO3\CMS\Extbase\Persistence\Generic\Qom\Selector('tx_foo', 'Tx_Foo');
-        /** @var $pageRepositoryMock \TYPO3\CMS\Frontend\Page\PageRepository|\PHPUnit_Framework_MockObject_MockObject */
-        $pageRepositoryMock = $this->getMockBuilder(\TYPO3\CMS\Frontend\Page\PageRepository::class)
-            ->setMethods(['movePlhOL', 'getWorkspaceVersionOfRecord'])
-            ->getMock();
-        $pageRepositoryMock->versioningPreview = true;
-        $pageRepositoryMock->expects($this->once())->method('getWorkspaceVersionOfRecord')->with($workspaceUid, 'tx_foo', '42')->will($this->returnValue($workspaceVersion));
-        $mockTypo3DbBackend = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Persistence\Generic\Storage\Typo3DbBackend::class, ['dummy'], [], '', false);
-        $mockTypo3DbBackend->_set('pageRepository', $pageRepositoryMock);
-        $this->assertSame([$comparisonRow], $mockTypo3DbBackend->_call('doLanguageAndWorkspaceOverlay', $sourceMock, [$row], $mockQuerySettings, $workspaceUid));
+        $result = $mockTypo3DbBackend->getUidOfAlreadyPersistedValueObject($mockValueObject);
+        self::assertSame($expectedUid, $result);
     }
 }

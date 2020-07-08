@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,9 @@ namespace TYPO3\CMS\Core\Service;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Service;
+
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -69,8 +71,8 @@ class MarkerBasedTemplateService
      *
      * @param string $content Content with subpart wrapped in fx. "###CONTENT_PART###" inside.
      * @param string $marker Marker string, eg. "###CONTENT_PART###
-     * @param array $subpartContent If $subpartContent happens to be an array, it's [0] and [1] elements are wrapped around the content of the subpart (fetched by getSubpart())
-     * @param bool $recursive If $recursive is set, the function calls itself with the content set to the remaining part of the content after the second marker. This means that proceding subparts are ALSO substituted!
+     * @param string|array $subpartContent If $subpartContent happens to be an array, it's [0] and [1] elements are wrapped around the content of the subpart (fetched by getSubpart())
+     * @param bool $recursive If $recursive is set, the function calls itself with the content set to the remaining part of the content after the second marker. This means that proceeding subparts are ALSO substituted!
      * @param bool $keepMarker If set, the marker around the subpart is not removed, but kept in the output
      *
      * @return string Processed input content
@@ -142,7 +144,7 @@ class MarkerBasedTemplateService
     }
 
     /**
-     * Substitues multiple subparts at once
+     * Substitutes multiple subparts at once
      *
      * @param string $content The content stream, typically HTML template content.
      * @param array $subpartsContent The array of key/value pairs being subpart/content values used in the substitution. For each element in this array the function will substitute a subpart in the content stream with the content.
@@ -191,7 +193,8 @@ class MarkerBasedTemplateService
      * @param bool $deleteUnused If set, all unused marker are deleted.
      *
      * @return string The processed output stream
-     * @see substituteMarker(), substituteMarkerInObject(), TEMPLATE()
+     * @see substituteMarker()
+     * @see substituteMarkerInObject()
      */
     public function substituteMarkerArray($content, $markContentArray, $wrap = '', $uppercase = false, $deleteUnused = false)
     {
@@ -204,7 +207,7 @@ class MarkerBasedTemplateService
                     // use strtr instead of strtoupper to avoid locale problems with Turkish
                     $marker = strtr($marker, 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
                 }
-                if (!empty($wrapArr)) {
+                if (isset($wrapArr[0], $wrapArr[1])) {
                     $marker = $wrapArr[0] . $marker . $wrapArr[1];
                 }
                 $search[] = $marker;
@@ -279,7 +282,7 @@ class MarkerBasedTemplateService
                 // Use strtr instead of strtoupper to avoid locale problems with Turkish
                 $subpartMarker = strtr($subpartMarker, 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
             }
-            if (!empty($wraps)) {
+            if (isset($wraps[0], $wraps[1])) {
                 $subpartMarker = $wraps[0] . $subpartMarker . $wraps[1];
             }
             $subTemplates[$subpartMarker] = $this->getSubpart($content, $subpartMarker);
@@ -291,13 +294,19 @@ class MarkerBasedTemplateService
                 // use strtr instead of strtoupper to avoid locale problems with Turkish
                 $completeMarker = strtr($completeMarker, 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
             }
-            if (!empty($wraps)) {
+            if (isset($wraps[0], $wraps[1])) {
                 $completeMarker = $wraps[0] . $completeMarker . $wraps[1];
             }
             if (!empty($markersAndSubparts[$subpartMarker])) {
+                $subpartSubstitutes[$completeMarker] = '';
                 foreach ($markersAndSubparts[$subpartMarker] as $partialMarkersAndSubparts) {
-                    $subpartSubstitutes[$completeMarker] .= $this->substituteMarkerAndSubpartArrayRecursive($subTemplates[$completeMarker],
-                        $partialMarkersAndSubparts, $wrap, $uppercase, $deleteUnused);
+                    $subpartSubstitutes[$completeMarker] .= $this->substituteMarkerAndSubpartArrayRecursive(
+                        $subTemplates[$completeMarker],
+                        $partialMarkersAndSubparts,
+                        $wrap,
+                        $uppercase,
+                        $deleteUnused
+                    );
                 }
             } else {
                 $subpartSubstitutes[$completeMarker] = '';
@@ -318,7 +327,7 @@ class MarkerBasedTemplateService
      * splitting. This secures that the value inserted does not themselves
      * contain markers or subparts.
      *
-     * Note that the "caching" won't cache the content of the substition,
+     * Note that the "caching" won't cache the content of the substitution,
      * but only the splitting of the template in various parts. So if you
      * want only one cache-entry per template, make sure you always pass the
      * exact same set of marker/subpart keys. Else you will be flooding the
@@ -340,21 +349,23 @@ class MarkerBasedTemplateService
      * @param array $subpartContentArray Exactly like markContentArray only is whole subparts substituted and not only a single marker.
      * @param array $wrappedSubpartContentArray An array of arrays with 0/1 keys where the subparts pointed to by the main key is wrapped with the 0/1 value alternating.
      * @return string The output content stream
-     * @see substituteSubpart(), substituteMarker(), substituteMarkerInObject(), TEMPLATE()
+     * @see substituteSubpart()
+     * @see substituteMarker()
+     * @see substituteMarkerInObject()
      */
     public function substituteMarkerArrayCached($content, array $markContentArray = null, array $subpartContentArray = null, array $wrappedSubpartContentArray = null)
     {
         $runtimeCache = $this->getRuntimeCache();
         // If not arrays then set them
-        if (is_null($markContentArray)) {
+        if ($markContentArray === null) {
             // Plain markers
             $markContentArray = [];
         }
-        if (is_null($subpartContentArray)) {
+        if ($subpartContentArray === null) {
             // Subparts being directly substituted
             $subpartContentArray = [];
         }
-        if (is_null($wrappedSubpartContentArray)) {
+        if ($wrappedSubpartContentArray === null) {
             // Subparts being wrapped
             $wrappedSubpartContentArray = [];
         }
@@ -504,7 +515,7 @@ class MarkerBasedTemplateService
      */
     protected function getCache()
     {
-        return GeneralUtility::makeInstance(CacheManager::class)->getCache('cache_hash');
+        return GeneralUtility::makeInstance(CacheManager::class)->getCache('hash');
     }
 
     /**
@@ -514,6 +525,6 @@ class MarkerBasedTemplateService
      */
     protected function getRuntimeCache()
     {
-        return GeneralUtility::makeInstance(CacheManager::class)->getCache('cache_runtime');
+        return GeneralUtility::makeInstance(CacheManager::class)->getCache('runtime');
     }
 }

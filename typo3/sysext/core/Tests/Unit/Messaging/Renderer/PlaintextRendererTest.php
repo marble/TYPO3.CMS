@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Messaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Messaging;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\Messaging\Renderer;
 
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\Renderer\PlaintextRenderer;
@@ -36,7 +37,7 @@ class PlaintextRendererTest extends UnitTestCase
             'messageTitle',
             FlashMessage::NOTICE
         );
-        $this->assertSame('[NOTICE] messageTitle: messageBody', $rendererClass->render([$flashMessage]));
+        self::assertSame('[NOTICE] messageTitle: messageBody', $rendererClass->render([$flashMessage]));
     }
 
     /**
@@ -51,6 +52,6 @@ class PlaintextRendererTest extends UnitTestCase
             '',
             FlashMessage::NOTICE
         );
-        $this->assertSame('[NOTICE] messageBody', $rendererClass->render([$flashMessage]));
+        self::assertSame('[NOTICE] messageBody', $rendererClass->render([$flashMessage]));
     }
 }

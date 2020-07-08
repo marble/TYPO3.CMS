@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Be;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,28 +13,34 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Be;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\ViewHelpers\Be;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 
 /**
- * View helper which returns the current page path as known from TYPO3 backend modules
- * Note: This view helper is experimental!
+ * ViewHelper which returns the current page path as known from TYPO3 backend modules.
  *
- * = Examples =
+ * .. note::
+ *    This ViewHelper is experimental!
  *
- * <code>
- * <f:be.pagePath />
- * </code>
- * <output>
- * Current page path, prefixed with "Path:" and wrapped in a span with the class "typo3-docheader-pagePath"
- * </output>
+ * Examples
+ * ========
+ *
+ * Default::
+ *
+ *    <f:be.pagePath />
+ *
+ * Current page path, prefixed with "Path:" and wrapped in a span with the class ``typo3-docheader-pagePath``.
  */
 class PagePathViewHelper extends AbstractBackendViewHelper
 {
 
     /**
-     * This view helper renders HTML, thus output must not be escaped
+     * This ViewHelper renders HTML, thus output must not be escaped
      *
      * @var bool
      */
@@ -45,7 +50,6 @@ class PagePathViewHelper extends AbstractBackendViewHelper
      * Renders the current page path
      *
      * @return string the rendered page path
-     * @see \TYPO3\CMS\Backend\Template\DocumentTemplate::getPagePath() Note: can't call this method as it's protected!
      */
     public function render()
     {
@@ -66,7 +70,7 @@ class PagePathViewHelper extends AbstractBackendViewHelper
     public static function renderStatic(array $arguments, \Closure $renderChildrenClosure, RenderingContextInterface $renderingContext)
     {
         $id = GeneralUtility::_GP('id');
-        $pageRecord = BackendUtility::readPageAccess($id, $GLOBALS['BE_USER']->getPagePermsClause(1));
+        $pageRecord = BackendUtility::readPageAccess($id, $GLOBALS['BE_USER']->getPagePermsClause(Permission::PAGE_SHOW));
         // Is this a real page
         if ($pageRecord['uid']) {
             $title = $pageRecord['_thePathFull'];
@@ -74,7 +78,7 @@ class PagePathViewHelper extends AbstractBackendViewHelper
             $title = $GLOBALS['TYPO3_CONF_VARS']['SYS']['sitename'];
         }
         // Setting the path of the page
-        $pagePath = htmlspecialchars($GLOBALS['LANG']->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.path')) . ': <span class="typo3-docheader-pagePath">';
+        $pagePath = htmlspecialchars(static::getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.path')) . ': <span class="typo3-docheader-pagePath">';
         // crop the title to title limit (or 50, if not defined)
         $cropLength = empty($GLOBALS['BE_USER']->uc['titleLen']) ? 50 : $GLOBALS['BE_USER']->uc['titleLen'];
         $croppedTitle = GeneralUtility::fixed_lgd_cs($title, -$cropLength);
@@ -85,5 +89,13 @@ class PagePathViewHelper extends AbstractBackendViewHelper
         }
         $pagePath .= '</span>';
         return $pagePath;
+    }
+
+    /**
+     * @return LanguageService|null
+     */
+    protected static function getLanguageService(): ?LanguageService
+    {
+        return $GLOBALS['LANG'] ?? null;
     }
 }

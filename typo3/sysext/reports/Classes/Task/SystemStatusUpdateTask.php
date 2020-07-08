@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Reports\Task;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,21 @@ namespace TYPO3\CMS\Reports\Task;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Mail\MailMessage;
+namespace TYPO3\CMS\Reports\Task;
+
+use Psr\Http\Message\ServerRequestInterface;
+use Symfony\Component\Mime\Address;
+use TYPO3\CMS\Core\Mail\FluidEmail;
+use TYPO3\CMS\Core\Mail\Mailer;
 use TYPO3\CMS\Core\Registry;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Fluid\View\TemplatePaths;
 use TYPO3\CMS\Reports\Status;
 use TYPO3\CMS\Scheduler\Task\AbstractTask;
 
 /**
  * A task that should be run regularly to determine the system's status.
+ * @internal This class is a specific scheduler task implementation and is not considered part of the Public TYPO3 API.
  */
 class SystemStatusUpdateTask extends AbstractTask
 {
@@ -32,7 +37,7 @@ class SystemStatusUpdateTask extends AbstractTask
      *
      * @var string
      */
-    protected $notificationEmail = null;
+    protected $notificationEmail;
 
     /**
      * Checkbox for to send all types of notification, not only problems
@@ -102,7 +107,7 @@ class SystemStatusUpdateTask extends AbstractTask
         $notificationEmails = GeneralUtility::trimExplode(LF, $this->notificationEmail, true);
         $sendEmailsTo = [];
         foreach ($notificationEmails as $notificationEmail) {
-            $sendEmailsTo[] = $notificationEmail;
+            $sendEmailsTo[] = new Address($notificationEmail);
         }
         $subject = sprintf($this->getLanguageService()->getLL('status_updateTask_email_subject'), $GLOBALS['TYPO3_CONF_VARS']['SYS']['sitename']);
         $message = $this->getNotificationAll() ? $this->getLanguageService()->getLL('status_allNotification') : $this->getLanguageService()->getLL('status_problemNotification');
@@ -112,12 +117,22 @@ class SystemStatusUpdateTask extends AbstractTask
         $message .= $this->getLanguageService()->getLL('status_updateTask_email_issues') . ': ' . CRLF;
         $message .= implode(CRLF, $systemIssues);
         $message .= CRLF . CRLF;
-        /** @var MailMessage $mail */
-        $mail = GeneralUtility::makeInstance(MailMessage::class);
-        $mail->setTo($sendEmailsTo);
-        $mail->setSubject($subject);
-        $mail->setBody($message);
-        $mail->send();
+
+        $templateConfiguration = $GLOBALS['TYPO3_CONF_VARS']['MAIL'];
+        $templateConfiguration['templateRootPaths'][20] = 'EXT:reports/Resources/Private/Templates/Email/';
+
+        $email = GeneralUtility::makeInstance(FluidEmail::class, new TemplatePaths($templateConfiguration));
+        $email
+            ->to(...$sendEmailsTo)
+            ->format('plain')
+            ->subject($subject)
+            ->setTemplate('Report')
+            ->assign('message', $message);
+        if ($GLOBALS['TYPO3_REQUEST'] instanceof ServerRequestInterface) {
+            $email->setRequest($GLOBALS['TYPO3_REQUEST']);
+        }
+
+        GeneralUtility::makeInstance(Mailer::class)->send($email);
     }
 
     /**
@@ -134,13 +149,5 @@ class SystemStatusUpdateTask extends AbstractTask
     public function setNotificationAll(bool $notificationAll)
     {
         $this->notificationAll = $notificationAll;
-    }
-
-    /**
-     * @return LanguageService
-     */
-    protected function getLanguageService()
-    {
-        return $GLOBALS['LANG'];
     }
 }

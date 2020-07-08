@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Install\Service\Exception;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +15,13 @@ namespace TYPO3\CMS\Install\Service\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Service\Exception;
+
+use TYPO3\CMS\Install\Service\Exception;
+
 /**
  * An exception thrown if version validation against official version matrix fails
  */
-class CoreVersionServiceException extends \TYPO3\CMS\Install\Service\Exception
+class CoreVersionServiceException extends Exception
 {
 }

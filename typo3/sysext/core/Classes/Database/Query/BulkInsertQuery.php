@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Database\Query;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,16 +15,18 @@ namespace TYPO3\CMS\Core\Database\Query;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database\Query;
+
 use Doctrine\DBAL\Connection;
 
 /**
  * Provides functionality to generate and execute row based bulk INSERT statements.
  *
  * Based on work by Steve Müller <st.mueller@dzh-online.de> for the Doctrine project,
- * licensend under the MIT license.
+ * licensed under the MIT license.
  *
  * This class will be removed from core and the functionality will be provided by
- * the upstream implemention once the pull request has been merged into Doctrine DBAL.
+ * the upstream implementation once the pull request has been merged into Doctrine DBAL.
  *
  * @see https://github.com/doctrine/dbal/pull/682
  * @internal
@@ -116,7 +118,7 @@ class BulkInsertQuery
         if (empty($this->columns)) {
             foreach ($values as $index => $value) {
                 $this->parameters[] = $value;
-                $this->types[] = isset($types[$index]) ? $types[$index] : null;
+                $this->types[] = $types[$index] ?? null;
                 $valueSet[] = '?';
             }
 

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Link;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +15,15 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Link;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Link;
+
+use PHPUnit\Framework\MockObject\MockObject;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Fluid\Core\Rendering\RenderingContext;
 use TYPO3\CMS\Fluid\ViewHelpers\Link\TypolinkViewHelper;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
+use TYPO3Fluid\Fluid\Core\Variables\VariableProviderInterface;
 
 /**
  * Class TypolinkViewHelperTest
@@ -26,19 +31,28 @@ use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 class TypolinkViewHelperTest extends ViewHelperBaseTestcase
 {
     /**
-     * @var TypolinkViewHelper|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var TypolinkViewHelper|MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $subject;
 
     /**
      * @throws \InvalidArgumentException
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->subject = $this->getAccessibleMock(TypolinkViewHelper::class, ['renderChildren']);
-        /** @var RenderingContext $renderingContext */
-        $renderingContext = $this->createMock(\TYPO3\CMS\Fluid\Tests\Unit\Core\Rendering\RenderingContextFixture::class);
+        /** @var VariableProviderInterface|MockObject $variableProvider */
+        $variableProvider = $this->getMockBuilder(VariableProviderInterface::class)->getMock();
+        /** @var RenderingContext|MockObject $renderingContext */
+        $renderingContext = $this->getMockBuilder(RenderingContext::class)->disableOriginalConstructor()->getMock();
+        $renderingContext->expects(self::any())->method('getVariableProvider')->willReturn($variableProvider);
         $this->subject->setRenderingContext($renderingContext);
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+        unset($this->subject);
     }
 
     /**
@@ -46,7 +60,7 @@ class TypolinkViewHelperTest extends ViewHelperBaseTestcase
      */
     public function renderReturnsResultOfContentObjectRenderer()
     {
-        $this->subject->expects($this->any())->method('renderChildren')->will($this->returnValue('innerContent'));
+        $this->subject->expects(self::any())->method('renderChildren')->willReturn('innerContent');
         $this->subject->setArguments([
             'parameter' => '42',
             'target' => '',
@@ -56,113 +70,265 @@ class TypolinkViewHelperTest extends ViewHelperBaseTestcase
             'additionalAttributes' => [],
         ]);
         $contentObjectRendererMock = $this->createMock(ContentObjectRenderer::class);
-        $contentObjectRendererMock->expects($this->once())->method('stdWrap')->will($this->returnValue('foo'));
+        $contentObjectRendererMock->expects(self::once())->method('stdWrap')->willReturn('foo');
         GeneralUtility::addInstance(ContentObjectRenderer::class, $contentObjectRendererMock);
-        $this->assertEquals('foo', $this->subject->render());
+        self::assertEquals('foo', $this->subject->render());
     }
 
     /**
-     * @return array
+     * @test
      */
-    public function typoScriptConfigurationData()
+    public function renderCallsStdWrapWithRightParameters()
+    {
+        $addQueryString = true;
+        $addQueryStringMethod = 'GET';
+        $addQueryStringExclude = 'cHash';
+
+        $this->subject->expects(self::any())->method('renderChildren')->willReturn('innerContent');
+        $this->subject->setArguments([
+            'parameter' => '42',
+            'target' => '',
+            'class' => '',
+            'title' => '',
+            'additionalParams' => '',
+            'additionalAttributes' => [],
+            'addQueryString' => $addQueryString,
+            'addQueryStringMethod' => $addQueryStringMethod,
+            'addQueryStringExclude' => $addQueryStringExclude,
+            'absolute' => false
+        ]);
+        $contentObjectRendererMock = $this->createMock(ContentObjectRenderer::class);
+        $contentObjectRendererMock->expects(self::once())
+            ->method('stdWrap')
+            ->with(
+                'innerContent',
+                [
+                    'typolink.' => [
+                        'parameter' => '42',
+                        'ATagParams' => '',
+                        'addQueryString' => $addQueryString,
+                        'addQueryString.' => [
+                            'method' => $addQueryStringMethod,
+                            'exclude' => $addQueryStringExclude,
+                        ],
+                        'forceAbsoluteUrl' => false,
+                    ],
+                ]
+            )
+            ->willReturn('foo');
+        GeneralUtility::addInstance(ContentObjectRenderer::class, $contentObjectRendererMock);
+        self::assertEquals('foo', $this->subject->render());
+    }
+
+    public function decodedConfigurationAndFluidArgumentDataProvider(): array
     {
         return [
+            'blank input' => [
+                [   // TypoLinkCodecService::decode() result of input value from link field
+                    'url' => '',
+                    'target' => '',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [   // ViewHelper arguments
+                    'target' => '',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [   // expectation
+                    'url' => '',
+                    'target' => '',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+            ],
             'empty input' => [
-                '', // input from link field
-                '', // target from fluid
-                '', // class from fluid
-                '', // title from fluid
-                '', // additional parameters from fluid
-                '',
+                [],
+                [
+                    'target' => '',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [],
             ],
             'simple id input' => [
-                19,
-                '',
-                '',
-                '',
-                '',
-                '19',
+                [
+                    'url' => 19,
+                    'target' => '',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [
+                    'target' => '',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [
+                    'url' => 19,
+                    'target' => '',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
             ],
             'external url with target' => [
-                'www.web.de _blank',
-                '',
-                '',
-                '',
-                '',
-                'www.web.de _blank',
+                [
+                    'url' => 'www.web.de',
+                    'target' => '_blank',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [
+                    'target' => '',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [
+                    'url' => 'www.web.de',
+                    'target' => '_blank',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
             ],
             'page with extended class' => [
-                '42 - css-class',
-                '',
-                'fluid_class',
-                '',
-                '',
-                '42 - "css-class fluid_class"',
+                [
+                    'url' => 42,
+                    'target' => '',
+                    'class' => 'css-class',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [
+                    'target' => '',
+                    'class' => 'fluid-class',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [
+                    'url' => 42,
+                    'target' => '',
+                    'class' => 'css-class fluid-class',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
             ],
-            'classes are unique' => [
-                '42 - css-class',
-                '',
-                'css-class',
-                '',
-                '',
-                '42 - css-class',
+            'page with same class' => [
+                [
+                    'url' => 42,
+                    'target' => '',
+                    'class' => 'css-class',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [
+                    'target' => '',
+                    'class' => 'css-class',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
+                [
+                    'url' => 42,
+                    'target' => '',
+                    'class' => 'css-class',
+                    'title' => '',
+                    'additionalParams' => '',
+                ],
             ],
             'page with overridden title' => [
-                '42 - - "a link title"',
-                '',
-                '',
-                'another link title',
-                '',
-                '42 - - "another link title"',
+                [
+                    'url' => 42,
+                    'target' => '',
+                    'class' => '',
+                    'title' => 'a link title',
+                    'additionalParams' => '',
+                ],
+                [
+                    'target' => '',
+                    'class' => '',
+                    'title' => 'another link title',
+                    'additionalParams' => '',
+                ],
+                [
+                    'url' => 42,
+                    'target' => '',
+                    'class' => '',
+                    'title' => 'another link title',
+                    'additionalParams' => '',
+                ],
             ],
             'page with title and extended parameters' => [
-                '42 - - "a link title" &x=y',
-                '',
-                '',
-                '',
-                '&a=b',
-                '42 - - "a link title" &x=y&a=b',
+                [
+                    'url' => 42,
+                    'target' => '',
+                    'class' => '',
+                    'title' => 'a link title',
+                    'additionalParams' => '&x=y',
+                ],
+                [
+                    'target' => '',
+                    'class' => '',
+                    'title' => '',
+                    'additionalParams' => '&a=b',
+                ],
+                [
+                    'url' => 42,
+                    'target' => '',
+                    'class' => '',
+                    'title' => 'a link title',
+                    'additionalParams' => '&x=y&a=b',
+                ],
             ],
-            'page with complex title and extended parameters' => [
-                '42 - - "a \\"link\\" title with \\\\" &x=y',
-                '',
-                '',
-                '',
-                '&a=b',
-                '42 - - "a \\"link\\" title with \\\\" &x=y&a=b',
-            ],
-            'full parameter usage' => [
-                '19 _blank css-class "testtitle with whitespace" &X=y',
-                '-',
-                'fluid_class',
-                'a new title',
-                '&a=b',
-                '19 - "css-class fluid_class" "a new title" &X=y&a=b',
-            ],
-            'only page id and overwrite' => [
-                '42',
-                '',
-                '',
-                '',
-                '&a=b',
-                '42 - - - &a=b',
+            'overwrite all' => [
+                [
+                    'url' => 42,
+                    'target' => '_top',
+                    'class' => 'css-class',
+                    'title' => 'a link title',
+                    'additionalParams' => '&x=y',
+                ],
+                [
+                    'target' => '_blank',
+                    'class' => 'fluid-class',
+                    'title' => 'another link title',
+                    'additionalParams' => '&a=b',
+                ],
+                [
+                    'url' => 42,
+                    'target' => '_blank',
+                    'class' => 'css-class fluid-class',
+                    'title' => 'another link title',
+                    'additionalParams' => '&x=y&a=b',
+                ],
             ],
         ];
     }
 
     /**
+     * @param array $decodedConfiguration
+     * @param array $viewHelperArguments
+     * @param array $expectation
      * @test
-     * @dataProvider typoScriptConfigurationData
-     * @param string $input
-     * @param string $targetFromFluid
-     * @param string $classFromFluid
-     * @param string $titleFromFluid
-     * @param string $additionalParametersFromFluid
-     * @param string $expected
+     * @dataProvider decodedConfigurationAndFluidArgumentDataProvider
      */
-    public function createTypolinkParameterArrayFromArgumentsReturnsExpectedArray($input, $targetFromFluid, $classFromFluid, $titleFromFluid, $additionalParametersFromFluid, $expected)
-    {
-        $result = $this->subject->_call('createTypolinkParameterArrayFromArguments', $input, $targetFromFluid, $classFromFluid, $titleFromFluid, $additionalParametersFromFluid);
-        $this->assertSame($expected, $result);
+    public function mergeTypoLinkConfigurationMergesData(
+        array $decodedConfiguration,
+        array $viewHelperArguments,
+        array $expectation
+    ) {
+        $result = $this->subject->_call(
+            'mergeTypoLinkConfiguration',
+            $decodedConfiguration,
+            $viewHelperArguments
+        );
+        self::assertSame($expectation, $result);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject\Menu;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,9 @@ namespace TYPO3\CMS\Frontend\ContentObject\Menu;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject\Menu;
+
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -22,23 +24,23 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class TextMenuContentObject extends AbstractMenuContentObject
 {
     /**
-     * Calls procesItemStates() so that the common configuration for the menu items are resolved into individual configuration per item.
+     * Calls processItemStates() so that the common configuration for the menu items are resolved into individual configuration per item.
      * Sets the result for the new "normal state" in $this->result
      *
-     * @see AbstractMenuContentObject::procesItemStates()
+     * @see AbstractMenuContentObject::processItemStates()
      */
     public function generate()
     {
-        $NOconf = [];
+        $itemConfiguration = [];
         $splitCount = count($this->menuArr);
         if ($splitCount) {
-            list($NOconf) = $this->procesItemStates($splitCount);
+            $itemConfiguration = $this->processItemStates($splitCount);
         }
         if (!empty($this->mconf['debugItemConf'])) {
-            echo '<h3>$NOconf:</h3>';
-            debug($NOconf);
+            echo '<h3>$itemConfiguration:</h3>';
+            debug($itemConfiguration);
         }
-        $this->result = $NOconf;
+        $this->result = $itemConfiguration;
     }
 
     /**
@@ -57,11 +59,9 @@ class TextMenuContentObject extends AbstractMenuContentObject
         }
 
         $this->WMresult = '';
-        $this->INPfixMD5 = substr(md5(microtime() . 'tmenu'), 0, 4);
         $this->WMmenuItems = count($this->result);
         $typoScriptService = GeneralUtility::makeInstance(TypoScriptService::class);
         $this->WMsubmenuObjSuffixes = $typoScriptService->explodeConfigurationForOptionSplit(['sOSuffix' => $this->mconf['submenuObjSuffixes']], $this->WMmenuItems);
-        $this->extProc_init();
         foreach ($this->result as $key => $val) {
             $GLOBALS['TSFE']->register['count_HMENU_MENUOBJ']++;
             $GLOBALS['TSFE']->register['count_MENUOBJ']++;
@@ -69,7 +69,6 @@ class TextMenuContentObject extends AbstractMenuContentObject
             $this->WMcObj->start($this->menuArr[$key], 'pages');
             $this->I = [];
             $this->I['key'] = $key;
-            $this->I['INPfix'] = ($this->imgNameNotRandom ? '' : '_' . $this->INPfixMD5) . '_' . $key;
             $this->I['val'] = $val;
             $this->I['title'] = isset($this->I['val']['stdWrap.']) ? $this->WMcObj->stdWrap($this->getPageTitle($this->menuArr[$key]['title'], $this->menuArr[$key]['nav_title']), $this->I['val']['stdWrap.']) : $this->getPageTitle($this->menuArr[$key]['title'], $this->menuArr[$key]['nav_title']);
             $this->I['uid'] = $this->menuArr[$key]['uid'];
@@ -97,8 +96,6 @@ class TextMenuContentObject extends AbstractMenuContentObject
                 $this->I['linkHREF']['title'] = $titleAttrValue;
             }
 
-            // Calling extra processing function
-            $this->extProc_beforeLinking($key);
             // stdWrap for doNotLinkIt
             if (isset($this->I['val']['doNotLinkIt.'])) {
                 $this->I['val']['doNotLinkIt'] = $this->WMcObj->stdWrap($this->I['val']['doNotLinkIt'], $this->I['val']['doNotLinkIt.']);
@@ -123,7 +120,7 @@ class TextMenuContentObject extends AbstractMenuContentObject
             }
             if ($this->I['val']['stdWrap2'] || isset($this->I['val']['stdWrap2.'])) {
                 $stdWrap2 = isset($this->I['val']['stdWrap2.']) ? $this->WMcObj->stdWrap('|', $this->I['val']['stdWrap2.']) : '|';
-                $wrapPartsStdWrap = explode($this->I['val']['stdWrap2'] ? $this->I['val']['stdWrap2'] : '|', $stdWrap2);
+                $wrapPartsStdWrap = explode($this->I['val']['stdWrap2'] ?: '|', $stdWrap2);
             } else {
                 $wrapPartsStdWrap = ['', ''];
             }
@@ -152,7 +149,6 @@ class TextMenuContentObject extends AbstractMenuContentObject
             }
             // Merge parts + beforeAllWrap
             $this->I['theItem'] = implode('', $this->I['parts']);
-            $this->I['theItem'] = $this->extProc_beforeAllWrap($this->I['theItem'], $key);
             // allWrap:
             $allWrap = isset($this->I['val']['allWrap.']) ? $this->WMcObj->stdWrap($this->I['val']['allWrap'], $this->I['val']['allWrap.']) : $this->I['val']['allWrap'];
             $this->I['theItem'] = $this->WMcObj->wrap($this->I['theItem'], $allWrap);
@@ -170,56 +166,23 @@ class TextMenuContentObject extends AbstractMenuContentObject
     }
 
     /**
-     * Generates the before* and after* images for TMENUs
+     * Generates the before* and after* stdWrap for TMENUs
+     * Evaluates:
+     * - before.stdWrap*
+     * - beforeWrap
+     * - after.stdWrap*
+     * - afterWrap
      *
-     * @param string $pref Can be "before" or "after" and determines which kind of image to create (basically this is the prefix of the TypoScript properties that are read from the ->I['val'] array
-     * @return string The resulting HTML of the image, if any.
+     * @param string $pref Can be "before" or "after" and determines which kind of stdWrap to process (basically this is the prefix of the TypoScript properties that are read from the ->I['val'] array
+     * @return string The resulting HTML
      */
-    public function getBeforeAfter($pref)
+    protected function getBeforeAfter($pref)
     {
-        $res = '';
-        if ($imgInfo = $this->WMcObj->getImgResource($this->I['val'][$pref . 'Img'], $this->I['val'][$pref . 'Img.'])) {
-            $theName = $this->imgNamePrefix . $this->I['uid'] . $this->I['INPfix'] . $pref;
-            $name = ' ' . $this->nameAttribute . '="' . $theName . '"';
-            $GLOBALS['TSFE']->imagesOnPage[] = $imgInfo[3];
-            $res = '<img' . ' src="' . $GLOBALS['TSFE']->absRefPrefix . $imgInfo[3] . '"' . ' width="' . $imgInfo[0] . '"' . ' height="' . $imgInfo[1] . '"' . $name . ($this->I['val'][$pref . 'ImgTagParams'] ? ' ' . $this->I['val'][$pref . 'ImgTagParams'] : '') . $this->parent_cObj->getBorderAttr(' border="0"');
-            if (!strstr($res, 'alt="')) {
-                // Adding alt attribute if not set.
-                $res .= ' alt=""';
-            }
-            $res .= ' />';
-            if ($this->I['val'][$pref . 'ImgLink']) {
-                $res = $this->I['A1'] . $res . $this->I['A2'];
-            }
-        }
         $processedPref = isset($this->I['val'][$pref . '.']) ? $this->WMcObj->stdWrap($this->I['val'][$pref], $this->I['val'][$pref . '.']) : $this->I['val'][$pref];
         if (isset($this->I['val'][$pref . 'Wrap'])) {
-            return $this->WMcObj->wrap($res . $processedPref, $this->I['val'][$pref . 'Wrap']);
-        } else {
-            return $res . $processedPref;
+            return $this->WMcObj->wrap($processedPref, $this->I['val'][$pref . 'Wrap']);
         }
-    }
-
-    /**
-     * Called right before the traversing of $this->result begins.
-     * Can be used for various initialization
-     *
-     * @access private
-     * @see writeMenu()
-     */
-    public function extProc_init()
-    {
-    }
-
-    /**
-     * Called right before the creation of the link for the menu item
-     *
-     * @param int $key Pointer to $this->menuArr[$key] where the current menu element record is found
-     * @access private
-     * @see writeMenu()
-     */
-    public function extProc_beforeLinking($key)
-    {
+        return $processedPref;
     }
 
     /**
@@ -227,10 +190,9 @@ class TextMenuContentObject extends AbstractMenuContentObject
      * This function MUST set $this->WMresult.=[HTML for menu item] to add the generated menu item to the internal accumulation of items.
      *
      * @param int $key Pointer to $this->menuArr[$key] where the current menu element record is found
-     * @access private
      * @see writeMenu()
      */
-    public function extProc_afterLinking($key)
+    protected function extProc_afterLinking($key)
     {
         // Add part to the accumulated result + fetch submenus
         if (!$this->I['spacer']) {
@@ -241,32 +203,16 @@ class TextMenuContentObject extends AbstractMenuContentObject
     }
 
     /**
-     * Called before the "allWrap" happens on the menu item.
-     *
-     * @param string $item The current content of the menu item, $this->I['theItem'], passed along.
-     * @param int $key Pointer to $this->menuArr[$key] where the current menu element record is found
-     * @return string The modified version of $item, going back into $this->I['theItem']
-     * @access private
-     * @see writeMenu()
-     */
-    public function extProc_beforeAllWrap($item, $key)
-    {
-        return $item;
-    }
-
-    /**
      * Called before the writeMenu() function returns (only if a menu was generated)
      *
      * @return string The total menu content should be returned by this function
-     * @access private
      * @see writeMenu()
      */
-    public function extProc_finish()
+    protected function extProc_finish()
     {
-        // stdWrap:
         if (is_array($this->mconf['stdWrap.'])) {
             $this->WMresult = $this->WMcObj->stdWrap($this->WMresult, $this->mconf['stdWrap.']);
         }
-        return $this->WMcObj->wrap($this->WMresult, $this->mconf['wrap']) . $this->WMextraScript;
+        return $this->WMcObj->wrap($this->WMresult, $this->mconf['wrap']);
     }
 }

@@ -1,42 +1,29 @@
 <?php
-    // Simple debug function which prints output immediately
-    function xdebug($var = '', $debugTitle = 'xdebug')
-    {
-        // If you wish to use the debug()-function, and it does not output something,
-        // please edit the IP mask in TYPO3_CONF_VARS
-        if (!\TYPO3\CMS\Core\Utility\GeneralUtility::cmpIP(\TYPO3\CMS\Core\Utility\GeneralUtility::getIndpEnv('REMOTE_ADDR'), $GLOBALS['TYPO3_CONF_VARS']['SYS']['devIPmask'])) {
-            return;
-        }
-        \TYPO3\CMS\Core\Utility\DebugUtility::debug($var, $debugTitle);
-    }
 
-    // Debug function which calls $GLOBALS['error'] error handler if available
-    function debug($variable = '', $name = '*variable*', $line = '*line*', $file = '*file*', $recursiveDepth = 3, $debugLevel = E_DEBUG)
-    {
-        // If you wish to use the debug()-function, and it does not output something,
-        // please edit the IP mask in TYPO3_CONF_VARS
-        if (!\TYPO3\CMS\Core\Utility\GeneralUtility::cmpIP(\TYPO3\CMS\Core\Utility\GeneralUtility::getIndpEnv('REMOTE_ADDR'), $GLOBALS['TYPO3_CONF_VARS']['SYS']['devIPmask'])) {
-            return;
-        }
-        if (is_object($GLOBALS['error']) && @is_callable([$GLOBALS['error'], 'debug'])) {
-            $GLOBALS['error']->debug($variable, $name, $line, $file, $recursiveDepth, $debugLevel);
-        } else {
-            $title = $name === '*variable*' ? '' : $name;
-            $group = $line === '*line*' ? null : $line;
-            \TYPO3\CMS\Core\Utility\DebugUtility::debug($variable, $title, $group);
-        }
-    }
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
 
-    function debugBegin()
-    {
-        if (is_object($GLOBALS['error']) && @is_callable([$GLOBALS['error'], 'debugBegin'])) {
-            $GLOBALS['error']->debugBegin();
-        }
+// Short-hand debug function
+// If you wish to use the debug()-function, and it does not output something,
+// please edit the IP mask in TYPO3_CONF_VARS
+function debug($variable = '', $title = null, $group = null)
+{
+    if (!\TYPO3\CMS\Core\Utility\GeneralUtility::cmpIP(
+        \TYPO3\CMS\Core\Utility\GeneralUtility::getIndpEnv('REMOTE_ADDR'),
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['devIPmask']
+    )
+    ) {
+        return;
     }
-
-    function debugEnd()
-    {
-        if (is_object($GLOBALS['error']) && @is_callable([$GLOBALS['error'], 'debugEnd'])) {
-            $GLOBALS['error']->debugEnd();
-        }
-    }
+    \TYPO3\CMS\Core\Utility\DebugUtility::debug($variable, $title, $group);
+}

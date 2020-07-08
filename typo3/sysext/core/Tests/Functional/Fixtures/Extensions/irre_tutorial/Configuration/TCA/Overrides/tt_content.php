@@ -3,15 +3,15 @@
 // Show copied tt_content records in frontend request
 $GLOBALS['TCA']['tt_content']['ctrl']['hideAtCopy'] = false;
 
-$GLOBALS['TCA']['tt_content']['ctrl']['shadowColumnsForNewPlaceholders'] = 'tx_irretutorial_1ncsv_hotels';
-$GLOBALS['TCA']['tt_content']['ctrl']['shadowColumnsForMovePlaceholders'] = 'tx_irretutorial_1ncsv_hotels';
+$GLOBALS['TCA']['tt_content']['ctrl']['shadowColumnsForNewPlaceholders'] .= ',tx_irretutorial_1ncsv_hotels';
+$GLOBALS['TCA']['tt_content']['ctrl']['shadowColumnsForMovePlaceholders'] .= ',tx_irretutorial_1ncsv_hotels';
 
 \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addTCAcolumns(
     'tt_content',
     [
         'tx_irretutorial_1nff_hotels' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:irre_tutorial/Resources/Private/Language/locallang_db.xml:tt_content.tx_irretutorial_1nff_hotels',
+            'label' => 'LLL:EXT:irre_tutorial/Resources/Private/Language/locallang_db.xlf:tt_content.tx_irretutorial_1nff_hotels',
             'config' => [
                 'type' => 'inline',
                 'foreign_table' => 'tx_irretutorial_1nff_hotel',
@@ -24,15 +24,11 @@ $GLOBALS['TCA']['tt_content']['ctrl']['shadowColumnsForMovePlaceholders'] = 'tx_
                     'showPossibleLocalizationRecords' => 1,
                     'showRemovedLocalizationRecords' => 1,
                 ],
-                'behaviour' => [
-                    'localizationMode' => 'select',
-                    'localizeChildrenAtParentLocalization' => true,
-                ],
             ]
         ],
         'tx_irretutorial_1ncsv_hotels' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:irre_tutorial/Resources/Private/Language/locallang_db.xml:tt_content.tx_irretutorial_1ncsv_hotels',
+            'label' => 'LLL:EXT:irre_tutorial/Resources/Private/Language/locallang_db.xlf:tt_content.tx_irretutorial_1ncsv_hotels',
             'config' => [
                 'type' => 'inline',
                 'foreign_table' => 'tx_irretutorial_1ncsv_hotel',
@@ -43,16 +39,12 @@ $GLOBALS['TCA']['tt_content']['ctrl']['shadowColumnsForMovePlaceholders'] = 'tx_
                     'showPossibleLocalizationRecords' => 1,
                     'showRemovedLocalizationRecords' => 1,
                 ],
-                'behaviour' => [
-                    'localizationMode' => 'select',
-                    'localizeChildrenAtParentLocalization' => true,
-                ],
                 'default' => '',
             ]
         ],
         'tx_irretutorial_flexform' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:irre_tutorial/Resources/Private/Language/locallang_db.xml:tt_content.tx_irretutorial_flexform',
+            'label' => 'LLL:EXT:irre_tutorial/Resources/Private/Language/locallang_db.xlf:tt_content.tx_irretutorial_flexform',
             'config' => [
                 'type' => 'flex',
                 'ds' => [
@@ -66,5 +58,5 @@ $GLOBALS['TCA']['tt_content']['ctrl']['shadowColumnsForMovePlaceholders'] = 'tx_
 
 \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addToAllTCAtypes(
     'tt_content',
-    '--div--;LLL:EXT:irre_tutorial/Resources/Private/Language/locallang_db.xml:tt_content.div.irre, tx_irretutorial_1nff_hotels, tx_irretutorial_1ncsv_hotels, tx_irretutorial_flexform'
+    '--div--;LLL:EXT:irre_tutorial/Resources/Private/Language/locallang_db.xlf:tt_content.div.irre, tx_irretutorial_1nff_hotels, tx_irretutorial_1ncsv_hotels, tx_irretutorial_flexform'
 );

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,19 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Resource;
+
 use org\bovigo\vfs\vfsStream;
+use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\Folder;
+use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Basic test case for the \TYPO3\CMS\Core\Resource\File tests
  */
-abstract class BaseTestCase extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+abstract class BaseTestCase extends UnitTestCase
 {
     /**
      * @var string
@@ -30,10 +36,11 @@ abstract class BaseTestCase extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
     protected $vfsContents = [];
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->mountDir = $this->getUniqueId('mount-');
-        $this->basedir = $this->getUniqueId('base-');
+        parent::setUp();
+        $this->mountDir = StringUtility::getUniqueId('mount-');
+        $this->basedir = StringUtility::getUniqueId('base-');
         vfsStream::setup($this->basedir);
         // Add an entry for the mount directory to the VFS contents
         $this->vfsContents = [$this->mountDir => []];
@@ -46,14 +53,11 @@ abstract class BaseTestCase extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
     protected function mergeToVfsContents($contents)
     {
-        \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($this->vfsContents, $contents);
+        ArrayUtility::mergeRecursiveWithOverrule($this->vfsContents, $contents);
     }
 
     protected function initializeVfs()
     {
-        if (is_callable('org\\bovigo\\vfs\\vfsStream::create') === false) {
-            $this->markTestSkipped('vfsStream::create() does not exist');
-        }
         vfsStream::create($this->vfsContents);
     }
 
@@ -121,8 +125,8 @@ abstract class BaseTestCase extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             ->setMethods($mockedMethods)
             ->disableOriginalConstructor()
             ->getMock();
-        $mock->expects($this->any())->method('getIdentifier')->will($this->returnValue($identifier));
-        $mock->expects($this->any())->method('getName')->will($this->returnValue(basename($identifier)));
+        $mock->expects(self::any())->method('getIdentifier')->willReturn($identifier);
+        $mock->expects(self::any())->method('getName')->willReturn(basename($identifier));
         return $mock;
     }
 
@@ -131,11 +135,11 @@ abstract class BaseTestCase extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
      *
      * @param string $identifier
      * @param array $mockedMethods the methods to mock
-     * @return \TYPO3\CMS\Core\Resource\File|\PHPUnit_Framework_MockObject_MockObject
+     * @return \TYPO3\CMS\Core\Resource\File|\PHPUnit\Framework\MockObject\MockObject
      */
     protected function getSimpleFileMock($identifier, $mockedMethods = [])
     {
-        return $this->_createFileFolderMock(\TYPO3\CMS\Core\Resource\File::class, $identifier, $mockedMethods);
+        return $this->_createFileFolderMock(File::class, $identifier, $mockedMethods);
     }
 
     /**
@@ -147,7 +151,7 @@ abstract class BaseTestCase extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
      */
     protected function getSimpleFolderMock($identifier, $mockedMethods = [])
     {
-        return $this->_createFileFolderMock(\TYPO3\CMS\Core\Resource\Folder::class, $identifier, $mockedMethods);
+        return $this->_createFileFolderMock(Folder::class, $identifier, $mockedMethods);
     }
 
     /**
@@ -161,9 +165,9 @@ abstract class BaseTestCase extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
      */
     protected function getFolderMock($identifier, $mockedMethods = [], $subfolders = [], $files = [])
     {
-        $folder = $this->_createFileFolderMock(\TYPO3\CMS\Core\Resource\Folder::class, $identifier, array_merge($mockedMethods, ['getFiles', 'getSubfolders']));
-        $folder->expects($this->any())->method('getSubfolders')->will($this->returnValue($subfolders));
-        $folder->expects($this->any())->method('getFiles')->will($this->returnValue($files));
+        $folder = $this->_createFileFolderMock(Folder::class, $identifier, array_merge($mockedMethods, ['getFiles', 'getSubfolders']));
+        $folder->expects(self::any())->method('getSubfolders')->willReturn($subfolders);
+        $folder->expects(self::any())->method('getFiles')->willReturn($files);
         return $folder;
     }
 }

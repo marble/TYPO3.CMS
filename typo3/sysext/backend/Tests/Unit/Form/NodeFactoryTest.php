@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,22 +13,29 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Form\Element;
+namespace TYPO3\CMS\Backend\Tests\Unit\Form;
+
+use TYPO3\CMS\Backend\Form\Element\SelectSingleElement;
+use TYPO3\CMS\Backend\Form\Element\SelectTreeElement;
+use TYPO3\CMS\Backend\Form\Element\UnknownElement;
+use TYPO3\CMS\Backend\Form\Exception;
 use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Backend\Form\NodeInterface;
 use TYPO3\CMS\Backend\Form\NodeResolverInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class NodeFactoryTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function constructThrowsExceptionIfOverrideMissesNodeNameKey()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1432207533);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeRegistry'] = [
             1433089391 => [
@@ -45,7 +51,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructThrowsExceptionIfOverrideMissesPriorityKey()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1432207533);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeRegistry'] = [
             1433089393 => [
@@ -61,7 +67,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructThrowsExceptionIfOverrideMissesClassKey()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1432207533);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeRegistry'] = [
             1433089392 => [
@@ -77,7 +83,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructThrowsExceptionIfOverridePriorityIsLowerThanZero()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1432223531);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeRegistry'] = [
             1433089394 => [
@@ -93,7 +99,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructThrowsExceptionIfOverridePriorityIsHigherThanHundred()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1432223531);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeRegistry'] = [
             1433089395 => [
@@ -110,7 +116,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructorThrowsExceptionIfOverrideTwoNodesWithSamePriorityAndSameNodeNameAreRegistered()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1432223893);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeRegistry'] = [
             1433089396 => [
@@ -132,7 +138,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructThrowsExceptionIfResolverMissesNodeNameKey()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1433155522);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeResolver'] = [
             1433154905 => [
@@ -148,7 +154,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructThrowsExceptionIfResolverMissesPriorityKey()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1433155522);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeResolver'] = [
             1433154905 => [
@@ -164,7 +170,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructThrowsExceptionIfResolverMissesClassKey()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1433155522);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeResolver'] = [
             1433154906 => [
@@ -180,7 +186,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructThrowsExceptionIfResolverPriorityIsLowerThanZero()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1433155563);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeResolver'] = [
             1433154907 => [
@@ -196,7 +202,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructThrowsExceptionIfResolverPriorityIsHigherThanHundred()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1433155563);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeResolver'] = [
             1433154908 => [
@@ -213,7 +219,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function constructorThrowsExceptionIfResolverTwoNodesWithSamePriorityAndSameNodeNameAreRegistered()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1433155705);
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeResolver'] = [
             1433154909 => [
@@ -255,7 +261,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function createThrowsExceptionIfRenderTypeIsNotGiven()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1431452406);
         $subject = new NodeFactory();
         $subject->create([]);
@@ -266,15 +272,15 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function createThrowsExceptionIfNodeDoesNotImplementNodeInterface()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1431872546);
         $mockNode = new \stdClass();
-        /** @var NodeFactory|\PHPUnit_Framework_MockObject_MockObject $mockSubject */
+        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->setMethods(['instantiate'])
             ->disableOriginalConstructor()
             ->getMock();
-        $mockSubject->expects($this->once())->method('instantiate')->will($this->returnValue($mockNode));
+        $mockSubject->expects(self::once())->method('instantiate')->willReturn($mockNode);
         $mockSubject->create(['renderType' => 'foo']);
     }
 
@@ -283,8 +289,11 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function createReturnsInstanceOfUnknownElementIfTypeIsNotRegistered()
     {
+        $unknownElementProphecy = $this->prophesize(UnknownElement::class);
+        $unknownElementRevelation = $unknownElementProphecy->reveal();
+        GeneralUtility::addInstance(UnknownElement::class, $unknownElementRevelation);
         $subject = new NodeFactory();
-        $this->assertInstanceOf(Element\UnknownElement::class, $subject->create(['renderType' => 'foo']));
+        self::assertSame($unknownElementRevelation, $subject->create(['renderType' => 'foo']));
     }
 
     /**
@@ -296,8 +305,11 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'type' => 'select',
             'renderType' => 'selectTree',
         ];
+        $selectTreeElementProphecy = $this->prophesize(SelectTreeElement::class);
+        $selectTreeElementRevelation = $selectTreeElementProphecy->reveal();
+        GeneralUtility::addInstance(SelectTreeElement::class, $selectTreeElementRevelation);
         $subject = new NodeFactory();
-        $this->assertInstanceOf(Element\SelectTreeElement::class, $subject->create($data));
+        self::assertSame($selectTreeElementRevelation, $subject->create($data));
     }
 
     /**
@@ -315,7 +327,10 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
         $subject = new NodeFactory();
-        $this->assertInstanceOf(Element\SelectSingleElement::class, $subject->create($data));
+        $selectSingleElementProphecy = $this->prophesize(SelectSingleElement::class);
+        $selectSingleElementRevelation = $selectSingleElementProphecy->reveal();
+        GeneralUtility::addInstance(SelectSingleElement::class, $selectSingleElementRevelation);
+        self::assertSame($selectSingleElementRevelation, $subject->create($data));
     }
 
     /**
@@ -332,11 +347,11 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
         $mockNode = $this->createMock(NodeInterface::class);
-        /** @var NodeFactory|\PHPUnit_Framework_MockObject_MockObject $mockSubject */
+        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->setMethods(['instantiate'])
             ->getMock();
-        $mockSubject->expects($this->once())->method('instantiate')->with('stdClass')->will($this->returnValue($mockNode));
+        $mockSubject->expects(self::once())->method('instantiate')->with('stdClass')->willReturn($mockNode);
         $mockSubject->create($data);
     }
 
@@ -359,11 +374,11 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
         $mockNode = $this->createMock(NodeInterface::class);
-        /** @var NodeFactory|\PHPUnit_Framework_MockObject_MockObject $mockSubject */
+        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->setMethods(['instantiate'])
             ->getMock();
-        $mockSubject->expects($this->once())->method('instantiate')->with('foo2Class')->will($this->returnValue($mockNode));
+        $mockSubject->expects(self::once())->method('instantiate')->with('foo2Class')->willReturn($mockNode);
         $mockSubject->create($data);
     }
 
@@ -386,11 +401,11 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
         $mockNode = $this->createMock(NodeInterface::class);
-        /** @var NodeFactory|\PHPUnit_Framework_MockObject_MockObject $mockSubject */
+        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->setMethods(['instantiate'])
             ->getMock();
-        $mockSubject->expects($this->once())->method('instantiate')->with('foo2Class')->will($this->returnValue($mockNode));
+        $mockSubject->expects(self::once())->method('instantiate')->with('foo2Class')->willReturn($mockNode);
         $mockSubject->create($data);
     }
 
@@ -399,7 +414,7 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function createThrowsExceptionIfResolverDoesNotImplementNodeResolverInterface()
     {
-        $this->expectException(\TYPO3\CMS\Backend\Form\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1433157422);
         $data = ['renderType' => 'foo'];
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeResolver'] = [
@@ -411,11 +426,11 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         $mockResolver = $this->getMockBuilder(\stdClass::class)->getMock();
 
-        /** @var NodeFactory|\PHPUnit_Framework_MockObject_MockObject $mockSubject */
+        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->setMethods(['instantiate'])
             ->getMock();
-        $mockSubject->expects($this->at(0))->method('instantiate')->will($this->returnValue($mockResolver));
+        $mockSubject->expects(self::at(0))->method('instantiate')->willReturn($mockResolver);
         $mockSubject->create($data);
     }
 
@@ -446,16 +461,16 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'class' => 'foo2Class',
             ],
         ];
-        $mockResolver1 = $this->getMockBuilder(NodeResolverInterface::class)->getMock();
-        $mockResolver2 = $this->getMockBuilder(NodeResolverInterface::class)->getMock();
+        $mockResolver1 = $this->createMock(NodeResolverInterface::class);
+        $mockResolver2 = $this->createMock(NodeResolverInterface::class);
 
-        /** @var NodeFactory|\PHPUnit_Framework_MockObject_MockObject $mockSubject */
+        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->setMethods(['instantiate'])
             ->getMock();
-        $mockSubject->expects($this->at(0))->method('instantiate')->with('foo2Class')->will($this->returnValue($mockResolver2));
-        $mockSubject->expects($this->at(1))->method('instantiate')->with('foo1Class')->will($this->returnValue($mockResolver1));
-        $mockSubject->expects($this->at(2))->method('instantiate')->will($this->returnValue($mockNode));
+        $mockSubject->expects(self::at(0))->method('instantiate')->with('foo2Class')->willReturn($mockResolver2);
+        $mockSubject->expects(self::at(1))->method('instantiate')->with('foo1Class')->willReturn($mockResolver1);
+        $mockSubject->expects(self::at(2))->method('instantiate')->willReturn($mockNode);
         $mockSubject->create($data);
     }
 
@@ -486,16 +501,16 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'class' => 'foo2Class',
             ],
         ];
-        $mockResolver1 = $this->getMockBuilder(NodeResolverInterface::class)->getMock();
-        $mockResolver2 = $this->getMockBuilder(NodeResolverInterface::class)->getMock();
+        $mockResolver1 = $this->createMock(NodeResolverInterface::class);
+        $mockResolver2 = $this->createMock(NodeResolverInterface::class);
 
-        /** @var NodeFactory|\PHPUnit_Framework_MockObject_MockObject $mockSubject */
+        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->setMethods(['instantiate'])
             ->getMock();
-        $mockSubject->expects($this->at(0))->method('instantiate')->with('foo1Class')->will($this->returnValue($mockResolver1));
-        $mockSubject->expects($this->at(1))->method('instantiate')->with('foo2Class')->will($this->returnValue($mockResolver2));
-        $mockSubject->expects($this->at(2))->method('instantiate')->will($this->returnValue($mockNode));
+        $mockSubject->expects(self::at(0))->method('instantiate')->with('foo1Class')->willReturn($mockResolver1);
+        $mockSubject->expects(self::at(1))->method('instantiate')->with('foo2Class')->willReturn($mockResolver2);
+        $mockSubject->expects(self::at(2))->method('instantiate')->willReturn($mockNode);
         $mockSubject->create($data);
     }
 
@@ -521,15 +536,15 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'class' => 'foo1Class',
             ],
         ];
-        $mockResolver1 = $this->getMockBuilder(NodeResolverInterface::class)->getMock();
-        $mockResolver1->expects($this->once())->method('resolve')->will($this->returnValue('fooNodeClass'));
+        $mockResolver1 = $this->createMock(NodeResolverInterface::class);
+        $mockResolver1->expects(self::once())->method('resolve')->willReturn('fooNodeClass');
 
-        /** @var NodeFactory|\PHPUnit_Framework_MockObject_MockObject $mockSubject */
+        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->setMethods(['instantiate'])
             ->getMock();
-        $mockSubject->expects($this->at(0))->method('instantiate')->will($this->returnValue($mockResolver1));
-        $mockSubject->expects($this->at(1))->method('instantiate')->with('fooNodeClass')->will($this->returnValue($mockNode));
+        $mockSubject->expects(self::at(0))->method('instantiate')->willReturn($mockResolver1);
+        $mockSubject->expects(self::at(1))->method('instantiate')->with('fooNodeClass')->willReturn($mockNode);
         $mockSubject->create($data);
     }
 
@@ -560,15 +575,15 @@ class NodeFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'class' => 'foo2Class',
             ],
         ];
-        $mockResolver1 = $this->getMockBuilder(NodeResolverInterface::class)->getMock();
-        $mockResolver1->expects($this->once())->method('resolve')->will($this->returnValue('fooNodeClass'));
+        $mockResolver1 = $this->createMock(NodeResolverInterface::class);
+        $mockResolver1->expects(self::once())->method('resolve')->willReturn('fooNodeClass');
 
-        /** @var NodeFactory|\PHPUnit_Framework_MockObject_MockObject $mockSubject */
+        /** @var NodeFactory|\PHPUnit\Framework\MockObject\MockObject $mockSubject */
         $mockSubject = $this->getMockBuilder(NodeFactory::class)
             ->setMethods(['instantiate'])
             ->getMock();
-        $mockSubject->expects($this->at(0))->method('instantiate')->with('foo1Class')->will($this->returnValue($mockResolver1));
-        $mockSubject->expects($this->at(1))->method('instantiate')->with('fooNodeClass')->will($this->returnValue($mockNode));
+        $mockSubject->expects(self::at(0))->method('instantiate')->with('foo1Class')->willReturn($mockResolver1);
+        $mockSubject->expects(self::at(1))->method('instantiate')->with('fooNodeClass')->willReturn($mockNode);
         $mockSubject->create($data);
     }
 }

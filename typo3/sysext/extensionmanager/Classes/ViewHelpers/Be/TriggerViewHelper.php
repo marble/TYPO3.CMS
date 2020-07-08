@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\ViewHelpers\Be;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,13 @@ namespace TYPO3\CMS\Extensionmanager\ViewHelpers\Be;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\ViewHelpers\Be;
+
 use TYPO3\CMS\Extensionmanager\Controller\AbstractController;
+use TYPO3\CMS\Fluid\ViewHelpers\Be\AbstractBackendViewHelper;
 
 /**
- * Special view helper for the BE module of the Extension Manager. Loads JS code for triggering
+ * Special ViewHelper for the BE module of the Extension Manager. Loads JS code for triggering
  * refresh events.
  *
  * = Examples =
@@ -31,7 +33,7 @@ use TYPO3\CMS\Extensionmanager\Controller\AbstractController;
  *
  * @internal
  */
-class TriggerViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Be\AbstractBackendViewHelper
+class TriggerViewHelper extends AbstractBackendViewHelper
 {
     /**
      * Initializes the arguments
@@ -46,8 +48,7 @@ class TriggerViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Be\AbstractBackendV
      * Loads some JS inline code based on a list of triggers. This is used to reload the main
      * menu when modules are loaded/unloaded.
      *
-     * @return string This view helper does not return any content
-     * @see \TYPO3\CMS\Backend\Template\DocumentTemplate
+     * @return string This ViewHelper does not return any content
      * @see \TYPO3\CMS\Core\Page\PageRenderer
      */
     public function render()

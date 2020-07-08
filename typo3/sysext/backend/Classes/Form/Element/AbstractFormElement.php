@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Backend\Form\Element;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\Element;
+
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
@@ -210,7 +212,7 @@ abstract class AbstractFormElement extends AbstractNode
                 if (isset($formatOptions['appendAge']) && $formatOptions['appendAge']) {
                     $age = BackendUtility::calcAge(
                         $GLOBALS['EXEC_TIME'] - $itemValue,
-                        $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.minutesHoursDaysYears')
+                        $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.minutesHoursDaysYears')
                     );
                     $value .= ' (' . $age . ')';
                 }
@@ -218,32 +220,32 @@ abstract class AbstractFormElement extends AbstractNode
                 break;
             case 'datetime':
                 // compatibility with "eval" (type "input")
-                if ($itemValue !== '' && !is_null($itemValue)) {
-                    $itemValue = date('H:i d-m-Y', (int)$itemValue);
+                if ($itemValue !== '' && $itemValue !== null) {
+                    $itemValue = BackendUtility::datetime((int)$itemValue);
                 }
                 break;
             case 'time':
                 // compatibility with "eval" (type "input")
-                if ($itemValue !== '' && !is_null($itemValue)) {
-                    $itemValue = gmdate('H:i', (int)$itemValue);
+                if ($itemValue !== '' && $itemValue !== null) {
+                    $itemValue = BackendUtility::time((int)$itemValue, false);
                 }
                 break;
             case 'timesec':
                 // compatibility with "eval" (type "input")
-                if ($itemValue !== '' && !is_null($itemValue)) {
-                    $itemValue = gmdate('H:i:s', (int)$itemValue);
+                if ($itemValue !== '' && $itemValue !== null) {
+                    $itemValue = BackendUtility::time((int)$itemValue);
                 }
                 break;
             case 'year':
                 // compatibility with "eval" (type "input")
-                if ($itemValue !== '' && !is_null($itemValue)) {
+                if ($itemValue !== '' && $itemValue !== null) {
                     $itemValue = date('Y', (int)$itemValue);
                 }
                 break;
             case 'int':
                 $baseArr = ['dec' => 'd', 'hex' => 'x', 'HEX' => 'X', 'oct' => 'o', 'bin' => 'b'];
                 $base = isset($formatOptions['base']) ? trim($formatOptions['base']) : '';
-                $format = isset($baseArr[$base]) ? $baseArr[$base] : 'd';
+                $format = $baseArr[$base] ?? 'd';
                 $itemValue = sprintf('%' . $format, $itemValue);
                 break;
             case 'float':
@@ -306,11 +308,101 @@ abstract class AbstractFormElement extends AbstractNode
         return ceil($size * $compensationForFormFields);
     }
 
+    /***********************************************
+     * CheckboxElement related methods
+     ***********************************************/
+
+    /**
+     * Creates checkbox parameters
+     *
+     * @param string $itemName Form element name
+     * @param int $formElementValue The value of the checkbox (representing checkboxes with the bits)
+     * @param int $checkbox Checkbox # (0-9?)
+     * @param int $checkboxesCount Total number of checkboxes in the array.
+     * @param string $additionalJavaScript Additional JavaScript for the onclick handler.
+     * @return string The onclick attribute + possibly the checked-option set.
+     * @internal
+     */
+    protected function checkBoxParams($itemName, $formElementValue, $checkbox, $checkboxesCount, $additionalJavaScript = ''): string
+    {
+        $elementName = 'document.editform[' . GeneralUtility::quoteJSvalue($itemName) . ']';
+        $checkboxPow = 2 ** $checkbox;
+        $onClick = $elementName . '.value=this.checked?(' . $elementName . '.value|' . $checkboxPow . '):('
+            . $elementName . '.value&' . ((2 ** $checkboxesCount) - 1 - $checkboxPow) . ');' . $additionalJavaScript;
+        return ' onclick="' . htmlspecialchars($onClick) . '"' . ($formElementValue & $checkboxPow ? ' checked="checked"' : '');
+    }
+
+    /**
+     * Calculates the bootstrap grid classes based on the amount of columns
+     * defined in the checkbox item TCA
+     *
+     * @param int $cols
+     * @return array
+     * @internal
+     */
+    protected function calculateColumnMarkup(int $cols): array
+    {
+        $colWidth = (int)floor(12 / $cols);
+        $colClass = 'col-md-12';
+        $colClear = [];
+        if ($colWidth === 6) {
+            $colClass = 'col-sm-6';
+            $colClear = [
+                2 => 'visible-sm-block visible-md-block visible-lg-block',
+            ];
+        } elseif ($colWidth === 4) {
+            $colClass = 'col-sm-4';
+            $colClear = [
+                3 => 'visible-sm-block visible-md-block visible-lg-block',
+            ];
+        } elseif ($colWidth === 3) {
+            $colClass = 'col-sm-6 col-md-3';
+            $colClear = [
+                2 => 'visible-sm-block',
+                4 => 'visible-md-block visible-lg-block',
+            ];
+        } elseif ($colWidth <= 2) {
+            $colClass = 'checkbox-column col-sm-6 col-md-3 col-lg-2';
+            $colClear = [
+                2 => 'visible-sm-block',
+                4 => 'visible-md-block',
+                6 => 'visible-lg-block'
+            ];
+        }
+        return [$colClass, $colClear];
+    }
+
+    /**
+     * Append the value of a form field to its label
+     *
+     * @param string|int $label The label which can also be an integer
+     * @param string|int $value The value which can also be an integer
+     * @return string|int
+     */
+    protected function appendValueToLabelInDebugMode($label, $value)
+    {
+        if ($value !== '' && $GLOBALS['TYPO3_CONF_VARS']['BE']['debug'] && $this->getBackendUser()->isAdmin()) {
+            return $label . ' [' . $value . ']';
+        }
+
+        return $label;
+    }
+
     /**
      * @return LanguageService
      */
     protected function getLanguageService()
     {
         return $GLOBALS['LANG'];
+    }
+
+    /**
+     * Returns the current BE user.
+     *
+     * @return BackendUserAuthentication
+     */
+    protected function getBackendUser()
+    {
+        return $GLOBALS['BE_USER'];
     }
 }

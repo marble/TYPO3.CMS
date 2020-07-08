@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,10 @@ namespace TYPO3\CMS\Frontend\ContentObject;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\ContentObject;
+
 use TYPO3\CMS\Core\Database\RelationHandler;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Frontend\Category\Collection\CategoryCollection;
@@ -92,21 +94,18 @@ class RecordsContentObject extends AbstractContentObject
                     // Perform overlays if necessary (records coming from category collections are already overlaid)
                     if ($source) {
                         // Versioning preview
-                        $GLOBALS['TSFE']->sys_page->versionOL($val['table'], $row);
+                        $this->getPageRepository()->versionOL($val['table'], $row);
                         // Language overlay
-                        if (is_array($row) && $GLOBALS['TSFE']->sys_language_contentOL) {
-                            if ($val['table'] === 'pages') {
-                                $row = $GLOBALS['TSFE']->sys_page->getPageOverlay($row);
-                            } else {
-                                $row = $GLOBALS['TSFE']->sys_page->getRecordOverlay($val['table'], $row, $GLOBALS['TSFE']->sys_language_content, $GLOBALS['TSFE']->sys_language_contentOL);
-                            }
+                        if (is_array($row)) {
+                            $row = $this->getPageRepository()->getLanguageOverlay($val['table'], $row);
                         }
                     }
                     // Might be unset during the overlay process
                     if (is_array($row)) {
                         $dontCheckPid = isset($conf['dontCheckPid.']) ? $this->cObj->stdWrap($conf['dontCheckPid'], $conf['dontCheckPid.']) : $conf['dontCheckPid'];
                         if (!$dontCheckPid) {
-                            $row = $this->cObj->checkPid($row['pid']) ? $row : '';
+                            $validPageId = $this->getPageRepository()->filterAccessiblePageIds([$row['pid']]);
+                            $row = !empty($validPageId) ? $row : '';
                         }
                         if ($row && !$GLOBALS['TSFE']->recordRegister[$val['table'] . ':' . $val['id']]) {
                             $renderObjName = $conf['conf.'][$val['table']] ?: '<' . $val['table'];
@@ -153,7 +152,7 @@ class RecordsContentObject extends AbstractContentObject
         $loadDB->start($source, implode(',', $tables));
         foreach ($loadDB->tableArray as $table => $v) {
             if (isset($GLOBALS['TCA'][$table])) {
-                $loadDB->additionalWhere[$table] = $this->cObj->enableFields($table);
+                $loadDB->additionalWhere[$table] = $this->getPageRepository()->enableFields($table);
             }
         }
         $this->data = $loadDB->getFromDB();
@@ -229,5 +228,13 @@ class RecordsContentObject extends AbstractContentObject
     protected function getTimeTracker()
     {
         return GeneralUtility::makeInstance(TimeTracker::class);
+    }
+
+    /**
+     * @return PageRepository
+     */
+    protected function getPageRepository(): PageRepository
+    {
+        return $GLOBALS['TSFE']->sys_page ?: GeneralUtility::makeInstance(PageRepository::class);
     }
 }

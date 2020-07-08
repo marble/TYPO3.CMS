@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,12 @@ namespace TYPO3\CMS\Workspaces\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Workspaces\Service;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Versioning\VersionState;
+use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
+use TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord;
 
 /**
  * Service for integrity
@@ -23,7 +26,7 @@ use TYPO3\CMS\Core\Versioning\VersionState;
 class IntegrityService
 {
     /**
-     * Succes status - everything is fine
+     * Success status - everything is fine
      *
      * @var int
      */
@@ -57,7 +60,7 @@ class IntegrityService
     ];
 
     /**
-     * @var \TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord[]
+     * @var CombinedRecord[]
      */
     protected $affectedElements;
 
@@ -80,7 +83,7 @@ class IntegrityService
     /**
      * Sets the affected elements.
      *
-     * @param \TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord[] $affectedElements
+     * @param CombinedRecord[] $affectedElements
      */
     public function setAffectedElements(array $affectedElements)
     {
@@ -100,9 +103,9 @@ class IntegrityService
     /**
      * Checks a single element.
      *
-     * @param \TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord $element
+     * @param CombinedRecord $element
      */
-    public function checkElement(\TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord $element)
+    public function checkElement(CombinedRecord $element)
     {
         $this->checkLocalization($element);
     }
@@ -111,11 +114,11 @@ class IntegrityService
      * Checks workspace localization integrity of a single elements.
      * If current record is a localization and its localization parent
      * is new in this workspace (has only a placeholder record in live),
-     * then boths (localization and localization parent) should be published.
+     * then both (localization and localization parent) should be published.
      *
-     * @param \TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord $element
+     * @param CombinedRecord $element
      */
-    protected function checkLocalization(\TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord $element)
+    protected function checkLocalization(CombinedRecord $element)
     {
         $table = $element->getTable();
         if (BackendUtility::isTableLocalizable($table)) {
@@ -130,9 +133,9 @@ class IntegrityService
                 if (VersionState::cast($languageParentRecord['t3ver_state'])->equals(VersionState::NEW_PLACEHOLDER)) {
                     $title = BackendUtility::getRecordTitle($table, $versionRow);
                     // Add warning for current versionized record:
-                    $this->addIssue($element->getLiveRecord()->getIdentifier(), self::STATUS_Warning, sprintf(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('integrity.dependsOnDefaultLanguageRecord', 'workspaces'), $title));
+                    $this->addIssue($element->getLiveRecord()->getIdentifier(), self::STATUS_Warning, sprintf(LocalizationUtility::translate('integrity.dependsOnDefaultLanguageRecord', 'workspaces'), $title));
                     // Add info for related localization parent record:
-                    $this->addIssue($table . ':' . $languageParentRecord['uid'], self::STATUS_Info, sprintf(\TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('integrity.isDefaultLanguageRecord', 'workspaces'), $title));
+                    $this->addIssue($table . ':' . $languageParentRecord['uid'], self::STATUS_Info, sprintf(LocalizationUtility::translate('integrity.isDefaultLanguageRecord', 'workspaces'), $title));
                 }
             }
         }
@@ -167,7 +170,7 @@ class IntegrityService
     }
 
     /**
-     * Gets the (human readable) represetation of the status with the most
+     * Gets the (human readable) representation of the status with the most
      * important severity (wraps $this->getStatus() and translates the result).
      *
      * @param string $identifier Record identifier (table:id) for look-ups
@@ -188,7 +191,8 @@ class IntegrityService
     {
         if ($identifier === null) {
             return $this->issues;
-        } elseif (isset($this->issues[$identifier])) {
+        }
+        if (isset($this->issues[$identifier])) {
             return $this->issues[$identifier];
         }
         return [];

@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Beuser\Tests\Unit\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,21 +15,25 @@ namespace TYPO3\CMS\Beuser\Tests\Unit\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Beuser\Tests\Unit\Controller;
+
 use TYPO3\CMS\Beuser\Controller\BackendUserController;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class BackendUserControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class BackendUserControllerTest extends UnitTestCase
 {
     /**
-     * @var BackendUserController|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var BackendUserController|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $GLOBALS['BE_USER'] = $this->createMock(BackendUserAuthentication::class);
         $GLOBALS['BE_USER']->uc = [
             'recentSwitchedToUsers' => []
@@ -49,8 +53,8 @@ class BackendUserControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             $GLOBALS['BE_USER']->uc['recentSwitchedToUsers'] = $this->subject->_call('generateListOfMostRecentSwitchedUsers', $id);
         }
 
-        static::assertCount(BackendUserController::RECENT_USERS_LIMIT, $GLOBALS['BE_USER']->uc['recentSwitchedToUsers']);
-        static::assertSame($expected, $GLOBALS['BE_USER']->uc['recentSwitchedToUsers']);
+        self::assertCount(BackendUserController::RECENT_USERS_LIMIT, $GLOBALS['BE_USER']->uc['recentSwitchedToUsers']);
+        self::assertSame($expected, $GLOBALS['BE_USER']->uc['recentSwitchedToUsers']);
     }
 
     /**
@@ -61,6 +65,6 @@ class BackendUserControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
         $GLOBALS['BE_USER']->uc['recentSwitchedToUsers'] = $this->subject->_call('generateListOfMostRecentSwitchedUsers', 100);
         $GLOBALS['BE_USER']->uc['recentSwitchedToUsers'] = $this->subject->_call('generateListOfMostRecentSwitchedUsers', 100);
 
-        static::assertCount(1, $GLOBALS['BE_USER']->uc['recentSwitchedToUsers']);
+        self::assertCount(1, $GLOBALS['BE_USER']->uc['recentSwitchedToUsers']);
     }
 }

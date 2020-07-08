@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,12 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic;
+
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+use TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface;
+use TYPO3\CMS\Extbase\Persistence\QueryInterface;
+
 /**
  * A persistence backend interface
  */
@@ -24,29 +29,28 @@ interface BackendInterface
      *
      * @param \TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface $persistenceManager
      */
-    public function setPersistenceManager(\TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface $persistenceManager);
+    public function setPersistenceManager(PersistenceManagerInterface $persistenceManager);
 
     /**
      * Sets the aggregate root objects
      *
      * @param \TYPO3\CMS\Extbase\Persistence\ObjectStorage $objects
      */
-    public function setAggregateRootObjects(\TYPO3\CMS\Extbase\Persistence\ObjectStorage $objects);
+    public function setAggregateRootObjects(ObjectStorage $objects);
 
     /**
      * Sets the deleted entities
      *
      * @param \TYPO3\CMS\Extbase\Persistence\ObjectStorage $entities
-     * @api
      */
-    public function setDeletedEntities(\TYPO3\CMS\Extbase\Persistence\ObjectStorage $entities);
+    public function setDeletedEntities(ObjectStorage $entities);
 
     /**
      * Sets the changed objects
      *
      * @param \TYPO3\CMS\Extbase\Persistence\ObjectStorage $entities
      */
-    public function setChangedEntities(\TYPO3\CMS\Extbase\Persistence\ObjectStorage $entities);
+    public function setChangedEntities(ObjectStorage $entities);
 
     /**
      * Commits the current persistence session
@@ -60,7 +64,7 @@ interface BackendInterface
      * backend. Otherwise NULL is returned.
      *
      * @param object $object
-     * @return string|NULL The identifier for the object if it is known, or NULL
+     * @return string|null The identifier for the object if it is known, or NULL
      */
     public function getIdentifierByObject($object);
 
@@ -70,7 +74,7 @@ interface BackendInterface
      *
      * @param string $identifier
      * @param string $className
-     * @return object|NULL The object for the identifier if it is known, or NULL
+     * @return object|null The object for the identifier if it is known, or NULL
      */
     public function getObjectByIdentifier($identifier, $className);
 
@@ -87,16 +91,14 @@ interface BackendInterface
      *
      * @param \TYPO3\CMS\Extbase\Persistence\QueryInterface $query
      * @return int
-     * @api
      */
-    public function getObjectCountByQuery(\TYPO3\CMS\Extbase\Persistence\QueryInterface $query);
+    public function getObjectCountByQuery(QueryInterface $query);
 
     /**
      * Returns the object data matching the $query.
      *
      * @param \TYPO3\CMS\Extbase\Persistence\QueryInterface $query
      * @return array
-     * @api
      */
-    public function getObjectDataByQuery(\TYPO3\CMS\Extbase\Persistence\QueryInterface $query);
+    public function getObjectDataByQuery(QueryInterface $query);
 }

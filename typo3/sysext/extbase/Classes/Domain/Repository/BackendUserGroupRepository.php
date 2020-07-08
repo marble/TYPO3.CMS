@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Domain\Repository;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +15,20 @@ namespace TYPO3\CMS\Extbase\Domain\Repository;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Domain\Repository;
+
+use TYPO3\CMS\Extbase\Persistence\Generic\Typo3QuerySettings;
+use TYPO3\CMS\Extbase\Persistence\Repository;
+
 /**
  * Repository for \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup.
- *
- * @api
  */
-class BackendUserGroupRepository extends \TYPO3\CMS\Extbase\Persistence\Repository
+class BackendUserGroupRepository extends Repository
 {
-    /**
-     * Initializes the repository.
-     */
     public function initializeObject()
     {
-        /** @var $querySettings \TYPO3\CMS\Extbase\Persistence\Generic\Typo3QuerySettings */
-        $querySettings = $this->objectManager->get(\TYPO3\CMS\Extbase\Persistence\Generic\Typo3QuerySettings::class);
+        /** @var Typo3QuerySettings $querySettings */
+        $querySettings = $this->objectManager->get(Typo3QuerySettings::class);
         $querySettings->setRespectStoragePage(false);
         $this->setDefaultQuerySettings($querySettings);
     }

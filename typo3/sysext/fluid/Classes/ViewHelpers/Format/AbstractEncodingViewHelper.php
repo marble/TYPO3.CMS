@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,20 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\ViewHelpers\Format;
+
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
+
 /**
  * This is the base class for ViewHelpers that work with encodings.
  * Currently that are format.htmlentities, format.htmlentitiesDecode and format.htmlspecialchars
  */
-abstract class AbstractEncodingViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper
+abstract class AbstractEncodingViewHelper extends AbstractViewHelper
 {
     /**
      * @var string
      */
-    protected static $defaultEncoding = null;
+    protected static $defaultEncoding;
 
     /**
      * Resolve the default encoding. If none is set in Frontend or Backend, uses UTF-8.

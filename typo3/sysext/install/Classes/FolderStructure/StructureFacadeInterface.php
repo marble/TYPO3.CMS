@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\FolderStructure;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,10 @@ namespace TYPO3\CMS\Install\FolderStructure;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Install\FolderStructure;
+
+use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 
 /**
  * Interface of structure facade, a facade class in front of root node
@@ -29,14 +32,14 @@ interface StructureFacadeInterface
     /**
      * Get status of node tree
      *
-     * @return array<\TYPO3\CMS\Install\Status\StatusInterface>
+     * @return FlashMessageQueue
      */
-    public function getStatus();
+    public function getStatus(): FlashMessageQueue;
 
     /**
      * Fix structure
      *
-     * @return array<\TYPO3\CMS\Install\Status\StatusInterface>
+     * @return FlashMessageQueue
      */
-    public function fix();
+    public function fix(): FlashMessageQueue;
 }

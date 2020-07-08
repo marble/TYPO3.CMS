@@ -1,30 +1,33 @@
 <?php
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Extbase\Tests\Unit\Mvc\Controller;
 
-/*                                                                        *
- * This script belongs to the Extbase framework.                            *
- *                                                                        *
- * It is free software; you can redistribute it and/or modify it under    *
- * the terms of the GNU Lesser General Public License as published by the *
- * Free Software Foundation, either version 3 of the License, or (at your *
- * option) any later version.                                             *
- *                                                                        *
- * This script is distributed in the hope that it will be useful, but     *
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHAN-    *
- * TABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser       *
- * General Public License for more details.                               *
- *                                                                        *
- * You should have received a copy of the GNU Lesser General Public       *
- * License along with the script.                                         *
- * If not, see http://www.gnu.org/licenses/lgpl.html                      *
- *                                                                        *
- * The TYPO3 project - inspiring people to share!                         *
- *                                                                        */
+use TYPO3\CMS\Extbase\Error\Error;
+use TYPO3\CMS\Extbase\Error\Result;
+use TYPO3\CMS\Extbase\Mvc\Controller\Argument;
+use TYPO3\CMS\Extbase\Mvc\Controller\MvcPropertyMappingConfiguration;
+use TYPO3\CMS\Extbase\Property\PropertyMapper;
+use TYPO3\CMS\Extbase\Property\TypeConverter\PersistentObjectConverter;
+use TYPO3\CMS\Extbase\Validation\Validator\ValidatorInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class ArgumentTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ArgumentTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Extbase\Mvc\Controller\Argument
@@ -42,63 +45,62 @@ class ArgumentTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
     protected $mockConfiguration;
 
-    /**
-     */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->simpleValueArgument = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Mvc\Controller\Argument::class, ['dummy'], ['someName', 'string']);
-        $this->objectArgument = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Mvc\Controller\Argument::class, ['dummy'], ['someName', 'DateTime']);
-        $this->mockPropertyMapper = $this->createMock(\TYPO3\CMS\Extbase\Property\PropertyMapper::class);
-        $this->simpleValueArgument->_set('propertyMapper', $this->mockPropertyMapper);
-        $this->objectArgument->_set('propertyMapper', $this->mockPropertyMapper);
-        $this->mockConfiguration = new \TYPO3\CMS\Extbase\Mvc\Controller\MvcPropertyMappingConfiguration();
-        $propertyMappingConfiguranion = new \TYPO3\CMS\Extbase\Mvc\Controller\MvcPropertyMappingConfiguration();
-        $this->simpleValueArgument->_set('propertyMappingConfiguration', $propertyMappingConfiguranion);
-        $this->objectArgument->_set('propertyMappingConfiguration', $propertyMappingConfiguranion);
+        parent::setUp();
+        $this->simpleValueArgument = new Argument('someName', 'string');
+        $this->objectArgument = new Argument('someName', 'DateTime');
+        $this->mockPropertyMapper = $this->createMock(PropertyMapper::class);
+        $this->simpleValueArgument->injectPropertyMapper($this->mockPropertyMapper);
+        $this->objectArgument->injectPropertyMapper($this->mockPropertyMapper);
+        $this->mockConfiguration = new MvcPropertyMappingConfiguration();
+        $propertyMappingConfiguration = new MvcPropertyMappingConfiguration();
+        $this->simpleValueArgument->injectPropertyMappingConfiguration($propertyMappingConfiguration);
+        $this->objectArgument->injectPropertyMappingConfiguration($propertyMappingConfiguration);
     }
 
     /**
      * @test
      */
-    public function constructingArgumentWithoutNameThrowsException()
+    public function constructingArgumentWithoutNameThrowsException(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1232551853);
-        new \TYPO3\CMS\Extbase\Mvc\Controller\Argument('', 'Text');
+        new Argument('', 'Text');
     }
 
     /**
      * @test
      */
-    public function constructingArgumentWithInvalidNameThrowsException()
+    public function constructingArgumentWithInvalidNameThrowsException(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1187951688);
-        new \TYPO3\CMS\Extbase\Mvc\Controller\Argument(new \ArrayObject(), 'Text');
+        new Argument(new \ArrayObject(), 'Text');
     }
 
     /**
      * @test
      */
-    public function passingDataTypeToConstructorReallySetsTheDataType()
+    public function passingDataTypeToConstructorReallySetsTheDataType(): void
     {
-        $this->assertEquals('string', $this->simpleValueArgument->getDataType(), 'The specified data type has not been set correctly.');
-        $this->assertEquals('someName', $this->simpleValueArgument->getName(), 'The specified name has not been set correctly.');
+        self::assertEquals('string', $this->simpleValueArgument->getDataType(), 'The specified data type has not been set correctly.');
+        self::assertEquals('someName', $this->simpleValueArgument->getName(), 'The specified name has not been set correctly.');
     }
 
     /**
      * @test
      */
-    public function setShortNameProvidesFluentInterface()
+    public function setShortNameProvidesFluentInterface(): void
     {
         $returnedArgument = $this->simpleValueArgument->setShortName('x');
-        $this->assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
+        self::assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
     }
 
     /**
      * @return array
      */
-    public function invalidShortNames()
+    public function invalidShortNames(): array
     {
         return [
             [''],
@@ -112,7 +114,7 @@ class ArgumentTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * @dataProvider invalidShortNames
      * @param string $invalidShortName
      */
-    public function shortNameShouldThrowExceptionIfInvalid($invalidShortName)
+    public function shortNameShouldThrowExceptionIfInvalid($invalidShortName): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1195824959);
@@ -122,124 +124,123 @@ class ArgumentTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function shortNameCanBeRetrievedAgain()
+    public function shortNameCanBeRetrievedAgain(): void
     {
         $this->simpleValueArgument->setShortName('x');
-        $this->assertEquals('x', $this->simpleValueArgument->getShortName());
+        self::assertEquals('x', $this->simpleValueArgument->getShortName());
     }
 
     /**
      * @test
      */
-    public function setRequiredShouldProvideFluentInterfaceAndReallySetRequiredState()
+    public function setRequiredShouldProvideFluentInterfaceAndReallySetRequiredState(): void
     {
         $returnedArgument = $this->simpleValueArgument->setRequired(true);
-        $this->assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
-        $this->assertTrue($this->simpleValueArgument->isRequired());
+        self::assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
+        self::assertTrue($this->simpleValueArgument->isRequired());
     }
 
     /**
      * @test
      */
-    public function setDefaultValueShouldProvideFluentInterfaceAndReallySetDefaultValue()
+    public function setDefaultValueShouldProvideFluentInterfaceAndReallySetDefaultValue(): void
     {
         $returnedArgument = $this->simpleValueArgument->setDefaultValue('default');
-        $this->assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
-        $this->assertSame('default', $this->simpleValueArgument->getDefaultValue());
+        self::assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
+        self::assertSame('default', $this->simpleValueArgument->getDefaultValue());
     }
 
     /**
      * @test
      */
-    public function setValidatorShouldProvideFluentInterfaceAndReallySetValidator()
+    public function setValidatorShouldProvideFluentInterfaceAndReallySetValidator(): void
     {
-        $mockValidator = $this->createMock(\TYPO3\CMS\Extbase\Validation\Validator\ValidatorInterface::class);
+        $mockValidator = $this->createMock(ValidatorInterface::class);
         $returnedArgument = $this->simpleValueArgument->setValidator($mockValidator);
-        $this->assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
-        $this->assertSame($mockValidator, $this->simpleValueArgument->getValidator());
+        self::assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
+        self::assertSame($mockValidator, $this->simpleValueArgument->getValidator());
     }
 
     /**
      * @test
      */
-    public function setValueProvidesFluentInterface()
+    public function setValueProvidesFluentInterface(): void
     {
         $returnedArgument = $this->simpleValueArgument->setValue(null);
-        $this->assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
+        self::assertSame($this->simpleValueArgument, $returnedArgument, 'The returned argument is not the original argument.');
     }
 
     /**
      * @test
      */
-    public function setValueUsesNullAsIs()
+    public function setValueUsesNullAsIs(): void
     {
-        $this->simpleValueArgument = new \TYPO3\CMS\Extbase\Mvc\Controller\Argument('dummy', 'string');
-        $this->simpleValueArgument = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Mvc\Controller\Argument::class, ['dummy'], ['dummy', 'string']);
+        $this->simpleValueArgument = new Argument('dummy', 'string');
         $this->simpleValueArgument->setValue(null);
-        $this->assertNull($this->simpleValueArgument->getValue());
+        self::assertNull($this->simpleValueArgument->getValue());
     }
 
     /**
      * @test
      */
-    public function setValueUsesMatchingInstanceAsIs()
+    public function setValueUsesMatchingInstanceAsIs(): void
     {
-        $this->mockPropertyMapper->expects($this->never())->method('convert');
+        $this->mockPropertyMapper->expects(self::never())->method('convert');
         $this->objectArgument->setValue(new \DateTime());
     }
 
     /**
      * @return \TYPO3\CMS\Extbase\Mvc\Controller\Argument $this
      */
-    protected function setupPropertyMapperAndSetValue()
+    protected function setupPropertyMapperAndSetValue(): Argument
     {
-        $this->mockPropertyMapper->expects($this->once())->method('convert')->with('someRawValue', 'string', $this->mockConfiguration)->will($this->returnValue('convertedValue'));
-        $this->mockPropertyMapper->expects($this->once())->method('getMessages')->will($this->returnValue(new \TYPO3\CMS\Extbase\Error\Result()));
+        $this->mockPropertyMapper->expects(self::once())->method('convert')->with('someRawValue', 'string', $this->mockConfiguration)->willReturn('convertedValue');
+        $this->mockPropertyMapper->expects(self::once())->method('getMessages')->willReturn(new Result());
         return $this->simpleValueArgument->setValue('someRawValue');
     }
 
     /**
      * @test
      */
-    public function setValueShouldCallPropertyMapperCorrectlyAndStoreResultInValue()
+    public function setValueShouldCallPropertyMapperCorrectlyAndStoreResultInValue(): void
     {
         $this->setupPropertyMapperAndSetValue();
-        $this->assertSame('convertedValue', $this->simpleValueArgument->getValue());
-        $this->assertTrue($this->simpleValueArgument->isValid());
+        self::assertSame('convertedValue', $this->simpleValueArgument->getValue());
+        self::assertTrue($this->simpleValueArgument->isValid());
     }
 
     /**
      * @test
      */
-    public function setValueShouldBeFluentInterface()
+    public function setValueShouldBeFluentInterface(): void
     {
-        $this->assertSame($this->simpleValueArgument, $this->setupPropertyMapperAndSetValue());
+        self::assertSame($this->simpleValueArgument, $this->setupPropertyMapperAndSetValue());
     }
 
     /**
      * @test
      */
-    public function setValueShouldSetValidationErrorsIfValidatorIsSetAndValidationFailed()
+    public function setValueShouldSetValidationErrorsIfValidatorIsSetAndValidationFailed(): void
     {
-        $error = new \TYPO3\CMS\Extbase\Error\Error('Some Error', 1234);
-        $mockValidator = $this->getMockBuilder(\TYPO3\CMS\Extbase\Validation\Validator\ValidatorInterface::class)
+        $error = new Error('Some Error', 1234);
+        $mockValidator = $this->getMockBuilder(ValidatorInterface::class)
             ->setMethods(['validate', 'getOptions'])
             ->getMock();
-        $validationMessages = new \TYPO3\CMS\Extbase\Error\Result();
+        $validationMessages = new Result();
         $validationMessages->addError($error);
-        $mockValidator->expects($this->once())->method('validate')->with('convertedValue')->will($this->returnValue($validationMessages));
+        $mockValidator->expects(self::once())->method('validate')->with('convertedValue')->willReturn($validationMessages);
         $this->simpleValueArgument->setValidator($mockValidator);
         $this->setupPropertyMapperAndSetValue();
-        $this->assertFalse($this->simpleValueArgument->isValid());
-        $this->assertEquals([$error], $this->simpleValueArgument->getValidationResults()->getErrors());
+        self::assertFalse($this->simpleValueArgument->isValid());
+        self::assertEquals([$error], $this->simpleValueArgument->validate()->getErrors());
     }
 
     /**
      * @test
      */
-    public function defaultPropertyMappingConfigurationDoesNotAllowCreationOrModificationOfObjects()
+    public function defaultPropertyMappingConfigurationDoesNotAllowCreationOrModificationOfObjects(): void
     {
-        $this->assertNull($this->simpleValueArgument->getPropertyMappingConfiguration()->getConfigurationValue(\TYPO3\CMS\Extbase\Property\TypeConverter\PersistentObjectConverter::class, \TYPO3\CMS\Extbase\Property\TypeConverter\PersistentObjectConverter::CONFIGURATION_CREATION_ALLOWED));
-        $this->assertNull($this->simpleValueArgument->getPropertyMappingConfiguration()->getConfigurationValue(\TYPO3\CMS\Extbase\Property\TypeConverter\PersistentObjectConverter::class, \TYPO3\CMS\Extbase\Property\TypeConverter\PersistentObjectConverter::CONFIGURATION_MODIFICATION_ALLOWED));
+        self::assertNull($this->simpleValueArgument->getPropertyMappingConfiguration()->getConfigurationValue(PersistentObjectConverter::class, PersistentObjectConverter::CONFIGURATION_CREATION_ALLOWED));
+        self::assertNull($this->simpleValueArgument->getPropertyMappingConfiguration()->getConfigurationValue(PersistentObjectConverter::class, PersistentObjectConverter::CONFIGURATION_MODIFICATION_ALLOWED));
     }
 }

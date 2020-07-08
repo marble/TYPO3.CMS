@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,25 +13,31 @@ namespace TYPO3\CMS\Core\Tests\Functional\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Resource\File;
+namespace TYPO3\CMS\Core\Tests\Functional\Resource;
+
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\FolderInterface;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\CMS\Core\Resource\Search\FileSearchDemand;
 use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
  * Test case
  */
-class ResourceStorageTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class ResourceStorageTest extends FunctionalTestCase
 {
-    protected function tearDown()
+    protected function tearDown(): void
     {
         // cleanup manually created folders
-        foreach (glob(PATH_site . 'fileadmin/*') as $folderToRemove) {
+        foreach (glob(Environment::getPublicPath() . '/fileadmin/*') as $folderToRemove) {
             GeneralUtility::rmdir($folderToRemove, true);
         }
+        parent::tearDown();
     }
 
     /**
@@ -45,24 +50,24 @@ class ResourceStorageTest extends \TYPO3\TestingFramework\Core\Functional\Functi
         $subject = (new StorageRepository())->findByUid(1);
         $subject->setEvaluatePermissions(false);
 
-        GeneralUtility::mkdir_deep(PATH_site . 'fileadmin/_processed_');
-        GeneralUtility::mkdir_deep(PATH_site . 'fileadmin/adirectory');
-        GeneralUtility::mkdir_deep(PATH_site . 'typo3temp/assets/_processed_/');
-        file_put_contents(PATH_site . 'fileadmin/adirectory/bar.txt', 'myData');
+        GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/_processed_');
+        GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/adirectory');
+        GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/typo3temp/assets/_processed_/');
+        file_put_contents(Environment::getPublicPath() . '/fileadmin/adirectory/bar.txt', 'myData');
         clearstatcache();
         $subject->addFileMount('/adirectory/', ['read_only' => false]);
-        $file = ResourceFactory::getInstance()->getFileObjectFromCombinedIdentifier('1:/adirectory/bar.txt');
+        $file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObjectFromCombinedIdentifier('1:/adirectory/bar.txt');
 
         $rootProcessingFolder = $subject->getProcessingFolder();
         $processingFolder = $subject->getProcessingFolder($file);
 
-        $this->assertInstanceOf(Folder::class, $processingFolder);
-        $this->assertNotEquals($rootProcessingFolder, $processingFolder);
+        self::assertInstanceOf(Folder::class, $processingFolder);
+        self::assertNotEquals($rootProcessingFolder, $processingFolder);
 
         for ($i = ResourceStorage::PROCESSING_FOLDER_LEVELS; $i>0; $i--) {
             $processingFolder = $processingFolder->getParentFolder();
         }
-        $this->assertEquals($rootProcessingFolder, $processingFolder);
+        self::assertEquals($rootProcessingFolder, $processingFolder);
     }
 
     /**
@@ -79,21 +84,21 @@ class ResourceStorageTest extends \TYPO3\TestingFramework\Core\Functional\Functi
         $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/sys_file_storage.xml');
         $fileName = 'bar.txt';
         $this->setUpBackendUserFromFixture(1);
-        GeneralUtility::mkdir_deep(PATH_site . 'fileadmin/_processed_');
-        GeneralUtility::mkdir_deep(PATH_site . 'fileadmin/' . $targetDirectory);
+        GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/_processed_');
+        GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/' . $targetDirectory);
         if ($fileMountFolder !== $targetDirectory) {
-            GeneralUtility::mkdir_deep(PATH_site . 'fileadmin/' . $fileMountFolder);
+            GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/' . $fileMountFolder);
         }
-        file_put_contents(PATH_site . 'fileadmin/' . $targetDirectory . '/' . $fileName, 'myData');
+        file_put_contents(Environment::getPublicPath() . '/fileadmin/' . $targetDirectory . '/' . $fileName, 'myData');
         clearstatcache();
-        $file = ResourceFactory::getInstance()->getFileObjectFromCombinedIdentifier('1:/' . $targetDirectory . '/' . $fileName);
+        $file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObjectFromCombinedIdentifier('1:/' . $targetDirectory . '/' . $fileName);
 
         $subject = (new StorageRepository())->findByUid(1);
         $subject->setEvaluatePermissions(true);
 
-        // read_only = true -> no write access for user, so checkinf for second argument true should assert false
+        // read_only = true -> no write access for user, so checking for second argument true should assert false
         $subject->addFileMount('/' . $fileMountFolder . '/', ['read_only' => $isFileMountReadOnly]);
-        $this->assertSame($expectedResult, $subject->isWithinFileMountBoundaries($file, $checkWriteAccess));
+        self::assertSame($expectedResult, $subject->isWithinFileMountBoundaries($file, $checkWriteAccess));
     }
 
     /**
@@ -158,7 +163,7 @@ class ResourceStorageTest extends \TYPO3\TestingFramework\Core\Functional\Functi
         $subject = (new StorageRepository())->findByUid(1);
         $processingFolder = $subject->getProcessingFolder();
 
-        $this->assertInstanceOf(Folder::class, $processingFolder);
+        self::assertInstanceOf(Folder::class, $processingFolder);
     }
 
     /**
@@ -166,7 +171,7 @@ class ResourceStorageTest extends \TYPO3\TestingFramework\Core\Functional\Functi
      */
     public function getRoleReturnsDefaultForRegularFolders()
     {
-        $folderIdentifier = $this->getUniqueId();
+        $folderIdentifier = StringUtility::getUniqueId();
         $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/sys_file_storage.xml');
         $this->setUpBackendUserFromFixture(1);
 
@@ -175,7 +180,7 @@ class ResourceStorageTest extends \TYPO3\TestingFramework\Core\Functional\Functi
 
         $role = $subject->getRole($folder);
 
-        $this->assertSame(FolderInterface::ROLE_DEFAULT, $role);
+        self::assertSame(FolderInterface::ROLE_DEFAULT, $role);
     }
 
     /**
@@ -187,14 +192,14 @@ class ResourceStorageTest extends \TYPO3\TestingFramework\Core\Functional\Functi
         $this->setUpBackendUserFromFixture(1);
         $subject = (new StorageRepository())->findByUid(1);
 
-        GeneralUtility::mkdir_deep(PATH_site . 'fileadmin/foo');
-        file_put_contents(PATH_site . 'fileadmin/foo/bar.txt', 'myData');
+        GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/foo');
+        file_put_contents(Environment::getPublicPath() . '/fileadmin/foo/bar.txt', 'myData');
         clearstatcache();
-        $file = ResourceFactory::getInstance()->getFileObjectFromCombinedIdentifier('1:/foo/bar.txt');
+        $file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObjectFromCombinedIdentifier('1:/foo/bar.txt');
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1325842622);
-        $subject->replaceFile($file, PATH_site . $this->getUniqueId());
+        $subject->replaceFile($file, Environment::getPublicPath() . '/' . StringUtility::getUniqueId());
     }
 
     /**
@@ -209,5 +214,218 @@ class ResourceStorageTest extends \TYPO3\TestingFramework\Core\Functional\Functi
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1325689164);
         $subject->createFolder('newFolder', new Folder($subject, '/foo/', 'foo'));
+    }
+
+    /**
+     * @test
+     */
+    public function deleteFileMovesFileToRecyclerFolderIfAvailable()
+    {
+        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/sys_file_storage.xml');
+        $this->setUpBackendUserFromFixture(1);
+        $subject = (new StorageRepository())->findByUid(1);
+
+        GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/foo');
+        GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/_recycler_');
+        file_put_contents(Environment::getPublicPath() . '/fileadmin/foo/bar.txt', 'myData');
+        clearstatcache();
+
+        $file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObjectFromCombinedIdentifier('1:/foo/bar.txt');
+        $subject->deleteFile($file);
+
+        self::assertTrue(file_exists(Environment::getPublicPath() . '/fileadmin/_recycler_/bar.txt'));
+        self::assertFalse(file_exists(Environment::getPublicPath() . '/fileadmin/foo/bar.txt'));
+    }
+
+    /**
+     * @test
+     */
+    public function deleteFileUnlinksFileIfNoRecyclerFolderAvailable()
+    {
+        $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/sys_file_storage.xml');
+        $this->setUpBackendUserFromFixture(1);
+        $subject = (new StorageRepository())->findByUid(1);
+
+        GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/foo');
+        file_put_contents(Environment::getPublicPath() . '/fileadmin/foo/bar.txt', 'myData');
+        clearstatcache();
+
+        $file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObjectFromCombinedIdentifier('1:/foo/bar.txt');
+        $subject->deleteFile($file);
+
+        self::assertFalse(file_exists(Environment::getPublicPath() . '/fileadmin/foo/bar.txt'));
+    }
+
+    public function searchFilesFindsFilesInFolderDataProvider(): array
+    {
+        return [
+            'Finds foo recursive by name' => [
+                'foo',
+                '/bar/',
+                true,
+                [],
+                [
+                    '/bar/bla/foo.txt',
+                ],
+            ],
+            'Finds foo not recursive by name' => [
+                'foo',
+                '/bar/bla/',
+                false,
+                [],
+                [
+                    '/bar/bla/foo.txt',
+                ],
+            ],
+            'Finds nothing when not recursive for top level folder' => [
+                'foo',
+                '/bar/',
+                false,
+                [],
+                [],
+            ],
+            'Finds foo by description' => [
+                'fodescrip',
+                '/bar/',
+                true,
+                [],
+                [
+                    '/bar/bla/foo.txt',
+                ],
+            ],
+            'Finds foo by translated description' => [
+                'fotranslated',
+                '/bar/',
+                true,
+                [],
+                [
+                    '/bar/bla/foo.txt',
+                ],
+            ],
+            'Finds blupp by name' => [
+                'blupp',
+                '/bar/',
+                false,
+                [],
+                [
+                    '/bar/blupp.txt',
+                ],
+            ],
+            'Finds only blupp by title for non recursive' => [
+                'title',
+                '/bar/',
+                false,
+                [],
+                [
+                    '/bar/blupp.txt',
+                ],
+            ],
+            'Finds foo and blupp by title for recursive' => [
+                'title',
+                '/bar/',
+                true,
+                [],
+                [
+                    '/bar/blupp.txt',
+                    '/bar/bla/foo.txt',
+                ],
+            ],
+            'Finds foo, baz and blupp with no folder' => [
+                'title',
+                null,
+                true,
+                [],
+                [
+                    '/baz/bla/baz.txt',
+                    '/bar/blupp.txt',
+                    '/bar/bla/foo.txt',
+                ],
+            ],
+            'Finds nothing for not existing' => [
+                'baz',
+                '/bar/',
+                true,
+                [],
+                [],
+            ],
+            'Finds nothing in root, when not recursive' => [
+                'title',
+                '/',
+                false,
+                [],
+                [],
+            ],
+            'Finds nothing, when not recursive and no folder given' => [
+                'title',
+                null,
+                false,
+                [],
+                [],
+            ],
+            'Filter is applied to result' => [
+                'title',
+                null,
+                true,
+                [
+                    function ($itemName) {
+                        return strpos($itemName, 'blupp') !== false ? true : -1;
+                    }
+                ],
+                [
+                    '/bar/blupp.txt',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider searchFilesFindsFilesInFolderDataProvider
+     * @param string $searchTerm
+     * @param string $searchFolder
+     * @param bool $recursive
+     * @param array $filters
+     * @param string[] $expectedIdentifiers
+     * @throws \TYPO3\TestingFramework\Core\Exception
+     */
+    public function searchFilesFindsFilesInFolder(string $searchTerm, ?string $searchFolder, bool $recursive, array $filters, array $expectedIdentifiers)
+    {
+        try {
+            $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/sys_file_storage.xml');
+            $this->importDataSet(__DIR__ . '/Fixtures/FileSearch.xml');
+            $this->setUpBackendUserFromFixture(1);
+            $subject = (new StorageRepository())->findByUid(1);
+            $subject->setFileAndFolderNameFilters($filters);
+
+            GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/bar/bla');
+            GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/fileadmin/baz/bla');
+            file_put_contents(Environment::getPublicPath() . '/fileadmin/bar/bla/foo.txt', 'myData');
+            file_put_contents(Environment::getPublicPath() . '/fileadmin/baz/bla/baz.txt', 'myData');
+            file_put_contents(Environment::getPublicPath() . '/fileadmin/bar/blupp.txt', 'myData');
+            clearstatcache();
+
+            $folder = $searchFolder ? GeneralUtility::makeInstance(ResourceFactory::class)->getFolderObjectFromCombinedIdentifier('1:' . $searchFolder) : null;
+            $search = FileSearchDemand::createForSearchTerm($searchTerm);
+            if ($recursive) {
+                $search = $search->withRecursive();
+            }
+
+            $result = $subject->searchFiles($search, $folder);
+            $expectedFiles = array_map([$subject, 'getFile'], $expectedIdentifiers);
+            self::assertSame($expectedFiles, iterator_to_array($result));
+
+            // Check if search also works for non hierarchical storages/drivers
+            // This is a hack, as capabilities is not settable from the outside
+            $objectReflection = new \ReflectionObject($subject);
+            $property = $objectReflection->getProperty('capabilities');
+            $property->setAccessible(true);
+            $property->setValue('capabilities', $subject->getCapabilities() & 7);
+            $result = $subject->searchFiles($search, $folder);
+            $expectedFiles = array_map([$subject, 'getFile'], $expectedIdentifiers);
+            self::assertSame($expectedFiles, iterator_to_array($result));
+        } finally {
+            GeneralUtility::rmdir(Environment::getPublicPath() . '/fileadmin/bar', true);
+            GeneralUtility::rmdir(Environment::getPublicPath() . '/fileadmin/baz', true);
+        }
     }
 }

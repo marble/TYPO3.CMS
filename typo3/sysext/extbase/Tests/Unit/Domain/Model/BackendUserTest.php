@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,25 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Unit\Domain\Model;
+
+use TYPO3\CMS\Extbase\Domain\Model\BackendUser;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class BackendUserTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Extbase\Domain\Model\BackendUser
      */
-    protected $subject = null;
+    protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = new \TYPO3\CMS\Extbase\Domain\Model\BackendUser();
+        parent::setUp();
+        $this->subject = new BackendUser();
     }
 
     /**
@@ -34,7 +39,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getUserNameInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getUserName());
+        self::assertSame('', $this->subject->getUserName());
     }
 
     /**
@@ -44,7 +49,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $userName = 'don.juan';
         $this->subject->setUserName($userName);
-        $this->assertSame($userName, $this->subject->getUserName());
+        self::assertSame($userName, $this->subject->getUserName());
     }
 
     /**
@@ -52,7 +57,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getIsAdministratorInitiallyReturnsFalse()
     {
-        $this->assertFalse($this->subject->getIsAdministrator());
+        self::assertFalse($this->subject->getIsAdministrator());
     }
 
     /**
@@ -61,7 +66,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setIsAdministratorCanSetIsAdministratorToTrue()
     {
         $this->subject->setIsAdministrator(true);
-        $this->assertTrue($this->subject->getIsAdministrator());
+        self::assertTrue($this->subject->getIsAdministrator());
     }
 
     /**
@@ -69,7 +74,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getIsDisabledInitiallyReturnsFalse()
     {
-        $this->assertFalse($this->subject->getIsDisabled());
+        self::assertFalse($this->subject->getIsDisabled());
     }
 
     /**
@@ -78,7 +83,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setIsDisabledCanSetIsDisabledToTrue()
     {
         $this->subject->setIsDisabled(true);
-        $this->assertTrue($this->subject->getIsDisabled());
+        self::assertTrue($this->subject->getIsDisabled());
     }
 
     /**
@@ -86,7 +91,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getStartDateAndTimeInitiallyReturnsNull()
     {
-        $this->assertNull($this->subject->getStartDateAndTime());
+        self::assertNull($this->subject->getStartDateAndTime());
     }
 
     /**
@@ -96,7 +101,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $date = new \DateTime();
         $this->subject->setStartDateAndTime($date);
-        $this->assertSame($date, $this->subject->getStartDateAndTime());
+        self::assertSame($date, $this->subject->getStartDateAndTime());
     }
 
     /**
@@ -104,7 +109,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getEndDateAndTimeInitiallyReturnsNull()
     {
-        $this->assertNull($this->subject->getEndDateAndTime());
+        self::assertNull($this->subject->getEndDateAndTime());
     }
 
     /**
@@ -114,7 +119,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $date = new \DateTime();
         $this->subject->setEndDateAndTime($date);
-        $this->assertSame($date, $this->subject->getEndDateAndTime());
+        self::assertSame($date, $this->subject->getEndDateAndTime());
     }
 
     /**
@@ -122,7 +127,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isActivatedInitiallyReturnsTrue()
     {
-        $this->assertTrue($this->subject->isActivated());
+        self::assertTrue($this->subject->isActivated());
     }
 
     /**
@@ -131,7 +136,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isActivatedForDisabledReturnsFalse()
     {
         $this->subject->setIsDisabled(true);
-        $this->assertFalse($this->subject->isActivated());
+        self::assertFalse($this->subject->isActivated());
     }
 
     /**
@@ -141,7 +146,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $tomorrow = new \DateTime('tomorrow');
         $this->subject->setStartDateAndTime($tomorrow);
-        $this->assertFalse($this->subject->isActivated());
+        self::assertFalse($this->subject->isActivated());
     }
 
     /**
@@ -151,7 +156,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $yesterday = new \DateTime('yesterday');
         $this->subject->setStartDateAndTime($yesterday);
-        $this->assertTrue($this->subject->isActivated());
+        self::assertTrue($this->subject->isActivated());
     }
 
     /**
@@ -161,7 +166,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $tomorrow = new \DateTime('tomorrow');
         $this->subject->setEndDateAndTime($tomorrow);
-        $this->assertTrue($this->subject->isActivated());
+        self::assertTrue($this->subject->isActivated());
     }
 
     /**
@@ -171,7 +176,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $yesterday = new \DateTime('yesterday');
         $this->subject->setEndDateAndTime($yesterday);
-        $this->assertFalse($this->subject->isActivated());
+        self::assertFalse($this->subject->isActivated());
     }
 
     /**
@@ -183,7 +188,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->subject->setStartDateAndTime($yesterday);
         $tomorrow = new \DateTime('tomorrow');
         $this->subject->setEndDateAndTime($tomorrow);
-        $this->assertTrue($this->subject->isActivated());
+        self::assertTrue($this->subject->isActivated());
     }
 
     /**
@@ -194,7 +199,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $yesterday = new \DateTime('yesterday');
         $this->subject->setStartDateAndTime($yesterday);
         $this->subject->setEndDateAndTime($yesterday);
-        $this->assertFalse($this->subject->isActivated());
+        self::assertFalse($this->subject->isActivated());
     }
 
     /**
@@ -205,7 +210,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $tomorrow = new \DateTime('tomorrow');
         $this->subject->setStartDateAndTime($tomorrow);
         $this->subject->setEndDateAndTime($tomorrow);
-        $this->assertFalse($this->subject->isActivated());
+        self::assertFalse($this->subject->isActivated());
     }
 
     /**
@@ -213,7 +218,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getEmailInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getEmail());
+        self::assertSame('', $this->subject->getEmail());
     }
 
     /**
@@ -223,7 +228,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $email = 'don.juan@example.com';
         $this->subject->setEmail($email);
-        $this->assertSame($email, $this->subject->getEmail());
+        self::assertSame($email, $this->subject->getEmail());
     }
 
     /**
@@ -231,7 +236,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getRealNameInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getRealName());
+        self::assertSame('', $this->subject->getRealName());
     }
 
     /**
@@ -241,7 +246,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $realName = 'Don Juan';
         $this->subject->setRealName($realName);
-        $this->assertSame($realName, $this->subject->getRealName());
+        self::assertSame($realName, $this->subject->getRealName());
     }
 
     /**
@@ -249,7 +254,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getIpLockIsDisabledInitiallyReturnsFalse()
     {
-        $this->assertFalse($this->subject->getIpLockIsDisabled());
+        self::assertFalse($this->subject->getIpLockIsDisabled());
     }
 
     /**
@@ -258,7 +263,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setIpLockIsDisabledCanSetIpLockIsDisabledToTrue()
     {
         $this->subject->setIpLockIsDisabled(true);
-        $this->assertTrue($this->subject->getIpLockIsDisabled());
+        self::assertTrue($this->subject->getIpLockIsDisabled());
     }
 
     /**
@@ -266,7 +271,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getLastLoginDateAndTimeInitiallyReturnsNull()
     {
-        $this->assertNull($this->subject->getLastLoginDateAndTime());
+        self::assertNull($this->subject->getLastLoginDateAndTime());
     }
 
     /**
@@ -276,6 +281,6 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $date = new \DateTime();
         $this->subject->setLastLoginDateAndTime($date);
-        $this->assertSame($date, $this->subject->getLastLoginDateAndTime());
+        self::assertSame($date, $this->subject->getLastLoginDateAndTime());
     }
 }

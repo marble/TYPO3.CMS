@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Domain\Runtime;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Form\Tests\Unit\Domain\Runtime;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Domain\Runtime;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Form\Domain\Exception\RenderingException;
@@ -21,76 +22,57 @@ use TYPO3\CMS\Form\Domain\Model\FormDefinition;
 use TYPO3\CMS\Form\Domain\Model\FormElements\Page;
 use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
 use TYPO3\CMS\Form\Domain\Runtime\FormState;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FormRuntimeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FormRuntimeTest extends UnitTestCase
 {
-
     /**
-     * @var array A backup of registered singleton instances
+     * @var bool Reset singletons created by subject
      */
-    protected $singletonInstances = [];
-
-    /**
-     * Set up
-     */
-    public function setUp()
-    {
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-    }
-
-    /**
-     * Tear down
-     */
-    public function tearDown()
-    {
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
-    }
+    protected $resetSingletonInstances = true;
 
     /**
      * @test
      */
-    public function renderThrowsExceptionIfFormDefinitionReturnsNoRendererClassName()
+    public function renderThrowsExceptionIfFormDefinitionReturnsNoRendererClassName(): void
     {
         $mockFormRuntime = $this->getAccessibleMock(FormRuntime::class, [
-            'isAfterLastPage'
+            'isAfterLastPage', 'processVariants'
         ], [], '', false);
 
-        $mockPage = $this->getAccessibleMock(Page::class, [
+        $mockPage = $this->getMockBuilder(Page::class)->onlyMethods([
             'getIndex'
-        ], [], '', false);
+        ])->disableOriginalConstructor()->getMock();
 
-        $mockFormState = $this->getAccessibleMock(FormState::class, [
-            'dummy'
-        ], [], '', false);
+        $mockFormState = $this->getMockBuilder(FormState::class)->disableOriginalConstructor()->getMock();
 
-        $mockFormDefinition = $this->getAccessibleMock(FormDefinition::class, [
+        $mockFormDefinition = $this->getMockBuilder(FormDefinition::class)->onlyMethods([
             'getRendererClassName',
             'getIdentifier'
-        ], [], '', false);
+        ])->disableOriginalConstructor()->getMock();
 
         $mockPage
-            ->expects($this->any())
             ->method('getIndex')
             ->willReturn(1);
 
         $mockFormDefinition
-            ->expects($this->any())
             ->method('getRendererClassName')
             ->willReturn('');
 
         $mockFormDefinition
-            ->expects($this->any())
             ->method('getIdentifier')
             ->willReturn('text-1');
 
         $mockFormRuntime
-            ->expects($this->any())
             ->method('isAfterLastPage')
             ->willReturn(false);
+
+        $mockFormRuntime
+            ->method('processVariants')
+            ->willReturn(null);
 
         $mockFormRuntime->_set('formState', $mockFormState);
         $mockFormRuntime->_set('currentPage', $mockPage);
@@ -105,51 +87,49 @@ class FormRuntimeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function renderThrowsExceptionIfRendererClassNameInstanceDoesNotImplementRendererInterface()
+    public function renderThrowsExceptionIfRendererClassNameInstanceDoesNotImplementRendererInterface(): void
     {
         $objectManagerProphecy = $this->prophesize(ObjectManager::class);
         GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManagerProphecy->reveal());
 
         $mockFormRuntime = $this->getAccessibleMock(FormRuntime::class, [
-            'isAfterLastPage'
+            'isAfterLastPage', 'processVariants'
         ], [], '', false);
 
-        $mockPage = $this->getAccessibleMock(Page::class, [
+        $mockPage = $this->getMockBuilder(Page::class)->onlyMethods([
             'getIndex'
-        ], [], '', false);
+        ])->disableOriginalConstructor()->getMock();
 
-        $mockFormState = $this->getAccessibleMock(FormState::class, [
-            'dummy'
-        ], [], '', false);
+        $mockFormState = $this->getMockBuilder(FormState::class)->disableOriginalConstructor()->getMock();
 
-        $mockFormDefinition = $this->getAccessibleMock(FormDefinition::class, [
+        $mockFormDefinition = $this->getMockBuilder(FormDefinition::class)->onlyMethods([
             'getRendererClassName',
             'getIdentifier'
-        ], [], '', false);
+        ])->disableOriginalConstructor()->getMock();
 
         $mockPage
-            ->expects($this->any())
             ->method('getIndex')
             ->willReturn(1);
 
         $mockFormDefinition
-            ->expects($this->any())
             ->method('getRendererClassName')
             ->willReturn('fooRenderer');
 
         $mockFormDefinition
-            ->expects($this->any())
             ->method('getIdentifier')
             ->willReturn('text-1');
 
         $mockFormRuntime
-            ->expects($this->any())
             ->method('isAfterLastPage')
             ->willReturn(false);
 
+        $mockFormRuntime
+            ->method('processVariants')
+            ->willReturn(null);
+
         $objectManagerProphecy
             ->get('fooRenderer')
-            ->willReturn(new \stdClass);
+            ->willReturn(new \stdClass());
 
         $mockFormRuntime->_set('formState', $mockFormState);
         $mockFormRuntime->_set('currentPage', $mockPage);

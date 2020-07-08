@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Driver\Statement;
 use Prophecy\Argument;
@@ -21,48 +22,69 @@ use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaSelectItems;
 use TYPO3\CMS\Backend\Module\ModuleLoader;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\DefaultRestrictionContainer;
 use TYPO3\CMS\Core\Database\RelationHandler;
+use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Imaging\IconRegistry;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\Resource\FileRepository;
+use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaSelectItemsTest extends UnitTestCase
 {
     /**
-     * @var TcaSelectItems|\PHPUnit_Framework_MockObject_MockObject
+     * Set up
      */
-    protected $subject;
-
-    /**
-     * @var array A backup of registered singleton instances
-     */
-    protected $singletonInstances = [];
-
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-        $this->subject = $this->getMockBuilder(TcaSelectItems::class)
-            ->setMethods(['getDatabaseRow'])
-            ->getMock();
+        parent::setUp();
+        // Default LANG prophecy just returns incoming value as label if calling ->sL()
+        $languageServiceProphecy = $this->prophesize(LanguageService::class);
+        $languageServiceProphecy->loadSingleTableDescription(Argument::cetera())->willReturn(null);
+        $languageServiceProphecy->sL(Argument::cetera())->willReturnArgument(0);
+        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
 
-        $this->subject = new TcaSelectItems();
+        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
+
+        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
+        $cacheProphecy = $this->prophesize(FrontendInterface::class);
+        $cacheManagerProphecy->getCache('runtime')->willReturn($cacheProphecy->reveal());
+        $cacheProphecy->get(Argument::cetera())->willReturn(false);
+        $cacheProphecy->set(Argument::cetera())->willReturn(false);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+
+        $iconRegistryProphecy = $this->prophesize(IconRegistry::class);
+        GeneralUtility::setSingletonInstance(IconRegistry::class, $iconRegistryProphecy->reveal());
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
     }
 
-    protected function tearDown()
+    /**
+     * Tear down
+     */
+    protected function tearDown(): void
     {
         GeneralUtility::purgeInstances();
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
         parent::tearDown();
     }
 
@@ -73,7 +95,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * @param string $tableName
      * @return array
      */
-    protected function mockDatabaseConnection($tableName = 'fTable')
+    protected function mockDatabaseConnection($tableName = 'fTable'): array
     {
         $connectionProphet = $this->prophesize(Connection::class);
         $connectionProphet->quote(Argument::cetera())->will(function ($arguments) {
@@ -110,9 +132,9 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * Mock a doctrine database connection with all expectations
      * required for the processSelectField* tests.
      */
-    protected function mockDatabaseConnectionForProcessSelectField()
+    protected function mockDatabaseConnectionForProcessSelectField(): void
     {
-        list($queryBuilderProphet, $connectionPoolProphet) = $this->mockDatabaseConnection('foreignTable');
+        [$queryBuilderProphet, $connectionPoolProphet] = $this->mockDatabaseConnection('foreignTable');
 
         /** @var Statement|ObjectProphecy $statementProphet */
         $statementProphet = $this->prophesize(Statement::class);
@@ -148,9 +170,10 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function addDataKeepExistingItems()
+    public function addDataKeepExistingItems(): void
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -178,20 +201,18 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         $expected = $input;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataThrowsExceptionIfAnItemIsNotAnArray()
+    public function addDataThrowsExceptionIfAnItemIsNotAnArray(): void
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -210,15 +231,16 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1439288036);
 
-        $this->subject->addData($input);
+        (new TcaSelectItems())->addData($input);
     }
 
     /**
      * @test
      */
-    public function addDataTranslatesItemLabels()
+    public function addDataTranslatesItemLabels(): void
     {
         $input = [
+            'tableName' => 'aTable',
             'databaseRow' => [
                 'aField' => 'aValue',
             ],
@@ -244,7 +266,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         /** @var LanguageService|ObjectProphecy $languageService */
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
 
         $languageService->sL('aLabel')->shouldBeCalled()->willReturn('translated');
 
@@ -252,18 +274,97 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected['processedTca']['columns']['aField']['config']['items'][0][0] = 'translated';
         $expected['processedTca']['columns']['aField']['config']['items'][0][2] = null;
         $expected['processedTca']['columns']['aField']['config']['items'][0][3] = null;
+        $expected['processedTca']['columns']['aField']['config']['items'][0][4] = null;
 
         $expected['databaseRow']['aField'] = ['aValue'];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataKeepsIconFromItem()
+    public function addDataAddsDividersIfItemGroupsAreDefined()
     {
         $input = [
+            'tableName' => 'aTable',
+            'databaseRow' => [
+                'aField' => 'aValue',
+            ],
+            'processedTca' => [
+                'columns' => [
+                    'aField' => [
+                        'config' => [
+                            'type' => 'select',
+                            'renderType' => 'selectSingle',
+                            'items' => [
+                                [
+                                    'aLabel',
+                                    'aValue',
+                                    'an-icon-reference',
+                                    'non-existing-group',
+                                    null,
+                                ],
+                                [
+                                    'anotherLabel',
+                                    'anotherValue',
+                                    'an-icon-reference',
+                                    'example-group',
+                                    null,
+                                ],
+                            ],
+                            'itemGroups' => [
+                                'example-group' => 'My Example Group'
+                            ],
+                            'maxitems' => 99999,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $expected = $input;
+        $expected['databaseRow']['aField'] = ['aValue'];
+        $expected['processedTca']['columns']['aField']['config']['items'] = [
+            [
+                'My Example Group',
+                '--div--',
+                null,
+                'example-group',
+                null,
+            ],
+            [
+                'anotherLabel',
+                'anotherValue',
+                'an-icon-reference',
+                'example-group',
+                null,
+            ],            [
+                'non-existing-group',
+                '--div--',
+                null,
+                'non-existing-group',
+                null,
+            ],
+            [
+                'aLabel',
+                'aValue',
+                'an-icon-reference',
+                'non-existing-group',
+                null,
+            ],
+        ];
+
+        self::assertSame($expected, (new TcaSelectItems())->addData($input));
+    }
+
+    /**
+     * @test
+     */
+    public function addDataKeepsIconFromItem(): void
+    {
+        $input = [
+            'tableName' => 'aTable',
             'databaseRow' => [
                 'aField' => 'aValue',
             ],
@@ -279,6 +380,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                     1 => 'aValue',
                                     2 => 'an-icon-reference',
                                     3 => null,
+                                    4 => null,
                                 ],
                             ],
                             'maxitems' => 99999,
@@ -288,21 +390,16 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $expected = $input;
         $expected['databaseRow']['aField'] = ['aValue'];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataThrowsExceptionWithUnknownSpecialValue()
+    public function addDataThrowsExceptionWithUnknownSpecialValue(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -322,13 +419,13 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1439298496);
 
-        $this->subject->addData($input);
+        (new TcaSelectItems())->addData($input);
     }
 
     /**
      * @test
      */
-    public function addDataAddsTablesWithSpecialTables()
+    public function addDataAddsTablesWithSpecialTables(): void
     {
         $input = [
             'databaseRow' => [
@@ -365,7 +462,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         /** @var LanguageService|ObjectProphecy $languageService */
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
         $languageService->sL(Argument::containingString('INVALID VALUE'))->willReturnArgument(0);
 
         $languageService->sL('aTitle')->shouldBeCalled()->willReturnArgument(0);
@@ -377,20 +474,21 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             0 => [
                 0 => 'aTitle',
                 1 => 'aTable',
-                2 => 'default-not-found',
-                3 => [
+                2 => null,
+                3 => null,
+                4 => [
                     'description' => 'aDescription',
                 ],
             ]
         ];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataAddsTablesWithSpecialPageTypes()
+    public function addDataAddsTablesWithSpecialPageTypes(): void
     {
         $input = [
             'databaseRow' => [
@@ -431,7 +529,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         /** @var LanguageService|ObjectProphecy $languageService */
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
 
         $languageService->sL('aLabel')->shouldBeCalled()->willReturnArgument(0);
 
@@ -441,18 +539,19 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             0 => [
                 0 => 'aLabel',
                 1 => 'aValue',
-                2 => 'default-not-found',
+                2 => null,
                 3 => null,
+                4 => null,
             ]
         ];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * Data provider
      */
-    public function addDataAddsExcludeFieldsWithSpecialExcludeDataProvider()
+    public function addDataAddsExcludeFieldsWithSpecialExcludeDataProvider(): array
     {
         return [
             'Table with exclude and non exclude field returns exclude item' => [
@@ -478,14 +577,16 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     0 => [
                         0 => 'fooTableTitle',
                         1 => '--div--',
-                        2 => 'default-not-found',
+                        2 => null,
                         3 => null,
+                        4 => null,
                     ],
                     1 => [
                         0 => 'barColumnTitle (bar)',
                         1 => 'fooTable:bar',
                         2 => 'empty-empty',
                         3 => null,
+                        4 => null,
                     ],
                 ],
             ],
@@ -495,7 +596,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'fooTable' => [
                         'ctrl' => [
                             'title' => 'fooTableTitle',
-                            'rootLevel' => true,
+                            'rootLevel' => 1,
                             'security' => [
                                 'ignoreRootLevelRestriction' => true,
                             ],
@@ -513,14 +614,16 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     0 => [
                         0 => 'fooTableTitle',
                         1 => '--div--',
-                        2 => 'default-not-found',
+                        2 => null,
                         3 => null,
+                        4 => null,
                     ],
                     1 => [
                         0 => 'barColumnTitle (bar)',
                         1 => 'fooTable:bar',
                         2 => 'empty-empty',
                         3 => null,
+                        4 => null,
                     ],
                 ],
             ],
@@ -530,7 +633,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'fooTable' => [
                         'ctrl' => [
                             'title' => 'fooTableTitle',
-                            'rootLevel' => true,
+                            'rootLevel' => 1,
                         ],
                         'columns' => [
                             'bar' => [
@@ -571,7 +674,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * @test
      * @dataProvider addDataAddsExcludeFieldsWithSpecialExcludeDataProvider
      */
-    public function addDataAddsExcludeFieldsWithSpecialExclude($tca, $expectedItems)
+    public function addDataAddsExcludeFieldsWithSpecialExclude($tca, $expectedItems): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -590,21 +693,15 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         $GLOBALS['TCA'] = $tca;
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->loadSingleTableDescription(Argument::cetera())->willReturn(null);
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $result = $this->subject->addData($input);
-
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataAddsExcludeFieldsFromFlexWithSpecialExclude()
+    public function addDataAddsExcludeFieldsFromFlexWithSpecialExclude(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -660,36 +757,32 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->loadSingleTableDescription(Argument::cetera())->willReturn(null);
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $expectedItems = [
             0 => [
                 0 => 'fooTableTitle aFlexFieldTitle dummy',
                 1 => '--div--',
-                2 => 'default-not-found',
+                2 => null,
                 3 => null,
+                4 => null,
             ],
             1 => [
                 0 => 'flexInputLabel (input1)',
                 1 => 'fooTable:aFlexField;dummy;sDEF;input1',
                 2 => 'empty-empty',
                 3 => null,
+                4 => null,
             ],
         ];
 
-        $result = $this->subject->addData($input);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataAddsExplicitAllowFieldsWithSpecialExplicitValues()
+    public function addDataAddsExplicitAllowFieldsWithSpecialExplicitValues(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -734,7 +827,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         /** @var LanguageService|ObjectProphecy $languageService */
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.allow')->shouldBeCalled()->willReturn('allowMe');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.allow')->shouldBeCalled()->willReturn('allowMe');
         $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         $expectedItems = [
@@ -743,24 +836,26 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 1 => '--div--',
                 2 => null,
                 3 => null,
+                4 => null,
             ],
             1 => [
                 0 => '[allowMe] anItemTitle',
                 1 => 'fooTable:aField:anItemValue:ALLOW',
                 2 => 'status-status-permission-granted',
                 3 => null,
+                4 => null,
             ],
         ];
 
-        $result = $this->subject->addData($input);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataAddsExplicitDenyFieldsWithSpecialExplicitValues()
+    public function addDataAddsExplicitDenyFieldsWithSpecialExplicitValues(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -805,7 +900,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         /** @var LanguageService|ObjectProphecy $languageService */
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.deny')->shouldBeCalled()->willReturn('denyMe');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.deny')->shouldBeCalled()->willReturn('denyMe');
         $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         $expectedItems = [
@@ -814,24 +909,26 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 1 => '--div--',
                 2 => null,
                 3 => null,
+                4 => null,
             ],
             1 => [
                 0 => '[denyMe] anItemTitle',
                 1 => 'fooTable:aField:anItemValue:DENY',
                 2 => 'status-status-permission-denied',
                 3 => null,
+                4 => null,
             ],
         ];
 
-        $result = $this->subject->addData($input);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataAddsExplicitIndividualAllowFieldsWithSpecialExplicitValues()
+    public function addDataAddsExplicitIndividualAllowFieldsWithSpecialExplicitValues(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -891,7 +988,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         /** @var LanguageService|ObjectProphecy $languageService */
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.allow')->shouldBeCalled()->willReturn('allowMe');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.allow')->shouldBeCalled()->willReturn('allowMe');
         $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         $expectedItems = [
@@ -900,30 +997,33 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 1 => '--div--',
                 2 => null,
                 3 => null,
+                4 => null,
             ],
             1 => [
                 0 => '[allowMe] aItemTitle',
                 1 => 'fooTable:aField:aItemValue:ALLOW',
                 2 => 'status-status-permission-granted',
                 3 => null,
+                4 => null,
             ],
             2 => [
                 0 => '[allowMe] cItemTitle',
                 1 => 'fooTable:aField:cItemValue:ALLOW',
                 2 => 'status-status-permission-granted',
                 3 => null,
+                4 => null,
             ],
         ];
 
-        $result = $this->subject->addData($input);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataAddsExplicitIndividualDenyFieldsWithSpecialExplicitValues()
+    public function addDataAddsExplicitIndividualDenyFieldsWithSpecialExplicitValues(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -983,7 +1083,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         /** @var LanguageService|ObjectProphecy $languageService */
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.deny')->shouldBeCalled()->willReturn('denyMe');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.deny')->shouldBeCalled()->willReturn('denyMe');
         $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         $expectedItems = [
@@ -992,30 +1092,33 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 1 => '--div--',
                 2 => null,
                 3 => null,
+                4 => null,
             ],
             1 => [
                 0 => '[denyMe] aItemTitle',
                 1 => 'fooTable:aField:aItemValue:DENY',
                 2 => 'status-status-permission-denied',
                 3 => null,
+                4 => null,
             ],
             2 => [
                 0 => '[denyMe] cItemTitle',
                 1 => 'fooTable:aField:cItemValue:DENY',
                 2 => 'status-status-permission-denied',
                 3 => null,
+                4 => null,
             ],
         ];
 
-        $result = $this->subject->addData($input);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataAddsLanguagesWithSpecialLanguages()
+    public function addDataAddsLanguagesWithSpecialLanguages(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -1031,38 +1134,44 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     ],
                 ],
             ],
-            'systemLanguageRows' => [
-                0 => [
-                    'title' => 'aLangTitle',
-                    'uid' => 42,
-                    'flagIconIdentifier' => 'aFlag.gif',
-                ],
-            ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
+        $siteFinder = $this->prophesize(SiteFinder::class);
+        $siteFinder->getAllSites()->willReturn([
+            new Site('test', 13, [
+                'base' => '/',
+                'languages' => [
+                    [
+                        'title' => 'French',
+                        'languageId' => 13,
+                        'base' => '/fr/',
+                        'locale' => 'fr_FR',
+                        'flag' => 'aFlag.gif'
+                    ]
+                ]
+            ])
+        ]);
+        GeneralUtility::addInstance(SiteFinder::class, $siteFinder->reveal());
 
         $expectedItems = [
             0 => [
-                0 => 'aLangTitle [42]',
-                1 => 42,
-                2 => 'aFlag.gif',
+                0 => 'French [Site: test]',
+                1 => 13,
+                2 => 'flags-aFlag.gif',
                 3 => null,
+                4 => null,
             ],
         ];
 
-        $result = $this->subject->addData($input);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataAddsCustomOptionsWithSpecialCustom()
+    public function addDataAddsCustomOptionsWithSpecialCustom(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -1079,11 +1188,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
-
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         $GLOBALS['TYPO3_CONF_VARS']['BE']['customPermOptions'] = [
             'aKey' => [
@@ -1107,30 +1211,33 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 1 => '--div--',
                 null,
                 null,
+                null,
             ],
             1 => [
                 0 => 'anItemTitle',
                 1 => 'aKey:anItemKey',
                 2 => 'empty-empty',
                 3 => null,
+                4 => null,
             ],
             2 => [
                 0 => 'anotherTitle',
                 1 => 'aKey:anotherKey',
-                2 => 'status-status-permission-denied',
-                3 => [ 'description' => 'aDescription' ],
+                2 => 'empty-empty',
+                3 => null,
+                4 => [ 'description' => 'aDescription' ],
             ],
         ];
 
-        $result = $this->subject->addData($input);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataAddsGroupItemsWithSpecialModListGroup()
+    public function addDataAddsGroupItemsWithSpecialModListGroup(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -1149,11 +1256,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
 
         $GLOBALS['TBE_MODULES'] = [];
-
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         /** @var ModuleLoader|ObjectProphecy $moduleLoaderProphecy */
         $moduleLoaderProphecy = $this->prophesize(ModuleLoader::class);
@@ -1178,25 +1280,26 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 0 => 'aModuleLabel',
                 1 => 'aModule',
                 2 => 'empty-empty',
-                3 => [
+                3 => null,
+                4 => [
                     'title' => 'aModuleTabLabel',
                     'description' => 'aModuleTabDescription',
                 ],
             ],
         ];
 
-        $result = $this->subject->addData($input);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $result['processedTca']['columns']['aField']['config']['items'][0][2] = str_replace([CR, LF, TAB], ['', '', ''], $result['processedTca']['columns']['aField']['config']['items'][0][2]);
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        $result['processedTca']['columns']['aField']['config']['items'][0][2] = str_replace([CR, LF, "\t"], '', $result['processedTca']['columns']['aField']['config']['items'][0][2]);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataAddsFileItemsWithConfiguredFileFolder()
+    public function addDataAddsFileItemsWithConfiguredFileFolder(): void
     {
-        $directory = $this->getUniqueId('typo3temp/var/tests/test-') . '/';
+        $directory = StringUtility::getUniqueId('test-') . '/';
         $input = [
             'tableName' => 'aTable',
             'databaseRow' => [],
@@ -1206,7 +1309,8 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                         'config' => [
                             'type' => 'select',
                             'renderType' => 'selectSingle',
-                            'fileFolder' => $directory,
+                            // use absolute path here to avoid fallback to public path as prefix
+                            'fileFolder' => Environment::getVarPath() . '/' . $directory,
                             'fileFolder_extList' => 'gif',
                             'fileFolder_recursions' => 1,
                         ],
@@ -1215,42 +1319,39 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
-        mkdir(PATH_site . $directory);
-        $this->testFilesToDelete[] = PATH_site . $directory;
-        touch(PATH_site . $directory . 'anImage.gif');
-        touch(PATH_site . $directory . 'aFile.txt');
-        mkdir(PATH_site . $directory . '/subdir');
-        touch(PATH_site . $directory . '/subdir/anotherImage.gif');
+        mkdir(Environment::getVarPath() . '/' . $directory);
+        $this->testFilesToDelete[] = Environment::getVarPath() . '/' . $directory;
+        touch(Environment::getVarPath() . '/' . $directory . 'anImage.gif');
+        touch(Environment::getVarPath() . '/' . $directory . 'aFile.txt');
+        mkdir(Environment::getVarPath() . '/' . $directory . '/subdir');
+        touch(Environment::getVarPath() . '/' . $directory . '/subdir/anotherImage.gif');
 
         $expectedItems = [
             0 => [
                 0 => 'anImage.gif',
                 1 => 'anImage.gif',
-                2 => PATH_site . $directory . 'anImage.gif',
+                2 => Environment::getVarPath() . '/' . $directory . 'anImage.gif',
                 3 => null,
+                4 => null,
             ],
             1 => [
                 0 => 'subdir/anotherImage.gif',
                 1 => 'subdir/anotherImage.gif',
-                2 => PATH_site . $directory . 'subdir/anotherImage.gif',
+                2 => Environment::getVarPath() . '/' . $directory . 'subdir/anotherImage.gif',
                 3 => null,
+                4 => null,
             ],
         ];
 
-        $result = $this->subject->addData($input);
+        $result = (new TcaSelectItems())->addData($input);
 
-        $this->assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
+        self::assertSame($expectedItems, $result['processedTca']['columns']['aField']['config']['items']);
     }
 
     /**
      * @test
      */
-    public function addDataThrowsExceptionForInvalidFileFolder()
+    public function addDataThrowsExceptionForInvalidFileFolder(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -1270,13 +1371,13 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1479399227);
-        $this->subject->addData($input);
+        (new TcaSelectItems())->addData($input);
     }
 
     /**
      * @test
      */
-    public function addDataAddsItemsByAddItemsFromPageTsConfig()
+    public function addDataAddsItemsByAddItemsFromPageTsConfig(): void
     {
         $input = [
             'databaseRow' => [
@@ -1293,6 +1394,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                 0 => [
                                     0 => 'keepMe',
                                     1 => 'keep',
+                                    null,
                                     null,
                                     null,
                                 ],
@@ -1315,11 +1417,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
         $expected['processedTca']['columns']['aField']['config']['items'][1] = [
@@ -1327,15 +1424,16 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             1 => '1',
             null,
             null,
+            null,
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataAddsItemsByAddItemsWithDuplicateValuesFromPageTsConfig()
+    public function addDataAddsItemsByAddItemsWithDuplicateValuesFromPageTsConfig(): void
     {
         $input = [
             'databaseRow' => [
@@ -1352,6 +1450,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                 0 => [
                                     0 => 'keepMe',
                                     1 => 'keep',
+                                    null,
                                     null,
                                     null,
                                 ],
@@ -1374,11 +1473,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
         $expected['processedTca']['columns']['aField']['config']['items'][1] = [
@@ -1386,15 +1480,16 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             1 => 'keep',
             null,
             null,
+            null,
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * Data provider
      */
-    public function addDataReplacesMarkersInForeignTableClauseDataProvider()
+    public function addDataReplacesMarkersInForeignTableClauseDataProvider(): array
     {
         return [
             'replace REC_FIELD' => [
@@ -1640,7 +1735,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * @test
      * @dataProvider addDataReplacesMarkersInForeignTableClauseDataProvider
      */
-    public function addDataReplacesMarkersInForeignTableClause($foreignTableWhere, $expectedWhere, array $inputOverride)
+    public function addDataReplacesMarkersInForeignTableClause($foreignTableWhere, $expectedWhere, array $inputOverride): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -1682,7 +1777,11 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $GLOBALS['TCA']['fTable'] = [];
 
-        list($queryBuilderProphet, $connectionPoolProphet) = $this->mockDatabaseConnection();
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
+
+        [$queryBuilderProphet, $connectionPoolProphet] = $this->mockDatabaseConnection();
 
         /** @var Statement|ObjectProphecy $statementProphet */
         $statementProphet = $this->prophesize(Statement::class);
@@ -1708,7 +1807,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
         $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
 
-        $this->subject->addData($input);
+        (new TcaSelectItems())->addData($input);
     }
 
     /**
@@ -1734,17 +1833,20 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1439569743);
 
-        $this->subject->addData($input);
+        (new TcaSelectItems())->addData($input);
     }
 
     /**
      * @test
      */
-    public function addDataForeignTableSplitsGroupOrderAndLimit()
+    public function addDataForeignTableSplitsGroupOrderAndLimit(): void
     {
         $input = [
             'tableName' => 'aTable',
-            'databaseRow' => [],
+            'effectivePid' => 42,
+            'databaseRow' => [
+                'uid' => 23,
+            ],
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -1752,7 +1854,11 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             'type' => 'select',
                             'renderType' => 'selectSingle',
                             'foreign_table' => 'fTable',
-                            'foreign_table_where' => 'AND ftable.uid=1 GROUP BY groupField ORDER BY orderField LIMIT 1,2',
+                            'foreign_table_where' => '
+                                AND ftable.uid=1
+                                GROUP BY groupField1, groupField2
+                                ORDER BY orderField
+                                LIMIT 1,2',
                         ],
                     ],
                 ]
@@ -1762,12 +1868,16 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $GLOBALS['TCA']['fTable'] = [];
 
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
+
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
         $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
         $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
 
-        list($queryBuilderProphet, $connectionPoolProphet) = $this->mockDatabaseConnection();
+        [$queryBuilderProphet, $connectionPoolProphet] = $this->mockDatabaseConnection();
 
         /** @var Statement|ObjectProphecy $statementProphet */
         $statementProphet = $this->prophesize(Statement::class);
@@ -1775,7 +1885,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $queryBuilderProphet->select('fTable.uid')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->from('fTable')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->from('pages')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
-        $queryBuilderProphet->groupBy(['groupField'])->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->groupBy('groupField1', 'groupField2')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->addOrderBy('orderField', null)->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->setFirstResult(1)->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->setMaxResults(2)->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
@@ -1788,19 +1898,21 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
         GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
 
-        $this->subject->addData($input);
+        (new TcaSelectItems())->addData($input);
     }
 
     /**
      * @test
      */
-    public function addDataForeignTableQueuesFlashMessageOnDatabaseError()
+    public function addDataForeignTableQueuesFlashMessageOnDatabaseError(): void
     {
         $input = [
             'databaseRow' => [
+                'uid' => 23,
                 'aField' => '',
             ],
             'tableName' => 'aTable',
+            'effectivePid' => 42,
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -1814,6 +1926,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                     1 => 'itemValue',
                                     2 => null,
                                     3 => null,
+                                    4 => null,
                                 ],
                             ],
                             'maxitems' => 99999,
@@ -1831,15 +1944,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
         $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
 
-        /** @var LanguageService|ObjectProphecy $languageServiceProphecy */
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
-        $languageServiceProphecy->sL(Argument::cetera())->willReturnArgument(0);
-
-        list($queryBuilderProphet, $connectionPoolProphet) = $this->mockDatabaseConnection();
-
-        /** @var Statement|ObjectProphecy $statementProphet */
-        $statementProphet = $this->prophesize(Statement::class);
+        [$queryBuilderProphet, $connectionPoolProphet] = $this->mockDatabaseConnection();
 
         $queryBuilderProphet->select('fTable.uid')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->from('fTable')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
@@ -1872,19 +1977,42 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
+    }
+
+    /**
+     * @return array
+     */
+    private function mockForeignTableItemsQuery(): array
+    {
+        [$queryBuilderProphet, $connectionPoolProphet] = $this->mockDatabaseConnection();
+
+        /** @var Statement|ObjectProphecy $statementProphet */
+        $statementProphet = $this->prophesize(Statement::class);
+
+        $queryBuilderProphet->select('fTable.uid', 'fTable.labelField')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->from('fTable')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->from('pages')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->where('')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->andWhere(' 1=1')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->andWhere('`pages.uid` = `fTable.pid`')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->execute()->shouldBeCalled()->willReturn($statementProphet->reveal());
+
+        return [$connectionPoolProphet, $statementProphet];
     }
 
     /**
      * @test
      */
-    public function addDataForeignTableHandlesForeignTableRows()
+    public function addDataForeignTableHandlesForeignTableRows(): void
     {
         $input = [
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => '',
             ],
             'tableName' => 'aTable',
+            'effectivePid' => 42,
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -1902,29 +2030,135 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'rootline' => [],
         ];
 
-        $GLOBALS['TCA']['fTable'] = [];
+        $GLOBALS['TCA']['fTable'] = [
+            'ctrl' => [
+                'label' => 'labelField',
+            ],
+            'columns' => [],
+        ];
+
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
+
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
 
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
         $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
         $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
 
-        /** @var LanguageService|ObjectProphecy $languageServiceProphecy */
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
-        $languageServiceProphecy->sL(Argument::cetera())->willReturnArgument(0);
+        [$connectionPoolProphet, $statementProphet] = $this->mockForeignTableItemsQuery();
 
-        list($queryBuilderProphet, $connectionPoolProphet) = $this->mockDatabaseConnection();
+        // Two instances are needed due to the push/pop behavior of addInstance()
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+
+        $counter = 0;
+        $statementProphet->fetch()->shouldBeCalled()->will(function ($args) use (&$counter) {
+            $counter++;
+            if ($counter >= 3) {
+                return false;
+            }
+            return [
+                'uid' => $counter,
+                'pid' => 23,
+                'labelField' => 'aLabel',
+                'aValue' => 'bar,',
+            ];
+        });
+
+        $expected = $input;
+        $expected['processedTca']['columns']['aField']['config']['items'] = [
+            0 => [
+                0 => 'aPrefix[LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title]',
+                1 => 1,
+                2 => null,
+                3 => null,
+                4 => null,
+            ],
+            1 => [
+                0 => 'aPrefix[LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title]',
+                1 => 2,
+                2 => null,
+                3 => null,
+                4 => null,
+            ],
+        ];
+
+        $expected['databaseRow']['aField'] = [];
+
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
+    }
+
+    /**
+     * @test
+     */
+    public function addDataRemovesItemsThatAreRestrictedByUserStorageAddedByForeignTable(): void
+    {
+        $input = [
+            'databaseRow' => [
+                'uid' => 5,
+                'aField' => '',
+            ],
+            'tableName' => 'aTable',
+            'effectivePid' => 42,
+            'processedTca' => [
+                'columns' => [
+                    'aField' => [
+                        'config' => [
+                            'type' => 'select',
+                            'renderType' => 'selectSingle',
+                            'foreign_table' => 'sys_file_storage',
+                            'foreign_table_prefix' => 'prefix for item labels',
+                            'items' => [],
+                            'maxitems' => 99999,
+                        ],
+                    ],
+                ]
+            ],
+            'rootline' => [],
+        ];
+
+        $GLOBALS['TCA']['sys_file_storage'] = [
+            'ctrl' => [
+                'label' => 'labelField',
+            ],
+            'columns' => [],
+        ];
+
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
+
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+
+        $resourceStorageProphecy = $this->prophesize(ResourceStorage::class);
+        $resourceStorageProphecy->getUid()->willReturn(1);
+
+        /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
+        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
+        $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
+        $backendUserProphecy->getFileStorages()->shouldBeCalled()->willReturn(
+            [$resourceStorageProphecy->reveal()]
+        );
+
+        [$queryBuilderProphet, $connectionPoolProphet] = $this->mockDatabaseConnection('sys_file_storage');
 
         /** @var Statement|ObjectProphecy $statementProphet */
         $statementProphet = $this->prophesize(Statement::class);
 
-        $queryBuilderProphet->select('fTable.uid')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
-        $queryBuilderProphet->from('fTable')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->select('sys_file_storage.uid', 'sys_file_storage.labelField')
+            ->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->from('sys_file_storage')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->from('pages')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->where('')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->andWhere(' 1=1')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
-        $queryBuilderProphet->andWhere('`pages.uid` = `fTable.pid`')->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
+        $queryBuilderProphet->andWhere('`pages.uid` = `sys_file_storage.pid`')
+            ->shouldBeCalled()->willReturn($queryBuilderProphet->reveal());
         $queryBuilderProphet->execute()->shouldBeCalled()->willReturn($statementProphet->reveal());
 
         // Two instances are needed due to the push/pop behavior of addInstance()
@@ -1939,41 +2173,39 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             }
             return [
                 'uid' => $counter,
-                'aValue' => 'bar,',
+                'pid' => 0,
+                'labelField' => 'storageFolderLabel'
             ];
         });
 
         $expected = $input;
         $expected['processedTca']['columns']['aField']['config']['items'] = [
             0 => [
-                0 => 'aPrefix[LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.no_title]',
+                0 => 'prefix for item labels[LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title]',
                 1 => 1,
-                2 => 'default-not-found',
+                2 => null,
                 3 => null,
-            ],
-            1 => [
-                0 => 'aPrefix[LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.no_title]',
-                1 => 2,
-                2 => 'default-not-found',
-                3 => null,
-            ],
+                4 => null,
+            ]
         ];
 
         $expected['databaseRow']['aField'] = [];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataForeignTableResolvesIconFromSelicon()
+    public function addDataForeignTableResolvesIconFromSelicon(): void
     {
         $input = [
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => '',
             ],
             'tableName' => 'aTable',
+            'effectivePid' => 42,
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -1994,24 +2226,22 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'ctrl' => [
                 'label' => 'icon',
                 'selicon_field' => 'icon',
-                'selicon_field_path' => 'uploads/media',
             ],
             'columns' =>[
                 'icon' => [],
             ],
         ];
 
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
+
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
         $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
         $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
 
-        /** @var LanguageService|ObjectProphecy $languageServiceProphecy */
-        $languageServiceProphecy = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
-        $languageServiceProphecy->sL(Argument::cetera())->willReturnArgument(0);
-
-        list($queryBuilderProphet, $connectionPoolProphet) = $this->mockDatabaseConnection();
+        [$queryBuilderProphet, $connectionPoolProphet] = $this->mockDatabaseConnection();
 
         /** @var Statement|ObjectProphecy $statementProphet */
         $statementProphet = $this->prophesize(Statement::class);
@@ -2031,6 +2261,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         // Query returns one row, then false on second call
         $foreignTableRowResultOne = [
             'uid' => 1,
+            'pid' => 23,
             'icon' => 'foo.jpg',
         ];
         $statementProphet->fetch()->shouldBeCalled()->willReturn($foreignTableRowResultOne, false);
@@ -2040,19 +2271,20 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             0 => [
                 0 => 'foo.jpg',
                 1 => 1,
-                2 => 'uploads/media/foo.jpg', // combination of selicon_field_path and the row value of field 'icon'
+                2 => null,
                 3 => null,
+                4 => null,
             ],
         ];
         $expected['databaseRow']['aField'] = [];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataRemovesItemsByKeepItemsPageTsConfig()
+    public function addDataRemovesItemsByKeepItemsPageTsConfig(): void
     {
         $input = [
             'databaseRow' => [
@@ -2071,10 +2303,15 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                     1 => 'keep',
                                     null,
                                     null,
+                                    null,
                                 ],
                                 1 => [
                                     0 => 'removeMe',
                                     1 => 'remove',
+                                ],
+                                2 => [
+                                    0 => 'removeMe',
+                                    1 => 0,
                                 ],
                             ],
                             'maxitems' => 99999,
@@ -2093,22 +2330,20 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
-        unset($expected['processedTca']['columns']['aField']['config']['items'][1]);
+        unset(
+            $expected['processedTca']['columns']['aField']['config']['items'][1],
+            $expected['processedTca']['columns']['aField']['config']['items'][2]
+        );
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataRemovesAllItemsByEmptyKeepItemsPageTsConfig()
+    public function addDataRemovesAllItemsByEmptyKeepItemsPageTsConfig(): void
     {
         $input = [
             'databaseRow' => [
@@ -2149,22 +2384,17 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
         $expected['processedTca']['columns']['aField']['config']['items'] = [];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataEvaluatesKeepItemsBeforeAddItemsFromPageTsConfig()
+    public function addDataEvaluatesKeepItemsBeforeAddItemsFromPageTsConfig(): void
     {
         $input = [
             'databaseRow' => [
@@ -2209,11 +2439,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
         $expected['processedTca']['columns']['aField']['config']['items'] = [
@@ -2222,10 +2447,12 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 1 => '1',
                 null,
                 null,
+                null,
             ],
             1 => [
                 0 => 'addItem #1',
                 1 => '1',
+                null,
                 null,
                 null,
             ],
@@ -2234,16 +2461,17 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 1 => '12',
                 null,
                 null,
+                null,
             ],
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataRemovesItemsByRemoveItemsPageTsConfig()
+    public function addDataRemovesItemsByRemoveItemsPageTsConfig(): void
     {
         $input = [
             'databaseRow' => [
@@ -2262,10 +2490,18 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                     1 => 'keep',
                                     null,
                                     null,
+                                    null,
                                 ],
                                 1 => [
                                     0 => 'removeMe',
                                     1 => 'remove',
+                                ],
+                                2 => [
+                                    0 => 'keep me',
+                                    1 => 0,
+                                    null,
+                                    null,
+                                    null,
                                 ],
                             ],
                             'maxitems' => 99999,
@@ -2284,22 +2520,17 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
         unset($expected['processedTca']['columns']['aField']['config']['items'][1]);
-
-        $this->assertEquals($expected, $this->subject->addData($input));
+        $expected['processedTca']['columns']['aField']['config']['items'] = array_values($expected['processedTca']['columns']['aField']['config']['items']);
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataRemovesItemsAddedByAddItemsFromPageTsConfigByRemoveItemsPageTsConfig()
+    public function addDataRemovesItemsByZeroValueRemoveItemsPageTsConfig(): void
     {
         $input = [
             'databaseRow' => [
@@ -2316,6 +2547,65 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                 0 => [
                                     0 => 'keepMe',
                                     1 => 'keep',
+                                    null,
+                                    null,
+                                    null,
+                                ],
+                                1 => [
+                                    0 => 'keepMe',
+                                    1 => 'keepMe2',
+                                    null,
+                                    null,
+                                    null,
+                                ],
+                                2 => [
+                                    0 => 'remove me',
+                                    1 => 0,
+                                ],
+                            ],
+                            'maxitems' => 99999,
+                        ],
+                    ],
+                ]
+            ],
+            'pageTsConfig' => [
+                'TCEFORM.' => [
+                    'aTable.' => [
+                        'aField.' => [
+                            'removeItems' => '0',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $expected = $input;
+        $expected['databaseRow']['aField'] = [];
+        unset($expected['processedTca']['columns']['aField']['config']['items'][2]);
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
+    }
+
+    /**
+     * @test
+     */
+    public function addDataRemovesItemsAddedByAddItemsFromPageTsConfigByRemoveItemsPageTsConfig(): void
+    {
+        $input = [
+            'databaseRow' => [
+                'aField' => ''
+            ],
+            'tableName' => 'aTable',
+            'processedTca' => [
+                'columns' => [
+                    'aField' => [
+                        'config' => [
+                            'type' => 'select',
+                            'renderType' => 'selectSingle',
+                            'items' => [
+                                0 => [
+                                    0 => 'keepMe',
+                                    1 => 'keep',
+                                    null,
                                     null,
                                     null,
                                 ],
@@ -2343,22 +2633,17 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
         unset($expected['processedTca']['columns']['aField']['config']['items'][1]);
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataRemovesItemsByLanguageFieldUserRestriction()
+    public function addDataRemovesItemsByLanguageFieldUserRestriction(): void
     {
         $input = [
             'databaseRow' => [
@@ -2380,6 +2665,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                     1 => 'keep',
                                     null,
                                     null,
+                                    null,
                                 ],
                                 1 => [
                                     0 => 'removeMe',
@@ -2396,7 +2682,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         /** @var LanguageService|ObjectProphecy $languageService */
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
         $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
@@ -2408,17 +2694,17 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
         $expected['processedTca']['columns']['aField']['config']['items'] = [
-            [ '[ INVALID VALUE "aValue" ]', 'aValue', null, null ],
-            [ 'keepMe', 'keep', null, null ],
+            [ '[ INVALID VALUE "aValue" ]', 'aValue', null, 'none', null ],
+            [ 'keepMe', 'keep', null, null, null ],
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataRemovesItemsByUserAuthModeRestriction()
+    public function addDataRemovesItemsByUserAuthModeRestriction(): void
     {
         $input = [
             'databaseRow' => [
@@ -2438,6 +2724,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                     1 => 'keep',
                                     null,
                                     null,
+                                    null,
                                 ],
                                 1 => [
                                     0 => 'removeMe',
@@ -2451,11 +2738,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
         $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
@@ -2466,13 +2748,13 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected['databaseRow']['aField'] = ['keep'];
         unset($expected['processedTca']['columns']['aField']['config']['items'][1]);
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataKeepsAllPagesDoktypesForAdminUser()
+    public function addDataKeepsAllPagesDoktypesForAdminUser(): void
     {
         $input = [
             'databaseRow' => [
@@ -2491,6 +2773,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                     1 => 'keep',
                                     null,
                                     null,
+                                    null,
                                 ],
                             ],
                             'maxitems' => 99999,
@@ -2500,11 +2783,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
         $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
@@ -2513,13 +2791,13 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['databaseRow']['doktype'] = ['keep'];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataKeepsAllowedPageTypesForNonAdminUser()
+    public function addDataKeepsAllowedPageTypesForNonAdminUser(): void
     {
         $input = [
             'databaseRow' => [
@@ -2538,6 +2816,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                     1 => 'keep',
                                     null,
                                     null,
+                                    null,
                                 ],
                                 1 => [
                                     0 => 'removeMe',
@@ -2551,11 +2830,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
         $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
@@ -2568,13 +2842,13 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected['databaseRow']['doktype'] = ['keep'];
         unset($expected['processedTca']['columns']['doktype']['config']['items'][1]);
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataCallsItemsProcFunc()
+    public function addDataCallsItemsProcFunc(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -2595,6 +2869,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                         1 => 'aValue',
                                         2 => null,
                                         3 => null,
+                                        4 => null,
                                     ],
                                 ];
                             },
@@ -2603,11 +2878,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
-
-        /** @var LanguageService|ObjectProphecy $languageService */
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         $expected = $input;
         $expected['databaseRow']['aField'] = ['aValue'];
@@ -2620,18 +2890,479 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     1 => 'aValue',
                     2 => null,
                     3 => null,
+                    4 => null,
                 ],
             ],
             'maxitems' => 99999,
         ];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataItemsProcFuncReceivesParameters()
+    public function addDataForeignTableItemsWillReceiveTheLabelFromForeignTableLabelField(): void
+    {
+        $input = [
+            'databaseRow' => [
+                'uid' => 5,
+                'aField' => 2
+            ],
+            'tableName' => 'aTable',
+            'effectivePid' => 42,
+            'processedTca' => [
+                'columns' => [
+                    'aField' => [
+                        'config' => [
+                            'type' => 'select',
+                            'renderType' => 'selectSingle',
+                            'foreign_table' => 'fTable',
+                            'maxitems' => 99999,
+                        ],
+                    ],
+                ]
+            ],
+            'rootline' => [],
+        ];
+
+        $GLOBALS['TCA']['fTable'] = [
+            'ctrl' => [
+                'label' => 'labelField',
+            ],
+            'columns' => [
+                'labelField' => []
+            ],
+        ];
+
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
+
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+
+        /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
+        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
+        $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
+
+        [$connectionPoolProphet, $statementProphet] = $this->mockForeignTableItemsQuery();
+
+        // Two instances are needed due to the push/pop behavior of addInstance()
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+
+        $counter = 0;
+        $statementProphet->fetch()->shouldBeCalled()->will(function ($args) use (&$counter) {
+            $counter++;
+            if ($counter >= 3) {
+                return false;
+            }
+            return [
+                'uid' => $counter,
+                'pid' => 23,
+                'labelField' => 'aLabel_' . $counter,
+                'aValue' => 'bar,',
+                'dbfield' => 'some data'
+            ];
+        });
+
+        $expected = $input;
+        $expected['processedTca']['columns']['aField']['config']['items'] = [
+            0 => [
+                0 => 'aLabel_1',
+                1 => 1,
+                2 => null,
+                3 => null,
+                4 => null,
+            ],
+            1 => [
+                0 => 'aLabel_2',
+                1 => 2,
+                2 => null,
+                3 => null,
+                4 => null,
+            ],
+        ];
+
+        $expected['databaseRow']['aField'] = [
+            0 => '2' // the selected value stored in db
+        ];
+
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
+    }
+
+    /**
+     * This test case combines the use of itemsProcFunc and foreign_table
+     *
+     * In the itemsProcFunc we will iterate over the items given from foreign_table and filter out every item that
+     * does not have a uid of 2
+     *
+     * @test
+     */
+    public function addDataItemsProcFuncWillUseItemsFromForeignTable(): void
+    {
+        $input = [
+            'databaseRow' => [
+                'uid' => 5,
+                'aField' => ''
+            ],
+            'tableName' => 'aTable',
+            'effectivePid' => 42,
+            'processedTca' => [
+                'columns' => [
+                    'aField' => [
+                        'config' => [
+                            'type' => 'select',
+                            'renderType' => 'selectSingle',
+                            'foreign_table' => 'fTable',
+                            'itemsProcFunc' => function (array $parameters, $pObj) {
+                                $filteredItems = [];
+                                // Iterate over given items to filter them
+                                foreach ($parameters['items'] as $item) {
+                                    if ($item[1] === 2) { // uid === 2
+                                        $filteredItems[] = [
+                                            $item[0],   // label
+                                            $item[1],   // uid
+                                            null,       // icon
+                                            null,       // groupID
+                                            null        // helpText
+                                        ];
+                                    }
+                                }
+                                $parameters['items'] = $filteredItems;
+                            },
+                            'maxitems' => 99999,
+                        ],
+                    ],
+                ]
+            ],
+            'rootline' => [],
+        ];
+
+        $GLOBALS['TCA']['fTable'] = [
+            'ctrl' => [
+                'label' => 'labelField',
+            ],
+            'columns' => [],
+        ];
+
+        // FileRepository to get the icon of the foreign table
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
+
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+
+        /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
+        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
+        $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
+
+        [$connectionPoolProphet, $statementProphet] = $this->mockForeignTableItemsQuery();
+
+        // Two instances are needed due to the push/pop behavior of addInstance()
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+
+        $counter = 0;
+
+        // simulates foreign_table containing two rows
+        $statementProphet->fetch()->shouldBeCalled()->will(function ($args) use (&$counter) {
+            $counter++;
+            if ($counter >= 3) {
+                return false;
+            }
+            return [
+                'uid' => $counter,
+                'pid' => 23,
+                'labelField' => 'aLabel will be replaced since the label column is not configured',
+                'aValue' => 'bar, irrelevant',
+                'dbfield' => 'some random data, irrelevant'
+            ];
+        });
+
+        $expected = $input;
+        $expected['processedTca']['columns']['aField']['config'] = [
+            'type' => 'select',
+            'renderType' => 'selectSingle',
+            'foreign_table' => 'fTable',
+            'items' => [
+                0 => [
+                    0 => '[LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title]',
+                    1 => 2,
+                    2 => null,
+                    3 => null,
+                    4 => null,
+                ],
+            ],
+            'maxitems' => 99999
+        ];
+
+        $expected['databaseRow']['aField'] = [];
+
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
+    }
+
+    /**
+     * This test case combines the use of itemsProcFunc, foreign_table and pageTsConfig
+     *
+     * In the itemsProcFunc we will iterate over the items given from foreign_table and filter out every item that
+     * does not have a uid lower than 3.
+     * The pageTsConfig will remove the item with the uid=2 from the list so only one item with uid=1 will remain
+     *
+     * @test
+     */
+    public function addDataItemsProcFuncWillUseItemsFromForeignTableAndRemoveItemsByPageTsConfig(): void
+    {
+        $input = [
+            'databaseRow' => [
+                'uid' => 5,
+                'aField' => ''
+            ],
+            'tableName' => 'aTable',
+            'effectivePid' => 42,
+            'processedTca' => [
+                'columns' => [
+                    'aField' => [
+                        'config' => [
+                            'type' => 'select',
+                            'renderType' => 'selectSingle',
+                            'foreign_table' => 'fTable',
+                            'itemsProcFunc' => function (array $parameters, $pObj) {
+                                $filteredItems = [];
+                                // Iterate over given items to filter them
+                                foreach ($parameters['items'] as $item) {
+                                    if ($item[1] < 3) { // uid < 2
+                                        $filteredItems[] = [
+                                            $item[0],   // label
+                                            $item[1],   // uid
+                                            null,       // icon
+                                            null,       // groupId
+                                            null        // helpText
+                                        ];
+                                    }
+                                }
+                                $parameters['items'] = $filteredItems;
+                            },
+                            'maxitems' => 99999,
+                        ],
+                    ],
+                ]
+            ],
+            'pageTsConfig' => [
+                'TCEFORM.' => [
+                    'aTable.' => [
+                        'aField.' => [
+                            'removeItems' => '2'
+                        ],
+                    ],
+                ],
+            ],
+            'rootline' => [],
+        ];
+
+        $GLOBALS['TCA']['fTable'] = [
+            'ctrl' => [
+                'label' => 'labelField',
+            ],
+            'columns' => [],
+        ];
+
+        // FileRepository to get the icon of the foreign table
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
+
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+
+        /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
+        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
+        $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
+
+        [$connectionPoolProphet, $statementProphet] = $this->mockForeignTableItemsQuery();
+
+        // Two instances are needed due to the push/pop behavior of addInstance()
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+
+        $counter = 0;
+
+        // simulates foreign_table containing two rows
+        $statementProphet->fetch()->shouldBeCalled()->will(function ($args) use (&$counter) {
+            $counter++;
+            if ($counter >= 3) {
+                return false;
+            }
+            return [
+                'uid' => $counter,
+                'pid' => 23,
+                'labelField' => 'aLabel will be replaced since the label column is not configured',
+                'randomDbField' => 'bar, irrelevant'
+            ];
+        });
+
+        $expected = $input;
+        $expected['processedTca']['columns']['aField']['config'] = [
+            'type' => 'select',
+            'renderType' => 'selectSingle',
+            'foreign_table' => 'fTable',
+            'items' => [
+                0 => [
+                    0 => '[LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title]',
+                    1 => 1,
+                    2 => null,
+                    3 => null,
+                    4 => null,
+                ]
+            ],
+            'maxitems' => 99999
+        ];
+
+        $expected['databaseRow']['aField'] = [];
+
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
+    }
+
+    /**
+     * This test case combines the use of itemsProcFunc, foreign_table and pageTsConfig
+     *
+     * In the itemsProcFunc we will iterate over the items given from foreign_table and filter out every item that
+     * does not have the uid of 2.
+     * The pageTsConfig will add an item with the uid=12 to the list so only one item with uid=1 will remain
+     *
+     * @test
+     */
+    public function addDataItemsProcFuncWillUseItemsFromForeignTableAndAddItemsByPageTsConfig(): void
+    {
+        $input = [
+            'databaseRow' => [
+                'uid' => 5,
+                'aField' => ''
+            ],
+            'tableName' => 'aTable',
+            'effectivePid' => 42,
+            'processedTca' => [
+                'columns' => [
+                    'aField' => [
+                        'config' => [
+                            'type' => 'select',
+                            'renderType' => 'selectSingle',
+                            'foreign_table' => 'fTable',
+                            'itemsProcFunc' => function (array $parameters, $pObj) {
+                                $filteredItems = [];
+                                // Iterate over given items to filter them
+                                foreach ($parameters['items'] as $item) {
+                                    if ($item[1] === 2) { // uid must be 2
+                                        $filteredItems[] = [
+                                            $item[0],   // label
+                                            $item[1],   // uid
+                                            null,       // icon
+                                            null,       // groupID
+                                            null        // helpText
+                                        ];
+                                    }
+                                }
+                                $parameters['items'] = $filteredItems;
+                            },
+                            'maxitems' => 99999,
+                        ],
+                    ],
+                ]
+            ],
+            'pageTsConfig' => [
+                'TCEFORM.' => [
+                    'aTable.' => [
+                        'aField.' => [
+                            'addItems.' => [
+                                '12' => 'Label of the added item'
+                            ]
+                        ],
+                    ],
+                ],
+            ],
+            'rootline' => [],
+        ];
+
+        $GLOBALS['TCA']['fTable'] = [
+            'ctrl' => [
+                'label' => 'labelField',
+            ],
+            'columns' => [],
+        ];
+
+        // FileRepository to get the icon of the foreign table
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
+
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+
+        /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
+        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
+        $backendUserProphecy->getPagePermsClause(1)->shouldBeCalled()->willReturn(' 1=1');
+
+        [$connectionPoolProphet, $statementProphet] = $this->mockForeignTableItemsQuery();
+
+        // Two instances are needed due to the push/pop behavior of addInstance()
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
+
+        $counter = 0;
+
+        // simulates foreign_table containing two rows
+        $statementProphet->fetch()->shouldBeCalled()->will(function ($args) use (&$counter) {
+            $counter++;
+            if ($counter >= 3) {
+                return false;
+            }
+            return [
+                'uid' => $counter,
+                'pid' => 23,
+                'labelField' => 'aLabel will be replaced since the label column is not configured',
+                'randomDbField' => 'bar, irrelevant'
+            ];
+        });
+
+        $expected = $input;
+        $expected['processedTca']['columns']['aField']['config'] = [
+            'type' => 'select',
+            'renderType' => 'selectSingle',
+            'foreign_table' => 'fTable',
+            'items' => [
+                0 => [
+                    0 => '[LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title]',
+                    1 => 2,
+                    2 => null,
+                    3 => null,
+                    4 => null,
+                ],
+                1 => [
+                    0 => 'Label of the added item',
+                    1 => 12,
+                    2 => null,
+                    3 => null,
+                    4 => null,
+                ],
+            ],
+            'maxitems' => 99999
+        ];
+
+        $expected['databaseRow']['aField'] = [];
+
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
+    }
+
+    /**
+     * @test
+     */
+    public function addDataItemsProcFuncReceivesParameters(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -2695,13 +3426,13 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         // itemsProcFunc must NOT have raised an exception
         $flashMessageQueue->enqueue($flashMessage)->shouldNotBeCalled();
 
-        $this->subject->addData($input);
+        (new TcaSelectItems())->addData($input);
     }
 
     /**
      * @test
      */
-    public function addDataItemsProcFuncEnqueuesFlashMessageOnException()
+    public function addDataItemsProcFuncEnqueuesFlashMessageOnException(): void
     {
         $input = [
             'tableName' => 'aTable',
@@ -2755,13 +3486,13 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $flashMessageQueue->enqueue($flashMessage)->shouldBeCalled();
 
-        $this->subject->addData($input);
+        (new TcaSelectItems())->addData($input);
     }
 
     /**
      * @test
      */
-    public function addDataTranslatesItemLabelsFromPageTsConfig()
+    public function addDataTranslatesItemLabelsFromPageTsConfig(): void
     {
         $input = [
             'databaseRow' => [
@@ -2780,6 +3511,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                                     1 => 'aValue',
                                     null,
                                     null,
+                                    null
                                 ],
                             ],
                             'maxitems' => 99999,
@@ -2805,22 +3537,25 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $GLOBALS['LANG'] = $languageService->reveal();
         $languageService->sL('aLabel')->willReturnArgument(0);
         $languageService->sL('labelOverride')->shouldBeCalled()->willReturnArgument(0);
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
 
         $expected = $input;
         $expected['databaseRow']['aField'] = ['aValue'];
         $expected['processedTca']['columns']['aField']['config']['items'][0][0] = 'labelOverride';
 
-        $this->assertSame($expected, $this->subject->addData($input));
-        $this->subject->addData($input);
+        self::assertSame($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueSetsMmForeignRelationValues()
+    public function processSelectFieldValueSetsMmForeignRelationValues(): void
     {
         $GLOBALS['TCA']['foreignTable'] = [];
+
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
 
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
@@ -2830,7 +3565,9 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->mockDatabaseConnectionForProcessSelectField();
 
         $input = [
+            'command' => 'edit',
             'tableName' => 'aTable',
+            'effectivePid' => 23,
             'databaseRow' => [
                 'uid' => 42,
                 // Two connected rows
@@ -2861,21 +3598,25 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             24
         ];
 
-        $relationHandlerProphecy->start(2, 'foreignTable', 'aTable_foreignTable_mm', 42, 'aTable', $fieldConfig)->shouldBeCalled();
+        $relationHandlerProphecy->start('', 'foreignTable', 'aTable_foreignTable_mm', 42, 'aTable', $fieldConfig)->shouldBeCalled();
         $relationHandlerProphecy->getValueArray()->shouldBeCalled()->willReturn($relationHandlerUids);
 
         $expected = $input;
         $expected['databaseRow']['aField'] = $relationHandlerUids;
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueSetsForeignRelationValues()
+    public function processSelectFieldValueSetsForeignRelationValues(): void
     {
         $GLOBALS['TCA']['foreignTable'] = [];
+
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
 
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
@@ -2886,6 +3627,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 23,
             'databaseRow' => [
                 'uid' => 42,
                 // Two connected rows
@@ -2921,19 +3663,19 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['databaseRow']['aField'] = $relationHandlerUids;
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueRemovesInvalidDynamicValues()
+    public function processSelectFieldValueRemovesInvalidDynamicValues(): void
     {
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $GLOBALS['TCA']['foreignTable'] = [];
+
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
 
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
@@ -2949,7 +3691,9 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 23,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => '1,2,bar,foo',
             ],
             'processedTca' => [
@@ -2961,7 +3705,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             'foreign_table' => 'foreignTable',
                             'maxitems' => 999,
                             'items' => [
-                                ['foo', 'foo', null, null],
+                                ['foo', 'foo', null, null, null],
                             ],
                         ],
                     ],
@@ -2970,20 +3714,16 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
 
         $expected = $input;
-        $expected['databaseRow']['aField'] = ['foo', 1];
+        $expected['databaseRow']['aField'] = [1, 'foo'];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueKeepsValuesFromStaticItems()
+    public function processSelectFieldValueKeepsValuesFromStaticItems(): void
     {
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $input = [
             'tableName' => 'aTable',
             'databaseRow' => [
@@ -2997,8 +3737,8 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             'renderType' => 'selectSingle',
                             'maxitems' => 999,
                             'items' => [
-                                ['foo', 'foo', null, null],
-                                ['bar', 'bar', null, null],
+                                ['foo', 'foo', null, null, null],
+                                ['bar', 'bar', null, null, null],
                             ],
                         ],
                     ],
@@ -3012,18 +3752,14 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'bar'
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueReturnsEmptyValueForSingleSelect()
+    public function processSelectFieldValueReturnsEmptyValueForSingleSelect(): void
     {
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $input = [
             'tableName' => 'aTable',
             'databaseRow' => [
@@ -3046,18 +3782,14 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['databaseRow']['aField'] = [];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueTrimsEmptyValueForMultiValueSelect()
+    public function processSelectFieldValueTrimsEmptyValueForMultiValueSelect(): void
     {
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $input = [
             'tableName' => 'aTable',
             'databaseRow' => [
@@ -3071,9 +3803,9 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             'renderType' => 'selectSingle',
                             'maxitems' => 999,
                             'items' => [
-                                ['a', '', null, null],
-                                ['b', 'b', null, null],
-                                ['c', 'c', null, null],
+                                ['a', '', null, null, null],
+                                ['b', 'b', null, null, null],
+                                ['c', 'c', null, null, null],
                             ],
                         ],
                     ],
@@ -3087,18 +3819,14 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'c',
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueDoesNotCallRelationManagerForStaticOnlyItems()
+    public function processSelectFieldValueDoesNotCallRelationManagerForStaticOnlyItems(): void
     {
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $relationHandlerProphecy = $this->prophesize(RelationHandler::class);
         GeneralUtility::addInstance(RelationHandler::class, $relationHandlerProphecy->reveal());
         $relationHandlerProphecy->start(Argument::cetera())->shouldNotBeCalled();
@@ -3117,7 +3845,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             'renderType' => 'selectSingle',
                             'maxitems' => 999,
                             'items' => [
-                                ['foo', 'foo', null, null],
+                                ['foo', 'foo', null, null, null],
                             ],
                         ],
                     ],
@@ -3128,17 +3856,17 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['databaseRow']['aField'] = ['foo'];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueAddsInvalidValuesToItemsForSingleSelects()
+    public function processSelectFieldValueAddsInvalidValuesToItemsForSingleSelects(): void
     {
         $languageService = $this->prophesize(LanguageService::class);
         $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
+        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue')->willReturn('INVALID VALUE "%s"');
         $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         $relationHandlerProphecy = $this->prophesize(RelationHandler::class);
@@ -3159,7 +3887,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             'renderType' => 'selectSingle',
                             'maxitems' => 99999,
                             'items' => [
-                                ['foo', 'foo', null, null],
+                                ['foo', 'foo', null, null, null],
                             ],
                         ],
                     ],
@@ -3170,23 +3898,19 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['databaseRow']['aField'] = ['foo'];
         $expected['processedTca']['columns']['aField']['config']['items'] = [
-            ['[ INVALID VALUE "bar" ]', 'bar', null, null],
-            ['[ INVALID VALUE "2" ]', '2', null, null],
-            ['[ INVALID VALUE "1" ]', '1', null, null],
-            ['foo', 'foo', null, null],
+            ['[ INVALID VALUE "bar" ]', 'bar', null, 'none', null],
+            ['[ INVALID VALUE "2" ]', '2', null, 'none', null],
+            ['[ INVALID VALUE "1" ]', '1', null, 'none', null],
+            ['foo', 'foo', null, null, null],
         ];
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueReturnsDuplicateValuesForMultipleSelect()
+    public function processSelectFieldValueReturnsDuplicateValuesForMultipleSelect(): void
     {
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $input = [
             'tableName' => 'aTable',
             'databaseRow' => [
@@ -3201,10 +3925,10 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             'multiple' => true,
                             'maxitems' => 999,
                             'items' => [
-                                ['1', '1', null, null],
-                                ['foo', 'foo', null, null],
-                                ['bar', 'bar', null, null],
-                                ['2', '2', null, null],
+                                ['1', '1', null, null, null],
+                                ['foo', 'foo', null, null, null],
+                                ['bar', 'bar', null, null, null],
+                                ['2', '2', null, null, null],
                             ],
                         ],
                     ],
@@ -3221,18 +3945,14 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'bar'
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
      * @test
      */
-    public function processSelectFieldValueReturnsUniqueValuesForMultipleSelect()
+    public function processSelectFieldValueReturnsUniqueValuesForMultipleSelect(): void
     {
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-
         $input = [
             'tableName' => 'aTable',
             'databaseRow' => [
@@ -3247,10 +3967,10 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             'multiple' => false,
                             'maxitems' => 999,
                             'items' => [
-                                ['1', '1', null, null],
-                                ['foo', 'foo', null, null],
-                                ['bar', 'bar', null, null],
-                                ['2', '2', null, null],
+                                ['1', '1', null, null, null],
+                                ['foo', 'foo', null, null, null],
+                                ['bar', 'bar', null, null, null],
+                                ['2', '2', null, null, null],
                             ],
                         ],
                     ],
@@ -3266,7 +3986,7 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             4 => 'bar',
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 
     /**
@@ -3274,13 +3994,14 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      *
      * @return array
      */
-    public function processSelectFieldSetsCorrectValuesForMmRelationsDataProvider()
+    public function processSelectFieldSetsCorrectValuesForMmRelationsDataProvider(): array
     {
         return [
             'Relation with MM table and new status with default values' => [
                 [
                     'tableName' => 'aTable',
                     'command' => 'new',
+                    'effectivePid' => 42,
                     'databaseRow' => [
                         'uid' => 'NEW1234',
                         'aField' => '24,35',
@@ -3310,9 +4031,11 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'Relation with MM table and item array in list but no new status' => [
                 [
                     'tableName' => 'aTable',
+                    'command' => 'edit',
+                    'effectivePid' => 42,
                     'databaseRow' => [
-                        'uid' => 'NEW1234',
-                        'aField' => '24,35',
+                        'uid' => 42,
+                        'aField' => '2',
                     ],
                     'processedTca' => [
                         'columns' => [
@@ -3329,12 +4052,16 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                         ],
                     ],
                 ],
-                [],
+                [
+                    'relationHandlerStartItemList' => '',
+                ],
                 []
             ],
             'Relation with MM table and maxitems = 1 processes field value (item count)' => [
                 [
                     'tableName' => 'aTable',
+                    'command' => 'edit',
+                    'effectivePid' => 42,
                     'databaseRow' => [
                         'uid' => 42,
                         // MM relation with one item has 1 in field value
@@ -3355,7 +4082,9 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                         ],
                     ],
                 ],
-                [],
+                [
+                    'relationHandlerStartItemList' => '',
+                ],
                 [
                     24
                 ]
@@ -3363,6 +4092,8 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'Relation with MM table and maxitems = 1 results in empty array if no items are set' => [
                 [
                     'tableName' => 'aTable',
+                    'command' => 'edit',
+                    'effectivePid' => 42,
                     'databaseRow' => [
                         'uid' => 58,
                         // MM relation with no items has 0 in field value
@@ -3383,7 +4114,9 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                         ],
                     ],
                 ],
-                [],
+                [
+                    'relationHandlerStartItemList' => '',
+                ],
                 []
             ]
         ];
@@ -3397,16 +4130,20 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * @param array $overrideRelationHandlerSettings
      * @param array $relationHandlerUids
      */
-    public function processSelectFieldSetsCorrectValuesForMmRelations(array $input, array $overrideRelationHandlerSettings, array $relationHandlerUids)
+    public function processSelectFieldSetsCorrectValuesForMmRelations(array $input, array $overrideRelationHandlerSettings, array $relationHandlerUids): void
     {
-        $field = $input['databaseRow']['aField'];
-        $foreignTable = isset($overrideRelationHandlerSettings['foreign_table']) ? $overrideRelationHandlerSettings['foreign_table'] : $input['processedTca']['columns']['aField']['config']['foreign_table'];
-        $mmTable = isset($overrideRelationHandlerSettings['MM']) ? $overrideRelationHandlerSettings['MM'] : $input['processedTca']['columns']['aField']['config']['MM'];
+        $field = $overrideRelationHandlerSettings['relationHandlerStartItemList'] ?? $input['databaseRow']['aField'];
+        $foreignTable = $overrideRelationHandlerSettings['foreign_table'] ?? $input['processedTca']['columns']['aField']['config']['foreign_table'];
+        $mmTable = $overrideRelationHandlerSettings['MM'] ?? $input['processedTca']['columns']['aField']['config']['MM'];
         $uid = $input['databaseRow']['uid'];
         $tableName = $input['tableName'];
         $fieldConfig = $input['processedTca']['columns']['aField']['config'];
 
         $GLOBALS['TCA'][$foreignTable] = [];
+
+        $fileRepositoryProphecy = $this->prophesize(FileRepository::class);
+        $fileRepositoryProphecy->findByRelation(Argument::cetera())->shouldNotBeCalled();
+        GeneralUtility::setSingletonInstance(FileRepository::class, $fileRepositoryProphecy->reveal());
 
         /** @var BackendUserAuthentication|ObjectProphecy $backendUserProphecy */
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
@@ -3425,6 +4162,6 @@ class TcaSelectItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['databaseRow']['aField'] = $relationHandlerUids;
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, (new TcaSelectItems())->addData($input));
     }
 }

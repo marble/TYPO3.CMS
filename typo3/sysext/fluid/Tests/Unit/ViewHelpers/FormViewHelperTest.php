@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,31 +15,40 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
+
+use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
+use TYPO3\CMS\Extbase\Security\Cryptography\HashService;
+use TYPO3\CMS\Extbase\Service\ExtensionService;
 use TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
-use TYPO3Fluid\Fluid\Core\ViewHelper\ViewHelperInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder;
 
 /**
  * Test for the Form view helper
  */
 class FormViewHelperTest extends ViewHelperBaseTestcase
 {
-    /**
-     * @var \TYPO3\CMS\Extbase\Service\ExtensionService
-     */
-    protected $mockExtensionService;
-
-    /**
-     * @var \TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface
-     */
-    protected $mockConfigurationManager;
-
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
-        $this->mockExtensionService = $this->createMock(\TYPO3\CMS\Extbase\Service\ExtensionService::class);
-        $this->mockConfigurationManager = $this->createMock(\TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface::class);
-        $this->tagBuilder = $this->createMock(\TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder::class);
+        $uriBuilderMock = $this->createMock(UriBuilder::class);
+        $uriBuilderMock->expects(self::any())->method('reset')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setArguments')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setSection')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setFormat')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setCreateAbsoluteUri')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setAddQueryString')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setArgumentsToBeExcludedFromQueryString')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setLinkAccessRestrictedPages')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setTargetPageUid')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setTargetPageType')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setNoCache')->willReturn($uriBuilderMock);
+        $uriBuilderMock->expects(self::any())->method('setAddQueryStringMethod')->willReturn($uriBuilderMock);
+        $this->controllerContext->expects(self::any())->method('getUriBuilder')->willReturn($uriBuilderMock);
+        $this->renderingContext->setControllerContext($this->controllerContext);
+
+        $this->tagBuilder = $this->createMock(TagBuilder::class);
     }
 
     /**
@@ -49,12 +59,13 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
         $viewHelper = $this->getMockBuilder(FormViewHelper::class)
             ->setMethods(['registerTagAttribute', 'registerUniversalTagAttributes'])
             ->getMock();
-        $viewHelper->expects($this->at(0))->method('registerTagAttribute')->with('enctype', 'string', $this->anything());
-        $viewHelper->expects($this->at(1))->method('registerTagAttribute')->with('method', 'string', $this->anything());
-        $viewHelper->expects($this->at(2))->method('registerTagAttribute')->with('name', 'string', $this->anything());
-        $viewHelper->expects($this->at(3))->method('registerTagAttribute')->with('onreset', 'string', $this->anything());
-        $viewHelper->expects($this->at(4))->method('registerTagAttribute')->with('onsubmit', 'string', $this->anything());
-        $viewHelper->expects($this->once())->method('registerUniversalTagAttributes');
+        $viewHelper->expects(self::at(0))->method('registerTagAttribute')->with('enctype', 'string', self::anything());
+        $viewHelper->expects(self::at(1))->method('registerTagAttribute')->with('method', 'string', self::anything());
+        $viewHelper->expects(self::at(2))->method('registerTagAttribute')->with('name', 'string', self::anything());
+        $viewHelper->expects(self::at(3))->method('registerTagAttribute')->with('onreset', 'string', self::anything());
+        $viewHelper->expects(self::at(4))->method('registerTagAttribute')->with('onsubmit', 'string', self::anything());
+        $viewHelper->expects(self::at(6))->method('registerTagAttribute')->with('novalidate', 'bool', self::anything());
+        $viewHelper->expects(self::once())->method('registerUniversalTagAttributes');
         $viewHelper->initializeArguments();
     }
 
@@ -64,30 +75,14 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
     public function setFormActionUriRespectsOverriddenArgument()
     {
         $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['hasArgument']);
-        $viewHelper->expects($this->once())->method('hasArgument')->with('actionUri')->willReturn(true);
+        $viewHelper->expects(self::once())->method('hasArgument')->with('actionUri')->willReturn(true);
         $tagBuilder = $this->getMockBuilder(TagBuilder::class)
             ->setMethods(['addAttribute'])
             ->getMock();
-        $tagBuilder->expects($this->once())->method('addAttribute')->with('action', 'foobar');
-        $viewHelper->_set('tag', $tagBuilder);
+        $tagBuilder->expects(self::once())->method('addAttribute')->with('action', 'foobar');
+        $viewHelper->setTagBuilder($tagBuilder);
         $viewHelper->setArguments(['actionUri' => 'foobar']);
-        $this->callInaccessibleMethod($viewHelper, 'setFormActionUri');
-    }
-
-    /**
-     * @param ViewHelperInterface $viewHelper
-     */
-    protected function injectDependenciesIntoViewHelper(ViewHelperInterface $viewHelper)
-    {
-        $viewHelper->_set('configurationManager', $this->mockConfigurationManager);
-        parent::injectDependenciesIntoViewHelper($viewHelper);
-        $hashService = $this->getMockBuilder(\TYPO3\CMS\Extbase\Security\Cryptography\HashService::class)
-            ->setMethods(['appendHmac'])
-            ->getMock();
-        $hashService->expects($this->any())->method('appendHmac')->will($this->returnValue(''));
-        $this->mvcPropertyMapperConfigurationService->_set('hashService', $hashService);
-        $viewHelper->_set('mvcPropertyMapperConfigurationService', $this->mvcPropertyMapperConfigurationService);
-        $viewHelper->_set('hashService', $hashService);
+        $viewHelper->_call('setFormActionUri');
     }
 
     /**
@@ -96,14 +91,14 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
     public function renderAddsObjectToViewHelperVariableContainer()
     {
         $formObject = new \stdClass();
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderAdditionalIdentityFields', 'renderHiddenReferrerFields', 'renderHiddenSecuredReferrerField', 'renderRequestHashField', 'addFormObjectNameToViewHelperVariableContainer', 'addFieldNamePrefixToViewHelperVariableContainer', 'removeFormObjectNameFromViewHelperVariableContainer', 'removeFieldNamePrefixFromViewHelperVariableContainer', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderAdditionalIdentityFields', 'renderHiddenReferrerFields', 'renderHiddenSecuredReferrerField', 'addFormObjectNameToViewHelperVariableContainer', 'addFieldNamePrefixToViewHelperVariableContainer', 'removeFormObjectNameFromViewHelperVariableContainer', 'removeFieldNamePrefixFromViewHelperVariableContainer', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
         $this->injectDependenciesIntoViewHelper($viewHelper);
         $viewHelper->setArguments(['object' => $formObject]);
-        $this->viewHelperVariableContainer->add(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'formObject', $formObject);
-        $this->viewHelperVariableContainer->add(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'additionalIdentityProperties', []);
-        $this->viewHelperVariableContainer->remove(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'formObject');
-        $this->viewHelperVariableContainer->remove(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'additionalIdentityProperties');
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $this->viewHelperVariableContainer->add(FormViewHelper::class, 'formObject', $formObject);
+        $this->viewHelperVariableContainer->add(FormViewHelper::class, 'additionalIdentityProperties', []);
+        $this->viewHelperVariableContainer->remove(FormViewHelper::class, 'formObject');
+        $this->viewHelperVariableContainer->remove(FormViewHelper::class, 'additionalIdentityProperties');
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
@@ -113,12 +108,12 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
     public function renderAddsObjectNameToTemplateVariableContainer()
     {
         $objectName = 'someObjectName';
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderHiddenReferrerFields', 'renderHiddenSecuredReferrerField', 'renderRequestHashField', 'addFormObjectToViewHelperVariableContainer', 'addFieldNamePrefixToViewHelperVariableContainer', 'removeFormObjectFromViewHelperVariableContainer', 'removeFieldNamePrefixFromViewHelperVariableContainer', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderHiddenReferrerFields', 'renderHiddenSecuredReferrerField', 'addFormObjectToViewHelperVariableContainer', 'addFieldNamePrefixToViewHelperVariableContainer', 'removeFormObjectFromViewHelperVariableContainer', 'removeFieldNamePrefixFromViewHelperVariableContainer', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
         $this->injectDependenciesIntoViewHelper($viewHelper);
         $viewHelper->setArguments(['name' => $objectName]);
-        $this->viewHelperVariableContainer->add(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'formObjectName', $objectName);
-        $this->viewHelperVariableContainer->remove(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'formObjectName');
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $this->viewHelperVariableContainer->add(FormViewHelper::class, 'formObjectName', $objectName);
+        $this->viewHelperVariableContainer->remove(FormViewHelper::class, 'formObjectName');
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
@@ -128,12 +123,12 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
     public function formObjectNameArgumentOverrulesNameArgument()
     {
         $objectName = 'someObjectName';
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderHiddenReferrerFields', 'renderRequestHashField', 'addFormObjectToViewHelperVariableContainer', 'addFieldNamePrefixToViewHelperVariableContainer', 'removeFormObjectFromViewHelperVariableContainer', 'removeFieldNamePrefixFromViewHelperVariableContainer', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderHiddenReferrerFields', 'addFormObjectToViewHelperVariableContainer', 'addFieldNamePrefixToViewHelperVariableContainer', 'removeFormObjectFromViewHelperVariableContainer', 'removeFieldNamePrefixFromViewHelperVariableContainer', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
         $this->injectDependenciesIntoViewHelper($viewHelper);
         $viewHelper->setArguments(['name' => 'formName', 'objectName' => $objectName]);
-        $this->viewHelperVariableContainer->add(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'formObjectName', $objectName);
-        $this->viewHelperVariableContainer->remove(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'formObjectName');
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $this->viewHelperVariableContainer->add(FormViewHelper::class, 'formObjectName', $objectName);
+        $this->viewHelperVariableContainer->remove(FormViewHelper::class, 'formObjectName');
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
@@ -142,10 +137,10 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
      */
     public function renderCallsRenderHiddenReferrerFields()
     {
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['renderChildren', 'renderRequestHashField', 'renderHiddenReferrerFields', 'renderTrustedPropertiesField'], [], '', false);
-        $viewHelper->expects($this->once())->method('renderHiddenReferrerFields');
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren', 'renderHiddenReferrerFields', 'renderTrustedPropertiesField'], [], '', false);
+        $viewHelper->expects(self::once())->method('renderHiddenReferrerFields');
         $this->injectDependenciesIntoViewHelper($viewHelper);
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
@@ -155,12 +150,12 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
     public function renderCallsRenderHiddenIdentityField()
     {
         $object = new \stdClass();
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['renderChildren', 'renderRequestHashField', 'renderHiddenReferrerFields', 'renderHiddenIdentityField', 'getFormObjectName', 'renderTrustedPropertiesField'], [], '', false);
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren', 'renderHiddenReferrerFields', 'renderHiddenIdentityField', 'getFormObjectName', 'renderTrustedPropertiesField'], [], '', false);
         $this->injectDependenciesIntoViewHelper($viewHelper);
         $viewHelper->setArguments(['object' => $object]);
-        $viewHelper->expects($this->atLeastOnce())->method('getFormObjectName')->will($this->returnValue('MyName'));
-        $viewHelper->expects($this->once())->method('renderHiddenIdentityField')->with($object, 'MyName');
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $viewHelper->expects(self::atLeastOnce())->method('getFormObjectName')->willReturn('MyName');
+        $viewHelper->expects(self::once())->method('renderHiddenIdentityField')->with($object, 'MyName');
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
@@ -169,10 +164,10 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
      */
     public function renderCallsRenderAdditionalIdentityFields()
     {
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['renderChildren', 'renderRequestHashField', 'renderHiddenReferrerFields', 'renderAdditionalIdentityFields', 'renderTrustedPropertiesField'], [], '', false);
-        $viewHelper->expects($this->once())->method('renderAdditionalIdentityFields');
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren', 'renderHiddenReferrerFields', 'renderAdditionalIdentityFields', 'renderTrustedPropertiesField'], [], '', false);
+        $viewHelper->expects(self::once())->method('renderAdditionalIdentityFields');
         $this->injectDependenciesIntoViewHelper($viewHelper);
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
@@ -181,17 +176,15 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
      */
     public function renderWrapsHiddenFieldsWithDivForXhtmlCompatibilityWithRewrittenPropertyMapper()
     {
-        $viewHelper = $this->getAccessibleMock($this->buildAccessibleProxy(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class), ['renderChildren', 'renderHiddenIdentityField', 'renderAdditionalIdentityFields', 'renderHiddenReferrerFields', 'renderHiddenSecuredReferrerField', 'renderTrustedPropertiesField'], [], '', false);
-        $this->mvcPropertyMapperConfigurationService->_set('hashService', new \TYPO3\CMS\Extbase\Security\Cryptography\HashService());
-        $viewHelper->_set('mvcPropertyMapperConfigurationService', $this->mvcPropertyMapperConfigurationService);
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderAdditionalIdentityFields', 'renderHiddenReferrerFields', 'renderHiddenSecuredReferrerField', 'renderTrustedPropertiesField'], [], '', false);
         parent::injectDependenciesIntoViewHelper($viewHelper);
-        $viewHelper->expects($this->once())->method('renderHiddenIdentityField')->will($this->returnValue('hiddenIdentityField'));
-        $viewHelper->expects($this->once())->method('renderAdditionalIdentityFields')->will($this->returnValue('additionalIdentityFields'));
-        $viewHelper->expects($this->once())->method('renderHiddenReferrerFields')->will($this->returnValue('hiddenReferrerFields'));
-        $viewHelper->expects($this->once())->method('renderChildren')->will($this->returnValue('formContent'));
-        $expectedResult = chr(10) . '<div>' . 'hiddenIdentityFieldadditionalIdentityFieldshiddenReferrerFields' . chr(10) . '</div>' . chr(10) . 'formContent';
-        $this->tagBuilder->expects($this->once())->method('setContent')->with($expectedResult);
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $viewHelper->expects(self::once())->method('renderHiddenIdentityField')->willReturn('hiddenIdentityField');
+        $viewHelper->expects(self::once())->method('renderAdditionalIdentityFields')->willReturn('additionalIdentityFields');
+        $viewHelper->expects(self::once())->method('renderHiddenReferrerFields')->willReturn('hiddenReferrerFields');
+        $viewHelper->expects(self::once())->method('renderChildren')->willReturn('formContent');
+        $expectedResult =  \chr(10) . '<div>hiddenIdentityFieldadditionalIdentityFieldshiddenReferrerFields' . \chr(10) . '</div>' . \chr(10) . 'formContent';
+        $this->tagBuilder->expects(self::once())->method('setContent')->with($expectedResult);
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
@@ -200,21 +193,24 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
      */
     public function renderWrapsHiddenFieldsWithDivAndAnAdditionalClassForXhtmlCompatibilityWithRewrittenPropertyMapper()
     {
-        $viewHelper = $this->getMockBuilder($this->buildAccessibleProxy(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class))
-            ->setMethods(['renderChildren', 'renderHiddenIdentityField', 'renderAdditionalIdentityFields', 'renderHiddenReferrerFields', 'renderHiddenSecuredReferrerField', 'renderTrustedPropertiesField'])
-            ->disableOriginalConstructor()
-            ->getMock();
-        $this->mvcPropertyMapperConfigurationService->_set('hashService', new \TYPO3\CMS\Extbase\Security\Cryptography\HashService());
-        $viewHelper->_set('mvcPropertyMapperConfigurationService', $this->mvcPropertyMapperConfigurationService);
+        $viewHelper = $this->getAccessibleMock(
+            FormViewHelper::class,
+            [
+                'renderChildren', 'renderHiddenIdentityField', 'renderAdditionalIdentityFields', 'renderHiddenReferrerFields', 'renderHiddenSecuredReferrerField', 'renderTrustedPropertiesField'
+            ],
+            [],
+            '',
+            false
+        );
         parent::injectDependenciesIntoViewHelper($viewHelper);
-        $viewHelper->expects($this->once())->method('renderHiddenIdentityField')->will($this->returnValue('hiddenIdentityField'));
-        $viewHelper->expects($this->once())->method('renderAdditionalIdentityFields')->will($this->returnValue('additionalIdentityFields'));
-        $viewHelper->expects($this->once())->method('renderHiddenReferrerFields')->will($this->returnValue('hiddenReferrerFields'));
-        $viewHelper->expects($this->once())->method('renderChildren')->will($this->returnValue('formContent'));
-        $expectedResult = chr(10) . '<div class="hidden">' . 'hiddenIdentityFieldadditionalIdentityFieldshiddenReferrerFields' . chr(10) . '</div>' . chr(10) . 'formContent';
-        $this->tagBuilder->expects($this->once())->method('setContent')->with($expectedResult);
+        $viewHelper->expects(self::once())->method('renderHiddenIdentityField')->willReturn('hiddenIdentityField');
+        $viewHelper->expects(self::once())->method('renderAdditionalIdentityFields')->willReturn('additionalIdentityFields');
+        $viewHelper->expects(self::once())->method('renderHiddenReferrerFields')->willReturn('hiddenReferrerFields');
+        $viewHelper->expects(self::once())->method('renderChildren')->willReturn('formContent');
+        $expectedResult =  \chr(10) . '<div class="hidden">hiddenIdentityFieldadditionalIdentityFieldshiddenReferrerFields' . \chr(10) . '</div>' . \chr(10) . 'formContent';
+        $this->tagBuilder->expects(self::once())->method('setContent')->with($expectedResult);
         $viewHelper->setArguments(['hiddenFieldClassName' => 'hidden']);
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
@@ -227,14 +223,14 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
             'object1[object2]' => '<input type="hidden" name="object1[object2][__identity]" value="42" />',
             'object1[object2][subobject]' => '<input type="hidden" name="object1[object2][subobject][__identity]" value="21" />'
         ];
-        $this->viewHelperVariableContainer->exists(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'additionalIdentityProperties')->willReturn(true);
-        $this->viewHelperVariableContainer->get(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'additionalIdentityProperties')->willReturn($identityProperties);
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['renderChildren'], [], '', false);
+        $this->viewHelperVariableContainer->exists(FormViewHelper::class, 'additionalIdentityProperties')->willReturn(true);
+        $this->viewHelperVariableContainer->get(FormViewHelper::class, 'additionalIdentityProperties')->willReturn($identityProperties);
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren'], [], '', false);
         $this->injectDependenciesIntoViewHelper($viewHelper);
-        $expected = chr(10) . '<input type="hidden" name="object1[object2][__identity]" value="42" />' . chr(10) . '<input type="hidden" name="object1[object2][subobject][__identity]" value="21" />';
+        $expected =  \chr(10) . '<input type="hidden" name="object1[object2][__identity]" value="42" />' . \chr(10) . '<input type="hidden" name="object1[object2][subobject][__identity]" value="21" />';
         $actual = $viewHelper->_call('renderAdditionalIdentityFields');
-        $viewHelper->_set('tag', $this->tagBuilder);
-        $this->assertEquals($expected, $actual);
+        $viewHelper->setTagBuilder($this->tagBuilder);
+        self::assertEquals($expected, $actual);
     }
 
     /**
@@ -242,22 +238,25 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
      */
     public function renderHiddenReferrerFieldsAddCurrentControllerAndActionAsHiddenFields()
     {
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['dummy'], [], '', false);
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['dummy'], [], '', false);
         $this->injectDependenciesIntoViewHelper($viewHelper);
+        $hashService = $this->getMockBuilder(HashService::class)
+            ->setMethods(['appendHmac'])
+            ->getMock();
+        $hashService->expects(self::any())->method('appendHmac')->willReturn('');
+        $viewHelper->injectHashService($hashService);
         $this->request->getControllerExtensionName()->willReturn('extensionName');
         $this->request->getControllerName()->willReturn('controllerName');
         $this->request->getControllerActionName()->willReturn('controllerActionName');
-        $this->request->getControllerVendorName()->willReturn('controllerVendorName');
         $this->request->getArguments()->willReturn([]);
         $hiddenFields = $viewHelper->_call('renderHiddenReferrerFields');
-        $expectedResult = chr(10) . '<input type="hidden" name="__referrer[@extension]" value="extensionName" />'
-            . chr(10) . '<input type="hidden" name="__referrer[@vendor]" value="controllerVendorName" />'
-            . chr(10) . '<input type="hidden" name="__referrer[@controller]" value="controllerName" />'
-            . chr(10) . '<input type="hidden" name="__referrer[@action]" value="controllerActionName" />'
-            . chr(10) . '<input type="hidden" name="__referrer[arguments]" value="" />'
-            . chr(10) . '<input type="hidden" name="__referrer[@request]" value="" />' . chr(10);
-        $viewHelper->_set('tag', $this->tagBuilder);
-        $this->assertEquals($expectedResult, $hiddenFields);
+        $expectedResult =  \chr(10) . '<input type="hidden" name="__referrer[@extension]" value="extensionName" />'
+            . \chr(10) . '<input type="hidden" name="__referrer[@controller]" value="controllerName" />'
+            . \chr(10) . '<input type="hidden" name="__referrer[@action]" value="controllerActionName" />'
+            . \chr(10) . '<input type="hidden" name="__referrer[arguments]" value="" />'
+            . \chr(10) . '<input type="hidden" name="__referrer[@request]" value="" />' . \chr(10);
+        $viewHelper->setTagBuilder($this->tagBuilder);
+        self::assertEquals($expectedResult, $hiddenFields);
     }
 
     /**
@@ -266,12 +265,12 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
     public function renderAddsSpecifiedPrefixToTemplateVariableContainer()
     {
         $prefix = 'somePrefix';
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderHiddenReferrerFields', 'renderRequestHashField', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderHiddenReferrerFields', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
         $this->injectDependenciesIntoViewHelper($viewHelper);
         $viewHelper->setArguments(['fieldNamePrefix' => $prefix]);
-        $this->viewHelperVariableContainer->add(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'fieldNamePrefix', $prefix);
-        $this->viewHelperVariableContainer->remove(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'fieldNamePrefix');
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $this->viewHelperVariableContainer->add(FormViewHelper::class, 'fieldNamePrefix', $prefix);
+        $this->viewHelperVariableContainer->remove(FormViewHelper::class, 'fieldNamePrefix');
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
@@ -281,21 +280,22 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
     public function renderAddsDefaultFieldNamePrefixToTemplateVariableContainerIfNoPrefixIsSpecified()
     {
         $expectedPrefix = 'tx_someextension_someplugin';
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderHiddenReferrerFields', 'renderRequestHashField', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
-        $this->mockExtensionService->expects($this->once())->method('getPluginNamespace')->with('SomeExtension', 'SomePlugin')->will($this->returnValue('tx_someextension_someplugin'));
-        $viewHelper->_set('extensionService', $this->mockExtensionService);
+        $viewHelper = $this->getAccessibleMock(FormViewHelper::class, ['renderChildren', 'renderHiddenIdentityField', 'renderHiddenReferrerFields', 'addFormFieldNamesToViewHelperVariableContainer', 'removeFormFieldNamesFromViewHelperVariableContainer', 'renderTrustedPropertiesField'], [], '', false);
+        $mockExtensionService = $this->createMock(ExtensionService::class);
+        $mockExtensionService->expects(self::once())->method('getPluginNamespace')->with('SomeExtension', 'SomePlugin')->willReturn('tx_someextension_someplugin');
+        $viewHelper->injectExtensionService($mockExtensionService);
         $this->injectDependenciesIntoViewHelper($viewHelper);
         $viewHelper->setArguments(['extensionName' => 'SomeExtension', 'pluginName' => 'SomePlugin']);
-        $this->viewHelperVariableContainer->add(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'fieldNamePrefix', $expectedPrefix);
-        $this->viewHelperVariableContainer->remove(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, 'fieldNamePrefix');
-        $viewHelper->_set('tag', $this->tagBuilder);
+        $this->viewHelperVariableContainer->add(FormViewHelper::class, 'fieldNamePrefix', $expectedPrefix);
+        $this->viewHelperVariableContainer->remove(FormViewHelper::class, 'fieldNamePrefix');
+        $viewHelper->setTagBuilder($this->tagBuilder);
         $viewHelper->render();
     }
 
     /**
      * Data Provider for postProcessUriArgumentsForRequestHashWorks
      */
-    public function argumentsForPostProcessUriArgumentsForRequestHash()
+    public function argumentsForPostProcessUriArgumentsForRequestHash(): array
     {
         return [
             // simple values
@@ -330,12 +330,17 @@ class FormViewHelperTest extends ViewHelperBaseTestcase
     /**
      * @test
      * @dataProvider argumentsForPostProcessUriArgumentsForRequestHash
+     * @param $arguments
+     * @param $expectedResults
      */
     public function postProcessUriArgumentsForRequestHashWorks($arguments, $expectedResults)
     {
-        $viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper::class, ['dummy'], [], '', false);
+        $formViewHelper = new FormViewHelper();
         $results = [];
-        $viewHelper->_callRef('postProcessUriArgumentsForRequestHash', $arguments, $results);
-        $this->assertEquals($expectedResults, $results);
+        $mock = \Closure::bind(static function (FormViewHelper $formViewHelper) use ($arguments, &$results) {
+            return $formViewHelper->postProcessUriArgumentsForRequestHash($arguments, $results);
+        }, null, FormViewHelper::class);
+        $mock($formViewHelper);
+        self::assertEquals($expectedResults, $results);
     }
 }

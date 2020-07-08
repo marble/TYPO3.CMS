@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Database;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,13 @@ namespace TYPO3\CMS\Core\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Database\Platform\PlatformInformation;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\DataHandling\PlainDataResolver;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -52,7 +55,7 @@ class RelationHandler
     public $tableArray = [];
 
     /**
-     * Contains items in an numeric array (table/id for each). Tablenames here might be "_NO_TABLE"
+     * Contains items in a numeric array (table/id for each). Tablenames here might be "_NO_TABLE"
      *
      * @var array
      */
@@ -76,11 +79,6 @@ class RelationHandler
      * @var bool
      */
     public $checkIfDeleted = true;
-
-    /**
-     * @var array
-     */
-    public $dbPaths = [];
 
     /**
      * Will contain the first table name in the $tablelist (for positive ids)
@@ -121,9 +119,9 @@ class RelationHandler
     /**
      * Only set if MM_is_foreign is set
      *
-     * @var string
+     * @var array
      */
-    public $MM_oppositeFieldConf = '';
+    public $MM_oppositeFieldConf = [];
 
     /**
      * Is empty by default; if MM_is_foreign is set and there is more than one table
@@ -262,24 +260,22 @@ class RelationHandler
     {
         $conf = (array)$conf;
         // SECTION: MM reverse relations
-        $this->MM_is_foreign = (bool)$conf['MM_opposite_field'];
-        $this->MM_oppositeField = $conf['MM_opposite_field'];
-        $this->MM_table_where = $conf['MM_table_where'];
-        $this->MM_hasUidField = $conf['MM_hasUidField'];
-        $this->MM_match_fields = is_array($conf['MM_match_fields']) ? $conf['MM_match_fields'] : [];
-        $this->MM_insert_fields = is_array($conf['MM_insert_fields']) ? $conf['MM_insert_fields'] : $this->MM_match_fields;
+        $this->MM_is_foreign = (bool)($conf['MM_opposite_field'] ?? false);
+        $this->MM_oppositeField = $conf['MM_opposite_field'] ?? null;
+        $this->MM_table_where = $conf['MM_table_where'] ?? null;
+        $this->MM_hasUidField = $conf['MM_hasUidField'] ?? null;
+        $this->MM_match_fields = (isset($conf['MM_match_fields']) && is_array($conf['MM_match_fields'])) ? $conf['MM_match_fields'] : [];
+        $this->MM_insert_fields = (isset($conf['MM_insert_fields']) && is_array($conf['MM_insert_fields'])) ? $conf['MM_insert_fields'] : $this->MM_match_fields;
         $this->currentTable = $currentTable;
         if (!empty($conf['MM_oppositeUsage']) && is_array($conf['MM_oppositeUsage'])) {
             $this->MM_oppositeUsage = $conf['MM_oppositeUsage'];
         }
         if ($this->MM_is_foreign) {
-            $tmp = $conf['type'] === 'group' ? $conf['allowed'] : $conf['foreign_table'];
+            $allowedTableList = $conf['type'] === 'group' ? $conf['allowed'] : $conf['foreign_table'];
             // Normally, $conf['allowed'] can contain a list of tables,
             // but as we are looking at a MM relation from the foreign side,
             // it only makes sense to allow one one table in $conf['allowed']
-            $tmp = GeneralUtility::trimExplode(',', $tmp);
-            $this->MM_oppositeTable = $tmp[0];
-            unset($tmp);
+            [$this->MM_oppositeTable] = GeneralUtility::trimExplode(',', $allowedTableList);
             // Only add the current table name if there is more than one allowed field
             // We must be sure this has been done at least once before accessing the "columns" part of TCA for a table.
             $this->MM_oppositeFieldConf = $GLOBALS['TCA'][$this->MM_oppositeTable]['columns'][$this->MM_oppositeField]['config'];
@@ -300,8 +296,9 @@ class RelationHandler
         foreach ($tempTableArray as $val) {
             $tName = trim($val);
             $this->tableArray[$tName] = [];
-            if ($this->checkIfDeleted && $GLOBALS['TCA'][$tName]['ctrl']['delete']) {
-                $fieldN = $tName . '.' . $GLOBALS['TCA'][$tName]['ctrl']['delete'];
+            $deleteField = $GLOBALS['TCA'][$tName]['ctrl']['delete'] ?? false;
+            if ($this->checkIfDeleted && $deleteField) {
+                $fieldN = $tName . '.' . $deleteField;
                 $this->additionalWhere[$tName] .= ' AND ' . $fieldN . '=0';
             }
         }
@@ -329,14 +326,14 @@ class RelationHandler
                 $this->readList($itemlist, $conf);
                 $this->purgeItemArray();
             }
-        } elseif ($MMuid && $conf['foreign_field']) {
+        } elseif ($MMuid && isset($conf['foreign_field']) && (bool)$conf['foreign_field']) {
             // If not MM but foreign_field, the read the records by the foreign_field
             $this->readForeignField($MMuid, $conf);
         } else {
             // If not MM, then explode the itemlist by "," and traverse the list:
             $this->readList($itemlist, $conf);
             // Do automatic default_sortby, if any
-            if ($conf['foreign_default_sortby']) {
+            if (isset($conf['foreign_default_sortby']) && $conf['foreign_default_sortby']) {
                 $this->sortList($conf['foreign_default_sortby']);
             }
         }
@@ -391,9 +388,9 @@ class RelationHandler
             // Changed to trimExplode 31/3 04; HMENU special type "list" didn't work
             // if there were spaces in the list... I suppose this is better overall...
             foreach ($tempItemArray as $key => $val) {
-                // Will be set to "1" if the entry was a real table/id:
-                $isSet = 0;
-                // Extract table name and id. This is un the formular [tablename]_[id]
+                // Will be set to "true" if the entry was a real table/id
+                $isSet = false;
+                // Extract table name and id. This is in the formula [tablename]_[id]
                 // where table name MIGHT contain "_", hence the reversion of the string!
                 $val = strrev($val);
                 $parts = explode('_', $val, 2);
@@ -402,8 +399,8 @@ class RelationHandler
                 if (MathUtility::canBeInterpretedAsInteger($theID)) {
                     // Get the table name: If a part of the exploded string, use that.
                     // Otherwise if the id number is LESS than zero, use the second table, otherwise the first table
-                    $theTable = trim($parts[1])
-                        ? strrev(trim($parts[1]))
+                    $theTable = trim($parts[1] ?? '')
+                        ? strrev(trim($parts[1] ?? ''))
                         : ($this->secondTable && $theID < 0 ? $this->secondTable : $this->firstTable);
                     // If the ID is not blank and the table name is among the names in the inputted tableList
                     if (
@@ -418,8 +415,8 @@ class RelationHandler
                         $this->itemArray[$key]['id'] = $theID;
                         $this->itemArray[$key]['table'] = $theTable;
                         $this->tableArray[$theTable][] = $theID;
-                        // Set update-flag:
-                        $isSet = 1;
+                        // Set update-flag
+                        $isSet = true;
                     }
                 }
                 // If it turns out that the value from the list was NOT a valid reference to a table-record,
@@ -443,8 +440,8 @@ class RelationHandler
                 foreach ($this->itemArray as &$item) {
                     $item['id'] = $this->getLiveDefaultId($item['table'], $item['id']);
                 }
-            // Directly overlay workspace data
             } else {
+                // Directly overlay workspace data
                 $this->itemArray = [];
                 $foreignTable = $configuration['foreign_table'];
                 $ids = $this->getResolver($foreignTable, $this->tableArray[$foreignTable])->get();
@@ -478,26 +475,27 @@ class RelationHandler
         } elseif (count($this->tableArray) === 1) {
             reset($this->tableArray);
             $table = key($this->tableArray);
-            $uidList = implode(',', current($this->tableArray));
-            if ($uidList) {
+            $connection = $this->getConnectionForTableName($table);
+            $maxBindParameters = PlatformInformation::getMaxBindParameters($connection->getDatabasePlatform());
+
+            foreach (array_chunk(current($this->tableArray), $maxBindParameters - 10, true) as $chunk) {
+                if (empty($chunk)) {
+                    continue;
+                }
                 $this->itemArray = [];
                 $this->tableArray = [];
-                $queryBuilder = $this->getConnectionForTableName($table)
-                    ->createQueryBuilder();
+                $queryBuilder = $connection->createQueryBuilder();
                 $queryBuilder->getRestrictions()->removeAll();
                 $queryBuilder->select('uid')
                     ->from($table)
                     ->where(
                         $queryBuilder->expr()->in(
                             'uid',
-                            $queryBuilder->createNamedParameter(
-                                GeneralUtility::intExplode(',', $uidList),
-                                Connection::PARAM_INT_ARRAY
-                            )
+                            $queryBuilder->createNamedParameter($chunk, Connection::PARAM_INT_ARRAY)
                         )
                     );
                 foreach (QueryHelper::parseOrderBy((string)$sortby) as $orderPair) {
-                    list($fieldName, $order) = $orderPair;
+                    [$fieldName, $order] = $orderPair;
                     $queryBuilder->addOrderBy($fieldName, $order);
                 }
                 $statement = $queryBuilder->execute();
@@ -622,7 +620,7 @@ class RelationHandler
         $tableC = count($this->tableArray);
         if ($tableC) {
             // Boolean: does the field "tablename" need to be filled?
-            $prep = $tableC > 1 || $prependTableName || $this->MM_isMultiTableRelationship ? 1 : 0;
+            $prep = $tableC > 1 || $prependTableName || $this->MM_isMultiTableRelationship;
             $c = 0;
             $additionalWhere_tablenames = '';
             if ($this->MM_is_foreign && $prep) {
@@ -906,6 +904,12 @@ class RelationHandler
 
         $key = 0;
         $uid = (int)$uid;
+        // skip further processing if $uid does not
+        // point to a valid parent record
+        if ($uid === 0) {
+            return;
+        }
+
         $foreign_table = $conf['foreign_table'];
         $foreign_table_field = $conf['foreign_table_field'];
         $useDeleteClause = !$this->undeleteRecord;
@@ -960,15 +964,8 @@ class RelationHandler
         }
         // Select children from the live(!) workspace only
         if (BackendUtility::isTableWorkspaceEnabled($foreign_table)) {
-            $queryBuilder->andWhere(
-                $queryBuilder->expr()->in(
-                    $foreign_table . '.t3ver_wsid',
-                    $queryBuilder->createNamedParameter([0, (int)$this->getWorkspaceId()], Connection::PARAM_INT_ARRAY)
-                ),
-                $queryBuilder->expr()->neq(
-                    $foreign_table . '.pid',
-                    $queryBuilder->createNamedParameter(-1, \PDO::PARAM_INT)
-                )
+            $queryBuilder->getRestrictions()->add(
+                GeneralUtility::makeInstance(WorkspaceRestriction::class, (int)$this->getWorkspaceId())
             );
         }
         // Get the correct sorting field
@@ -1004,7 +1001,7 @@ class RelationHandler
 
         if (!empty($sortby)) {
             foreach (QueryHelper::parseOrderBy($sortby) as $orderPair) {
-                list($fieldName, $sorting) = $orderPair;
+                [$fieldName, $sorting] = $orderPair;
                 $queryBuilder->addOrderBy($fieldName, $sorting);
             }
         }
@@ -1115,7 +1112,7 @@ class RelationHandler
                         } else {
                             $tempSortBy = [];
                             foreach (QueryHelper::parseOrderBy($sortby) as $orderPair) {
-                                list($fieldName, $order) = $orderPair;
+                                [$fieldName, $order] = $orderPair;
                                 if ($order !== null) {
                                     $tempSortBy[] = implode(' ', $orderPair);
                                 } else {
@@ -1200,16 +1197,18 @@ class RelationHandler
     public function getFromDB()
     {
         // Traverses the tables listed:
-        foreach ($this->tableArray as $table => $val) {
-            if (is_array($val)) {
-                $itemList = implode(',', $val);
-                if ($itemList) {
+        foreach ($this->tableArray as $table => $ids) {
+            if (is_array($ids) && !empty($ids)) {
+                $connection = $this->getConnectionForTableName($table);
+                $maxBindParameters = PlatformInformation::getMaxBindParameters($connection->getDatabasePlatform());
+
+                foreach (array_chunk($ids, $maxBindParameters - 10, true) as $chunk) {
                     if ($this->fetchAllFields) {
                         $fields = '*';
                     } else {
                         $fields = 'uid,pid';
                         if ($GLOBALS['TCA'][$table]['ctrl']['label']) {
-                            // Titel
+                            // Title
                             $fields .= ',' . $GLOBALS['TCA'][$table]['ctrl']['label'];
                         }
                         if ($GLOBALS['TCA'][$table]['ctrl']['label_alt']) {
@@ -1221,20 +1220,18 @@ class RelationHandler
                             $fields .= ',' . $GLOBALS['TCA'][$table]['ctrl']['thumbnail'];
                         }
                     }
-                    $queryBuilder = $this->getConnectionForTableName($table)
-                        ->createQueryBuilder();
+                    $queryBuilder = $connection->createQueryBuilder();
                     $queryBuilder->getRestrictions()->removeAll();
-                    $queryBuilder->select(...(GeneralUtility::trimExplode(',', $fields, true)))
+                    $queryBuilder->select(...GeneralUtility::trimExplode(',', $fields, true))
                         ->from($table)
                         ->where($queryBuilder->expr()->in(
                             'uid',
-                            $queryBuilder->createNamedParameter(
-                                GeneralUtility::intExplode(',', $itemList),
-                                Connection::PARAM_INT_ARRAY
-                            )
+                            $queryBuilder->createNamedParameter($chunk, Connection::PARAM_INT_ARRAY)
                         ));
                     if ($this->additionalWhere[$table]) {
-                        $queryBuilder->andWhere(QueryHelper::stripLogicalOperatorPrefix($this->additionalWhere[$table]));
+                        $queryBuilder->andWhere(
+                            QueryHelper::stripLogicalOperatorPrefix($this->additionalWhere[$table])
+                        );
                     }
                     $statement = $queryBuilder->execute();
                     while ($row = $statement->fetch()) {
@@ -1301,11 +1298,12 @@ class RelationHandler
     {
         $statisticsArray = [];
         if ($this->updateReferenceIndex) {
-            /** @var $refIndexObj \TYPO3\CMS\Core\Database\ReferenceIndex */
-            $refIndexObj = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\ReferenceIndex::class);
+            /** @var \TYPO3\CMS\Core\Database\ReferenceIndex $refIndexObj */
+            $refIndexObj = GeneralUtility::makeInstance(ReferenceIndex::class);
             if (BackendUtility::isTableWorkspaceEnabled($table)) {
                 $refIndexObj->setWorkspaceId($this->getWorkspaceId());
             }
+            $refIndexObj->enableRuntimeCache();
             $statisticsArray = $refIndexObj->updateRefIndexTable($table, $id);
         }
         return $statisticsArray;
@@ -1322,14 +1320,13 @@ class RelationHandler
      */
     public function convertItemArray()
     {
-        $hasBeenConverted = false;
-
         // conversion is only required in a workspace context
         // (the case that version ids are submitted in a live context are rare)
         if ($this->getWorkspaceId() === 0) {
-            return $hasBeenConverted;
+            return false;
         }
 
+        $hasBeenConverted = false;
         foreach ($this->tableArray as $tableName => $ids) {
             if (empty($ids) || !BackendUtility::isTableWorkspaceEnabled($tableName)) {
                 continue;
@@ -1365,7 +1362,7 @@ class RelationHandler
     }
 
     /**
-     * @param NULL|int $workspaceId
+     * @param int|null $workspaceId
      * @return bool Whether items have been purged
      */
     public function purgeItemArray($workspaceId = null)
@@ -1379,8 +1376,8 @@ class RelationHandler
         // Ensure, only live relations are in the items Array
         if ($workspaceId === 0) {
             $purgeCallback = 'purgeVersionedIds';
-        // Otherwise, ensure that live relations are purged if version exists
         } else {
+            // Otherwise, ensure that live relations are purged if version exists
             $purgeCallback = 'purgeLiveVersionedIds';
         }
 
@@ -1441,33 +1438,30 @@ class RelationHandler
      */
     protected function purgeVersionedIds($tableName, array $ids)
     {
+        $ids = $this->sanitizeIds($ids);
         $ids = array_combine($ids, $ids);
+        $connection = $this->getConnectionForTableName($tableName);
+        $maxBindParameters = PlatformInformation::getMaxBindParameters($connection->getDatabasePlatform());
 
-        $queryBuilder = $this->getConnectionForTableName($tableName)
-            ->createQueryBuilder();
-        $queryBuilder->getRestrictions()->removeAll();
-        $versions = $queryBuilder->select('uid', 't3ver_oid', 't3ver_state')
-            ->from($tableName)
-            ->where(
-                $queryBuilder->expr()->eq(
-                    'pid',
-                    $queryBuilder->createNamedParameter(-1, \PDO::PARAM_INT)
-                ),
-                $queryBuilder->expr()->in(
-                    't3ver_oid',
-                    $queryBuilder->createNamedParameter($ids, Connection::PARAM_INT_ARRAY)
-                ),
-                $queryBuilder->expr()->neq(
-                    't3ver_wsid',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+        foreach (array_chunk($ids, $maxBindParameters - 10, true) as $chunk) {
+            $queryBuilder = $connection->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll();
+            $result = $queryBuilder->select('uid', 't3ver_oid', 't3ver_state')
+                ->from($tableName)
+                ->where(
+                    $queryBuilder->expr()->in(
+                        't3ver_oid',
+                        $queryBuilder->createNamedParameter($chunk, Connection::PARAM_INT_ARRAY)
+                    ),
+                    $queryBuilder->expr()->neq(
+                        't3ver_wsid',
+                        $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    )
                 )
-            )
-            ->orderBy('t3ver_state', 'DESC')
-            ->execute()
-            ->fetchAll();
+                ->orderBy('t3ver_state', 'DESC')
+                ->execute();
 
-        if (!empty($versions)) {
-            foreach ($versions as $version) {
+            while ($version = $result->fetch()) {
                 $versionId = $version['uid'];
                 if (isset($ids[$versionId])) {
                     unset($ids[$versionId]);
@@ -1487,33 +1481,30 @@ class RelationHandler
      */
     protected function purgeLiveVersionedIds($tableName, array $ids)
     {
+        $ids = $this->sanitizeIds($ids);
         $ids = array_combine($ids, $ids);
+        $connection = $this->getConnectionForTableName($tableName);
+        $maxBindParameters = PlatformInformation::getMaxBindParameters($connection->getDatabasePlatform());
 
-        $queryBuilder = $this->getConnectionForTableName($tableName)
-            ->createQueryBuilder();
-        $queryBuilder->getRestrictions()->removeAll();
-        $versions = $queryBuilder->select('uid', 't3ver_oid', 't3ver_state')
-            ->from($tableName)
-            ->where(
-                $queryBuilder->expr()->eq(
-                    'pid',
-                    $queryBuilder->createNamedParameter(-1, \PDO::PARAM_INT)
-                ),
-                $queryBuilder->expr()->in(
-                    't3ver_oid',
-                    $queryBuilder->createNamedParameter($ids, Connection::PARAM_INT_ARRAY)
-                ),
-                $queryBuilder->expr()->neq(
-                    't3ver_wsid',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+        foreach (array_chunk($ids, $maxBindParameters - 10, true) as $chunk) {
+            $queryBuilder = $connection->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll();
+            $result = $queryBuilder->select('uid', 't3ver_oid', 't3ver_state')
+                ->from($tableName)
+                ->where(
+                    $queryBuilder->expr()->in(
+                        't3ver_oid',
+                        $queryBuilder->createNamedParameter($chunk, Connection::PARAM_INT_ARRAY)
+                    ),
+                    $queryBuilder->expr()->neq(
+                        't3ver_wsid',
+                        $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                    )
                 )
-            )
-            ->orderBy('t3ver_state', 'DESC')
-            ->execute()
-            ->fetchAll();
+                ->orderBy('t3ver_state', 'DESC')
+                ->execute();
 
-        if (!empty($versions)) {
-            foreach ($versions as $version) {
+            while ($version = $result->fetch()) {
                 $versionId = $version['uid'];
                 $liveId = $version['t3ver_oid'];
                 if (isset($ids[$liveId]) && isset($ids[$versionId])) {
@@ -1534,42 +1525,39 @@ class RelationHandler
      */
     protected function purgeDeletePlaceholder($tableName, array $ids)
     {
+        $ids = $this->sanitizeIds($ids);
         $ids = array_combine($ids, $ids);
+        $connection = $this->getConnectionForTableName($tableName);
+        $maxBindParameters = PlatformInformation::getMaxBindParameters($connection->getDatabasePlatform());
 
-        $queryBuilder = $this->getConnectionForTableName($tableName)
-            ->createQueryBuilder();
-        $queryBuilder->getRestrictions()->removeAll();
-        $versions = $queryBuilder->select('uid', 't3ver_oid', 't3ver_state')
-            ->from($tableName)
-            ->where(
-                $queryBuilder->expr()->eq(
-                    'pid',
-                    $queryBuilder->createNamedParameter(-1, \PDO::PARAM_INT)
-                ),
-                $queryBuilder->expr()->in(
-                    't3ver_oid',
-                    $queryBuilder->createNamedParameter($ids, Connection::PARAM_INT_ARRAY)
-                ),
-                $queryBuilder->expr()->neq(
-                    't3ver_wsid',
-                    $queryBuilder->createNamedParameter(
-                        $this->getWorkspaceId(),
-                        \PDO::PARAM_INT
-                    )
-                ),
-                $queryBuilder->expr()->eq(
-                    't3ver_state',
-                    $queryBuilder->createNamedParameter(
-                        (string)VersionState::cast(VersionState::DELETE_PLACEHOLDER),
-                        \PDO::PARAM_INT
+        foreach (array_chunk($ids, $maxBindParameters - 10, true) as $chunk) {
+            $queryBuilder = $connection->createQueryBuilder();
+            $queryBuilder->getRestrictions()->removeAll();
+            $result = $queryBuilder->select('uid', 't3ver_oid', 't3ver_state')
+                ->from($tableName)
+                ->where(
+                    $queryBuilder->expr()->in(
+                        't3ver_oid',
+                        $queryBuilder->createNamedParameter($chunk, Connection::PARAM_INT_ARRAY)
+                    ),
+                    $queryBuilder->expr()->eq(
+                        't3ver_wsid',
+                        $queryBuilder->createNamedParameter(
+                            $this->getWorkspaceId(),
+                            \PDO::PARAM_INT
+                        )
+                    ),
+                    $queryBuilder->expr()->eq(
+                        't3ver_state',
+                        $queryBuilder->createNamedParameter(
+                            (string)VersionState::cast(VersionState::DELETE_PLACEHOLDER),
+                            \PDO::PARAM_INT
+                        )
                     )
                 )
-            )
-            ->execute()
-            ->fetchAll();
+                ->execute();
 
-        if (!empty($versions)) {
-            foreach ($versions as $version) {
+            while ($version = $result->fetch()) {
                 $liveId = $version['t3ver_oid'];
                 if (isset($ids[$liveId])) {
                     unset($ids[$liveId]);
@@ -1650,6 +1638,17 @@ class RelationHandler
             $liveDefaultId = $id;
         }
         return (int)$liveDefaultId;
+    }
+
+    /**
+     * Removes empty values (null, '0', 0, false).
+     *
+     * @param int[] $ids
+     * @return array
+     */
+    protected function sanitizeIds(array $ids): array
+    {
+        return array_filter($ids);
     }
 
     /**

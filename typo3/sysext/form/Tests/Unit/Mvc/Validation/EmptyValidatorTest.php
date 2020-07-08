@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Validation;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Validation;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Validation;
+
 use TYPO3\CMS\Form\Mvc\Validation\EmptyValidator;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class EmptyValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class EmptyValidatorTest extends UnitTestCase
 {
 
     /**
@@ -33,7 +35,7 @@ class EmptyValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = '';
 
-        $this->assertFalse($validator->validate($input)->hasErrors());
+        self::assertFalse($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -47,7 +49,7 @@ class EmptyValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = null;
 
-        $this->assertFalse($validator->validate($input)->hasErrors());
+        self::assertFalse($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -61,7 +63,7 @@ class EmptyValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = [];
 
-        $this->assertFalse($validator->validate($input)->hasErrors());
+        self::assertFalse($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -75,7 +77,7 @@ class EmptyValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = 0;
 
-        $this->assertFalse($validator->validate($input)->hasErrors());
+        self::assertFalse($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -89,7 +91,7 @@ class EmptyValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = '0';
 
-        $this->assertFalse($validator->validate($input)->hasErrors());
+        self::assertFalse($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -103,7 +105,7 @@ class EmptyValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = 'hellö';
 
-        $this->assertTrue($validator->validate($input)->hasErrors());
+        self::assertTrue($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -117,6 +119,6 @@ class EmptyValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = ['hellö'];
 
-        $this->assertTrue($validator->validate($input)->hasErrors());
+        self::assertTrue($validator->validate($input)->hasErrors());
     }
 }

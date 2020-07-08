@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Template\Components\Buttons;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Template\Components\Buttons;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Template\Components\Buttons;
 
 /**
  * InputButton
@@ -33,7 +34,7 @@ namespace TYPO3\CMS\Backend\Template\Components\Buttons;
  *      ->setTitle('Save');
  * $buttonBar->addButton($saveButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
  */
-class InputButton extends AbstractButton implements ButtonInterface
+class InputButton extends AbstractButton
 {
     /**
      * Name Attribute of the button
@@ -154,6 +155,9 @@ class InputButton extends AbstractButton implements ButtonInterface
             'title' => $this->getTitle(),
             'form' => trim($this->getForm())
         ];
+        if ($this->isDisabled()) {
+            $attributes['disabled'] = 'disabled';
+        }
         $labelText = '';
         if ($this->showLabelText) {
             $labelText = ' ' . $this->title;

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\DomainObject;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +15,19 @@ namespace TYPO3\CMS\Extbase\DomainObject;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\DomainObject;
+
+use TYPO3\CMS\Extbase\Persistence\Generic\Exception\TooDirtyException;
+use TYPO3\CMS\Extbase\Persistence\Generic\LazyLoadingProxy;
+use TYPO3\CMS\Extbase\Persistence\ObjectMonitoringInterface;
+
 /**
  * A generic Domain Object.
  *
  * All Model domain objects need to inherit from either AbstractEntity or AbstractValueObject, as this provides important framework information.
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
-abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS\Extbase\Persistence\ObjectMonitoringInterface
+abstract class AbstractDomainObject implements DomainObjectInterface, ObjectMonitoringInterface
 {
     /**
      * @var int The uid of the record. The uid is only unique in the context of the database table.
@@ -27,12 +35,12 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
     protected $uid;
 
     /**
-     * @var int The uid of the localized record. In TYPO3 v4.x the property "uid" holds the uid of the record in default language (the translationOrigin).
+     * @var int The uid of the localized record. Holds the uid of the record in default language (the translationOrigin).
      */
     protected $_localizedUid;
 
     /**
-     * @var int The uid of the language of the object. In TYPO3 v4.x this is the uid of the language record in the table sys_language.
+     * @var int The uid of the language of the object. This is the uid of the language record in the table sys_language.
      */
     protected $_languageUid;
 
@@ -63,41 +71,35 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
      *
      * @return int the uid or NULL if none set yet.
      */
-    public function getUid()
+    public function getUid(): ?int
     {
         if ($this->uid !== null) {
             return (int)$this->uid;
-        } else {
-            return null;
         }
+        return null;
     }
 
     /**
      * Setter for the pid.
      *
-     * @param int|NULL $pid
+     * @param int $pid
      */
-    public function setPid($pid)
+    public function setPid(int $pid): void
     {
-        if ($pid === null) {
-            $this->pid = null;
-        } else {
-            $this->pid = (int)$pid;
-        }
+        $this->pid = $pid;
     }
 
     /**
      * Getter for the pid.
      *
-     * @return int The pid or NULL if none set yet.
+     * @return int|null The pid or NULL if none set yet.
      */
-    public function getPid()
+    public function getPid(): ?int
     {
         if ($this->pid === null) {
             return null;
-        } else {
-            return (int)$this->pid;
         }
+        return (int)$this->pid;
     }
 
     /**
@@ -106,8 +108,9 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
      * @param string $propertyName
      * @param mixed $propertyValue
      * @return bool
+     * @internal
      */
-    public function _setProperty($propertyName, $propertyValue)
+    public function _setProperty(string $propertyName, $propertyValue)
     {
         if ($this->_hasProperty($propertyName)) {
             $this->{$propertyName} = $propertyValue;
@@ -121,8 +124,9 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
      *
      * @param string $propertyName
      * @return mixed The propertyValue
+     * @internal
      */
-    public function _getProperty($propertyName)
+    public function _getProperty(string $propertyName)
     {
         return $this->{$propertyName};
     }
@@ -131,8 +135,9 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
      * Returns a hash map of property names and property values. Only for internal use.
      *
      * @return array The properties
+     * @internal
      */
-    public function _getProperties()
+    public function _getProperties(): array
     {
         $properties = get_object_vars($this);
         foreach ($properties as $propertyName => $propertyValue) {
@@ -148,6 +153,7 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
      *
      * @param string $propertyName
      * @return bool TRUE bool true if the property exists, FALSE if it doesn't exist or NULL in case of an error.
+     * @internal
      */
     public function _hasProperty($propertyName)
     {
@@ -158,8 +164,9 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
      * Returns TRUE if the object is new (the uid was not set, yet). Only for internal use
      *
      * @return bool
+     * @internal
      */
-    public function _isNew()
+    public function _isNew(): bool
     {
         return $this->uid === null;
     }
@@ -188,10 +195,10 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
     }
 
     /**
-     * Register an properties's clean state, e.g. after it has been reconstituted
+     * Register a properties's clean state, e.g. after it has been reconstituted
      * from the database.
      *
-     * @param string $propertyName The name of the property to be memorized. If omittet all persistable properties are memorized.
+     * @param string $propertyName The name of the property to be memorized. If omitted all persistable properties are memorized.
      */
     public function _memorizePropertyCleanState($propertyName)
     {
@@ -228,10 +235,11 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
      *
      * @param string $propertyName The name of the property to be memorized.
      * @return mixed The clean property value or NULL
+     * @internal
      */
-    public function _getCleanProperty($propertyName)
+    public function _getCleanProperty(string $propertyName)
     {
-        return isset($this->_cleanProperties[$propertyName]) ? $this->_cleanProperties[$propertyName] : null;
+        return $this->_cleanProperties[$propertyName] ?? null;
     }
 
     /**
@@ -244,7 +252,7 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
     public function _isDirty($propertyName = null)
     {
         if ($this->uid !== null && $this->_getCleanProperty('uid') !== null && $this->uid != $this->_getCleanProperty('uid')) {
-            throw new \TYPO3\CMS\Extbase\Persistence\Generic\Exception\TooDirtyException('The uid "' . $this->uid . '" has been modified, that is simply too much.', 1222871239);
+            throw new TooDirtyException('The uid "' . $this->uid . '" has been modified, that is simply too much.', 1222871239);
         }
 
         if ($propertyName === null) {
@@ -273,9 +281,23 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
         // In case it is an object and it implements the ObjectMonitoringInterface, we call _isDirty() instead of a simple comparison of objects.
         // We do this, because if the object itself contains a lazy loaded property, the comparison of the objects might fail even if the object didn't change
         if (is_object($currentValue)) {
-            if ($currentValue instanceof DomainObjectInterface) {
-                $result = !is_object($previousValue) || get_class($previousValue) !== get_class($currentValue) || $currentValue->getUid() !== $previousValue->getUid();
-            } elseif ($currentValue instanceof \TYPO3\CMS\Extbase\Persistence\ObjectMonitoringInterface) {
+            $currentTypeString = null;
+            if ($currentValue instanceof LazyLoadingProxy) {
+                $currentTypeString = $currentValue->_getTypeAndUidString();
+            } elseif ($currentValue instanceof DomainObjectInterface) {
+                $currentTypeString = get_class($currentValue) . ':' . $currentValue->getUid();
+            }
+
+            if ($currentTypeString !== null) {
+                $previousTypeString = null;
+                if ($previousValue instanceof LazyLoadingProxy) {
+                    $previousTypeString = $previousValue->_getTypeAndUidString();
+                } elseif ($previousValue instanceof DomainObjectInterface) {
+                    $previousTypeString = get_class($previousValue) . ':' . $previousValue->getUid();
+                }
+
+                $result = $currentTypeString !== $previousTypeString;
+            } elseif ($currentValue instanceof ObjectMonitoringInterface) {
                 $result = !is_object($previousValue) || $currentValue->_isDirty() || get_class($previousValue) !== get_class($currentValue);
             } else {
                 // For all other objects we do only a simple comparison (!=) as we want cloned objects to return the same values.
@@ -288,7 +310,7 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
     }
 
     /**
-     * Returns TRUE if the object has been clonesd, cloned, FALSE otherwise.
+     * Returns TRUE if the object has been cloned, FALSE otherwise.
      *
      * @return bool TRUE if the object has been cloned
      */
@@ -325,6 +347,6 @@ abstract class AbstractDomainObject implements DomainObjectInterface, \TYPO3\CMS
      */
     public function __toString()
     {
-        return get_class($this) . ':' . (string)$this->uid;
+        return static::class . ':' . (string)$this->uid;
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,9 @@ namespace TYPO3\CMS\Frontend\ContentObject;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject;
+
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -35,7 +37,7 @@ class UserContentObject extends AbstractContentObject
         }
         $content = '';
         if ($this->cObj->getUserObjectType() === false) {
-            // Come here only if we are not called from $TSFE->INTincScript_process()!
+            // Come here only if we are not called from $TSFE->processNonCacheableContentPartsAndSubstituteContentMarkers()!
             $this->cObj->setUserObjectType(ContentObjectRenderer::OBJECTTYPE_USER);
         }
         $tempContent = $this->cObj->callUserFunction($conf['userFunc'], $conf, '');
@@ -44,9 +46,10 @@ class UserContentObject extends AbstractContentObject
             $content = $this->cObj->cObjGetSingle('USER_INT', $conf);
         } else {
             $content .= $tempContent;
-        }
-        if (isset($conf['stdWrap.'])) {
-            $content = $this->cObj->stdWrap($content, $conf['stdWrap.']);
+            // Only executed when the element is not converted to USER_INT
+            if (isset($conf['stdWrap.'])) {
+                $content = $this->cObj->stdWrap($content, $conf['stdWrap.']);
+            }
         }
         $this->cObj->setUserObjectType(false);
         return $content;

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Linkvalidator\Report;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,30 +13,34 @@ namespace TYPO3\CMS\Linkvalidator\Report;
  * The TYPO3 project - inspiring people to share!
  */
 
-use Doctrine\DBAL\Driver\Statement;
-use TYPO3\CMS\Backend\Template\DocumentTemplate;
+namespace TYPO3\CMS\Linkvalidator\Report;
+
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
-use TYPO3\CMS\Core\Database\Connection;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Query\QueryHelper;
+use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
-use TYPO3\CMS\Core\Service\MarkerBasedTemplateService;
+use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Fluid\View\StandaloneView;
+use TYPO3\CMS\Info\Controller\InfoModuleController;
 use TYPO3\CMS\Linkvalidator\LinkAnalyzer;
+use TYPO3\CMS\Linkvalidator\Linktype\LinktypeInterface;
+use TYPO3\CMS\Linkvalidator\Repository\BrokenLinkRepository;
 
 /**
- * Module 'Linkvalidator' for the 'linkvalidator' extension
+ * Module 'Link validator' as sub module of Web -> Info
+ * @internal This class is a specific Backend controller implementation and is not part of the TYPO3's Core API.
  */
-class LinkValidatorReport extends \TYPO3\CMS\Backend\Module\AbstractFunctionModule
+class LinkValidatorReport
 {
-    /**
-     * @var DocumentTemplate
-     */
-    public $doc;
-
     /**
      * Information about the current page record
      *
@@ -51,13 +54,6 @@ class LinkValidatorReport extends \TYPO3\CMS\Backend\Module\AbstractFunctionModu
      * @var bool
      */
     protected $isAccessibleForCurrentUser = false;
-
-    /**
-     * Depth for the recursive traversal of pages for the link validation
-     *
-     * @var int
-     */
-    protected $searchLevel;
 
     /**
      * Link validation class
@@ -81,55 +77,37 @@ class LinkValidatorReport extends \TYPO3\CMS\Backend\Module\AbstractFunctionModu
     protected $availableOptions = [];
 
     /**
-     * List of link types currently chosen in the statistics table
-     * Used to show broken links of these types only
+     * Depth for the recursive traversal of pages for the link validation
+     * For "Report" and "Check link" tab.
      *
      * @var array
      */
-    protected $checkOpt = [];
+    protected $searchLevel = ['report' => 0, 'check' => 0];
 
     /**
-     * Html for the statistics table with the checkboxes of the link types
-     * and the numbers of broken links for report tab
+     * List of link types currently chosen in the statistics table
+     * Used to show broken links of these types only
+     * For "Report" and "Check link" tab
      *
-     * @var string
+     * @var array
      */
-    protected $checkOptionsHtml;
+    protected $checkOpt = ['report' => [], 'check' => []];
 
     /**
-     * Html for the statistics table with the checkboxes of the link types
-     * and the numbers of broken links for check links tab
-     *
-     * @var string
+     * Information for last edited record
+     * @var array
      */
-    protected $checkOptionsHtmlCheck;
+    protected $lastEditedRecord = [
+        'uid'   => 0,
+        'table' => '',
+        'field' => '',
+        'timestamp' => 0
+    ];
 
     /**
-     * Complete content (html) to be displayed
-     *
-     * @var string
-     */
-    protected $content;
-
-    /**
-     * @var \TYPO3\CMS\Linkvalidator\Linktype\LinktypeInterface[]
+     * @var LinktypeInterface[]
      */
     protected $hookObjectsArr = [];
-
-    /**
-     * @var string
-     */
-    protected $updateListHtml = '';
-
-    /**
-     * @var string
-     */
-    protected $refreshListHtml = '';
-
-    /**
-     * @var MarkerBasedTemplateService
-     */
-    protected $templateService;
 
     /**
      * @var IconFactory
@@ -137,99 +115,209 @@ class LinkValidatorReport extends \TYPO3\CMS\Backend\Module\AbstractFunctionModu
     protected $iconFactory;
 
     /**
-     * Main method of modfuncreport
+     * @var int Value of the GET/POST var 'id'
+     */
+    protected $id;
+
+    /**
+     * @var InfoModuleController Contains a reference to the parent calling object
+     */
+    protected $pObj;
+
+    /**
+     * @var array
+     */
+    protected $searchFields = [];
+
+    /**
+     * @var BrokenLinkRepository
+     */
+    protected $brokenLinkRepository;
+
+    /**
+     * @var ModuleTemplate
+     */
+    protected $moduleTemplate;
+
+    /**
+     * @var StandaloneView
+     */
+    protected $view;
+
+    public function __construct()
+    {
+        $this->brokenLinkRepository = GeneralUtility::makeInstance(BrokenLinkRepository::class);
+    }
+
+    /**
+     * Init, called from parent object
+     *
+     * @param InfoModuleController $pObj A reference to the parent (calling) object
+     */
+    public function init($pObj)
+    {
+        $this->pObj = $pObj;
+        $this->id = (int)GeneralUtility::_GP('id');
+        $this->brokenLinkRepository = GeneralUtility::makeInstance(BrokenLinkRepository::class);
+        $this->iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+        $this->moduleTemplate = GeneralUtility::makeInstance(ModuleTemplate::class);
+        $this->view = $this->createView('InfoModule');
+    }
+
+    protected function createView(string $templateName): StandaloneView
+    {
+        $view = GeneralUtility::makeInstance(StandaloneView::class);
+        $view->setLayoutRootPaths(['EXT:linkvalidator/Resources/Private/Layouts']);
+        $view->setPartialRootPaths(['EXT:linkvalidator/Resources/Private/Partials']);
+        $view->setTemplateRootPaths(['EXT:linkvalidator/Resources/Private/Templates/Backend']);
+        $view->setTemplate($templateName);
+        $view->assign('pageId', $this->id);
+        return $view;
+    }
+
+    /**
+     * Checks for incoming GET/POST parameters to update the module settings
+     */
+    protected function validateSettings()
+    {
+        $prefix = 'check';
+        $other = 'report';
+        if (empty(GeneralUtility::_GP('updateLinkList'))) {
+            $prefix = 'report';
+            $other = 'check';
+        }
+
+        // get information for last edited record
+        $this->lastEditedRecord['uid'] = GeneralUtility::_GP('last_edited_record_uid') ?? 0;
+        $this->lastEditedRecord['table'] = GeneralUtility::_GP('last_edited_record_table') ?? '';
+        $this->lastEditedRecord['field'] = GeneralUtility::_GP('last_edited_record_field') ?? '';
+        $this->lastEditedRecord['timestamp'] = GeneralUtility::_GP('last_edited_record_timestamp') ?? 0;
+
+        // get searchLevel (number of levels of pages to check / show results)
+        $this->searchLevel[$prefix] = GeneralUtility::_GP($prefix . '_search_levels');
+        if (isset($this->searchLevel[$prefix])) {
+            $this->pObj->MOD_SETTINGS[$prefix . '_searchlevel'] = $this->searchLevel[$prefix];
+        } else {
+            $this->searchLevel[$prefix] = $this->pObj->MOD_SETTINGS[$prefix . '_searchlevel'];
+        }
+        if (isset($this->pObj->MOD_SETTINGS[$other . '_searchlevel'])) {
+            $this->searchLevel[$other] = $this->pObj->MOD_SETTINGS[$other . '_searchlevel'];
+        }
+
+        // which linkTypes to check (internal, file, external, ...)
+        $set = GeneralUtility::_GP($prefix . '_SET');
+
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'] ?? [] as $linkType => $value) {
+            // Compile list of all available types. Used for checking with button "Check Links".
+            if (strpos($this->modTS['linktypes'], $linkType) !== false) {
+                $this->availableOptions[$linkType] = 1;
+            }
+
+            // 1) if "$prefix_values" = "1" : use POST variables
+            // 2) if not set, use stored configuration in $this->>pObj->MOD_SETTINGS
+            // 3) if not set, use default
+            unset($this->checkOpt[$prefix][$linkType]);
+            if (!empty(GeneralUtility::_GP($prefix . '_values'))) {
+                if (isset($set[$linkType])) {
+                    $this->checkOpt[$prefix][$linkType] = $set[$linkType];
+                } else {
+                    $this->checkOpt[$prefix][$linkType] = '0';
+                }
+                $this->pObj->MOD_SETTINGS[$prefix . '_' . $linkType] = $this->checkOpt[$prefix][$linkType];
+            } elseif (isset($this->pObj->MOD_SETTINGS[$prefix . '_' . $linkType])) {
+                $this->checkOpt[$prefix][$linkType] = $this->pObj->MOD_SETTINGS[$prefix . '_' . $linkType];
+            } else {
+                // use default
+                $this->checkOpt[$prefix][$linkType] = '0';
+                $this->pObj->MOD_SETTINGS[$prefix . '_' . $linkType] = $this->checkOpt[$prefix][$linkType];
+            }
+            if (isset($this->pObj->MOD_SETTINGS[$other . '_' . $linkType])) {
+                $this->checkOpt[$other][$linkType] = $this->pObj->MOD_SETTINGS[$other . '_' . $linkType];
+            }
+        }
+
+        // save settings
+        $this->getBackendUser()->pushModuleData('web_info', $this->pObj->MOD_SETTINGS);
+    }
+    /**
+     * Main, called from parent object
      *
      * @return string Module content
      */
     public function main()
     {
         $this->getLanguageService()->includeLLFile('EXT:linkvalidator/Resources/Private/Language/Module/locallang.xlf');
-        $this->iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-        $this->searchLevel = GeneralUtility::_GP('search_levels');
-        if (isset($this->pObj->id)) {
-            $this->modTS = BackendUtility::getModTSconfig($this->pObj->id, 'mod.linkvalidator');
-            $this->modTS = $this->modTS['properties'];
+        if (isset($this->id)) {
+            $this->modTS = BackendUtility::getPagesTSconfig($this->id)['mod.']['linkvalidator.'] ?? [];
         }
-        $update = GeneralUtility::_GP('updateLinkList');
-        $prefix = '';
-        if (!empty($update)) {
-            $prefix = 'check';
-        }
-        $set = GeneralUtility::_GP($prefix . 'SET');
-        $this->pObj->handleExternalFunctionValue();
-        if (isset($this->searchLevel)) {
-            $this->pObj->MOD_SETTINGS['searchlevel'] = $this->searchLevel;
-        } else {
-            $this->searchLevel = $this->pObj->MOD_SETTINGS['searchlevel'];
-        }
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'] as $linkType => $value) {
-                // Compile list of all available types. Used for checking with button "Check Links".
-                if (strpos($this->modTS['linktypes'], $linkType) !== false) {
-                    $this->availableOptions[$linkType] = 1;
-                }
-                // Compile list of types currently selected by the checkboxes
-                if ($this->pObj->MOD_SETTINGS[$linkType] && empty($set) || $set[$linkType]) {
-                    $this->checkOpt[$linkType] = 1;
-                    $this->pObj->MOD_SETTINGS[$linkType] = 1;
-                } else {
-                    $this->pObj->MOD_SETTINGS[$linkType] = 0;
-                    unset($this->checkOpt[$linkType]);
-                }
-            }
-        }
-        $this->getBackendUser()->pushModuleData('web_info', $this->pObj->MOD_SETTINGS);
+        $this->validateSettings();
         $this->initialize();
 
-        // Localization
-        $this->getPageRenderer()->addInlineLanguageLabelFile('EXT:linkvalidator/Resources/Private/Language/Module/locallang.xlf');
-
-        if ($this->modTS['showCheckLinkTab'] == 1) {
-            $this->updateListHtml = '<input class="btn btn-default t3js-update-button" type="submit" name="updateLinkList" id="updateLinkList" value="' . htmlspecialchars($this->getLanguageService()->getLL('label_update')) . '" data-notification-message="' . htmlspecialchars($this->getLanguageService()->getLL('label_update-link-list')) . '"/>';
+        if (GeneralUtility::_GP('updateLinkList')) {
+            $this->updateBrokenLinks();
+        } elseif ($this->lastEditedRecord['uid']) {
+            if ($this->modTS['actionAfterEditRecord'] === 'recheck') {
+                // recheck broken links for last edited reccord
+                $this->linkAnalyzer->recheckLinks(
+                    $this->checkOpt['check'],
+                    $this->lastEditedRecord['uid'],
+                    $this->lastEditedRecord['table'],
+                    $this->lastEditedRecord['field'],
+                    (int)$this->lastEditedRecord['timestamp']
+                );
+            } else {
+                // mark broken links for last edited record as needing a recheck
+                $this->brokenLinkRepository->setNeedsRecheckForRecord(
+                    (int)$this->lastEditedRecord['uid'],
+                    $this->lastEditedRecord['table']
+                );
+            }
         }
-        $this->refreshListHtml = '<input class="btn btn-default t3js-update-button" type="submit" name="refreshLinkList" id="refreshLinkList" value="' . htmlspecialchars($this->getLanguageService()->getLL('label_refresh')) . '" data-notification-message="' . htmlspecialchars($this->getLanguageService()->getLL('label_refresh-link-list')) . '"/>';
-        $this->linkAnalyzer = GeneralUtility::makeInstance(LinkAnalyzer::class);
-        $this->updateBrokenLinks();
 
-        $brokenLinkOverView = $this->linkAnalyzer->getLinkCounts($this->pObj->id);
-        $this->checkOptionsHtml = $this->getCheckOptions($brokenLinkOverView);
-        $this->checkOptionsHtmlCheck = $this->getCheckOptions($brokenLinkOverView, 'check');
-        $this->render();
-
-        $pageTile = '';
-        if ($this->pObj->id) {
-            $pageRecord = BackendUtility::getRecord('pages', $this->pObj->id);
-            $pageTile = '<h1>' . htmlspecialchars(BackendUtility::getRecordTitle('pages', $pageRecord)) . '</h1>';
-        }
-
-        return '<div id="linkvalidator-modfuncreport">' . $pageTile . $this->createTabs() . '</div>';
+        $pageTitle = $this->pageRecord ? BackendUtility::getRecordTitle('pages', $this->pageRecord) : '';
+        $this->view->assign('title', $pageTitle);
+        $this->view->assign('content', $this->renderContent());
+        return $this->view->render();
     }
 
     /**
      * Create tabs to split the report and the checkLink functions
-     *
-     * @return string
      */
-    protected function createTabs()
+    protected function renderContent(): string
     {
+        if (!$this->isAccessibleForCurrentUser) {
+            // If no access or if ID == zero
+            $this->moduleTemplate->addFlashMessage(
+                $this->getLanguageService()->getLL('no.access'),
+                $this->getLanguageService()->getLL('no.access.title'),
+                FlashMessage::ERROR
+            );
+            return '';
+        }
+
+        $groupedBrokenLinkCounts = $this->linkAnalyzer->getLinkCounts();
+
+        $reportsTabView = $this->createViewForBrokenLinksTab($groupedBrokenLinkCounts);
         $menuItems = [
             0 => [
                 'label' => $this->getLanguageService()->getLL('Report'),
-                'content' => $this->flush(true)
+                'content' => $reportsTabView->render()
             ],
         ];
 
         if ((bool)$this->modTS['showCheckLinkTab']) {
+            $reportsTabView = $this->createView('CheckLinksTab');
+            $reportsTabView->assignMultiple([
+                'prefix' => 'check',
+                'selectedLevel' => $this->searchLevel['check'],
+                'options' => $this->getCheckOptions($groupedBrokenLinkCounts, 'check'),
+            ]);
             $menuItems[1] = [
                 'label' => $this->getLanguageService()->getLL('CheckLink'),
-                'content' => $this->flush()
+                'content' => $reportsTabView->render()
             ];
         }
-
-        // @todo: Use $this-moduleTemplate as soon as this class extends from AbstractModule
-        /** @var ModuleTemplate $moduleTemplate */
-        $moduleTemplate = GeneralUtility::makeInstance(ModuleTemplate::class);
-        return $moduleTemplate->getDynamicTabMenu($menuItems, 'report-linkvalidator');
+        return $this->moduleTemplate->getDynamicTabMenu($menuItems, 'report-linkvalidator');
     }
 
     /**
@@ -237,299 +325,165 @@ class LinkValidatorReport extends \TYPO3\CMS\Backend\Module\AbstractFunctionModu
      */
     protected function initialize()
     {
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'] as $linkType => $className) {
-                $this->hookObjectsArr[$linkType] = GeneralUtility::makeInstance($className);
-            }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'] ?? [] as $linkType => $className) {
+            $this->hookObjectsArr[$linkType] = GeneralUtility::makeInstance($className);
         }
 
-        $this->doc = GeneralUtility::makeInstance(DocumentTemplate::class);
-        $this->doc->setModuleTemplate('EXT:linkvalidator/Resources/Private/Templates/mod_template.html');
-
-        $this->pageRecord = BackendUtility::readPageAccess($this->pObj->id, $this->getBackendUser()->getPagePermsClause(1));
-        if ($this->pObj->id && is_array($this->pageRecord) || !$this->pObj->id && $this->isCurrentUserAdmin()) {
+        $this->pageRecord = BackendUtility::readPageAccess($this->id, $this->getBackendUser()->getPagePermsClause(Permission::PAGE_SHOW));
+        if (($this->id && is_array($this->pageRecord)) || (!$this->id && $this->getBackendUser()->isAdmin())) {
             $this->isAccessibleForCurrentUser = true;
         }
-
-        $this->getPageRenderer()->addCssFile('EXT:linkvalidator/Resources/Public/Css/linkvalidator.css', 'stylesheet', 'screen');
-        $this->getPageRenderer()->loadJquery();
-        $this->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Linkvalidator/Linkvalidator');
-
-        $this->templateService = GeneralUtility::makeInstance(MarkerBasedTemplateService::class);
-
         // Don't access in workspace
         if ($this->getBackendUser()->workspace !== 0) {
             $this->isAccessibleForCurrentUser = false;
         }
+
+        $pageRenderer = $this->moduleTemplate->getPageRenderer();
+        $pageRenderer->addCssFile('EXT:linkvalidator/Resources/Public/Css/linkvalidator.css', 'stylesheet', 'screen');
+        $pageRenderer->loadRequireJsModule('TYPO3/CMS/Linkvalidator/Linkvalidator');
+        $pageRenderer->addInlineLanguageLabelFile('EXT:linkvalidator/Resources/Private/Language/Module/locallang.xlf');
+
+        $this->initializeLinkAnalyzer();
     }
 
     /**
      * Updates the table of stored broken links
      */
-    protected function updateBrokenLinks()
+    protected function initializeLinkAnalyzer()
     {
-        $searchFields = [];
-        // Get the searchFields from TypoScript
+        $this->linkAnalyzer = GeneralUtility::makeInstance(LinkAnalyzer::class);
+        // Get the searchFields from TSconfig
         foreach ($this->modTS['searchFields.'] as $table => $fieldList) {
             $fields = GeneralUtility::trimExplode(',', $fieldList, true);
             foreach ($fields as $field) {
-                if (!$searchFields || !is_array($searchFields[$table]) || array_search($field, $searchFields[$table]) === false) {
-                    $searchFields[$table][] = $field;
+                if (!$this->searchFields || !is_array($this->searchFields[$table]) || !in_array(
+                    $field,
+                    $this->searchFields[$table],
+                    true
+                )) {
+                    $this->searchFields[$table][] = $field;
                 }
             }
         }
+
         $rootLineHidden = $this->linkAnalyzer->getRootLineIsHidden($this->pObj->pageinfo);
         if (!$rootLineHidden || $this->modTS['checkhidden'] == 1) {
-            // Get children pages
-            $pageList = $this->linkAnalyzer->extGetTreeList(
-                $this->pObj->id,
-                $this->searchLevel,
-                0,
-                $this->getBackendUser()->getPagePermsClause(1),
-                $this->modTS['checkhidden']
+            $this->linkAnalyzer->init(
+                $this->searchFields,
+                $this->getPageList(),
+                $this->modTS
             );
-            if ($this->pObj->pageinfo['hidden'] == 0 || $this->modTS['checkhidden']) {
-                $pageList .= $this->pObj->id;
-            }
-
-            $this->linkAnalyzer->init($searchFields, $pageList, $this->modTS);
-
-            // Check if button press
-            $update = GeneralUtility::_GP('updateLinkList');
-            if (!empty($update)) {
-                $this->linkAnalyzer->getLinkStatistics($this->checkOpt, $this->modTS['checkhidden']);
-            }
         }
     }
 
     /**
-     * Renders the content of the module
+     * Check for broken links
      */
-    protected function render()
+    protected function updateBrokenLinks()
     {
-        if ($this->isAccessibleForCurrentUser) {
-            $this->content = $this->renderBrokenLinksTable();
-        } else {
-            // If no access or if ID == zero
-            /** @var FlashMessage $message */
-            $message = GeneralUtility::makeInstance(
-                FlashMessage::class,
-                $this->getLanguageService()->getLL('no.access'),
-                $this->getLanguageService()->getLL('no.access.title'),
-                FlashMessage::ERROR
-            );
-            /** @var $flashMessageService \TYPO3\CMS\Core\Messaging\FlashMessageService */
-            $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
-            /** @var $defaultFlashMessageQueue \TYPO3\CMS\Core\Messaging\FlashMessageQueue */
-            $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
-            $defaultFlashMessageQueue->enqueue($message);
-        }
-    }
-
-    /**
-     * Flushes the rendered content to the browser
-     *
-     * @param bool $form
-     * @return string $content
-     */
-    protected function flush($form = false)
-    {
-        return $this->doc->moduleBody(
-            $this->pageRecord,
-            $this->getDocHeaderButtons(),
-            $form ? $this->getTemplateMarkers() : $this->getTemplateMarkersCheck()
-        );
-    }
-
-    /**
-     * Builds the selector for the level of pages to search
-     *
-     * @return string Html code of that selector
-     */
-    protected function getLevelSelector()
-    {
-        // Build level selector
-        $options = [];
-        $availableOptions = [
-            0 => $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_0'),
-            1 => $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_1'),
-            2 => $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_2'),
-            3 => $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_3'),
-            4 => $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_4'),
-            999 => $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_infi')
-        ];
-        foreach ($availableOptions as $optionValue => $optionLabel) {
-            $options[] = '<option value="' . $optionValue . '"' . ($optionValue === (int)$this->searchLevel ? ' selected="selected"' : '') . '>' . htmlspecialchars($optionLabel) . '</option>';
-        }
-        return '<select name="search_levels" class="form-control">' . implode('', $options) . '</select>';
+        $this->linkAnalyzer->getLinkStatistics($this->checkOpt['check'], $this->modTS['checkhidden']);
     }
 
     /**
      * Displays the table of broken links or a note if there were no broken links
      *
-     * @return string Content of the table or of the note
+     * @param array $amountOfBrokenLinks
+     * @return StandaloneView
      */
-    protected function renderBrokenLinksTable()
+    protected function createViewForBrokenLinksTab(array $amountOfBrokenLinks)
     {
-        $brokenLinkItems = '';
-        $brokenLinksTemplate = $this->templateService->getSubpart(
-            $this->doc->moduleTemplate,
-            '###NOBROKENLINKS_CONTENT###'
-        );
+        $view = $this->createView('ReportTab');
+        $view->assignMultiple([
+            'prefix' => 'report',
+            'selectedLevel' => $this->searchLevel['report'],
+            'options' => $this->getCheckOptions($amountOfBrokenLinks, 'report'),
+        ]);
+        // Table header
+        $view->assignMultiple($this->getVariablesForTableHeader());
 
         $linkTypes = [];
-        if (is_array($this->checkOpt)) {
-            $linkTypes = array_keys($this->checkOpt);
+        if (is_array($this->checkOpt['report'])) {
+            $linkTypes = array_keys($this->checkOpt['report'], '1');
         }
-
-        // Table header
-        $brokenLinksMarker = $this->startTable();
-
+        $items = [];
         $rootLineHidden = $this->linkAnalyzer->getRootLineIsHidden($this->pObj->pageinfo);
-        if (!$rootLineHidden || (bool)$this->modTS['checkhidden']) {
-            $pageList = $this->getPageList($this->pObj->id);
-            $result = $this->getLinkValidatorBrokenLinks($pageList, $linkTypes);
-
-            if ($result->rowCount()) {
-                // Display table with broken links
-                $brokenLinksTemplate = $this->templateService->getSubpart(
-                    $this->doc->moduleTemplate,
-                    '###BROKENLINKS_CONTENT###'
-                );
-                $brokenLinksItemTemplate = $this->templateService->getSubpart(
-                    $this->doc->moduleTemplate,
-                    '###BROKENLINKS_ITEM###'
-                );
-
-                // Table rows containing the broken links
-                $items = [];
-                while ($row = $result->fetch()) {
-                    $items[] = $this->renderTableRow($row['table_name'], $row, $brokenLinksItemTemplate);
-                }
-                $brokenLinkItems = implode(LF, $items);
-            } else {
-                $brokenLinksMarker = $this->getNoBrokenLinkMessage($brokenLinksMarker);
+        if (!$rootLineHidden || (bool)$this->modTS['checkhidden'] && !empty($linkTypes)) {
+            $brokenLinks = $this->brokenLinkRepository->getAllBrokenLinksForPages(
+                $this->getPageList(),
+                $linkTypes,
+                $this->searchFields
+            );
+            foreach ($brokenLinks as $row) {
+                $items[] = $this->renderTableRow($row['table_name'], $row);
             }
-        } else {
-            $brokenLinksMarker = $this->getNoBrokenLinkMessage($brokenLinksMarker);
         }
-
-        $brokenLinksTemplate = $this->templateService->substituteMarkerArray(
-            $brokenLinksTemplate,
-            $brokenLinksMarker,
-            '###|###',
-            true
-        );
-
-        return $this->templateService->substituteSubpart($brokenLinksTemplate, '###BROKENLINKS_ITEM', $brokenLinkItems);
+        if (empty($items)) {
+            $this->createFlashMessagesForNoBrokenLinks();
+        }
+        $view->assign('brokenLinks', $items);
+        return $view;
     }
 
     /**
      * Generates an array of page uids from current pageUid.
      * List does include pageUid itself.
      *
-     * @param int $currentPageUid
      * @return array
      */
-    protected function getPageList(int $currentPageUid): array
+    protected function getPageList(): array
     {
+        $permsClause = $this->getBackendUser()->getPagePermsClause(Permission::PAGE_SHOW);
         $pageList = $this->linkAnalyzer->extGetTreeList(
-            $currentPageUid,
-            $this->searchLevel,
+            $this->id,
+            $this->searchLevel['report'],
             0,
-            $this->getBackendUser()->getPagePermsClause(1),
+            $permsClause,
             $this->modTS['checkhidden']
         );
         // Always add the current page, because we are just displaying the results
-        $pageList .= $currentPageUid;
-
+        $pageList .= $this->id;
+        $pageList = $this->addPageTranslationsToPageList($pageList, $permsClause);
         return GeneralUtility::intExplode(',', $pageList, true);
     }
 
     /**
-     * Prepare database query with pageList and keyOpt data.
-     *
-     * @param int[] $pageList Pages to check for broken links
-     * @param string[] $linkTypes Link types to validate
-     * @return Statement
+     * Used when there are no broken links found.
      */
-    protected function getLinkValidatorBrokenLinks(array $pageList, array $linkTypes): Statement
+    protected function createFlashMessagesForNoBrokenLinks(): void
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable('tx_linkvalidator_link');
-        $queryBuilder
-            ->select('*')
-            ->from('tx_linkvalidator_link')
-            ->where(
-                $queryBuilder->expr()->in(
-                    'record_pid',
-                    $queryBuilder->createNamedParameter($pageList, Connection::PARAM_INT_ARRAY)
-                )
-            )
-            ->orderBy('record_uid')
-            ->addOrderBy('uid');
-
-        if (!empty($linkTypes)) {
-            $queryBuilder->andWhere(
-                $queryBuilder->expr()->in(
-                    'link_type',
-                    $queryBuilder->createNamedParameter($linkTypes, Connection::PARAM_STR_ARRAY)
-                )
-            );
-        }
-
-        return $queryBuilder->execute();
-    }
-
-    /**
-     * Replace $brokenLinksMarker['NO_BROKEN_LINKS] with localized flashmessage
-     *
-     * @param array $brokenLinksMarker
-     * @return array $brokenLinksMarker['NO_BROKEN_LINKS] replaced with flashmessage
-     */
-    protected function getNoBrokenLinkMessage(array $brokenLinksMarker)
-    {
-        $brokenLinksMarker['LIST_HEADER'] = '<h3>' . htmlspecialchars($this->getLanguageService()->getLL('list.header')) . '</h3>';
-        /** @var $message FlashMessage */
         $message = GeneralUtility::makeInstance(
             FlashMessage::class,
             $this->getLanguageService()->getLL('list.no.broken.links'),
             $this->getLanguageService()->getLL('list.no.broken.links.title'),
-            FlashMessage::OK
+            FlashMessage::OK,
+            false
         );
-        /** @var $flashMessageService \TYPO3\CMS\Core\Messaging\FlashMessageService */
         $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
-        /** @var $defaultFlashMessageQueue \TYPO3\CMS\Core\Messaging\FlashMessageQueue */
-        $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
+        $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier('linkvalidator');
         $defaultFlashMessageQueue->enqueue($message);
-        $brokenLinksMarker['NO_BROKEN_LINKS'] = $defaultFlashMessageQueue->renderFlashMessages();
-        return $brokenLinksMarker;
     }
 
     /**
-     * Displays the table header of the table with the broken links
-     *
-     * @return string Code of content
+     * Sets variables for the Fluid Template of the table with the broken links
+     * @return array variables
      */
-    protected function startTable()
+    protected function getVariablesForTableHeader(): array
     {
-        // Listing head
-        $makerTableHead = [
-            'tablehead_path' => $this->getLanguageService()->getLL('list.tableHead.path'),
-            'tablehead_element' => $this->getLanguageService()->getLL('list.tableHead.element'),
-            'tablehead_headlink' => $this->getLanguageService()->getLL('list.tableHead.headlink'),
-            'tablehead_linktarget' => $this->getLanguageService()->getLL('list.tableHead.linktarget'),
-            'tablehead_linkmessage' => $this->getLanguageService()->getLL('list.tableHead.linkmessage'),
-            'tablehead_lastcheck' => $this->getLanguageService()->getLL('list.tableHead.lastCheck'),
+        $languageService = $this->getLanguageService();
+        $variables = [
+            'tableheadPath' => $languageService->getLL('list.tableHead.path'),
+            'tableheadElement' => $languageService->getLL('list.tableHead.element'),
+            'tableheadHeadlink' => $languageService->getLL('list.tableHead.headlink'),
+            'tableheadLinktarget' => $languageService->getLL('list.tableHead.linktarget'),
+            'tableheadLinkmessage' => $languageService->getLL('list.tableHead.linkmessage'),
+            'tableheadLastcheck' => $languageService->getLL('list.tableHead.lastCheck'),
         ];
 
         // Add CSH to the header of each column
-        foreach ($makerTableHead as $column => $label) {
-            $makerTableHead[$column] = BackendUtility::wrapInHelp('linkvalidator', $column, $label);
+        foreach ($variables as $column => $label) {
+            $variables[$column] = BackendUtility::wrapInHelp('linkvalidator', $column, $label);
         }
-        // Add section header
-        $makerTableHead['list_header'] = '<h3>' . htmlspecialchars($this->getLanguageService()->getLL('list.header')) . '</h3>';
-        return $makerTableHead;
+        return $variables;
     }
 
     /**
@@ -537,35 +491,41 @@ class LinkValidatorReport extends \TYPO3\CMS\Backend\Module\AbstractFunctionModu
      *
      * @param string $table Name of database table
      * @param array $row Record row to be processed
-     * @param array $brokenLinksItemTemplate Markup of the template to be used
-     * @return string HTML of the rendered row
+     * @return array HTML of the rendered row
      */
-    protected function renderTableRow($table, array $row, $brokenLinksItemTemplate)
+    protected function renderTableRow($table, array $row)
     {
-        $markerArray = [];
+        $languageService = $this->getLanguageService();
+        $variables = [];
         $fieldName = '';
         // Restore the linktype object
         $hookObj = $this->hookObjectsArr[$row['link_type']];
 
         // Construct link to edit the content element
         $requestUri = GeneralUtility::getIndpEnv('REQUEST_URI') .
-            '&id=' . $this->pObj->id .
-            '&search_levels=' . $this->searchLevel;
-        $url = BackendUtility::getModuleUrl('record_edit', [
+            '&id=' . $this->id .
+            '&search_levels=' . $this->searchLevel['report'] .
+            // add record_uid as query parameter for rechecking after edit
+            '&last_edited_record_uid=' . $row['record_uid'] .
+            '&last_edited_record_table=' . $row['table_name'] .
+            '&last_edited_record_field=' . $row['field'] .
+            '&last_edited_record_timestamp=' . $row['timestamp'];
+
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        $url = (string)$uriBuilder->buildUriFromRoute('record_edit', [
             'edit' => [
                 $table => [
                     $row['record_uid'] => 'edit'
                 ]
             ],
+            'columnsOnly' => $row['field'],
             'returnUrl' => $requestUri
         ]);
-        $actionLinkOpen = '<a href="' . htmlspecialchars($url);
-        $actionLinkOpen .= '" title="' . htmlspecialchars($this->getLanguageService()->getLL('list.edit')) . '">';
-        $actionLinkClose = '</a>';
+        $variables['editUrl'] = $url;
         $elementHeadline = $row['headline'];
         // Get the language label for the field from TCA
         if ($GLOBALS['TCA'][$table]['columns'][$row['field']]['label']) {
-            $fieldName = $this->getLanguageService()->sL($GLOBALS['TCA'][$table]['columns'][$row['field']]['label']);
+            $fieldName = $languageService->sL($GLOBALS['TCA'][$table]['columns'][$row['field']]['label']);
             // Crop colon from end if present
             if (substr($fieldName, '-1', '1') === ':') {
                 $fieldName = substr($fieldName, '0', strlen($fieldName) - 1);
@@ -576,21 +536,18 @@ class LinkValidatorReport extends \TYPO3\CMS\Backend\Module\AbstractFunctionModu
         // column "Element"
         $element = '<span title="' . htmlspecialchars($table . ':' . $row['record_uid']) . '">' . $this->iconFactory->getIconForRecord($table, $row, Icon::SIZE_SMALL)->render() . '</span>';
         if (empty($elementHeadline)) {
-            $element .= '<i>' . htmlspecialchars($this->getLanguageService()->getLL('list.no.headline')) . '</i>';
+            $element .= '<i>' . htmlspecialchars($languageService->getLL('list.no.headline')) . '</i>';
         } else {
             $element .= htmlspecialchars($elementHeadline);
         }
-        $element .= ' ' . htmlspecialchars(sprintf($this->getLanguageService()->getLL('list.field'), $fieldName));
-        $markerArray['actionlinkOpen'] = $actionLinkOpen;
-        $markerArray['actionlinkClose'] = $actionLinkClose;
-        $markerArray['actionlinkIcon'] = $this->iconFactory->getIcon('actions-open', Icon::SIZE_SMALL)->render();
-        $markerArray['path'] = BackendUtility::getRecordPath($row['record_pid'], '', 0, 0);
-        $markerArray['element'] = $element;
-        $markerArray['headlink'] = htmlspecialchars($row['link_title']);
-        $markerArray['linktarget'] = htmlspecialchars($hookObj->getBrokenUrl($row));
-        $response = unserialize($row['url_response']);
+        $element .= ' ' . htmlspecialchars(sprintf($languageService->getLL('list.field'), $fieldName));
+        $variables['element'] = $element;
+        $variables['path'] = BackendUtility::getRecordPath($row['record_pid'], '', 0, 0);
+        $variables['link_title'] = $row['link_title'];
+        $variables['linktarget'] = $hookObj->getBrokenUrl($row);
+        $response = $row['url_response'];
         if ($response['valid']) {
-            $linkMessage = '<span class="valid">' . htmlspecialchars($this->getLanguageService()->getLL('list.msg.ok')) . '</span>';
+            $linkMessage = '<span class="valid">' . htmlspecialchars($languageService->getLL('list.msg.ok')) . '</span>';
         } else {
             $linkMessage = '<span class="error">'
                 . nl2br(
@@ -604,166 +561,87 @@ class LinkValidatorReport extends \TYPO3\CMS\Backend\Module\AbstractFunctionModu
                 )
                 . '</span>';
         }
-        $markerArray['linkmessage'] = $linkMessage;
-
+        $variables['linkmessage'] = $linkMessage;
         $lastRunDate = date($GLOBALS['TYPO3_CONF_VARS']['SYS']['ddmmyy'], $row['last_check']);
         $lastRunTime = date($GLOBALS['TYPO3_CONF_VARS']['SYS']['hhmm'], $row['last_check']);
-        $markerArray['lastcheck'] = htmlspecialchars(sprintf($this->getLanguageService()->getLL('list.msg.lastRun'), $lastRunDate, $lastRunTime));
-
-        // Return the table html code as string
-        return $this->templateService->substituteMarkerArray($brokenLinksItemTemplate, $markerArray, '###|###', true, true);
+        $variables['lastcheck'] = htmlspecialchars(sprintf($languageService->getLL('list.msg.lastRun'), $lastRunDate, $lastRunTime));
+        $variables['needs_recheck'] = (bool)$row['needs_recheck'];
+        return $variables;
     }
 
     /**
-     * Builds the checkboxes out of the hooks array
+     * Builds the checkboxes to show which types of links are available
      *
      * @param array $brokenLinkOverView Array of broken links information
-     * @param string $prefix
-     * @return string code content
+     * @param string $prefix "report" or "check" for "Report" and "Check links" tab
+     * @return array
      */
-    protected function getCheckOptions(array $brokenLinkOverView, $prefix = '')
+    protected function getCheckOptions(array $brokenLinkOverView, $prefix)
     {
-        $markerArray = [];
-        if (!empty($prefix)) {
-            $additionalAttr = ' class="' . $prefix . '"';
-        } else {
-            $additionalAttr = ' class="refresh"';
-        }
-        $checkOptionsTemplate = $this->templateService->getSubpart($this->doc->moduleTemplate, '###CHECKOPTIONS_SECTION###');
-        $hookSectionTemplate = $this->templateService->getSubpart($checkOptionsTemplate, '###HOOK_SECTION###');
-        $markerArray['statistics_header'] = '<h3>' . htmlspecialchars($this->getLanguageService()->getLL('report.statistics.header')) . '</h3>';
-        $markerArray['total_count_label'] = BackendUtility::wrapInHelp('linkvalidator', 'checkboxes', $this->getLanguageService()->getLL('overviews.nbtotal'));
-        $markerArray['total_count'] = $brokenLinkOverView['brokenlinkCount'] ?: '0';
-
-        $linktypes = GeneralUtility::trimExplode(',', $this->modTS['linktypes'], true);
-        $hookSectionContent = '';
-        if (is_array($linktypes)) {
-            if (
-                !empty($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'])
-                && is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'])
-            ) {
-                foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'] as $type => $value) {
-                    if (in_array($type, $linktypes)) {
-                        $hookSectionMarker = [
-                            'count' => $brokenLinkOverView[$type] ?: '0',
-                        ];
-
-                        $translation = $this->getLanguageService()->getLL('hooks.' . $type) ?: $type;
-                        $hookSectionMarker['option'] = '<input type="checkbox"' . $additionalAttr . ' id="' . $prefix . 'SET_' . $type . '" name="' . $prefix
-                            . 'SET[' . $type . ']" value="1"' . ($this->pObj->MOD_SETTINGS[$type] ? ' checked="checked"' : '') . '/>' . '<label for="'
-                            . $prefix . 'SET_' . $type . '">&nbsp;' . htmlspecialchars($translation) . '</label>';
-
-                        $hookSectionContent .= $this->templateService->substituteMarkerArray(
-                            $hookSectionTemplate,
-                            $hookSectionMarker, '###|###',
-                            true,
-                            true
-                        );
-                    }
-                }
+        $variables = [];
+        $variables['totalCountLabel'] = BackendUtility::wrapInHelp('linkvalidator', 'checkboxes', $this->getLanguageService()->getLL('overviews.nbtotal'));
+        $variables['totalCount'] = $brokenLinkOverView['total'] ?: '0';
+        $variables['optionsByType'] = [];
+        $linkTypes = GeneralUtility::trimExplode(',', $this->modTS['linktypes'] ?? '', true);
+        $availableLinkTypes = array_keys($this->hookObjectsArr);
+        foreach ($availableLinkTypes as $type) {
+            if (!in_array($type, $linkTypes, true)) {
+                continue;
             }
+            $label = $this->getLanguageService()->getLL('hooks.' . $type) ?: $type;
+            $variables['optionsByType'][$type] = [
+                'count' => $brokenLinkOverView[$type] ?: '0',
+                'checkbox' => '<input type="checkbox" class="' . $prefix . '"'
+                    . ' id="' . $prefix . '_SET_' . $type
+                    . '" name="' . $prefix . '_SET[' . $type . ']" value="1"'
+                    . ' ' . ($this->checkOpt[$prefix][$type] ? 'checked="checked"' : '') . '/>',
+                'label' => '<label for="' . $prefix . '_SET_' . $type . '">&nbsp;' . htmlspecialchars($label) . '</label>'
+            ];
         }
-        $checkOptionsTemplate = $this->templateService->substituteSubpart(
-            $checkOptionsTemplate,
-            '###HOOK_SECTION###',
-            $hookSectionContent
-        );
-        return $this->templateService->substituteMarkerArray($checkOptionsTemplate, $markerArray, '###|###', true, true);
+        return $variables;
     }
 
     /**
-     * Gets the buttons that shall be rendered in the docHeader
-     *
-     * @return array Available buttons for the docHeader
+     * @return LanguageService
      */
-    protected function getDocHeaderButtons()
-    {
-        return [
-            'csh' => BackendUtility::cshItem('_MOD_web_func', ''),
-            'shortcut' => $this->getShortcutButton(),
-            'save' => ''
-        ];
-    }
-
-    /**
-     * Gets the button to set a new shortcut in the backend (if current user is allowed to).
-     *
-     * @return string HTML representation of the shortcut button
-     */
-    protected function getShortcutButton()
-    {
-        $result = '';
-        if ($this->getBackendUser()->mayMakeShortcut()) {
-            $result = $this->doc->makeShortcutIcon('', 'function', $this->pObj->MCONF['name']);
-        }
-        return $result;
-    }
-
-    /**
-     * Gets the filled markers that are used in the HTML template
-     *
-     * @return array The filled marker array
-     */
-    protected function getTemplateMarkers()
-    {
-        return [
-            'FUNC_TITLE' => $this->getLanguageService()->getLL('report.func.title'),
-            'CHECKOPTIONS_TITLE' => $this->getLanguageService()->getLL('report.statistics.header'),
-            'FUNC_MENU' => $this->getLevelSelector(),
-            'CONTENT' => $this->content,
-            'CHECKOPTIONS' => $this->checkOptionsHtml,
-            'ID' => '<input type="hidden" name="id" value="' . $this->pObj->id . '" />',
-            'REFRESH' => '<input type="submit" class="btn btn-default t3js-update-button" name="refreshLinkList" id="refreshLinkList" value="' . htmlspecialchars($this->getLanguageService()->getLL('label_refresh')) . '" data-notification-message="' . htmlspecialchars($this->getLanguageService()->getLL('label_refresh-link-list')) . '" />',
-            'UPDATE' => '',
-        ];
-    }
-
-    /**
-     * Gets the filled markers that are used in the HTML template
-     *
-     * @return array The filled marker array
-     */
-    protected function getTemplateMarkersCheck()
-    {
-        return [
-            'FUNC_TITLE' => $this->getLanguageService()->getLL('checklinks.func.title'),
-            'CHECKOPTIONS_TITLE' => $this->getLanguageService()->getLL('checklinks.statistics.header'),
-            'FUNC_MENU' => $this->getLevelSelector(),
-            'CONTENT' => '',
-            'CHECKOPTIONS' => $this->checkOptionsHtmlCheck,
-            'ID' => '<input type="hidden" name="id" value="' . $this->pObj->id . '" />',
-            'REFRESH' => '',
-            'UPDATE' => '<input type="submit" class="btn btn-default t3js-update-button" name="updateLinkList" id="updateLinkList" value="' . htmlspecialchars($this->getLanguageService()->getLL('label_update')) . '" data-notification-message="' . htmlspecialchars($this->getLanguageService()->getLL('label_update-link-list')) . '"/>',
-        ];
-    }
-
-    /**
-     * Determines whether the current user is an admin
-     *
-     * @return bool Whether the current user is admin
-     */
-    protected function isCurrentUserAdmin()
-    {
-        return $this->getBackendUser()->isAdmin();
-    }
-
-    /**
-     * Returns LanguageService
-     *
-     * @return \TYPO3\CMS\Core\Localization\LanguageService
-     */
-    protected function getLanguageService()
+    protected function getLanguageService(): LanguageService
     {
         return $GLOBALS['LANG'];
     }
 
     /**
-     * Returns the current BE user.
-     *
-     * @return \TYPO3\CMS\Core\Authentication\BackendUserAuthentication
+     * @return BackendUserAuthentication
      */
-    protected function getBackendUser()
+    protected function getBackendUser(): BackendUserAuthentication
     {
         return $GLOBALS['BE_USER'];
+    }
+
+    protected function addPageTranslationsToPageList(string $theList, string $permsClause): string
+    {
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('pages');
+        $queryBuilder->getRestrictions()
+            ->removeAll()
+            ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+
+        $result = $queryBuilder
+            ->select('uid', 'title', 'hidden')
+            ->from('pages')
+            ->where(
+                $queryBuilder->expr()->eq(
+                    'l10n_parent',
+                    $queryBuilder->createNamedParameter($this->id, \PDO::PARAM_INT)
+                ),
+                QueryHelper::stripLogicalOperatorPrefix($permsClause)
+            )
+            ->execute();
+
+        while ($row = $result->fetch()) {
+            if ($row['hidden'] === 0 || $this->modTS['checkhidden']) {
+                $theList .= ',' . $row['uid'];
+            }
+        }
+
+        return $theList;
     }
 }

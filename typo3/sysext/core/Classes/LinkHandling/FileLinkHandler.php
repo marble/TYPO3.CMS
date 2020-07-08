@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\LinkHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +14,11 @@ namespace TYPO3\CMS\Core\LinkHandling;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\LinkHandling;
+
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
+use TYPO3\CMS\Core\Resource\FileInterface;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -57,7 +61,9 @@ class FileLinkHandler implements LinkHandlingInterface
             $identifier = $parameters['file']->getIdentifier();
             $urn = '?identifier=' . urlencode($identifier);
         }
-
+        if (!empty($parameters['fragment'])) {
+            $urn .= '#' . $parameters['fragment'];
+        }
         return $this->baseUrn . $urn;
     }
 
@@ -70,17 +76,32 @@ class FileLinkHandler implements LinkHandlingInterface
      */
     public function resolveHandlerData(array $data): array
     {
-        if (isset($data['uid'])) {
-            $fileId = $data['uid'];
-        } else {
-            $fileId = $data['identifier'];
-        }
         try {
-            $file = $this->getResourceFactory()->getFileObject($fileId);
+            $file = $this->resolveFile($data);
         } catch (FileDoesNotExistException $e) {
             $file = null;
         }
-        return ['file' => $file];
+        $result = ['file' => $file];
+        if (!empty($data['fragment'])) {
+            $result['fragment'] = $data['fragment'];
+        }
+        return $result;
+    }
+
+    /**
+     * @param array $data
+     * @return FileInterface|null
+     * @throws FileDoesNotExistException
+     */
+    protected function resolveFile(array $data): ?FileInterface
+    {
+        if (isset($data['uid'])) {
+            return $this->getResourceFactory()->getFileObject($data['uid']);
+        }
+        if (isset($data['identifier'])) {
+            return $this->getResourceFactory()->getFileObjectFromCombinedIdentifier($data['identifier']);
+        }
+        return null;
     }
 
     /**

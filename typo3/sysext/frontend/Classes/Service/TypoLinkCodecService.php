@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\Service;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\Service;
 
 /**
  * This class provides basic functionality to encode and decode typolink strings
@@ -49,9 +50,9 @@ class TypoLinkCodecService
         $reverseSortedParameters = array_reverse($this->decode(''), true);
         $aValueWasSet = false;
         foreach ($reverseSortedParameters as $key => &$value) {
-            $value = isset($typoLinkParts[$key]) ? $typoLinkParts[$key] : '';
+            $value = $typoLinkParts[$key] ?? '';
             // escape special character \ and "
-            $value = str_replace([ '\\', '"' ], [ '\\\\', '\\"' ], $value);
+            $value = str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
             // enclose with quotes if a string contains the delimiter
             if (strpos($value, static::$partDelimiter) !== false) {
                 $value = '"' . $value . '"';
@@ -78,7 +79,7 @@ class TypoLinkCodecService
     {
         $typoLink = trim($typoLink);
         if ($typoLink !== '') {
-            $parts = str_replace([ '\\\\', '\\"' ], [ '\\', '"' ], str_getcsv($typoLink, static::$partDelimiter));
+            $parts = str_replace(['\\\\', '\\"'], ['\\', '"'], str_getcsv($typoLink, static::$partDelimiter));
         } else {
             $parts = '';
         }

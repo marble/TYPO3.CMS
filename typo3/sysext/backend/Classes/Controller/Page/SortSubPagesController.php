@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Controller\Page;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Backend\Controller\Page;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller\Page;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
@@ -23,6 +25,7 @@ use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -32,6 +35,7 @@ use TYPO3\CMS\Fluid\View\StandaloneView;
 
 /**
  * "Sort sub pages" controller - reachable from context menu "more" on page records
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class SortSubPagesController
 {
@@ -45,7 +49,7 @@ class SortSubPagesController
     /**
      * Constructor Method
      *
-     * @var $moduleTemplate ModuleTemplate
+     * @var ModuleTemplate $moduleTemplate
      */
     public function __construct(ModuleTemplate $moduleTemplate = null)
     {
@@ -55,11 +59,10 @@ class SortSubPagesController
     /**
      * Main function Handling input variables and rendering main view
      *
-     * @param $request ServerRequestInterface
-     * @param $response ResponseInterface
+     * @param ServerRequestInterface $request
      * @return ResponseInterface Response
      */
-    public function mainAction(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    public function mainAction(ServerRequestInterface $request): ResponseInterface
     {
         $backendUser = $this->getBackendUser();
         $parentPageUid = (int)$request->getQueryParams()['id'];
@@ -69,8 +72,7 @@ class SortSubPagesController
         if (!is_array($pageInformation)) {
             // User has no permission on parent page, should not happen, just render an empty page
             $this->moduleTemplate->setContent('');
-            $response->getBody()->write($this->moduleTemplate->renderContent());
-            return $response;
+            return new HtmlResponse($this->moduleTemplate->renderContent());
         }
 
         // Doc header handling
@@ -82,7 +84,7 @@ class SortSubPagesController
             ->setFieldName('pages_sort');
         $viewButton = $buttonBar->makeLinkButton()
             ->setOnClick(BackendUtility::viewOnClick($parentPageUid, '', BackendUtility::BEgetRootLine($parentPageUid)))
-            ->setTitle($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
+            ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.showPage'))
             ->setIcon($iconFactory->getIcon('actions-view-page', Icon::SIZE_SMALL))
             ->setHref('#');
         $shortcutButton = $buttonBar->makeShortcutButton()
@@ -106,7 +108,7 @@ class SortSubPagesController
         if (!$isInWorkspace) {
             // Apply new sorting if given
             $newSortBy = $request->getQueryParams()['newSortBy'] ?? null;
-            if ($newSortBy && in_array($newSortBy, ['title', 'subtitle', 'crdate', 'tstamp'], true)) {
+            if ($newSortBy && in_array($newSortBy, ['title', 'subtitle', 'nav_title', 'crdate', 'tstamp'], true)) {
                 $this->sortSubPagesByField($parentPageUid, (string)$newSortBy);
             } elseif ($newSortBy && $newSortBy === 'reverseCurrentSorting') {
                 $this->reverseSortingOfPages($parentPageUid);
@@ -133,8 +135,7 @@ class SortSubPagesController
         }
 
         $this->moduleTemplate->setContent($view->render());
-        $response->getBody()->write($this->moduleTemplate->renderContent());
-        return $response;
+        return new HtmlResponse($this->moduleTemplate->renderContent());
     }
 
     /**
@@ -146,9 +147,9 @@ class SortSubPagesController
      */
     protected function sortSubPagesByField(int $parentPageUid, string $newSortBy)
     {
-        if (!in_array($newSortBy, ['title', 'subtitle', 'crdate', 'tstamp'], true)) {
+        if (!in_array($newSortBy, ['title', 'subtitle', 'nav_title', 'crdate', 'tstamp'], true)) {
             throw new \RuntimeException(
-                'New sort by must be one of "title", "subtitle", "crdate" or tstamp',
+                'New sort by must be one of "title", "subtitle", "nav_title", "crdate" or tstamp',
                 1498924810
             );
         }
@@ -205,6 +206,7 @@ class SortSubPagesController
         return $queryBuilder->select('*')
             ->from('pages')
             ->where(
+                $queryBuilder->expr()->eq('sys_language_uid', 0),
                 $queryBuilder->expr()->eq(
                     'pid',
                     $queryBuilder->createNamedParameter($parentPageUid, \PDO::PARAM_INT)

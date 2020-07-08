@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Index;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +13,27 @@ namespace TYPO3\CMS\Core\Resource\Index;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Index;
+
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use TYPO3\CMS\Core\Resource\Exception\IllegalFileExtensionException;
+use TYPO3\CMS\Core\Resource\Exception\InsufficientFileAccessPermissionsException;
+use TYPO3\CMS\Core\Resource\Exception\InvalidHashException;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\CMS\Core\Resource\Service\ExtractorService;
 use TYPO3\CMS\Core\Type\File\ImageInfo;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Core\Utility\PathUtility;
 
 /**
- * The New FAL Indexer
+ * The FAL Indexer
  */
-class Indexer
+class Indexer implements LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     /**
      * @var array
      */
@@ -39,12 +47,12 @@ class Indexer
     /**
      * @var ResourceStorage
      */
-    protected $storage = null;
+    protected $storage;
 
     /**
-     * @var ExtractorInterface[]
+     * @var ExtractorService
      */
-    protected $extractionServices = null;
+    protected $extractorService;
 
     /**
      * @param ResourceStorage $storage
@@ -61,15 +69,26 @@ class Indexer
      * @return File
      * @throws \InvalidArgumentException
      */
-    public function createIndexEntry($identifier)
+    public function createIndexEntry($identifier): File
     {
-        if (!isset($identifier) || !is_string($identifier) || $identifier === '') {
-            throw new \InvalidArgumentException('Invalid file identifier given. It must be of type string and not empty. "' . gettype($identifier) . '" given.', 1401732565);
+        if (!is_string($identifier) || $identifier === '') {
+            throw new \InvalidArgumentException(
+                'Invalid file identifier given. It must be of type string and not empty. "' . gettype($identifier) . '" given.',
+                1401732565
+            );
         }
+
         $fileProperties = $this->gatherFileInformationArray($identifier);
         $record = $this->getFileIndexRepository()->addRaw($fileProperties);
+
         $fileObject = $this->getResourceFactory()->getFileObject($record['uid'], $record);
-        $this->extractRequiredMetaData($fileObject);
+        $metaData = $this->extractRequiredMetaData($fileObject);
+
+        if ($this->storage->autoExtractMetadataEnabled()) {
+            $metaData = array_merge($metaData, $this->getExtractorService()->extractMetaData($fileObject));
+        }
+        $fileObject->getMetaData()->add($metaData)->save();
+
         return $fileObject;
     }
 
@@ -77,17 +96,23 @@ class Indexer
      * Update index entry
      *
      * @param File $fileObject
+     * @return File
      */
-    public function updateIndexEntry(File $fileObject)
+    public function updateIndexEntry(File $fileObject): File
     {
         $updatedInformation = $this->gatherFileInformationArray($fileObject->getIdentifier());
         $fileObject->updateProperties($updatedInformation);
+
         $this->getFileIndexRepository()->update($fileObject);
-        $this->extractRequiredMetaData($fileObject);
+        $metaData = $this->extractRequiredMetaData($fileObject);
+
+        if ($this->storage->autoExtractMetadataEnabled()) {
+            $metaData = array_merge($metaData, $this->getExtractorService()->extractMetaData($fileObject));
+        }
+        $fileObject->getMetaData()->add($metaData)->save();
+        return $fileObject;
     }
 
-    /**
-     */
     public function processChangesInStorages()
     {
         // get all file-identifiers from the storage
@@ -106,7 +131,19 @@ class Indexer
         $fileIndexRecords = $this->getFileIndexRepository()->findInStorageWithIndexOutstanding($this->storage, $maximumFileCount);
         foreach ($fileIndexRecords as $indexRecord) {
             $fileObject = $this->getResourceFactory()->getFileObject($indexRecord['uid'], $indexRecord);
-            $this->extractMetaData($fileObject);
+            // Check for existence of file before extraction
+            if ($fileObject->exists()) {
+                try {
+                    $this->extractMetaData($fileObject);
+                } catch (InsufficientFileAccessPermissionsException $e) {
+                    //  We skip files that are not accessible
+                } catch (IllegalFileExtensionException $e) {
+                    //  We skip files that have an extension that we don't allow
+                }
+            } else {
+                // Mark file as missing and continue with next record
+                $this->getFileIndexRepository()->markFileAsMissing($indexRecord['uid']);
+            }
         }
     }
 
@@ -117,41 +154,13 @@ class Indexer
      */
     public function extractMetaData(File $fileObject)
     {
-        $newMetaData = [
-            0 => $fileObject->_getMetaData()
-        ];
+        $metaData = array_merge([
+            $fileObject->getMetaData()->get()
+        ], $this->getExtractorService()->extractMetaData($fileObject));
 
-        // Loop through available extractors and fetch metadata for the given file.
-        foreach ($this->getExtractionServices() as $service) {
-            if ($this->isFileTypeSupportedByExtractor($fileObject, $service) && $service->canProcess($fileObject)) {
-                $newMetaData[$service->getPriority()] = $service->extractMetaData($fileObject, $newMetaData);
-            }
-        }
+        $fileObject->getMetaData()->add($metaData)->save();
 
-        // Sort metadata by priority so that merging happens in order of precedence.
-        ksort($newMetaData);
-
-        // Merge the collected metadata.
-        $metaData = [];
-        foreach ($newMetaData as $data) {
-            $metaData = array_merge($metaData, $data);
-        }
-        $fileObject->_updateMetaDataProperties($metaData);
-        $this->getMetaDataRepository()->update($fileObject->getUid(), $metaData);
         $this->getFileIndexRepository()->updateIndexingTime($fileObject->getUid());
-    }
-
-    /**
-     * Get available extraction services
-     *
-     * @return ExtractorInterface[]
-     */
-    protected function getExtractionServices()
-    {
-        if ($this->extractionServices === null) {
-            $this->extractionServices = $this->getExtractorRegistry()->getExtractorsWithDriverSupport($this->storage->getDriverType());
-        }
-        return $this->extractionServices;
     }
 
     /**
@@ -225,34 +234,45 @@ class Indexer
     protected function processChangedAndNewFiles()
     {
         foreach ($this->filesToUpdate as $identifier => $data) {
-            if ($data == null) {
-                // search for files with same content hash in indexed storage
-                $fileHash = $this->storage->hashFileByIdentifier($identifier, 'sha1');
-                $files = $this->getFileIndexRepository()->findByContentHash($fileHash);
-                $fileObject = null;
-                if (!empty($files)) {
-                    foreach ($files as $fileIndexEntry) {
-                        // check if file is missing then we assume it's moved/renamed
-                        if (!$this->storage->hasFile($fileIndexEntry['identifier'])) {
-                            $fileObject = $this->getResourceFactory()->getFileObject($fileIndexEntry['uid'], $fileIndexEntry);
-                            $fileObject->updateProperties([
-                                'identifier' => $identifier
-                            ]);
-                            $this->updateIndexEntry($fileObject);
-                            $this->identifiedFileUids[] = $fileObject->getUid();
-                            break;
+            try {
+                if ($data === null) {
+                    // search for files with same content hash in indexed storage
+                    $fileHash = $this->storage->hashFileByIdentifier($identifier, 'sha1');
+                    $files = $this->getFileIndexRepository()->findByContentHash($fileHash);
+                    $fileObject = null;
+                    if (!empty($files)) {
+                        foreach ($files as $fileIndexEntry) {
+                            // check if file is missing then we assume it's moved/renamed
+                            if (!$this->storage->hasFile($fileIndexEntry['identifier'])) {
+                                $fileObject = $this->getResourceFactory()->getFileObject(
+                                    $fileIndexEntry['uid'],
+                                    $fileIndexEntry
+                                );
+                                $fileObject->updateProperties(
+                                    [
+                                        'identifier' => $identifier,
+                                    ]
+                                );
+                                $this->updateIndexEntry($fileObject);
+                                $this->identifiedFileUids[] = $fileObject->getUid();
+                                break;
+                            }
                         }
                     }
+                    // create new index when no missing file with same content hash is found
+                    if ($fileObject === null) {
+                        $fileObject = $this->createIndexEntry($identifier);
+                        $this->identifiedFileUids[] = $fileObject->getUid();
+                    }
+                } else {
+                    // update existing file
+                    $fileObject = $this->getResourceFactory()->getFileObject($data['uid'], $data);
+                    $this->updateIndexEntry($fileObject);
                 }
-                // create new index when no missing file with same content hash is found
-                if ($fileObject === null) {
-                    $fileObject = $this->createIndexEntry($identifier);
-                    $this->identifiedFileUids[] = $fileObject->getUid();
-                }
-            } else {
-                // update existing file
-                $fileObject = $this->getResourceFactory()->getFileObject($data['uid'], $data);
-                $this->updateIndexEntry($fileObject);
+            } catch (InvalidHashException $e) {
+                $this->logger->error('Unable to create hash for file ' . $identifier);
+            } catch (\Exception $e) {
+                $this->logger->error('Unable to index / update file with identifier ' . $identifier . ' (Error: ' . $e->getMessage() . ')');
             }
         }
     }
@@ -262,27 +282,28 @@ class Indexer
      * This should be called after every "content" update and "record" creation
      *
      * @param File $fileObject
+     * @return array
      */
-    protected function extractRequiredMetaData(File $fileObject)
+    protected function extractRequiredMetaData(File $fileObject): array
     {
+        $metaData = [];
+
         // since the core desperately needs image sizes in metadata table do this manually
         // prevent doing this for remote storages, remote storages must provide the data with extractors
-        if ($fileObject->getType() == File::FILETYPE_IMAGE && $this->storage->getDriverType() === 'Local') {
+        if ($fileObject->getType() === File::FILETYPE_IMAGE && $this->storage->getDriverType() === 'Local') {
             $rawFileLocation = $fileObject->getForLocalProcessing(false);
             $imageInfo = GeneralUtility::makeInstance(ImageInfo::class, $rawFileLocation);
             $metaData = [
                 'width' => $imageInfo->getWidth(),
                 'height' => $imageInfo->getHeight(),
             ];
-            $this->getMetaDataRepository()->update($fileObject->getUid(), $metaData);
-            $fileObject->_updateMetaDataProperties($metaData);
         }
+
+        return $metaData;
     }
 
     /****************************
-     *
      *         UTILITY
-     *
      ****************************/
 
     /**
@@ -290,14 +311,14 @@ class Indexer
      *
      * @param string $identifier
      * @return array
+     * @throws \TYPO3\CMS\Core\Resource\Exception\InvalidHashException
      */
-    protected function gatherFileInformationArray($identifier)
+    protected function gatherFileInformationArray($identifier): array
     {
         $fileInfo = $this->storage->getFileInfoByIdentifier($identifier);
         $fileInfo = $this->transformFromDriverFileInfoArrayToFileObjectFormat($fileInfo);
         $fileInfo['type'] = $this->getFileType($fileInfo['mime_type']);
         $fileInfo['sha1'] = $this->storage->hashFileByIdentifier($identifier, 'sha1');
-        $fileInfo['extension'] = PathUtility::pathinfo($fileInfo['name'], PATHINFO_EXTENSION);
         $fileInfo['missing'] = 0;
 
         return $fileInfo;
@@ -311,7 +332,7 @@ class Indexer
      */
     protected function getFileType($mimeType)
     {
-        list($fileType) = explode('/', $mimeType);
+        [$fileType] = explode('/', $mimeType);
         switch (strtolower($fileType)) {
             case 'text':
                 $type = File::FILETYPE_TEXT;
@@ -342,7 +363,6 @@ class Indexer
      * Therefore a mapping must happen.
      *
      * @param array $fileInfo
-     *
      * @return array
      */
     protected function transformFromDriverFileInfoArrayToFileObjectFormat(array $fileInfo)
@@ -395,16 +415,17 @@ class Indexer
      */
     protected function getResourceFactory()
     {
-        return ResourceFactory::getInstance();
+        return GeneralUtility::makeInstance(ResourceFactory::class);
     }
 
     /**
-     * Returns an instance of the FileIndexRepository
-     *
-     * @return ExtractorRegistry
+     * @return ExtractorService
      */
-    protected function getExtractorRegistry()
+    protected function getExtractorService(): ExtractorService
     {
-        return ExtractorRegistry::getInstance();
+        if ($this->extractorService === null) {
+            $this->extractorService = GeneralUtility::makeInstance(ExtractorService::class);
+        }
+        return $this->extractorService;
     }
 }

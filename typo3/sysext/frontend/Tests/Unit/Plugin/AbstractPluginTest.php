@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Frontend\Tests\Unit\Plugin;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,16 +14,24 @@ namespace TYPO3\CMS\Frontend\Tests\Unit\Plugin;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\Tests\Unit\Plugin;
+
+use Prophecy\Argument;
+use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\ContentObject\TextContentObject;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\CMS\Frontend\Plugin\AbstractPlugin;
 use TYPO3\CMS\Frontend\Tests\Unit\Fixtures\ResultBrowserPluginHook;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Testcase for TYPO3\CMS\Frontend\Plugin\AbstractPlugin
+ * Test case
  */
-class AbstractPluginTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractPluginTest extends UnitTestCase
 {
     /**
      * @var AbstractPlugin
@@ -30,28 +39,29 @@ class AbstractPluginTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     protected $abstractPlugin;
 
     /**
-     * @var array
+     * @var bool
      */
-    protected $defaultPiVars;
+    protected $resetSingletonInstances = true;
 
     /**
      * Sets up this testcase
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
-        // Allow objects until 100 levels deep when executing the stdWrap
-        $GLOBALS['TSFE'] = new \stdClass();
-        $GLOBALS['TSFE']->cObjectDepthCounter = 100;
+        $tsfe = $this->prophesize(TypoScriptFrontendController::class);
+        $tsfe->cObjectDepthCounter = 100;
+        $tsfe->getLanguage(Argument::cetera())->willReturn(
+            $this->createSiteWithDefaultLanguage()->getLanguageById(0)
+        );
 
-        $this->abstractPlugin = new AbstractPlugin();
-        $contentObjectRenderer = new ContentObjectRenderer();
+        $this->abstractPlugin = new AbstractPlugin(null, $tsfe->reveal());
+        $contentObjectRenderer = new ContentObjectRenderer($tsfe->reveal());
         $contentObjectRenderer->setContentObjectClassMap([
             'TEXT' => TextContentObject::class,
         ]);
         $this->abstractPlugin->cObj = $contentObjectRenderer;
-        $this->defaultPiVars = $this->abstractPlugin->piVars;
     }
 
     /**
@@ -70,13 +80,18 @@ class AbstractPluginTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             'wrap' => 'test | test'
                         ],
                     ],
+                    'simplevalue' => 'lipsum'
                 ],
                 [
                     'abc' => 'testDEFtest',
+                    'simplevalue' => 'lipsum',
                     'pointer' => '',
                     'mode' => '',
                     'sword' => '',
                     'sort' => '',
+                    'a' => [
+                        'bit' => 'nested'
+                    ]
                 ],
             ],
             'stdWrap on conf, non-recursive, stdWrap 2 levels deep' => [
@@ -97,6 +112,9 @@ class AbstractPluginTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'mode' => '',
                     'sword' => '',
                     'sort' => '',
+                    'a' => [
+                        'bit' => 'nested'
+                    ]
                 ],
             ],
             'stdWrap on conf, recursive' => [
@@ -110,18 +128,55 @@ class AbstractPluginTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                             ],
                         ],
                     ],
+                    'simple_value' => '45'
                 ],
                 [
-                    'abc.' => [
-                        'def' => 'testDEFtest',
-                        'def.' => [
+                    'abc' => [
+                        'def' => [
                             'ghi' => '123',
                         ],
                     ],
+                    'simple_value' => '45',
                     'pointer' => '',
                     'mode' => '',
                     'sword' => '',
                     'sort' => '',
+                    'a' => [
+                        'bit' => 'nested'
+                    ]
+                ],
+            ],
+            'stdWrap on conf, recursive, default pivars get overridden recursive nested set' => [
+                [
+                    'abc.' => [
+                        'def' => 'DEF',
+                        'def.' => [
+                            'ghi' => '123',
+                            'stdWrap.' => [
+                                'wrap' => 'test | test'
+                            ],
+                        ],
+                    ],
+                    'a' => [
+                        'default-is' => 'uncool'
+                    ],
+                    'simple_value' => '45'
+                ],
+                [
+                    'abc' => [
+                        'def' => [
+                            'ghi' => '123',
+                        ],
+                    ],
+                    'simple_value' => '45',
+                    'pointer' => '',
+                    'mode' => '',
+                    'sword' => '',
+                    'sort' => '',
+                    'a' => [
+                        'default-is' => 'uncool',
+                        'bit' => 'nested'
+                    ]
                 ],
             ],
         ];
@@ -133,11 +188,12 @@ class AbstractPluginTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function piSetPiVarDefaultsStdWrap($input, $expected)
     {
-        $this->abstractPlugin->piVars = $this->defaultPiVars;
+        $this->resetSingletonInstances = true;
+        $this->abstractPlugin->piVars['a']['bit'] = 'nested';
 
         $this->abstractPlugin->conf['_DEFAULT_PI_VARS.'] = $input;
         $this->abstractPlugin->pi_setPiVarDefaults();
-        $this->assertEquals($expected, $this->abstractPlugin->piVars);
+        self::assertEquals($expected, $this->abstractPlugin->piVars);
     }
 
     /**
@@ -149,42 +205,42 @@ class AbstractPluginTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         return [
             'Result browser returning false' => [
-                'className' => $this->getUniqueId('tx_coretest'),
+                'className' => StringUtility::getUniqueId('tx_coretest'),
                 'returnValue' => false,
                 'expected' => ''
             ],
             'Result browser returning null' => [
-                'className' => $this->getUniqueId('tx_coretest'),
+                'className' => StringUtility::getUniqueId('tx_coretest'),
                 'returnValue' => null,
                 'expected' => ''
             ],
             'Result browser returning whitespace string' => [
-                'className' => $this->getUniqueId('tx_coretest'),
+                'className' => StringUtility::getUniqueId('tx_coretest'),
                 'returnValue' => '   ',
                 'expected' => ''
             ],
             'Result browser returning HTML' => [
-                'className' => $this->getUniqueId('tx_coretest'),
+                'className' => StringUtility::getUniqueId('tx_coretest'),
                 'returnValue' => '<div><a href="index.php?id=1&pointer=1">1</a><a href="index.php?id=1&pointer=2">2</a><a href="index.php?id=1&pointer=3">3</a><a href="index.php?id=1&pointer=4">4</a></div>',
                 'expected' => '<div><a href="index.php?id=1&pointer=1">1</a><a href="index.php?id=1&pointer=2">2</a><a href="index.php?id=1&pointer=3">3</a><a href="index.php?id=1&pointer=4">4</a></div>'
             ],
             'Result browser returning a truthy integer as string' => [
-                'className' => $this->getUniqueId('tx_coretest'),
+                'className' => StringUtility::getUniqueId('tx_coretest'),
                 'returnValue' => '1',
                 'expected' => '1'
             ],
             'Result browser returning a falsy integer' => [
-                'className' => $this->getUniqueId('tx_coretest'),
+                'className' => StringUtility::getUniqueId('tx_coretest'),
                 'returnValue' => 0,
                 'expected' => ''
             ],
             'Result browser returning a truthy integer' => [
-                'className' => $this->getUniqueId('tx_coretest'),
+                'className' => StringUtility::getUniqueId('tx_coretest'),
                 'returnValue' => 1,
                 'expected' => ''
             ],
             'Result browser returning a positive integer' => [
-                'className' => $this->getUniqueId('tx_coretest'),
+                'className' => StringUtility::getUniqueId('tx_coretest'),
                 'returnValue' => 42,
                 'expected' => ''
             ]
@@ -211,15 +267,32 @@ class AbstractPluginTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         GeneralUtility::addInstance($className, $resultBrowserHook);
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][AbstractPlugin::class]['pi_list_browseresults'] = [$className];
 
-        $resultBrowserHook->expects($this->atLeastOnce())
+        $resultBrowserHook->expects(self::atLeastOnce())
             ->method('pi_list_browseresults')
             ->with(1, '', [], 'pointer', true, false, $this->abstractPlugin)
-            ->will($this->returnValue($returnValue));
+            ->willReturn($returnValue);
 
         $actualReturnValue = $this->abstractPlugin->pi_list_browseresults();
 
-        $this->assertSame($expected, $actualReturnValue);
+        self::assertSame($expected, $actualReturnValue);
 
         unset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][AbstractPlugin::class]['pi_list_browseresults']);
+    }
+
+    private function createSiteWithDefaultLanguage(): Site
+    {
+        return new Site('test', 1, [
+            'identifier' => 'test',
+            'rootPageId' => 1,
+            'base' => '/',
+            'languages' => [
+                [
+                    'base' => '/',
+                    'languageId' => 0,
+                    'locale' => 'en_US',
+                    'typo3Language' => 'en'
+                ],
+            ]
+        ]);
     }
 }

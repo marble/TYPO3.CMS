@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +13,30 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
+
+use TYPO3\CMS\Fluid\Core\Widget\WidgetContext;
+use TYPO3\CMS\Fluid\Core\Widget\WidgetRequest;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class WidgetRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class WidgetRequestTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function setWidgetContextAlsoSetsControllerObjectName()
     {
-        $widgetContext = $this->getMockBuilder(\TYPO3\CMS\Fluid\Core\Widget\WidgetContext::class)
+        $widgetContext = $this->getMockBuilder(WidgetContext::class)
             ->setMethods(['getControllerObjectName'])
             ->getMock();
-        $widgetContext->expects($this->once())->method('getControllerObjectName')->will($this->returnValue('Tx_Fluid_ControllerObjectName'));
-        $widgetRequest = $this->getMockBuilder(\TYPO3\CMS\Fluid\Core\Widget\WidgetRequest::class)
+        $widgetContext->expects(self::once())->method('getControllerObjectName')->willReturn('Tx_Fluid_ControllerObjectName');
+        $widgetRequest = $this->getMockBuilder(WidgetRequest::class)
             ->setMethods(['setControllerObjectName'])
             ->getMock();
-        $widgetRequest->expects($this->once())->method('setControllerObjectName')->with('Tx_Fluid_ControllerObjectName');
+        $widgetRequest->expects(self::once())->method('setControllerObjectName')->with('Tx_Fluid_ControllerObjectName');
         $widgetRequest->setWidgetContext($widgetContext);
     }
 
@@ -40,14 +45,14 @@ class WidgetRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getArgumentPrefixReadsVariablesFromWidgetContext()
     {
-        $widgetContext = $this->getMockBuilder(\TYPO3\CMS\Fluid\Core\Widget\WidgetContext::class)
+        $widgetContext = $this->getMockBuilder(WidgetContext::class)
             ->setMethods(['getParentPluginNamespace', 'getWidgetIdentifier'])
             ->getMock();
-        $widgetContext->expects($this->once())->method('getParentPluginNamespace')->will($this->returnValue('foo'));
-        $widgetContext->expects($this->once())->method('getWidgetIdentifier')->will($this->returnValue('bar'));
-        $widgetRequest = $this->getAccessibleMock(\TYPO3\CMS\Fluid\Core\Widget\WidgetRequest::class, ['dummy']);
+        $widgetContext->expects(self::once())->method('getParentPluginNamespace')->willReturn('foo');
+        $widgetContext->expects(self::once())->method('getWidgetIdentifier')->willReturn('bar');
+        $widgetRequest = $this->getAccessibleMock(WidgetRequest::class, ['dummy']);
         $widgetRequest->_set('widgetContext', $widgetContext);
-        $this->assertEquals('foo[bar]', $widgetRequest->getArgumentPrefix());
+        self::assertEquals('foo[bar]', $widgetRequest->getArgumentPrefix());
     }
 
     /**
@@ -55,11 +60,11 @@ class WidgetRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function widgetContextCanBeReadAgain()
     {
-        $widgetContext = $this->createMock(\TYPO3\CMS\Fluid\Core\Widget\WidgetContext::class);
-        $widgetRequest = $this->getMockBuilder(\TYPO3\CMS\Fluid\Core\Widget\WidgetRequest::class)
+        $widgetContext = $this->createMock(WidgetContext::class);
+        $widgetRequest = $this->getMockBuilder(WidgetRequest::class)
             ->setMethods(['setControllerObjectName'])
             ->getMock();
         $widgetRequest->setWidgetContext($widgetContext);
-        $this->assertSame($widgetContext, $widgetRequest->getWidgetContext());
+        self::assertSame($widgetContext, $widgetRequest->getWidgetContext());
     }
 }

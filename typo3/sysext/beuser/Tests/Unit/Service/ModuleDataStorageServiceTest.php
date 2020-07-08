@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Beuser\Tests\Unit\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,18 @@ namespace TYPO3\CMS\Beuser\Tests\Unit\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Beuser\Tests\Unit\Service;
+
+use TYPO3\CMS\Beuser\Domain\Model\ModuleData;
+use TYPO3\CMS\Beuser\Service\ModuleDataStorageService;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class ModuleDataStorageServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ModuleDataStorageServiceTest extends UnitTestCase
 {
     /**
      * @test
@@ -25,21 +32,20 @@ class ModuleDataStorageServiceTest extends \TYPO3\TestingFramework\Core\Unit\Uni
     public function loadModuleDataReturnsModuleDataObjectForEmptyModuleData()
     {
         // Simulate empty module data
-        $GLOBALS['BE_USER'] = $this->createMock(\TYPO3\CMS\Core\Authentication\BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $this->createMock(BackendUserAuthentication::class);
         $GLOBALS['BE_USER']->uc = [];
         $GLOBALS['BE_USER']->uc['moduleData'] = [];
 
-        /** @var \TYPO3\CMS\Beuser\Service\ModuleDataStorageService $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Beuser\Service\ModuleDataStorageService::class, ['dummy'], [], '', false);
-        $objectManagerMock = $this->createMock(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
-        $moduleDataMock = $this->createMock(\TYPO3\CMS\Beuser\Domain\Model\ModuleData::class);
+        $subject = new ModuleDataStorageService();
+        $objectManagerMock = $this->createMock(ObjectManager::class);
+        $moduleDataMock = $this->createMock(ModuleData::class);
         $objectManagerMock
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('get')
-            ->with(\TYPO3\CMS\Beuser\Domain\Model\ModuleData::class)
-            ->will($this->returnValue($moduleDataMock));
-        $subject->_set('objectManager', $objectManagerMock);
+            ->with(ModuleData::class)
+            ->willReturn($moduleDataMock);
+        $subject->injectObjectManager($objectManagerMock);
 
-        $this->assertSame($moduleDataMock, $subject->loadModuleData());
+        self::assertSame($moduleDataMock, $subject->loadModuleData());
     }
 }

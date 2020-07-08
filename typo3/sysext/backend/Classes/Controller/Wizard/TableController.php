@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller\Wizard;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,36 +15,34 @@ namespace TYPO3\CMS\Backend\Controller\Wizard;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller\Wizard;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
+use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Http\HtmlResponse;
+use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
  * Script Class for rendering the Table Wizard
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class TableController extends AbstractWizardController
 {
-    /**
-     * Content accumulation for the module.
-     *
-     * @var string
-     */
-    public $content;
-
     /**
      * If TRUE, <input> fields are shown instead of textareas.
      *
      * @var bool
      */
-    public $inputStyle = false;
+    protected $inputStyle = false;
 
     /**
      * If set, the string version of the content is interpreted/written as XML
@@ -52,14 +51,14 @@ class TableController extends AbstractWizardController
      *
      * @var int
      */
-    public $xmlStorage = 0;
+    protected $xmlStorage = 0;
 
     /**
      * Number of new rows to add in bottom of wizard
      *
      * @var int
      */
-    public $numNewRows = 1;
+    protected $numNewRows = 1;
 
     /**
      * Name of field in parent record which MAY contain the number of columns for the table
@@ -67,21 +66,21 @@ class TableController extends AbstractWizardController
      *
      * @var string
      */
-    public $colsFieldName = 'cols';
+    protected $colsFieldName = 'cols';
 
     /**
      * Wizard parameters, coming from FormEngine linking to the wizard.
      *
      * @var array
      */
-    public $P;
+    protected $P;
 
     /**
      * The array which is constantly submitted by the multidimensional form of this wizard.
      *
      * @var array
      */
-    public $TABLECFG;
+    protected $TABLECFG;
 
     /**
      * Table parsing
@@ -89,14 +88,14 @@ class TableController extends AbstractWizardController
      *
      * @var string
      */
-    public $tableParsing_quote;
+    protected $tableParsing_quote;
 
     /**
      * delimiter between table cells
      *
      * @var string
      */
-    public $tableParsing_delimiter;
+    protected $tableParsing_delimiter;
 
     /**
      * @var IconFactory
@@ -104,25 +103,64 @@ class TableController extends AbstractWizardController
     protected $iconFactory;
 
     /**
-     * Constructor
+     * ModuleTemplate object
+     *
+     * @var ModuleTemplate
      */
-    public function __construct()
-    {
-        parent::__construct();
-        $this->getLanguageService()->includeLLFile('EXT:lang/Resources/Private/Language/locallang_wizards.xlf');
-        $GLOBALS['SOBE'] = $this;
+    protected $moduleTemplate;
 
-        $this->init();
+    /**
+     * Injects the request object for the current request or subrequest
+     * As this controller goes only through the main() method, it is rather simple for now
+     *
+     * @param ServerRequestInterface $request
+     * @return ResponseInterface
+     */
+    public function mainAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->moduleTemplate = GeneralUtility::makeInstance(ModuleTemplate::class);
+        $this->getLanguageService()->includeLLFile('EXT:core/Resources/Private/Language/locallang_wizards.xlf');
+        $this->init($request);
+
+        $normalizedParams = $request->getAttribute('normalizedParams');
+        $requestUri = $normalizedParams->getRequestUri();
+        [$rUri] = explode('#', $requestUri);
+        $content = '<form action="' . htmlspecialchars($rUri) . '" method="post" id="TableController" name="wizardForm">';
+        if ($this->P['table'] && $this->P['field'] && $this->P['uid']) {
+            $tableWizard = $this->renderTableWizard($request);
+
+            if ($tableWizard instanceof RedirectResponse) {
+                return $tableWizard;
+            }
+
+            $content .= '<h2>' . htmlspecialchars($this->getLanguageService()->getLL('table_title')) . '</h2>'
+                . '<div>' . $tableWizard . '</div>';
+        } else {
+            $content .= '<h2>' . htmlspecialchars($this->getLanguageService()->getLL('table_title')) . '</h2>'
+                . '<div><span class="text-danger">' . htmlspecialchars($this->getLanguageService()->getLL('table_noData')) . '</span></div>';
+        }
+        $content .= '</form>';
+
+        // Setting up the buttons and markers for docHeader
+        $this->getButtons();
+        // Build the <body> for the module
+        $this->moduleTemplate->setContent($content);
+
+        return new HtmlResponse($this->moduleTemplate->renderContent());
     }
 
     /**
      * Initialization of the class
+     *
+     * @param ServerRequestInterface $request
      */
-    protected function init()
+    protected function init(ServerRequestInterface $request): void
     {
+        $parsedBody = $request->getParsedBody();
+        $queryParams = $request->getQueryParams();
         // GPvars:
-        $this->P = GeneralUtility::_GP('P');
-        $this->TABLECFG = GeneralUtility::_GP('TABLE');
+        $this->P = $parsedBody['P'] ?? $queryParams['P'] ?? null;
+        $this->TABLECFG = $parsedBody['TABLE'] ?? $queryParams['TABLE'] ?? null;
         // Setting options:
         $this->xmlStorage = $this->P['params']['xmlOutput'];
         $this->numNewRows = MathUtility::forceIntegerInRange($this->P['params']['numNewRows'], 1, 50, 5);
@@ -133,45 +171,9 @@ class TableController extends AbstractWizardController
     }
 
     /**
-     * Injects the request object for the current request or subrequest
-     * As this controller goes only through the main() method, it is rather simple for now
-     *
-     * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
-     * @return ResponseInterface
-     */
-    public function mainAction(ServerRequestInterface $request, ResponseInterface $response)
-    {
-        $this->main();
-        $response->getBody()->write($this->moduleTemplate->renderContent());
-        return $response;
-    }
-
-    /**
-     * Main function, rendering the table wizard
-     */
-    public function main()
-    {
-        list($rUri) = explode('#', GeneralUtility::getIndpEnv('REQUEST_URI'));
-        $this->content .= '<form action="' . htmlspecialchars($rUri) . '" method="post" id="TableController" name="wizardForm">';
-        if ($this->P['table'] && $this->P['field'] && $this->P['uid']) {
-            $this->content .= '<h2>' . htmlspecialchars($this->getLanguageService()->getLL('table_title')) . '</h2>'
-                . '<div>' . $this->tableWizard() . '</div>';
-        } else {
-            $this->content .= '<h2>' . htmlspecialchars($this->getLanguageService()->getLL('table_title')) . '</h2>'
-                . '<div><span class="text-danger">' . htmlspecialchars($this->getLanguageService()->getLL('table_noData')) . '</span></div>';
-        }
-        $this->content .= '</form>';
-        // Setting up the buttons and markers for docHeader
-        $this->getButtons();
-        // Build the <body> for the module
-        $this->moduleTemplate->setContent($this->content);
-    }
-
-    /**
      * Create the panel of buttons for submitting the form or otherwise perform operations.
      */
-    protected function getButtons()
+    protected function getButtons(): void
     {
         $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
         if ($this->P['table'] && $this->P['field'] && $this->P['uid']) {
@@ -183,49 +185,38 @@ class TableController extends AbstractWizardController
             // Close
             $closeButton = $buttonBar->makeLinkButton()
                 ->setHref($this->P['returnUrl'])
-                ->setTitle($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.closeDoc'))
-                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon('actions-close', Icon::SIZE_SMALL));
-            $buttonBar->addButton($closeButton);
+                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon('actions-close', Icon::SIZE_SMALL))
+                ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.closeDoc'))
+                ->setShowLabelText(true);
+            $buttonBar->addButton($closeButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
             // Save
             $saveButton = $buttonBar->makeInputButton()
                 ->setName('_savedok')
                 ->setValue('1')
                 ->setForm('TableController')
                 ->setIcon($this->moduleTemplate->getIconFactory()->getIcon('actions-document-save', Icon::SIZE_SMALL))
-                ->setTitle($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.saveDoc'));
-            // Save & Close
-            $saveAndCloseButton = $buttonBar->makeInputButton()
-                ->setName('_saveandclosedok')
-                ->setValue('1')
-                ->setForm('TableController')
-                ->setTitle($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.saveCloseDoc'))
-                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                    'actions-document-save-close',
-                    Icon::SIZE_SMALL
-                ));
-            $splitButtonElement = $buttonBar->makeSplitButton()
-                ->addItem($saveButton)
-                ->addItem($saveAndCloseButton);
-
-            $buttonBar->addButton($splitButtonElement, ButtonBar::BUTTON_POSITION_LEFT, 3);
+                ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.saveDoc'))
+                ->setShowLabelText(true);
+            $buttonBar->addButton($saveButton, ButtonBar::BUTTON_POSITION_LEFT, 2);
             // Reload
             $reloadButton = $buttonBar->makeInputButton()
                 ->setName('_refresh')
                 ->setValue('1')
                 ->setForm('TableController')
-                ->setTitle($this->getLanguageService()->getLL('forms_refresh'))
-                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon('actions-refresh', Icon::SIZE_SMALL));
-            $buttonBar->addButton($reloadButton);
+                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon('actions-refresh', Icon::SIZE_SMALL))
+                ->setTitle($this->getLanguageService()->getLL('forms_refresh'));
+            $buttonBar->addButton($reloadButton, ButtonBar::BUTTON_POSITION_RIGHT);
         }
     }
 
     /**
      * Draws the table wizard content
      *
-     * @return string HTML content for the form.
+     * @param ServerRequestInterface $request
+     * @return string|ResponseInterface HTML content for the form.
      * @throws \RuntimeException
      */
-    public function tableWizard()
+    protected function renderTableWizard(ServerRequestInterface $request)
     {
         if (!$this->checkEditAccess($this->P['table'], $this->P['uid'])) {
             throw new \RuntimeException('Wizard Error: No access', 1349692692);
@@ -237,28 +228,27 @@ class TableController extends AbstractWizardController
         }
         // This will get the content of the form configuration code field to us - possibly cleaned up,
         // saved to database etc. if the form has been submitted in the meantime.
-        $tableCfgArray = $this->getConfigCode($row);
+        $tableCfgArray = $this->getConfiguration($row, $request);
+
+        if ($tableCfgArray instanceof ResponseInterface) {
+            return $tableCfgArray;
+        }
+
         // Generation of the Table Wizards HTML code:
-        $content = $this->getTableHTML($tableCfgArray);
+        $content = $this->getTableWizard($tableCfgArray);
         // Return content:
         return $content;
     }
-
-    /*
-     *
-     * Helper functions
-     *
-     */
 
     /**
      * Will get and return the configuration code string
      * Will also save (and possibly redirect/exit) the content if a save button has been pressed
      *
      * @param array $row Current parent record row
-     * @return array Table config code in an array
-     * @internal
+     * @param ServerRequestInterface $request
+     * @return array|ResponseInterface Table config code in an array
      */
-    public function getConfigCode($row)
+    protected function getConfiguration(array $row, ServerRequestInterface $request)
     {
         // Get delimiter settings
         $this->tableParsing_quote = $row['table_enclosure'] ? chr((int)$row['table_enclosure']) : '';
@@ -266,7 +256,7 @@ class TableController extends AbstractWizardController
         // If some data has been submitted, then construct
         if (isset($this->TABLECFG['c'])) {
             // Process incoming:
-            $this->changeFunc();
+            $this->manipulateTable();
             // Convert to string (either line based or XML):
             if ($this->xmlStorage) {
                 // Convert the input array to XML:
@@ -275,10 +265,10 @@ class TableController extends AbstractWizardController
                 $configuration = $this->TABLECFG['c'];
             } else {
                 // Convert the input array to a string of configuration code:
-                $bodyText = $this->cfgArray2CfgString($this->TABLECFG['c']);
+                $bodyText = $this->configurationArrayToString($this->TABLECFG['c']);
                 // Create cfgArr from the string based configuration - that way it is cleaned up
                 // and any incompatibilities will be removed!
-                $configuration = $this->cfgString2CfgArray($bodyText, $row[$this->colsFieldName]);
+                $configuration = $this->configurationStringToArray($bodyText, (int)$row[$this->colsFieldName]);
             }
             // If a save button has been pressed, then save the new field content:
             if ($_POST['_savedok'] || $_POST['_saveandclosedok']) {
@@ -302,7 +292,7 @@ class TableController extends AbstractWizardController
                 $dataHandler->process_datamap();
                 // If the save/close button was pressed, then redirect the screen:
                 if ($_POST['_saveandclosedok']) {
-                    HttpUtility::redirect(GeneralUtility::sanitizeLocalUrl($this->P['returnUrl']));
+                    return new RedirectResponse(GeneralUtility::sanitizeLocalUrl($this->P['returnUrl']));
                 }
             }
         } else {
@@ -319,10 +309,11 @@ class TableController extends AbstractWizardController
                         $this->P['flexFormPath'],
                         $currentFlexFormData
                     );
-                    $configuration = $this->cfgString2CfgArray($configuration, 0);
+                    $configuration = $this->configurationStringToArray($configuration, 0);
                 } else {
                     // Regular line based table configuration:
-                    $configuration = $this->cfgString2CfgArray($row[$this->P['field']], $row[$this->colsFieldName]);
+                    $columns = $row[$this->colsFieldName] ?? 0;
+                    $configuration = $this->configurationStringToArray($row[$this->P['field']], (int)$columns);
                 }
             }
             $configuration = is_array($configuration) ? $configuration : [];
@@ -335,9 +326,8 @@ class TableController extends AbstractWizardController
      *
      * @param array $configuration Table config array
      * @return string HTML for the table wizard
-     * @internal
      */
-    public function getTableHTML($configuration)
+    protected function getTableWizard(array $configuration): string
     {
         // Traverse the rows:
         $tRows = [];
@@ -421,7 +411,6 @@ class TableController extends AbstractWizardController
 				</tfoot>';
         }
         $content = '';
-        $addSubmitOnClick = 'onclick="document.getElementById(\'TableController\').submit();"';
         // Implode all table rows into a string, wrapped in table tags.
         $content .= '
 
@@ -438,7 +427,7 @@ class TableController extends AbstractWizardController
 			<div class="checkbox">
 				<input type="hidden" name="TABLE[textFields]" value="0" />
 				<label for="textFields">
-					<input type="checkbox" ' . $addSubmitOnClick . ' name="TABLE[textFields]" id="textFields" value="1"' . ($this->inputStyle ? ' checked="checked"' : '') . ' />
+					<input type="checkbox" data-global-event="change" data-action-submit="$form" name="TABLE[textFields]" id="textFields" value="1"' . ($this->inputStyle ? ' checked="checked"' : '') . ' />
 					' . $this->getLanguageService()->getLL('table_smallFields') . '
 				</label>
 			</div>';
@@ -448,10 +437,8 @@ class TableController extends AbstractWizardController
     /**
      * Detects if a control button (up/down/around/delete) has been pressed for an item and accordingly it will
      * manipulate the internal TABLECFG array
-     *
-     * @internal
      */
-    public function changeFunc()
+    protected function manipulateTable(): void
     {
         if ($this->TABLECFG['col_remove']) {
             $kk = key($this->TABLECFG['col_remove']);
@@ -565,9 +552,9 @@ class TableController extends AbstractWizardController
         foreach ($this->TABLECFG['c'] as $a => $value) {
             foreach ($this->TABLECFG['c'][$a] as $b => $value2) {
                 $this->TABLECFG['c'][$a][$b] = str_replace(
-                    LF,
-                    '<br />',
-                    str_replace(CR, '', $this->TABLECFG['c'][$a][$b])
+                    [CR, LF],
+                    ['', '<br />'],
+                    $this->TABLECFG['c'][$a][$b]
                 );
             }
         }
@@ -578,9 +565,9 @@ class TableController extends AbstractWizardController
      *
      * @param array $cfgArr Array of table configuration (follows the input structure from the table wizard POST form)
      * @return string The array converted into a string with line-based configuration.
-     * @see cfgString2CfgArray()
+     * @see configurationStringToArray()
      */
-    public function cfgArray2CfgString($cfgArr)
+    protected function configurationArrayToString(array $cfgArr): string
     {
         $inLines = [];
         // Traverse the elements of the table wizard and transform the settings into configuration code.
@@ -602,9 +589,9 @@ class TableController extends AbstractWizardController
      * @param string $configurationCode Configuration code
      * @param int $columns Default number of columns
      * @return array Configuration array
-     * @see cfgArray2CfgString()
+     * @see configurationArrayToString()
      */
-    public function cfgString2CfgArray($configurationCode, $columns)
+    protected function configurationStringToArray(string $configurationCode, int $columns): array
     {
         // Explode lines in the configuration code - each line is a table row.
         $tableLines = explode(LF, $configurationCode);
@@ -627,7 +614,7 @@ class TableController extends AbstractWizardController
                 ) {
                     $valueParts[$a] = substr(trim($valueParts[$a]), 1, -1);
                 }
-                $configurationArray[$key][$a] = $valueParts[$a];
+                $configurationArray[$key][$a] = (string)$valueParts[$a];
             }
         }
         return $configurationArray;

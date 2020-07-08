@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\Element;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
@@ -25,6 +26,17 @@ use TYPO3\CMS\Core\Utility\StringUtility;
  */
 class SelectSingleBoxElement extends AbstractFormElement
 {
+    /**
+     * Default field information enabled for this element.
+     *
+     * @var array
+     */
+    protected $defaultFieldInformation = [
+        'tcaDescription' => [
+            'renderType' => 'tcaDescription',
+        ],
+    ];
+
     /**
      * Default field controls for this element.
      *
@@ -112,9 +124,7 @@ class SelectSingleBoxElement extends AbstractFormElement
 
         $html = [];
         $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
-        if (!$disabled) {
-            $html[] = $fieldInformationHtml;
-        }
+        $html[] = $fieldInformationHtml;
         $html[] =   '<div class="form-control-wrap" style="max-width: ' . $width . 'px">';
         $html[] =       '<div class="form-wizards-wrap form-wizards-aside">';
         $html[] =           '<div class="form-wizards-element">';
@@ -125,17 +135,20 @@ class SelectSingleBoxElement extends AbstractFormElement
         $html[] =               $selectElement;
         $html[] =           '</div>';
         if (!$disabled) {
-            $html[] =       '<div class="form-wizards-items-aside">';
-            $html[] =           $fieldControlHtml;
-            $html[] =       '</div>';
-            $html[] =   '</div>';
-
+            if (!empty($fieldControlHtml)) {
+                $html[] =       '<div class="form-wizards-items-aside">';
+                $html[] =           $fieldControlHtml;
+                $html[] =       '</div>';
+                $html[] =   '</div>';
+            }
             $html[] =   '<p>';
-            $html[] =       '<em>' . htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.holdDownCTRL')) . '</em>';
+            $html[] =       '<em>' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.holdDownCTRL')) . '</em>';
             $html[] =   '</p>';
-            $html[] =   '<div class="form-wizards-items-bottom">';
-            $html[] =       $fieldWizardHtml;
-            $html[] =   '</div>';
+            if (!empty($fieldWizardHtml)) {
+                $html[] = '<div class="form-wizards-items-bottom">';
+                $html[] = $fieldWizardHtml;
+                $html[] = '</div>';
+            }
         }
         $html[] =   '</div>';
         $html[] = '</div>';
@@ -202,7 +215,7 @@ class SelectSingleBoxElement extends AbstractFormElement
         $attributes['value'] = $value;
         $html = [
             '<option ' . GeneralUtility::implodeAttributes($attributes, true) . '>',
-                htmlspecialchars($label, ENT_COMPAT, 'UTF-8', false),
+                htmlspecialchars($this->appendValueToLabelInDebugMode($label, $value), ENT_COMPAT, 'UTF-8', false),
             '</option>'
 
         ];

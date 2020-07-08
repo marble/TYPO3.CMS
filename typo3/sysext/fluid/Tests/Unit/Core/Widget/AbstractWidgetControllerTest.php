@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,36 +12,43 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Widget;
+
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 use TYPO3\CMS\Extbase\Mvc\Controller\Arguments;
+use TYPO3\CMS\Extbase\Mvc\Controller\MvcPropertyMappingConfigurationService;
 use TYPO3\CMS\Extbase\Mvc\Request;
 use TYPO3\CMS\Extbase\Mvc\ResponseInterface;
+use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
 use TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetController;
 use TYPO3\CMS\Fluid\Core\Widget\WidgetRequest;
 use TYPO3\CMS\Fluid\View\TemplatePaths;
 use TYPO3\CMS\Fluid\View\TemplateView;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class AbstractWidgetControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractWidgetControllerTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function canHandleWidgetRequest()
     {
-        /** @var WidgetRequest|\PHPUnit_Framework_MockObject_MockObject $request */
-        $request = $this->getMockBuilder(\TYPO3\CMS\Fluid\Core\Widget\WidgetRequest::class)
+        /** @var WidgetRequest|\PHPUnit\Framework\MockObject\MockObject $request */
+        $request = $this->getMockBuilder(WidgetRequest::class)
             ->setMethods(['dummy'])
             ->disableOriginalConstructor()
             ->getMock();
-        /** @var AbstractWidgetController|\PHPUnit_Framework_MockObject_MockObject $abstractWidgetController */
-        $abstractWidgetController = $this->getMockBuilder(\TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetController::class)
+        /** @var AbstractWidgetController|\PHPUnit\Framework\MockObject\MockObject $abstractWidgetController */
+        $abstractWidgetController = $this->getMockBuilder(AbstractWidgetController::class)
             ->setMethods(['dummy'])
             ->disableOriginalConstructor()
             ->getMock();
-        $this->assertTrue($abstractWidgetController->canProcessRequest($request));
+        self::assertTrue($abstractWidgetController->canProcessRequest($request));
     }
 
     /**
@@ -51,39 +57,39 @@ class AbstractWidgetControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
     public function processRequestSetsWidgetConfiguration()
     {
         $widgetContext = $this->createMock(\TYPO3\CMS\Fluid\Core\Widget\WidgetContext::class);
-        $widgetContext->expects($this->once())->method('getWidgetConfiguration')->will($this->returnValue('myConfiguration'));
-        /** @var WidgetRequest|\PHPUnit_Framework_MockObject_MockObject $request */
-        $request = $this->createMock(\TYPO3\CMS\Fluid\Core\Widget\WidgetRequest::class);
-        $request->expects($this->once())->method('getWidgetContext')->will($this->returnValue($widgetContext));
-        /** @var ResponseInterface|\PHPUnit_Framework_MockObject_MockObject $response */
-        $response = $this->createMock(\TYPO3\CMS\Extbase\Mvc\ResponseInterface::class);
-        /** @var AbstractWidgetController|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $abstractWidgetController */
-        $abstractWidgetController = $this->getAccessibleMock(\TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetController::class, ['resolveActionMethodName', 'initializeActionMethodArguments', 'initializeActionMethodValidators', 'initializeAction', 'checkRequestHash', 'mapRequestArgumentsToControllerArguments', 'buildControllerContext', 'resolveView', 'callActionMethod'], [], '', false);
-        $mockUriBuilder = $this->createMock(\TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder::class);
-        $objectManager = $this->createMock(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface::class);
-        $objectManager->expects($this->any())->method('get')->with(\TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder::class)->will($this->returnValue($mockUriBuilder));
+        $widgetContext->expects(self::once())->method('getWidgetConfiguration')->willReturn('myConfiguration');
+        /** @var WidgetRequest|\PHPUnit\Framework\MockObject\MockObject $request */
+        $request = $this->createMock(WidgetRequest::class);
+        $request->expects(self::once())->method('getWidgetContext')->willReturn($widgetContext);
+        /** @var ResponseInterface|\PHPUnit\Framework\MockObject\MockObject $response */
+        $response = $this->createMock(ResponseInterface::class);
+        /** @var AbstractWidgetController|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $abstractWidgetController */
+        $abstractWidgetController = $this->getAccessibleMock(AbstractWidgetController::class, ['resolveActionMethodName', 'initializeActionMethodArguments', 'initializeActionMethodValidators', 'initializeAction', 'checkRequestHash', 'mapRequestArgumentsToControllerArguments', 'buildControllerContext', 'resolveView', 'callActionMethod'], [], '', false);
+        $mockUriBuilder = $this->createMock(UriBuilder::class);
+        $objectManager = $this->createMock(ObjectManagerInterface::class);
+        $objectManager->expects(self::any())->method('get')->with(UriBuilder::class)->willReturn($mockUriBuilder);
 
-        $configurationService = $this->createMock(\TYPO3\CMS\Extbase\Mvc\Controller\MvcPropertyMappingConfigurationService::class);
+        $configurationService = $this->createMock(MvcPropertyMappingConfigurationService::class);
         $abstractWidgetController->_set('mvcPropertyMappingConfigurationService', $configurationService);
         $abstractWidgetController->_set('arguments', new Arguments());
 
         $abstractWidgetController->_set('objectManager', $objectManager);
         $abstractWidgetController->processRequest($request, $response);
         $widgetConfiguration = $abstractWidgetController->_get('widgetConfiguration');
-        $this->assertEquals('myConfiguration', $widgetConfiguration);
+        self::assertEquals('myConfiguration', $widgetConfiguration);
     }
 
     /**
      * @test
      * @dataProvider getSetViewConfigurationTestValues
      * @param array $parent
-     * @param array|NULL $widget
+     * @param array|null $widget
      * @param array $expected
      */
     public function setViewConfigurationPerformsExpectedInitialization(array $parent, $widget, array $expected)
     {
         $configurationManager = $this->createMock(ConfigurationManagerInterface::class);
-        $configurationManager->expects($this->once())->method('getConfiguration')->willReturn([
+        $configurationManager->expects(self::once())->method('getConfiguration')->willReturn([
             'view' => [
                 'widget' => [
                     'foobarClassName' => $widget
@@ -93,35 +99,52 @@ class AbstractWidgetControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         $parentRequest = $this->getMockBuilder(Request::class)
             ->setMethods(['getControllerExtensionKey'])
             ->getMock();
-        $parentRequest->expects($this->once())->method('getControllerExtensionKey')->willReturn(null);
+        $parentRequest->expects(self::once())->method('getControllerExtensionKey')->willReturn(null);
         $controllerContext = $this->getMockBuilder(ControllerContext::class)
             ->setMethods(['getRequest'])
             ->getMock();
-        $controllerContext->expects($this->once())->method('getRequest')->willReturn($parentRequest);
+        $controllerContext->expects(self::once())->method('getRequest')->willReturn($parentRequest);
         $templatePaths = $this->getMockBuilder(TemplatePaths::class)
             ->setMethods(['fillFromConfigurationArray', 'toArray'])
             ->getMock();
-        $templatePaths->expects($this->once())->method('fillFromConfigurationArray')->with($expected);
-        $templatePaths->expects($this->any())->method('toArray')->willReturn($parent);
+        $templatePaths->expects(self::once())->method('fillFromConfigurationArray')->with($expected);
+        $templatePaths->expects(self::any())->method('toArray')->willReturn($parent);
         $widgetContext = $this->getMockBuilder(WidgetContext::class)
             ->setMethods(['getWidgetViewHelperClassName'])
             ->getMock();
-        $widgetContext->expects($this->once())->method('getWidgetViewHelperClassName')->willReturn('foobarClassName');
+        $widgetContext->expects(self::once())->method('getWidgetViewHelperClassName')->willReturn('foobarClassName');
         $request = $this->getMockBuilder(Request::class)
             ->setMethods(['getWidgetContext'])
             ->getMock();
-        $request->expects($this->once())->method('getWidgetContext')->willReturn($widgetContext);
+        $request->expects(self::once())->method('getWidgetContext')->willReturn($widgetContext);
 
         $view = $this->getAccessibleMock(TemplateView::class, ['getTemplatePaths', 'toArray'], [], '', false);
-        $view->expects($this->exactly(2))->method('getTemplatePaths')->willReturn($templatePaths);
+        $view->expects(self::exactly(2))->method('getTemplatePaths')->willReturn($templatePaths);
 
-        $mock = $this->getAccessibleMock(AbstractWidgetController::class, ['dummy']);
-        $mock->_set('configurationManager', $configurationManager);
-        $mock->_set('controllerContext', $controllerContext);
-        $mock->_set('request', $request);
-        $method = new \ReflectionMethod(AbstractWidgetController::class, 'setViewConfiguration');
-        $method->setAccessible(true);
-        $method->invokeArgs($mock, [$view]);
+        $prophecy = $this->prophesize(AbstractWidgetController::class);
+
+        /** @var AbstractWidgetController $controller */
+        $controller = $prophecy->reveal();
+
+        $reflectionClass = new \ReflectionClass($controller);
+
+        $reflectionProperty = $reflectionClass->getProperty('configurationManager');
+        $reflectionProperty->setAccessible(true);
+        $reflectionProperty->setValue($controller, $configurationManager);
+
+        $reflectionProperty = $reflectionClass->getProperty('controllerContext');
+        $reflectionProperty->setAccessible(true);
+        $reflectionProperty->setValue($controller, $controllerContext);
+
+        $reflectionProperty = $reflectionClass->getProperty('request');
+        $reflectionProperty->setAccessible(true);
+        $reflectionProperty->setValue($controller, $request);
+
+        $reflectionMethod = $reflectionClass->getMethod('setViewConfiguration');
+        $reflectionMethod->setAccessible(true);
+
+        $reflectionMethod->setAccessible(true);
+        $reflectionMethod->invokeArgs($controller, [$view]);
     }
 
     /**

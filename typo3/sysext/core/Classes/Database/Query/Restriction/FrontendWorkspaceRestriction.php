@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Database\Query\Restriction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,8 +15,12 @@ namespace TYPO3\CMS\Core\Database\Query\Restriction;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database\Query\Restriction;
+
+use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Database\Query\Expression\CompositeExpression;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Versioning\VersionState;
 
 /**
@@ -41,13 +45,14 @@ class FrontendWorkspaceRestriction implements QueryRestrictionInterface
 
     /**
      * @param int $workspaceId (PageRepository::$versioningWorkspaceId property)
-     * @param bool $includeRowsForWorkspacePreview (PageRepository::$versioningPreview property)
+     * @param bool $includeRowsForWorkspacePreview (PageRepository::$versioningWorkspaceId > 0 property)
      * @param bool $enforceLiveRowsOnly (!$noVersionPreview argument from PageRepository::enableFields()) This is ONLY for use in PageRepository class and most likely will be removed
      */
     public function __construct(int $workspaceId = null, bool $includeRowsForWorkspacePreview = null, bool $enforceLiveRowsOnly = true)
     {
-        $this->workspaceId = $workspaceId === null ? $GLOBALS['TSFE']->sys_page->versioningWorkspaceId : $workspaceId;
-        $this->includeRowsForWorkspacePreview = $includeRowsForWorkspacePreview === null ? $GLOBALS['TSFE']->sys_page->versioningPreview : $includeRowsForWorkspacePreview;
+        $globalWorkspaceId = GeneralUtility::makeInstance(Context::class)->getPropertyFromAspect('workspace', 'id');
+        $this->workspaceId = $workspaceId ?? $globalWorkspaceId;
+        $this->includeRowsForWorkspacePreview = $includeRowsForWorkspacePreview ?? $globalWorkspaceId > 0;
         $this->enforceLiveRowsOnly = $enforceLiveRowsOnly;
     }
 
@@ -82,7 +87,7 @@ class FrontendWorkspaceRestriction implements QueryRestrictionInterface
                 }
                 // Filter out versioned records
                 if ($this->enforceLiveRowsOnly) {
-                    $constraints[] = $expressionBuilder->neq($tableAlias . '.pid', -1);
+                    $constraints[] = $expressionBuilder->eq($tableAlias . '.t3ver_oid', 0);
                 }
             }
         }

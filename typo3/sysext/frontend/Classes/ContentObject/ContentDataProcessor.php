@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\ContentObject;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject;
 
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -54,7 +55,7 @@ class ContentDataProcessor
                     );
                 }
 
-                $processorConfiguration = isset($processors[$key . '.']) ? $processors[$key . '.'] : [];
+                $processorConfiguration = $processors[$key . '.'] ?? [];
 
                 $variables = GeneralUtility::makeInstance($className)->process(
                     $cObject,

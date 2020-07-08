@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,13 @@ namespace TYPO3\CMS\Install\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Configuration;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Abstract feature class implements common code
+ * @internal only to be used within EXT:install
  */
 abstract class AbstractFeature
 {
@@ -98,7 +100,7 @@ abstract class AbstractFeature
     /**
      * Return presets ordered by priority
      *
-     * @return array<PresetInterface>
+     * @return array|PresetInterface[]
      * @throws Exception
      */
     public function getPresetsOrderedByPriority()

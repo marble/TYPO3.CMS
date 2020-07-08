@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,23 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Utility;
+
+use Doctrine\DBAL\Driver\Statement;
 use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
-use TYPO3\CMS\Backend\Tests\Unit\Utility\Fixtures\BackendUtilityFixture;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching\ConditionMatcher;
 use TYPO3\CMS\Backend\Tests\Unit\Utility\Fixtures\LabelFromItemListMergedReturnsCorrectFieldsFixture;
 use TYPO3\CMS\Backend\Tests\Unit\Utility\Fixtures\ProcessedValueForGroupWithMultipleAllowedTablesFixture;
 use TYPO3\CMS\Backend\Tests\Unit\Utility\Fixtures\ProcessedValueForGroupWithOneAllowedTableFixture;
 use TYPO3\CMS\Backend\Tests\Unit\Utility\Fixtures\ProcessedValueForSelectWithMMRelationFixture;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
-use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
+use TYPO3\CMS\Core\Configuration\Event\ModifyLoadedPageTsConfigEvent;
+use TYPO3\CMS\Core\Configuration\Loader\PageTsConfigLoader;
+use TYPO3\CMS\Core\Configuration\Parser\PageTsConfigParser;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
@@ -30,13 +37,21 @@ use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\DefaultRestrictionContainer;
 use TYPO3\CMS\Core\Database\RelationHandler;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class BackendUtilityTest extends UnitTestCase
 {
+    /**
+     * @var bool
+     */
+    protected $resetSingletonInstances = true;
+
     ///////////////////////////////////////
     // Tests concerning calcAge
     ///////////////////////////////////////
@@ -128,7 +143,7 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function calcAgeReturnsExpectedValues($seconds, $expectedLabel)
     {
-        $this->assertSame($expectedLabel, BackendUtility::calcAge($seconds));
+        self::assertSame($expectedLabel, BackendUtility::calcAge($seconds));
     }
 
     ///////////////////////////////////////
@@ -136,7 +151,7 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     ///////////////////////////////////////
     /**
      * @test
-     * @see http://forge.typo3.org/issues/20994
+     * @see https://forge.typo3.org/issues/20994
      */
     public function getProcessedValueForZeroStringIsZero()
     {
@@ -151,7 +166,8 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
-        $this->assertEquals('0', BackendUtility::getProcessedValue('tt_content', 'header', '0'));
+        $GLOBALS['LANG'] = [];
+        self::assertEquals('0', BackendUtility::getProcessedValue('tt_content', 'header', '0'));
     }
 
     /**
@@ -170,7 +186,8 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
-        $this->assertSame('1, 2', BackendUtility::getProcessedValue('tt_content', 'multimedia', '1,2'));
+        $GLOBALS['LANG'] = [];
+        self::assertSame('1, 2', BackendUtility::getProcessedValue('tt_content', 'multimedia', '1,2'));
     }
 
     /**
@@ -194,8 +211,8 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
-
-        $this->assertSame('Page 1, Page 2', ProcessedValueForGroupWithOneAllowedTableFixture::getProcessedValue('tt_content', 'pages', '1,2'));
+        $GLOBALS['LANG'] = [];
+        self::assertSame('Page 1, Page 2', ProcessedValueForGroupWithOneAllowedTableFixture::getProcessedValue('tt_content', 'pages', '1,2'));
     }
 
     /**
@@ -217,8 +234,8 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
-
-        $this->assertSame('Page 1, Configuration 2', ProcessedValueForGroupWithMultipleAllowedTablesFixture::getProcessedValue('index_config', 'indexcfgs', 'pages_1,index_config_2'));
+        $GLOBALS['LANG'] = [];
+        self::assertSame('Page 1, Configuration 2', ProcessedValueForGroupWithMultipleAllowedTablesFixture::getProcessedValue('index_config', 'indexcfgs', 'pages_1,index_config_2'));
     }
 
     /**
@@ -273,8 +290,8 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $relationHandlerInstance = $relationHandlerProphet->reveal();
         $relationHandlerInstance->tableArray['sys_category'] = [1, 2];
 
-        list($queryBuilderProphet, $connectionPoolProphet) = $this->mockDatabaseConnection('sys_category');
-        $statementProphet = $this->prophesize(\Doctrine\DBAL\Driver\Statement::class);
+        [$queryBuilderProphet, $connectionPoolProphet] = $this->mockDatabaseConnection('sys_category');
+        $statementProphet = $this->prophesize(Statement::class);
         $statementProphet->fetch()->shouldBeCalled()->willReturn(
             [
                 'uid' => 1,
@@ -329,8 +346,9 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
+        $GLOBALS['LANG'] = [];
 
-        $this->assertSame(
+        self::assertSame(
             'Category 1; Category 2',
             ProcessedValueForSelectWithMMRelationFixture::getProcessedValue(
                 'pages',
@@ -368,7 +386,7 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
-        $this->assertSame('28-08-15 (-2 days)', BackendUtility::getProcessedValue('tt_content', 'date', mktime(0, 0, 0, 8, 28, 2015)));
+        self::assertSame('28-08-15 (-2 days)', BackendUtility::getProcessedValue('tt_content', 'date', mktime(0, 0, 0, 8, 28, 2015)));
     }
 
     /**
@@ -426,7 +444,66 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
-        $this->assertSame($expected, BackendUtility::getProcessedValue('tt_content', 'date', mktime(0, 0, 0, 8, 28, 2015)));
+        self::assertSame($expected, BackendUtility::getProcessedValue('tt_content', 'date', mktime(0, 0, 0, 8, 28, 2015)));
+    }
+
+    /**
+     * @test
+     */
+    public function getProcessedValueForCheckWithSingleItem()
+    {
+        $GLOBALS['TCA'] = [
+            'tt_content' => [
+                'columns' => [
+                    'hide' => [
+                        'config' => [
+                            'type' => 'check',
+                            'items' => [
+                                [
+                                    0 => '',
+                                    1 => '',
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+        $languageServiceProphecy = $this->prophesize(LanguageService::class);
+        $languageServiceProphecy->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:yes')->willReturn('Yes');
+        $languageServiceProphecy->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:no')->willReturn('No');
+        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
+        self::assertSame('Yes', BackendUtility::getProcessedValue('tt_content', 'hide', 1));
+    }
+
+    /**
+     * @test
+     */
+    public function getProcessedValueForCheckWithSingleItemInvertStateDisplay()
+    {
+        $GLOBALS['TCA'] = [
+            'tt_content' => [
+                'columns' => [
+                    'hide' => [
+                        'config' => [
+                            'type' => 'check',
+                            'items' => [
+                                [
+                                    0 => '',
+                                    1 => '',
+                                    'invertStateDisplay' => true,
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+        $languageServiceProphecy = $this->prophesize(LanguageService::class);
+        $languageServiceProphecy->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:yes')->willReturn('Yes');
+        $languageServiceProphecy->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:no')->willReturn('No');
+        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
+        self::assertSame('No', BackendUtility::getProcessedValue('tt_content', 'hide', 1));
     }
 
     /**
@@ -479,7 +556,7 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                         'versioningWS' => true
                     ]
                 ],
-                'expectedFields' => 'uid,t3ver_id,t3ver_state,t3ver_wsid,t3ver_count'
+                'expectedFields' => 'uid,t3ver_state,t3ver_wsid,t3ver_count'
             ],
             'selicon_field set' => [
                 'table' => 'test_table',
@@ -547,7 +624,7 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $GLOBALS['TCA'][$table] = $tca;
         $selectFields = BackendUtility::getCommonSelectFields($table, $prefix, $presetFields);
-        $this->assertEquals($selectFields, $expectedFields);
+        self::assertEquals($selectFields, $expectedFields);
     }
 
     /**
@@ -637,7 +714,7 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $GLOBALS['TCA'][$table] = $tca;
         $label = BackendUtility::getLabelFromItemlist($table, $col, $key);
-        $this->assertEquals($label, $expectedLabel);
+        self::assertEquals($label, $expectedLabel);
     }
 
     /**
@@ -710,7 +787,7 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $GLOBALS['TCA'][$table] = $tca;
 
-        $this->assertEquals($expectedLabel, LabelFromItemListMergedReturnsCorrectFieldsFixture::getLabelFromItemListMerged($pageId, $table, $column, $key));
+        self::assertEquals($expectedLabel, LabelFromItemListMergedReturnsCorrectFieldsFixture::getLabelFromItemListMerged($pageId, $table, $column, $key));
     }
 
     /**
@@ -722,7 +799,7 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getFuncCheckReturnsInputTagWithValueAttribute()
     {
-        $this->assertStringMatchesFormat('<input %Svalue="1"%S/>', BackendUtility::getFuncCheck('params', 'test', true));
+        self::assertStringMatchesFormat('<input %Svalue="1"%S/>', BackendUtility::getFuncCheck('params', 'test', true));
     }
 
     /*
@@ -794,11 +871,11 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         // Stub LanguageService and let sL() return the same value that came in again
         $GLOBALS['LANG'] = $this->createMock(LanguageService::class);
-        $GLOBALS['LANG']->expects($this->any())->method('sL')->will($this->returnArgument(0));
+        $GLOBALS['LANG']->expects(self::any())->method('sL')->willReturnArgument(0);
 
         $GLOBALS['TCA'][$table] = $tca;
         $label = BackendUtility::getLabelsFromItemsList($table, $col, $keyList, $pageTsConfig);
-        $this->assertEquals($expectedLabel, $label);
+        self::assertEquals($expectedLabel, $label);
     }
 
     /**
@@ -823,11 +900,11 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         // Stub LanguageService and let sL() return the same value that came in again
         $GLOBALS['LANG'] = $this->createMock(LanguageService::class);
-        $GLOBALS['LANG']->expects($this->any())->method('sL')->will($this->returnArgument(0));
+        $GLOBALS['LANG']->expects(self::any())->method('sL')->willReturnArgument(0);
 
         $GLOBALS['TCA'][$table] = $tca;
         $label = BackendUtility::getProcessedValue($table, $col, 'foo,invalidKey,bar');
-        $this->assertEquals('aFooLabel, aBarLabel', $label);
+        self::assertEquals('aFooLabel, aBarLabel', $label);
     }
 
     /**
@@ -851,11 +928,11 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         // Stub LanguageService and let sL() return the same value that came in again
         $GLOBALS['LANG'] = $this->createMock(LanguageService::class);
-        $GLOBALS['LANG']->expects($this->any())->method('sL')->will($this->returnArgument(0));
+        $GLOBALS['LANG']->expects(self::any())->method('sL')->willReturnArgument(0);
 
         $GLOBALS['TCA'][$table] = $tca;
         $label = BackendUtility::getProcessedValue($table, $col, 'invalidKey');
-        $this->assertEquals('invalidKey', $label);
+        self::assertEquals('invalidKey', $label);
     }
 
     /**
@@ -872,36 +949,12 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         unset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_befunc.php']['viewOnClickClass']);
 
         $alternativeUrl = 'https://typo3.org/about/typo3-the-cms/the-history-of-typo3/#section';
-        $onclickCode = 'var previewWin = window.open(' . GeneralUtility::quoteJSvalue($alternativeUrl) . ',\'newTYPO3frontendWindow\');';
-        $this->assertStringMatchesFormat(
+        $onclickCode = 'var previewWin = window.open(' . GeneralUtility::quoteJSvalue($alternativeUrl) . ',\'newTYPO3frontendWindow\');' . LF
+            . 'if (previewWin.location.href === ' . GeneralUtility::quoteJSvalue($alternativeUrl) . ') { previewWin.location.reload(); };';
+        self::assertStringMatchesFormat(
             $onclickCode,
             BackendUtility::viewOnClick(null, null, null, null, $alternativeUrl, null, false)
         );
-    }
-
-    /**
-     * @test
-     */
-    public function getModTSconfigIgnoresValuesFromUserTsConfigIfNoSet()
-    {
-        $completeConfiguration = [
-            'value' => 'bar',
-            'properties' => [
-                'permissions.' => [
-                    'file.' => [
-                        'default.' => ['readAction' => '1'],
-                        '1.' => ['writeAction' => '1'],
-                        '0.' => ['readAction' => '0'],
-                    ],
-                ]
-            ]
-        ];
-
-        $GLOBALS['BE_USER'] = $this->createMock(BackendUserAuthentication::class);
-        $GLOBALS['BE_USER']->expects($this->at(0))->method('getTSConfig')->will($this->returnValue($completeConfiguration));
-        $GLOBALS['BE_USER']->expects($this->at(1))->method('getTSConfig')->will($this->returnValue(['value' => null, 'properties' => null]));
-
-        $this->assertSame($completeConfiguration, BackendUtilityFixture::getModTSconfig(42, 'notrelevant'));
     }
 
     /**
@@ -915,266 +968,8 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
         $GLOBALS['EXEC_TIME'] = mktime(0, 0, 0, 3, 23, 2016);
 
-        $this->assertSame('24-03-16 00:00 (-1 day)', BackendUtility::dateTimeAge($GLOBALS['EXEC_TIME'] + 86400));
-        $this->assertSame('24-03-16 (-1 day)', BackendUtility::dateTimeAge($GLOBALS['EXEC_TIME'] + 86400, 1, 'date'));
-    }
-
-    ///////////////////////////////////////
-    // Tests concerning getTCAtypes
-    ///////////////////////////////////////
-
-    /**
-     * @test
-     */
-    public function getTCAtypesReturnsCorrectValuesDataProvider()
-    {
-        return [
-            'no input' => [
-                '', // table
-                [], // rec
-                '', // useFieldNameAsKey
-                null // expected
-            ],
-            'non-existant table' => [
-                'fooBar', // table
-                [], // rec
-                '', // useFieldNameAsKey
-                null // expected
-            ],
-            'Doktype=1: one simple field' => [
-                'pages',
-                [
-                    'uid' => '1',
-                    'doktype' => '1'
-                ],
-                false,
-                [
-                    0 => [
-                        'field' => 'title',
-                        'title' => null,
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => 'title'
-                    ]
-                ]
-            ],
-            'non-existant type given: Return for type 1' => [
-                'pages', // table
-                [
-                    'uid' => '1',
-                    'doktype' => '999'
-                ], // rec
-                '', // useFieldNameAsKey
-                [
-                    0 => [
-                        'field' => 'title',
-                        'title' => null,
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => 'title'
-                    ]
-                ] // expected
-            ],
-            'Doktype=1: one simple field, useFieldNameAsKey=true' => [
-                'pages',
-                [
-                    'uid' => '1',
-                    'doktype' => '1'
-                ],
-                true,
-                [
-                    'title' => [
-                        'field' => 'title',
-                        'title' => null,
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => 'title'
-                    ]
-                ]
-            ],
-            'Empty showitem Field' => [
-                'test',
-                [
-                    'uid' => '1',
-                    'fooBar' => '99'
-                ],
-                true,
-                [
-                    '' => [
-                        'field' => '',
-                        'title' => null,
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => ''
-                    ]
-                ]
-            ],
-            'RTE field within a palette' => [
-                'pages',
-                [
-                    'uid' => '1',
-                    'doktype' => '10',
-                ],
-                false,
-                [
-                    0 => [
-                        'field' => '--div--',
-                        'title' => 'General',
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => '--div--;General'
-                    ],
-                    1 => [
-                        'field' => '--palette--',
-                        'title' => 'Palette',
-                        'palette' => '123',
-                        'spec' => [],
-                        'origString' => '--palette--;Palette;123'
-                    ],
-                    2 => [
-                        'field' => 'title',
-                        'title' => null,
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => 'title'
-                    ],
-                    3 => [
-                        'field' => 'text',
-                        'title' => null,
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => 'text'
-                    ],
-                    4 => [
-                        'field' => 'select',
-                        'title' => 'Select field',
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => 'select;Select field'
-                    ]
-                ]
-            ],
-            'RTE field with more settings within a palette' => [
-                'pages',
-                [
-                    'uid' => 1,
-                    'doktype' => 2
-                ],
-                false,
-                [
-                    0 => [
-                        'field' => '--div--',
-                        'title' => 'General',
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => '--div--;General'
-                    ],
-                    1 => [
-                        'field' => '--palette--',
-                        'title' => 'RTE palette',
-                        'palette' => '456',
-                        'spec' => [],
-                        'origString' => '--palette--;RTE palette;456'
-                    ],
-                    2 => [
-                        'field' => 'text2',
-                        'title' => null,
-                        'palette' => null,
-                        'spec' => [],
-                        'origString' => 'text2'
-                    ]
-                ]
-            ]
-        ];
-    }
-
-    /**
-     * @test
-     * @dataProvider getTCAtypesReturnsCorrectValuesDataProvider
-     *
-     * @param string $table
-     * @param array $rec
-     * @param bool $useFieldNameAsKey
-     * @param array $expected
-     */
-    public function getTCAtypesReturnsCorrectValues($table, $rec, $useFieldNameAsKey, $expected)
-    {
-        $GLOBALS['TCA'] = [
-            'pages' => [
-                'ctrl' => [
-                    'type' => 'doktype'
-                ],
-                'columns' => [
-                    'title' => [
-                        'label' => 'Title test',
-                        'config' => [
-                            'type' => 'input'
-                        ]
-                    ],
-                    'text' => [
-                        'label' => 'RTE Text',
-                        'config' => [
-                            'type' => 'text',
-                            'cols' => 40,
-                            'rows' => 5
-                        ],
-                    ],
-                    'text2' => [
-                        'label' => 'RTE Text 2',
-                        'config' => [
-                            'type' => 'text',
-                            'cols' => 40,
-                            'rows' => 5
-                        ],
-                    ],
-                    'select' => [
-                        'label' => 'Select test',
-                        'config' => [
-                            'items' => [
-                                ['Please select', 0],
-                                ['Option 1', 1],
-                                ['Option 2', 2]
-                            ]
-                        ],
-                        'maxitems' => 1,
-                        'renderType' => 'selectSingle'
-                    ]
-                ],
-                'types' => [
-                    '1' => [
-                        'showitem' => 'title'
-                    ],
-                    '2' => [
-                        'showitem' => '--div--;General,--palette--;RTE palette;456'
-                    ],
-                    '10' => [
-                        'showitem' => '--div--;General,--palette--;Palette;123,title'
-                    ],
-                    '14' => [
-                        'showitem' => '--div--;General,title'
-                    ]
-                ],
-                'palettes' => [
-                    '123' => [
-                        'showitem' => 'text,select;Select field'
-                    ],
-                    '456' => [
-                        'showitem' => 'text2'
-                    ]
-                ]
-            ],
-            'test' => [
-                'ctrl' => [
-                    'type' => 'fooBar'
-                ],
-                'types' => [
-                    '99' => [ 'showitem' => '']
-                ]
-            ]
-        ];
-
-        $return = BackendUtility::getTCAtypes($table, $rec, $useFieldNameAsKey);
-        $this->assertSame($expected, $return);
+        self::assertSame('24-03-16 00:00 (-1 day)', BackendUtility::dateTimeAge($GLOBALS['EXEC_TIME'] + 86400));
+        self::assertSame('24-03-16 (-1 day)', BackendUtility::dateTimeAge($GLOBALS['EXEC_TIME'] + 86400, 1, 'date'));
     }
 
     /**
@@ -1207,5 +1002,242 @@ class BackendUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         $computedProperties = BackendUtility::purgeComputedPropertiesFromRecord($record);
         self::assertSame($expected, $computedProperties);
+    }
+
+    public function splitTableUidDataProvider()
+    {
+        return [
+            'simple' => [
+                'pages_23',
+                ['pages', '23']
+            ],
+            'complex' => [
+                'tt_content_13',
+                ['tt_content', '13']
+            ],
+            'multiple underscores' => [
+                'tx_runaway_domain_model_crime_scene_1234',
+                ['tx_runaway_domain_model_crime_scene', '1234']
+            ]
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider splitTableUidDataProvider
+     */
+    public function splitTableUid($input, $expected)
+    {
+        $result = BackendUtility::splitTable_Uid($input);
+        self::assertSame($expected, $result);
+    }
+
+    /**
+     * Tests if the method getPagesTSconfig can be called without having a GLOBAL['BE_USER'] object.
+     * However, this test also shows all the various other dependencies this method has.
+     *
+     * @test
+     */
+    public function getPagesTSconfigWorksWithoutInitializedBackendUser()
+    {
+        $expected = ['called.' => ['config']];
+        $pageId = 13;
+        $eventDispatcherProphecy = $this->prophesize(EventDispatcherInterface::class);
+        $eventDispatcherProphecy->dispatch(Argument::any())->willReturn(new ModifyLoadedPageTsConfigEvent([], []));
+        $loader = new PageTsConfigLoader($eventDispatcherProphecy->reveal());
+        GeneralUtility::addInstance(PageTsConfigLoader::class, $loader);
+        $parserProphecy = $this->prophesize(PageTsConfigParser::class);
+        $parserProphecy->parse(Argument::cetera())->willReturn($expected);
+        GeneralUtility::addInstance(PageTsConfigParser::class, $parserProphecy->reveal());
+
+        $matcherProphecy = $this->prophesize(ConditionMatcher::class);
+        GeneralUtility::addInstance(ConditionMatcher::class, $matcherProphecy->reveal());
+
+        $siteFinder = $this->prophesize(SiteFinder::class);
+        $siteFinder->getSiteByPageId($pageId)->willReturn(
+            new Site('dummy', $pageId, ['base' => 'https://example.com'])
+        );
+        GeneralUtility::addInstance(SiteFinder::class, $siteFinder->reveal());
+
+        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
+        $cacheProphecy = $this->prophesize(FrontendInterface::class);
+        $cacheManagerProphecy->getCache('runtime')->willReturn($cacheProphecy->reveal());
+        $cacheHashProphecy = $this->prophesize(FrontendInterface::class);
+        $cacheManagerProphecy->getCache('hash')->willReturn($cacheHashProphecy->reveal());
+        $cacheProphecy->has(Argument::cetera())->willReturn(false);
+        $cacheProphecy->get(Argument::cetera())->willReturn(false);
+        $cacheProphecy->set(Argument::cetera())->willReturn(false);
+        $cacheProphecy->get('backendUtilityBeGetRootLine')->willReturn(['13--1' => []]);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+
+        $result = BackendUtility::getPagesTSconfig($pageId);
+        self::assertEquals($expected, $result);
+    }
+
+    /**
+     * @test
+     */
+    public function returnNullForMissingTcaConfigInResolveFileReferences()
+    {
+        $tableName = 'table_a';
+        $fieldName = 'field_a';
+        $GLOBALS['TCA'][$tableName]['columns'][$fieldName]['config'] = [];
+        self::assertNull(BackendUtility::resolveFileReferences($tableName, $fieldName, []));
+    }
+
+    /**
+     * @test
+     */
+    public function fixVersioningPidDoesNotChangeValuesForNoBeUserAvailable()
+    {
+        $GLOBALS['BE_USER'] = null;
+        $tableName = 'table_a';
+        $GLOBALS['TCA'][$tableName]['ctrl']['versioningWS'] = 'not_empty';
+        $rr = [
+            'pid' => -1,
+            't3ver_oid' => 7,
+            't3ver_wsid' => 42,
+        ];
+        $reference = $rr;
+        BackendUtility::fixVersioningPid($tableName, $rr);
+        self::assertSame($reference, $rr);
+    }
+
+    /**
+     * @test
+     * @dataProvider unfitResolveFileReferencesTableConfig
+     */
+    public function returnNullForUnfitTableConfigInResolveFileReferences(array $config)
+    {
+        $tableName = 'table_a';
+        $fieldName = 'field_a';
+        $GLOBALS['TCA'][$tableName]['columns'][$fieldName]['config'] = $config;
+        self::assertNull(BackendUtility::resolveFileReferences($tableName, $fieldName, []));
+    }
+
+    public function unfitResolveFileReferencesTableConfig(): array
+    {
+        return [
+            'invalid table' => [
+                [
+                    'type' => 'inline',
+                    'foreign_table' => 'table_b',
+                ],
+            ],
+            'empty table' => [
+                [
+                    'type' => 'inline',
+                    'foreign_table' => '',
+                ],
+            ],
+            'invalid type' => [
+                [
+                    'type' => 'select',
+                    'foreign_table' => 'sys_file_reference',
+                ],
+            ],
+            'empty type' => [
+                [
+                    'type' => '',
+                    'foreign_table' => 'sys_file_reference',
+                ],
+            ],
+            'empty' => [
+                [
+                    'type' => '',
+                    'foreign_table' => '',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @test
+     */
+    public function workspaceOLDoesNotChangeValuesForNoBeUserAvailable()
+    {
+        $GLOBALS['BE_USER'] = null;
+        $tableName = 'table_a';
+        $row = [
+            'uid' => 1,
+            'pid' => 17,
+        ];
+        $reference = $row;
+        BackendUtility::workspaceOL($tableName, $row);
+        self::assertSame($reference, $row);
+    }
+
+    /**
+     * @test
+     */
+    public function versioningPlaceholderClauseReturnsEmptyIfNoBeUserIsAvailable()
+    {
+        $GLOBALS['BE_USER'] = null;
+        $tableName = 'table_a';
+        $GLOBALS['TCA'][$tableName]['ctrl']['versioningWS'] = 'not_empty';
+        self::assertSame('', BackendUtility::versioningPlaceholderClause($tableName));
+    }
+
+    /**
+     * @test
+     */
+    public function resolveFileReferencesReturnsEmptyResultForNoReferencesAvailable()
+    {
+        $tableName = 'table_a';
+        $fieldName = 'field_a';
+        $relationHandler = $this->prophesize(RelationHandler::class);
+        $relationHandler->start(
+            'foo',
+            'sys_file_reference',
+            '',
+            42,
+            $tableName,
+            ['type' => 'inline', 'foreign_table' => 'sys_file_reference']
+        )->shouldBeCalled();
+        $relationHandler->tableArray = ['sys_file_reference' => []];
+        $relationHandler->processDeletePlaceholder()->shouldBeCalled();
+        GeneralUtility::addInstance(RelationHandler::class, $relationHandler->reveal());
+        $GLOBALS['TCA'][$tableName]['columns'][$fieldName]['config'] = [
+            'type' => 'inline',
+            'foreign_table' => 'sys_file_reference',
+        ];
+        $elementData = [
+            $fieldName => 'foo',
+            'uid' => 42,
+        ];
+
+        self::assertEmpty(BackendUtility::resolveFileReferences($tableName, $fieldName, $elementData));
+    }
+
+    /**
+     * @test
+     */
+    public function getWorkspaceWhereClauseReturnsEmptyIfNoBeUserIsAvailable()
+    {
+        $GLOBALS['BE_USER'] = null;
+        $tableName = 'table_a';
+        $GLOBALS['TCA'][$tableName]['ctrl']['versioningWS'] = 'not_empty';
+        self::assertSame('', BackendUtility::getWorkspaceWhereClause($tableName));
+    }
+
+    /**
+     * @test
+     */
+    public function wsMapIdReturnsLiveIdIfNoBeUserIsAvailable()
+    {
+        $GLOBALS['BE_USER'] = null;
+        $tableName = 'table_a';
+        $uid = 42;
+        self::assertSame(42, BackendUtility::wsMapId($tableName, $uid));
+    }
+
+    /**
+     * @test
+     */
+    public function getMovePlaceholderReturnsFalseIfNoBeUserIsAvailable()
+    {
+        $GLOBALS['BE_USER'] = null;
+        $tableName = 'table_a';
+        self::assertFalse(BackendUtility::getMovePlaceholder($tableName, 42));
     }
 }

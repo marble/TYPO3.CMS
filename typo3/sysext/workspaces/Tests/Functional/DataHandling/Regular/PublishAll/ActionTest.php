@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Regular\PublishAll;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,15 @@ namespace TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Regular\PublishAll;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Regular\PublishAll;
+
+use TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Regular\AbstractActionTestCase;
+use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\InternalRequest;
+
 /**
  * Functional test for the DataHandler
  */
-class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Regular\AbstractActionTestCase
+class ActionTest extends AbstractActionTestCase
 {
     /**
      * @var string
@@ -30,7 +34,7 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
 
     /**
      * @test
-     * @see DataSet/createContentRecords.csv
+     * See DataSet/createContentRecords.csv
      */
     public function createContents()
     {
@@ -39,13 +43,13 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('createContents');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1', 'Testing #2'));
     }
 
     /**
      * @test
-     * @see DataSet/createContentRecordAndDiscardCreatedContentRecord.csv
+     * See DataSet/createContentRecordAndDiscardCreatedContentRecord.csv
      */
     public function createContentAndDiscardCreatedContent()
     {
@@ -54,13 +58,13 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('createContentNDiscardCreatedContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/createAndCopyContentRecordAndDiscardCopiedContentRecord.csv
+     * See DataSet/createAndCopyContentRecordAndDiscardCopiedContentRecord.csv
      */
     public function createAndCopyContentAndDiscardCopiedContent()
     {
@@ -69,15 +73,15 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('createNCopyContentNDiscardCopiedContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1 (copy 1)'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyContentRecord.csv
+     * See DataSet/modifyContentRecord.csv
      */
     public function modifyContent()
     {
@@ -86,13 +90,13 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('modifyContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteContentRecord.csv
+     * See DataSet/deleteContentRecord.csv
      */
     public function deleteContent()
     {
@@ -101,15 +105,15 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('deleteContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteLocalizedContentNDeleteContent.csv
+     * See DataSet/deleteLocalizedContentNDeleteContent.csv
      */
     public function deleteLocalizedContentAndDeleteContent()
     {
@@ -118,13 +122,13 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('deleteLocalizedContentNDeleteContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #3', '[Translate to Dansk:] Regular Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentRecord.csv
+     * See DataSet/copyContentRecord.csv
      */
     public function copyContent()
     {
@@ -133,81 +137,89 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('copyContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #2 (copy 1)'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentToLanguage.csv
+     * See DataSet/copyContentToLanguage.csv
      */
     public function copyContentToLanguage()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         parent::copyContentToLanguage();
         $this->actionService->publishWorkspace(self::VALUE_WorkspaceId);
         $this->assertAssertionDataSet('copyContentToLanguage');
 
-        $this->setUpFrontendRootPage(1, [
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts',
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRendererNoOverlay.ts'
-        ]);
+        // Set up "dk" to not have overlays
+        $languageConfiguration = $this->siteLanguageConfiguration;
+        $languageConfiguration[self::VALUE_LanguageId]['fallbackType'] = 'free';
+        $this->setUpFrontendSite(1, $languageConfiguration);
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Dansk:] Regular Element #3', '[Translate to Dansk:] Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentToLanguageFromNonDefaultLanguage.csv
+     * See DataSet/copyContentToLanguageFromNonDefaultLanguage.csv
      */
     public function copyContentToLanguageFromNonDefaultLanguage()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageIdSecond);
         parent::copyContentToLanguageFromNonDefaultLanguage();
         $this->actionService->publishWorkspace(self::VALUE_WorkspaceId);
         $this->assertAssertionDataSet('copyContentToLanguageFromNonDefaultLanguage');
 
-        $this->setUpFrontendRootPage(1, [
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts',
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRendererNoOverlay.ts'
-        ]);
+        // Set up "de" to not have overlays
+        $languageConfiguration = $this->siteLanguageConfiguration;
+        $languageConfiguration[self::VALUE_LanguageIdSecond]['fallbackType'] = 'free';
+        $this->setUpFrontendSite(1, $languageConfiguration);
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageIdSecond)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Deutsch:] [Translate to Dansk:] Regular Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentRecord.csv
+     * See DataSet/localizeContentRecord.csv
      */
     public function localizeContent()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         parent::localizeContent();
         $this->actionService->publishWorkspace(self::VALUE_WorkspaceId);
         $this->assertAssertionDataSet('localizeContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Dansk:] Regular Element #1', '[Translate to Dansk:] Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentFromNonDefaultLanguage.csv
+     * See DataSet/localizeContentFromNonDefaultLanguage.csv
      */
     public function localizeContentFromNonDefaultLanguage()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageIdSecond);
         parent::localizeContentFromNonDefaultLanguage();
         $this->actionService->publishWorkspace(self::VALUE_WorkspaceId);
         $this->assertAssertionDataSet('localizeContentFromNonDefaultLanguage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageIdSecond)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Deutsch:] [Translate to Dansk:] Regular Element #1', '[Translate to Deutsch:] [Translate to Dansk:] Regular Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/changeContentRecordSorting.csv
+     * See DataSet/changeContentRecordSorting.csv
      */
     public function changeContentSorting()
     {
@@ -216,13 +228,13 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('changeContentSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/moveContentRecordToDifferentPage.csv
+     * See DataSet/moveContentRecordToDifferentPage.csv
      */
     public function moveContentToDifferentPage()
     {
@@ -231,16 +243,16 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('moveContentToDifferentPage');
 
         $responseSectionsSource = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSectionsSource, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSectionsSource, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1'));
         $responseSectionsTarget = $this->getFrontendResponse(self::VALUE_PageIdTarget, 0)->getResponseSections();
-        $this->assertThat($responseSectionsTarget, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSectionsTarget, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/moveContentRecordToDifferentPageAndChangeSorting.csv
+     * See DataSet/moveContentRecordToDifferentPageAndChangeSorting.csv
      */
     public function moveContentToDifferentPageAndChangeSorting()
     {
@@ -249,7 +261,7 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('moveContentToDifferentPageNChangeSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageIdTarget, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
     }
 
@@ -259,7 +271,7 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
 
     /**
      * @test
-     * @see DataSet/createPageRecord.csv
+     * See DataSet/createPageRecord.csv
      */
     public function createPage()
     {
@@ -268,13 +280,13 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('createPage');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'], 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyPageRecord.csv
+     * See DataSet/modifyPageRecord.csv
      */
     public function modifyPage()
     {
@@ -283,13 +295,13 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('modifyPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deletePageRecord.csv
+     * See DataSet/deletePageRecord.csv
      */
     public function deletePage()
     {
@@ -297,13 +309,15 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->actionService->publishWorkspace(self::VALUE_WorkspaceId);
         $this->assertAssertionDataSet('deletePage');
 
-        $response = $this->getFrontendResponse(self::VALUE_PageId, 0, 0, 0, false);
-        $this->assertContains('PageNotFoundException', $response->getError());
+        $response = $this->executeFrontendRequest(
+            (new InternalRequest())->withPageId(self::VALUE_PageId)
+        );
+        self::assertEquals(404, $response->getStatusCode());
     }
 
     /**
      * @test
-     * @see DataSet/deleteContentAndPage.csv
+     * See DataSet/deleteContentAndPage.csv
      */
     public function deleteContentAndPage()
     {
@@ -311,13 +325,15 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->actionService->publishWorkspace(self::VALUE_WorkspaceId);
         $this->assertAssertionDataSet('deleteContentAndPage');
 
-        $response = $this->getFrontendResponse(self::VALUE_PageId, 0, 0, 0, false);
-        $this->assertContains('PageNotFoundException', $response->getError());
+        $response = $this->executeFrontendRequest(
+            (new InternalRequest())->withPageId(self::VALUE_PageId)
+        );
+        self::assertEquals(404, $response->getStatusCode());
     }
 
     /**
      * @test
-     * @see DataSet/copyPageRecord.csv
+     * See DataSet/copyPageRecord.csv
      */
     public function copyPage()
     {
@@ -326,13 +342,13 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('copyPage');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'], 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Relations'));
     }
 
     /**
      * @test
-     * @see DataSet/copyPageFreeMode.csv
+     * See DataSet/copyPageFreeMode.csv
      */
     public function copyPageFreeMode()
     {
@@ -341,15 +357,15 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('copyPageFreeMode');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'], 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Target'));
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #10'));
     }
 
     /**
      * @test
-     * @see DataSet/localizePageRecord.csv
+     * See DataSet/localizePageRecord.csv
      */
     public function localizePage()
     {
@@ -358,13 +374,13 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('localizePage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('[Translate to Dansk:] Relations'));
     }
 
     /**
      * @test
-     * @see DataSet/changePageRecordSorting.csv
+     * See DataSet/changePageRecordSorting.csv
      */
     public function changePageSorting()
     {
@@ -373,15 +389,15 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('changePageSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Relations'));
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/movePageRecordToDifferentPage.csv
+     * See DataSet/movePageRecordToDifferentPage.csv
      */
     public function movePageToDifferentPage()
     {
@@ -390,15 +406,15 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('movePageToDifferentPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Relations'));
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/movePageRecordToDifferentPageAndChangeSorting.csv
+     * See DataSet/movePageRecordToDifferentPageAndChangeSorting.csv
      */
     public function movePageToDifferentPageAndChangeSorting()
     {
@@ -407,21 +423,21 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('movePageToDifferentPageNChangeSorting');
 
         $responseSectionsPage = $this->getFrontendResponse(self::VALUE_PageId, 0)->getResponseSections();
-        $this->assertThat($responseSectionsPage, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSectionsPage, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Relations'));
-        $this->assertThat($responseSectionsPage, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSectionsPage, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
         $responseSectionsWebsite = $this->getFrontendResponse(self::VALUE_PageIdWebsite, 0)->getResponseSections();
-        $this->assertThat($responseSectionsWebsite, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSectionsWebsite, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageIdWebsite)->setRecordField('__pages')
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Target', 'Relations', 'DataHandlerTest'));
     }
 
     /**
      * @test
-     * @see DataSet/movePageRecordToDifferentPageAndCreatePageRecordAfterMovedPageRecord.csv
-     * @see http://forge.typo3.org/issues/33104
-     * @see http://forge.typo3.org/issues/55573
+     * See DataSet/movePageRecordToDifferentPageAndCreatePageRecordAfterMovedPageRecord.csv
+     * @see https://forge.typo3.org/issues/33104
+     * @see https://forge.typo3.org/issues/55573
      */
     public function movePageToDifferentPageAndCreatePageAfterMovedPage()
     {
@@ -430,14 +446,14 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
         $this->assertAssertionDataSet('movePageToDifferentPageNCreatePageAfterMovedPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageIdWebsite, 0)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageIdWebsite)->setRecordField('__pages')
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Target', 'Testing #1', 'DataHandlerTest'));
     }
 
     /**
      * @test
-     * @see DataSet/createPlaceholdersAndDeleteDraftParentPage.csv
+     * See DataSet/createPlaceholdersAndDeleteDraftParentPage.csv
      */
     public function createPlaceholdersAndDeleteDraftParentPage()
     {
@@ -448,7 +464,7 @@ class ActionTest extends \TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Reg
 
     /**
      * @test
-     * @see DataSet/createPlaceholdersAndDeleteLiveParentPage.csv
+     * See DataSet/createPlaceholdersAndDeleteLiveParentPage.csv
      */
     public function createPlaceholdersAndDeleteLiveParentPage()
     {

@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Database;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,22 +15,28 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database;
+
+use Doctrine\DBAL\Driver\Mysqli\Driver;
 use Doctrine\DBAL\Driver\Mysqli\MysqliConnection;
+use Doctrine\DBAL\Driver\ServerInfoAwareConnection;
 use Doctrine\DBAL\Statement;
+use Doctrine\DBAL\VersionAwarePlatformDriver;
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Tests\Unit\Database\Mocks\MockPlatform;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ConnectionTest extends UnitTestCase
 {
     /**
-     * @var Connection|\PHPUnit_Framework_MockObject_MockObject
+     * @var Connection|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $connection;
 
@@ -47,7 +53,7 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * Create a new database connection mock object for every test.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -66,16 +72,16 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             )
             ->getMock();
 
-        $this->connection->expects($this->any())
+        $this->connection->expects(self::any())
             ->method('getExpressionBuilder')
-            ->will($this->returnValue(GeneralUtility::makeInstance(ExpressionBuilder::class, $this->connection)));
+            ->willReturn(GeneralUtility::makeInstance(ExpressionBuilder::class, $this->connection));
 
-        $this->connection->expects($this->any())
+        $this->connection->expects(self::any())
             ->method('connect');
 
-        $this->connection->expects($this->any())
+        $this->connection->expects(self::any())
             ->method('getDatabasePlatform')
-            ->will($this->returnValue(new MockPlatform()));
+            ->willReturn(new MockPlatform());
     }
 
     /**
@@ -83,7 +89,7 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function createQueryBuilderReturnsInstanceOfTypo3QueryBuilder()
     {
-        $this->assertInstanceOf(QueryBuilder::class, $this->connection->createQueryBuilder());
+        self::assertInstanceOf(QueryBuilder::class, $this->connection->createQueryBuilder());
     }
 
     /**
@@ -144,7 +150,7 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function quoteIdentifier(string $input, string $expected)
     {
-        $this->assertSame($expected, $this->connection->quoteIdentifier($input));
+        self::assertSame($expected, $this->connection->quoteIdentifier($input));
     }
 
     /**
@@ -162,7 +168,7 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             '"anotherField"',
         ];
 
-        $this->assertSame($expected, $this->connection->quoteIdentifiers($input));
+        self::assertSame($expected, $this->connection->quoteIdentifiers($input));
     }
 
     /**
@@ -212,10 +218,10 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function insertQueries(array $args, string $expectedQuery, array $expectedValues, array $expectedTypes)
     {
-        $this->connection->expects($this->once())
+        $this->connection->expects(self::once())
             ->method('executeUpdate')
             ->with($expectedQuery, $expectedValues, $expectedTypes)
-            ->will($this->returnValue(1));
+            ->willReturn(1);
 
         $this->connection->insert(...$args);
     }
@@ -225,10 +231,10 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function bulkInsert()
     {
-        $this->connection->expects($this->once())
+        $this->connection->expects(self::once())
             ->method('executeUpdate')
             ->with('INSERT INTO "aTestTable" ("aField") VALUES (?), (?)', ['aValue', 'anotherValue'])
-            ->will($this->returnValue(2));
+            ->willReturn(2);
 
         $this->connection->bulkInsert('aTestTable', [['aField' => 'aValue'], ['aField' => 'anotherValue']], ['aField']);
     }
@@ -276,10 +282,10 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function updateQueries(array $args, string $expectedQuery, array $expectedValues, array $expectedTypes)
     {
-        $this->connection->expects($this->once())
+        $this->connection->expects(self::once())
             ->method('executeUpdate')
             ->with($expectedQuery, $expectedValues, $expectedTypes)
-            ->will($this->returnValue(1));
+            ->willReturn(1);
 
         $this->connection->update(...$args);
     }
@@ -327,10 +333,10 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function deleteQueries(array $args, string $expectedQuery, array $expectedValues, array $expectedTypes)
     {
-        $this->connection->expects($this->once())
+        $this->connection->expects(self::once())
             ->method('executeUpdate')
             ->with($expectedQuery, $expectedValues, $expectedTypes)
-            ->will($this->returnValue(1));
+            ->willReturn(1);
 
         $this->connection->delete(...$args);
     }
@@ -375,7 +381,7 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
             'limit' => [
                 [['*'], 'aTable', [], [], [], 1],
-                'SELECT * FROM "aTable" LIMIT 1 OFFSET 0',
+                'SELECT * FROM "aTable" LIMIT 1',
                 [],
             ],
             'offset' => [
@@ -411,10 +417,10 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $resultStatement = $this->createMock(Statement::class);
 
-        $this->connection->expects($this->once())
+        $this->connection->expects(self::once())
             ->method('executeQuery')
             ->with($expectedQuery, $expectedParameters)
-            ->will($this->returnValue($resultStatement));
+            ->willReturn($resultStatement);
 
         $this->connection->select(...$args);
     }
@@ -461,15 +467,15 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $resultStatement = $this->createMock(Statement::class);
 
-        $resultStatement->expects($this->once())
+        $resultStatement->expects(self::once())
             ->method('fetchColumn')
             ->with(0)
-            ->will($this->returnValue(0));
+            ->willReturn(0);
 
-        $this->connection->expects($this->once())
+        $this->connection->expects(self::once())
             ->method('executeQuery')
             ->with($expectedQuery, $expectedParameters)
-            ->will($this->returnValue($resultStatement));
+            ->willReturn($resultStatement);
 
         $this->connection->count(...$args);
     }
@@ -479,10 +485,10 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function truncateQuery()
     {
-        $this->connection->expects($this->once())
+        $this->connection->expects(self::once())
             ->method('executeUpdate')
             ->with('TRUNCATE "aTestTable"')
-            ->will($this->returnValue(0));
+            ->willReturn(0);
 
         $this->connection->truncate('aTestTable', false);
     }
@@ -493,22 +499,22 @@ class ConnectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getServerVersionReportsPlatformVersion()
     {
         /** @var MysqliConnection|ObjectProphecy $driverProphet */
-        $driverProphet = $this->prophesize(\Doctrine\DBAL\Driver\Mysqli\Driver::class);
-        $driverProphet->willImplement(\Doctrine\DBAL\VersionAwarePlatformDriver::class);
+        $driverProphet = $this->prophesize(Driver::class);
+        $driverProphet->willImplement(VersionAwarePlatformDriver::class);
 
         /** @var MysqliConnection|ObjectProphecy $wrappedConnectionProphet */
-        $wrappedConnectionProphet = $this->prophesize(\Doctrine\DBAL\Driver\Mysqli\MysqliConnection::class);
-        $wrappedConnectionProphet->willImplement(\Doctrine\DBAL\Driver\ServerInfoAwareConnection::class);
+        $wrappedConnectionProphet = $this->prophesize(MysqliConnection::class);
+        $wrappedConnectionProphet->willImplement(ServerInfoAwareConnection::class);
         $wrappedConnectionProphet->requiresQueryForServerVersion()->willReturn(false);
         $wrappedConnectionProphet->getServerVersion()->willReturn('5.7.11');
 
-        $this->connection->expects($this->any())
+        $this->connection->expects(self::any())
             ->method('getDriver')
             ->willReturn($driverProphet->reveal());
-        $this->connection->expects($this->any())
+        $this->connection->expects(self::any())
             ->method('getWrappedConnection')
             ->willReturn($wrappedConnectionProphet->reveal());
 
-        $this->assertSame('mock 5.7.11', $this->connection->getServerVersion());
+        self::assertSame('mock 5.7.11', $this->connection->getServerVersion());
     }
 }

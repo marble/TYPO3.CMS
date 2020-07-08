@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Type\Bitmask;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,15 @@ namespace TYPO3\CMS\Core\Type\Bitmask;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Type\Bitmask;
+
 use TYPO3\CMS\Core\Type\Enumeration;
 use TYPO3\CMS\Core\Type\Exception;
 
 /**
  * A class providing constants for bitwise operations on javascript confirmation popups
  */
-class JsConfirmation extends Enumeration
+final class JsConfirmation extends Enumeration
 {
     /**
      * @var int
@@ -52,6 +53,9 @@ class JsConfirmation extends Enumeration
      */
     const ALL = 255;
 
+    /**
+     * @var int
+     */
     const __default = self::ALL;
 
     /**
@@ -84,13 +88,7 @@ class JsConfirmation extends Enumeration
      */
     protected function setValue($value)
     {
-        if ($value < 255) {
-            if (($value & self::$allowedValues) !== $value) {
-                throw new Exception\InvalidEnumerationValueException(
-                    sprintf('Invalid value %s for %s', $value, __CLASS__),
-                    1457175152
-                );
-            }
+        if ($this->isValid($value)) {
             $this->value = $value;
         } else {
             parent::setValue($value);
@@ -106,15 +104,10 @@ class JsConfirmation extends Enumeration
     protected function isValid($value)
     {
         if ($value < 255) {
-            return ($value & self::$allowedValues) === $value;
+            // Check for combined bitmask or bitmask with bits unset from self::ALL
+            $unsetValues = (self::ALL ^ $value);
+            return ($value & self::$allowedValues) === $value || $unsetValues === ($unsetValues & self::$allowedValues);
         }
-
-        $value = (string)$value;
-        foreach (static::$enumConstants[get_class($this)] as $constantValue) {
-            if ($value === (string)$constantValue) {
-                return true;
-            }
-        }
-        return false;
+        return parent::isValid($value);
     }
 }

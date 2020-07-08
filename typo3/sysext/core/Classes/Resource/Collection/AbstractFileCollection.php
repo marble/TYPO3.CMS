@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Collection;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,10 @@ namespace TYPO3\CMS\Core\Resource\Collection;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource\Collection;
+
+use TYPO3\CMS\Core\Collection\AbstractRecordCollection;
 use TYPO3\CMS\Core\Collection\CollectionInterface;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\FileInterface;
@@ -20,7 +23,7 @@ use TYPO3\CMS\Core\Resource\FileInterface;
 /**
  * Abstract collection.
  */
-abstract class AbstractFileCollection extends \TYPO3\CMS\Core\Collection\AbstractRecordCollection
+abstract class AbstractFileCollection extends AbstractRecordCollection
 {
     /**
      * The table name collections are stored to
@@ -71,23 +74,13 @@ abstract class AbstractFileCollection extends \TYPO3\CMS\Core\Collection\Abstrac
     }
 
     /**
-     * Sets the title.
-     *
-     * @param string $title
-     */
-    public function setTitle($title)
-    {
-        $this->title = $title;
-    }
-
-    /**
      * Return the key of the current element
      *
      * @return string
      */
     public function key()
     {
-        /** @var $currentRecord File */
+        /** @var File $currentRecord */
         $currentRecord = $this->storage->current();
         return $currentRecord->getIdentifier();
     }
@@ -101,7 +94,7 @@ abstract class AbstractFileCollection extends \TYPO3\CMS\Core\Collection\Abstrac
     protected function getItemUidList($includeTableName = false)
     {
         $list = [];
-        /** @var $entry File */
+        /** @var File $entry */
         foreach ($this->storage as $entry) {
             $list[] = $this->getItemTableName() . '_' . $entry->getUid();
         }
@@ -133,7 +126,7 @@ abstract class AbstractFileCollection extends \TYPO3\CMS\Core\Collection\Abstrac
     public function toArray()
     {
         $itemArray = [];
-        /** @var $item File */
+        /** @var File $item */
         foreach ($this->storage as $item) {
             $itemArray[] = $item->toArray();
         }
@@ -153,7 +146,7 @@ abstract class AbstractFileCollection extends \TYPO3\CMS\Core\Collection\Abstrac
     public function getItems()
     {
         $itemArray = [];
-        /** @var $item File */
+        /** @var FileInterface $item */
         foreach ($this->storage as $item) {
             $itemArray[] = $item;
         }
@@ -206,13 +199,13 @@ abstract class AbstractFileCollection extends \TYPO3\CMS\Core\Collection\Abstrac
     }
 
     /**
-     * Adds all files of another collection to the corrent one.
+     * Adds all files of another collection to the current one.
      *
      * @param CollectionInterface $other
      */
     public function addAll(CollectionInterface $other)
     {
-        /** @var $value File */
+        /** @var File $value */
         foreach ($other as $value) {
             $this->add($value);
         }
@@ -226,7 +219,7 @@ abstract class AbstractFileCollection extends \TYPO3\CMS\Core\Collection\Abstrac
     public function remove(File $file)
     {
         $offset = 0;
-        /** @var $value File */
+        /** @var File $value */
         foreach ($this->storage as $value) {
             if ($value === $file) {
                 break;

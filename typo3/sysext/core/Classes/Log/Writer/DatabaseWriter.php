@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Log\Writer;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,7 +12,11 @@ namespace TYPO3\CMS\Core\Log\Writer;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Log\Writer;
+
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Log\LogRecord;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -74,7 +77,7 @@ class DatabaseWriter extends AbstractWriter
             'request_id' => $record->getRequestId(),
             'time_micro' => $record->getCreated(),
             'component' => $record->getComponent(),
-            'level' => $record->getLevel(),
+            'level' => LogLevel::normalizeLevel($record->getLevel()),
             'message' => $record->getMessage(),
             'data' => $data
         ];

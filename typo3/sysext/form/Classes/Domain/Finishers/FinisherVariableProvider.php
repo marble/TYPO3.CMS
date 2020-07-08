@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Finishers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,7 +15,10 @@ namespace TYPO3\CMS\Form\Domain\Finishers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Domain\Finishers;
+
 use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
 
 /**
  * Store data for usage between the finishers.
@@ -24,7 +27,7 @@ use TYPO3\CMS\Core\Utility\ArrayUtility;
  * **This class is NOT meant to be sub classed by developers.**
  * @internal
  */
-final class FinisherVariableProvider implements \ArrayAccess
+final class FinisherVariableProvider implements \ArrayAccess, \IteratorAggregate, \Countable
 {
 
     /**
@@ -41,7 +44,6 @@ final class FinisherVariableProvider implements \ArrayAccess
      * @param string $finisherIdentifier
      * @param string $key
      * @param mixed $value
-     * @api
      */
     public function add(string $finisherIdentifier, string $key, $value)
     {
@@ -76,7 +78,6 @@ final class FinisherVariableProvider implements \ArrayAccess
      * @param string $key
      * @param mixed $default
      * @return mixed
-     * @api
      */
     public function get(string $finisherIdentifier, string $key, $default = null)
     {
@@ -92,13 +93,12 @@ final class FinisherVariableProvider implements \ArrayAccess
      * @param string $finisherIdentifier
      * @param string $key
      * @return bool
-     * @api
      */
     public function exists($finisherIdentifier, $key): bool
     {
         try {
             ArrayUtility::getValueByPath($this->objects[$finisherIdentifier], $key, '.');
-        } catch (\RuntimeException $e) {
+        } catch (MissingArrayPathException $e) {
             return false;
         }
         return true;
@@ -109,7 +109,6 @@ final class FinisherVariableProvider implements \ArrayAccess
      *
      * @param string $finisherIdentifier
      * @param string $key
-     * @api
      */
     public function remove(string $finisherIdentifier, string $key)
     {
@@ -135,7 +134,7 @@ final class FinisherVariableProvider implements \ArrayAccess
     /**
      * Whether an offset exists
      *
-     * @link http://php.net/manual/en/arrayaccess.offsetexists.php
+     * @link https://php.net/manual/en/arrayaccess.offsetexists.php
      * @param mixed $offset An offset to check for.
      * @return bool TRUE on success or FALSE on failure.
      */
@@ -147,7 +146,7 @@ final class FinisherVariableProvider implements \ArrayAccess
     /**
      * Offset to retrieve
      *
-     * @link http://php.net/manual/en/arrayaccess.offsetget.php
+     * @link https://php.net/manual/en/arrayaccess.offsetget.php
      * @param mixed $offset The offset to retrieve.
      * @return mixed Can return all value types.
      */
@@ -159,7 +158,7 @@ final class FinisherVariableProvider implements \ArrayAccess
     /**
      * Offset to set
      *
-     * @link http://php.net/manual/en/arrayaccess.offsetset.php
+     * @link https://php.net/manual/en/arrayaccess.offsetset.php
      * @param mixed $offset The offset to assign the value to.
      * @param mixed $value The value to set.
      */
@@ -171,11 +170,32 @@ final class FinisherVariableProvider implements \ArrayAccess
     /**
      * Offset to unset
      *
-     * @link http://php.net/manual/en/arrayaccess.offsetunset.php
+     * @link https://php.net/manual/en/arrayaccess.offsetunset.php
      * @param mixed $offset The offset to unset.
      */
     public function offsetUnset($offset)
     {
         unset($this->objects[$offset]);
+    }
+
+    /**
+     * @return \Traversable
+     */
+    public function getIterator(): \Traversable
+    {
+        foreach ($this->objects as $offset => $value) {
+            yield $offset => $value;
+        }
+    }
+
+    /**
+     * Count elements of an object
+     *
+     * @link https://php.net/manual/en/countable.count.php
+     * @return int The custom count as an integer.
+     */
+    public function count()
+    {
+        return count($this->objects);
     }
 }

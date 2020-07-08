@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Belog\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,18 @@ namespace TYPO3\CMS\Belog\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Belog\Domain\Model;
+
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
+
 /**
  * A sys log entry
  * This model is 'complete': All current database properties are in there.
  *
  * @todo : This should be stuffed to some more central place
+ * @internal This class is a TYPO3 Backend implementation and is not considered part of the Public TYPO3 API.
  */
-class LogEntry extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
+class LogEntry extends AbstractEntity
 {
     /**
      * Storage page ID of the log entry
@@ -137,26 +141,6 @@ class LogEntry extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * @var string
      */
     protected $newId = 0;
-
-    /**
-     * Set pid
-     *
-     * @param int $pid
-     */
-    public function setPid($pid)
-    {
-        $this->pid = (int)$pid;
-    }
-
-    /**
-     * Get pid
-     *
-     * @return int
-     */
-    public function getPid()
-    {
-        return $this->pid;
-    }
 
     /**
      * Set backend user uid
@@ -279,6 +263,24 @@ class LogEntry extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     }
 
     /**
+     * Get class name for the error code
+     *
+     * @return string
+     */
+    public function getErrorIconClass(): string
+    {
+        switch ($this->getError()) {
+            case 1:
+                return 'status-dialog-warning';
+            case 2:
+            case 3:
+                return 'status-dialog-error';
+            default:
+                return 'empty-empty';
+        }
+    }
+
+    /**
      * Set details
      *
      * @param string $details
@@ -295,6 +297,9 @@ class LogEntry extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      */
     public function getDetails()
     {
+        if ($this->type === 255) {
+            return str_replace('###IP###', $this->ip, $this->details);
+        }
         return $this->details;
     }
 

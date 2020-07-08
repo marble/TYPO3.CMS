@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,14 +15,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\AbstractCreateStatement;
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\CreateTableStatement;
 use TYPO3\CMS\Core\Database\Schema\Parser\Parser;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for CreateTableStatement
  */
-class CreateTableFragmentTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class CreateTableFragmentTest extends UnitTestCase
 {
     /**
      * Each parameter array consists of the following values:
@@ -89,9 +91,9 @@ class CreateTableFragmentTest extends \TYPO3\TestingFramework\Core\Unit\UnitTest
     public function canParseCreateTableFragment(string $statement, string $tableName, bool $isTemporary)
     {
         $subject = $this->createSubject($statement);
-        $this->assertInstanceOf(CreateTableStatement::class, $subject);
-        $this->assertSame($tableName, $subject->tableName->schemaObjectName);
-        $this->assertSame($isTemporary, $subject->isTemporary);
+        self::assertInstanceOf(CreateTableStatement::class, $subject);
+        self::assertSame($tableName, $subject->tableName->schemaObjectName);
+        self::assertSame($isTemporary, $subject->isTemporary);
     }
 
     /**

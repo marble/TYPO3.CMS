@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Utility;
+
 use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for class \TYPO3\CMS\Core\Utility\StringUtility
  */
-class StringUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class StringUtilityTest extends UnitTestCase
 {
+
     /**
      * Data provider for endsWithReturnsTrueForMatchingFirstPart
      *
@@ -30,7 +33,7 @@ class StringUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         return [
             'match last part of string' => ['hello world', 'world'],
-            'match last char of string' => ['hellod world', 'd'],
+            'match last char of string' => ['hello world', 'd'],
             'match whole string' => ['hello', 'hello'],
             'integer is part of string with same number' => ['24', 24],
             'string is part of integer with same number' => [24, '24'],
@@ -44,7 +47,7 @@ class StringUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function endsWithReturnsTrueForMatchingLastPart($string, $part)
     {
-        $this->assertTrue(StringUtility::endsWith($string, $part));
+        self::assertTrue(StringUtility::endsWith($string, $part));
     }
 
     /**
@@ -69,7 +72,7 @@ class StringUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function endsWithReturnsFalseForNotMatchingLastPart($string, $part)
     {
-        $this->assertFalse(StringUtility::endsWith($string, $part));
+        self::assertFalse(StringUtility::endsWith($string, $part));
     }
 
     /**
@@ -133,7 +136,7 @@ class StringUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function beginsWithReturnsTrueForMatchingFirstPart($string, $part)
     {
-        $this->assertTrue(StringUtility::beginsWith($string, $part));
+        self::assertTrue(StringUtility::beginsWith($string, $part));
     }
 
     /**
@@ -156,7 +159,7 @@ class StringUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function beginsWithReturnsFalseForNotMatchingFirstPart($string, $part)
     {
-        $this->assertFalse(StringUtility::beginsWith($string, $part));
+        self::assertFalse(StringUtility::beginsWith($string, $part));
     }
 
     /**
@@ -207,7 +210,7 @@ class StringUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getUniqueIdReturnsIdWithPrefix()
     {
         $id = StringUtility::getUniqueId('NEW');
-        $this->assertEquals('NEW', substr($id, 0, 3));
+        self::assertEquals('NEW', substr($id, 0, 3));
     }
 
     /**
@@ -215,6 +218,116 @@ class StringUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getUniqueIdReturnsIdWithoutDot()
     {
-        $this->assertNotContains('.', StringUtility::getUniqueId());
+        self::assertStringNotContainsString('.', StringUtility::getUniqueId());
+    }
+
+    /**
+     * @test
+     * @param string $selector
+     * @param string $expectedValue
+     * @dataProvider escapeCssSelectorDataProvider
+     */
+    public function escapeCssSelector(string $selector, string $expectedValue)
+    {
+        self::assertEquals($expectedValue, StringUtility::escapeCssSelector($selector));
+    }
+
+    /**
+     * @return array
+     */
+    public function escapeCssSelectorDataProvider(): array
+    {
+        return [
+            ['data.field', 'data\\.field'],
+            ['#theId', '\\#theId'],
+            ['.theId:hover', '\\.theId\\:hover'],
+            ['.theId:hover', '\\.theId\\:hover'],
+            ['input[name=foo]', 'input\\[name\\=foo\\]'],
+        ];
+    }
+
+    /**
+     * @param string $input
+     * @param string $expectedValue
+     * @test
+     * @dataProvider removeByteOrderMarkDataProvider
+     */
+    public function removeByteOrderMark(string $input, string $expectedValue): void
+    {
+        // assertContains is necessary as one test contains non-string characters
+        self::assertSame($expectedValue, StringUtility::removeByteOrderMark(hex2bin($input)));
+    }
+
+    /**
+     * @return array
+     */
+    public function removeByteOrderMarkDataProvider(): array
+    {
+        return [
+            'BOM gets removed' => [
+                'efbbbf424f4d2061742074686520626567696e6e696e6720676574732072656d6f766564',
+                'BOM at the beginning gets removed'
+            ],
+            'No BOM available' => [
+                '4e6f20424f4d20617661696c61626c65',
+                'No BOM available',
+            ],
+        ];
+    }
+
+    /**
+     * @param $haystack
+     * @param $needle
+     * @param $result
+     * @test
+     * @dataProvider searchStringWildcardDataProvider
+     */
+    public function searchStringWildcard($haystack, $needle, $result)
+    {
+        self::assertSame($result, StringUtility::searchStringWildcard($haystack, $needle));
+    }
+
+    /**
+     * @return array
+     */
+    public function searchStringWildcardDataProvider(): array
+    {
+        return [
+            'Simple wildcard single character with *' => [
+                'TYPO3',
+                'TY*O3',
+                true
+            ],
+            'Simple wildcard multiple character with *' => [
+                'TYPO3',
+                'T*P*3',
+                true
+            ],
+            'Simple wildcard multiple character for one placeholder with *' => [
+                'TYPO3',
+                'T*3',
+                true
+            ],
+            'Simple wildcard single character with ?' => [
+                'TYPO3',
+                'TY?O3',
+                true
+            ],
+            'Simple wildcard multiple character with ?' => [
+                'TYPO3',
+                'T?P?3',
+                true
+            ],
+            'Simple wildcard multiple character for one placeholder with ?' => [
+                'TYPO3',
+                'T?3',
+                false
+            ],
+            'RegExp' => [
+                'TYPO3',
+                '/^TYPO(\d)$/',
+                true
+            ],
+        ];
     }
 }

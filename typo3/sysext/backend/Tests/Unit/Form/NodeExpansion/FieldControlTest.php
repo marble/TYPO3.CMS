@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\NodeExpansion;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +13,16 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\NodeExpansion;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\NodeExpansion;
+
 use Prophecy\Argument;
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Backend\Form\NodeExpansion\FieldControl;
 use TYPO3\CMS\Backend\Form\NodeFactory;
+use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
@@ -31,6 +35,12 @@ class FieldControlTest extends UnitTestCase
      */
     public function renderMergesResultOfSingleControls()
     {
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+        $iconProphecy = $this->prophesize(Icon::class);
+        $iconProphecy->render()->shouldBeCalled()->willReturn('');
+        $iconFactoryProphecy->getIcon(Argument::cetera())->shouldBeCalled()->willReturn($iconProphecy->reveal());
+
         $languageServiceProphecy = $this->prophesize(LanguageService::class);
         $languageServiceProphecy->sL(Argument::cetera())->willReturnArgument(0);
         $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
@@ -87,7 +97,6 @@ class FieldControlTest extends UnitTestCase
             'additionalJavaScriptPost' => [
                 'someJavaScript',
             ],
-            'additionalJavaScriptSubmit' => [],
             'additionalHiddenFields' => [],
             'additionalInlineLanguageLabelFiles' => [],
             'stylesheetFiles' => [],
@@ -102,6 +111,6 @@ class FieldControlTest extends UnitTestCase
         // We're not interested in testing the html merge here
         $expected['html'] = $result['html'];
 
-        $this->assertEquals($expected, $result);
+        self::assertEquals($expected, $result);
     }
 }

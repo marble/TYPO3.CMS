@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Core;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,51 +13,29 @@ namespace TYPO3\CMS\Core\Tests\Unit\Core;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Core;
+
+use TYPO3\CMS\Core\Core\SystemEnvironmentBuilder;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Testcase
  */
-class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class SystemEnvironmentBuilderTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Core\Core\SystemEnvironmentBuilder|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
-    protected $subject = null;
+    protected $subject;
 
     /**
      * Set up testcase
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Core\SystemEnvironmentBuilder::class, ['dummy']);
-    }
-
-    /**
-     * Data provider for 'fileDenyPatternMatchesPhpExtension' test case.
-     *
-     * @return array
-     */
-    public function fileDenyPatternMatchesPhpExtensionDataProvider()
-    {
-        $fileName = $this->getUniqueId('filename');
-        $data = [];
-        $phpExtensions = \TYPO3\CMS\Core\Utility\GeneralUtility::trimExplode(',', 'php,php3,php4,php5,php6,phpsh,phtml', true);
-        foreach ($phpExtensions as $extension) {
-            $data[] = [$fileName . '.' . $extension];
-            $data[] = [$fileName . '.' . $extension . '.txt'];
-        }
-        return $data;
-    }
-
-    /**
-     * Tests whether an accordant PHP extension is denied.
-     *
-     * @test
-     * @dataProvider fileDenyPatternMatchesPhpExtensionDataProvider
-     * @param string $phpExtension
-     */
-    public function fileDenyPatternMatchesPhpExtension($phpExtension)
-    {
-        $this->assertGreaterThan(0, preg_match('/' . FILE_DENY_PATTERN_DEFAULT . '/', $phpExtension), $phpExtension);
+        parent::setUp();
+        $this->subject = $this->getAccessibleMock(SystemEnvironmentBuilder::class, ['dummy']);
     }
 
     /**
@@ -66,9 +43,9 @@ class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\Uni
      */
     public function getPathThisScriptCliReadsLocalPartFromArgv()
     {
-        $fakedLocalPart = $this->getUniqueId('Test');
+        $fakedLocalPart = StringUtility::getUniqueId('Test');
         $GLOBALS['_SERVER']['argv'][0] = $fakedLocalPart;
-        $this->assertStringEndsWith($fakedLocalPart, $this->subject->_call('getPathThisScriptCli'));
+        self::assertStringEndsWith($fakedLocalPart, $this->subject->_call('getPathThisScriptCli'));
     }
 
     /**
@@ -76,10 +53,10 @@ class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\Uni
      */
     public function getPathThisScriptCliReadsLocalPartFromEnv()
     {
-        $fakedLocalPart = $this->getUniqueId('Test');
+        $fakedLocalPart = StringUtility::getUniqueId('Test');
         unset($GLOBALS['_SERVER']['argv']);
         $GLOBALS['_ENV']['_'] = $fakedLocalPart;
-        $this->assertStringEndsWith($fakedLocalPart, $this->subject->_call('getPathThisScriptCli'));
+        self::assertStringEndsWith($fakedLocalPart, $this->subject->_call('getPathThisScriptCli'));
     }
 
     /**
@@ -87,11 +64,11 @@ class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\Uni
      */
     public function getPathThisScriptCliReadsLocalPartFromServer()
     {
-        $fakedLocalPart = $this->getUniqueId('Test');
+        $fakedLocalPart = StringUtility::getUniqueId('Test');
         unset($GLOBALS['_SERVER']['argv']);
         unset($GLOBALS['_ENV']['_']);
         $GLOBALS['_SERVER']['_'] = $fakedLocalPart;
-        $this->assertStringEndsWith($fakedLocalPart, $this->subject->_call('getPathThisScriptCli'));
+        self::assertStringEndsWith($fakedLocalPart, $this->subject->_call('getPathThisScriptCli'));
     }
 
     /**
@@ -100,39 +77,9 @@ class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\Uni
     public function getPathThisScriptCliAddsCurrentWorkingDirectoryFromServerEnvironmentToLocalPathOnUnix()
     {
         $GLOBALS['_SERVER']['argv'][0] = 'foo';
-        $fakedAbsolutePart = '/' . $this->getUniqueId('Absolute') . '/';
+        $fakedAbsolutePart = '/' . StringUtility::getUniqueId('Absolute') . '/';
         $_SERVER['PWD'] = $fakedAbsolutePart;
-        $this->assertStringStartsWith($fakedAbsolutePart, $this->subject->_call('getPathThisScriptCli'));
-    }
-
-    /**
-     * @test
-     */
-    public function initializeGlobalVariablesUnsetsGlobalErrorArray()
-    {
-        $GLOBALS['error'] = 'foo';
-        $this->subject->_call('initializeGlobalVariables');
-        $this->assertFalse(isset($GLOBALS['error']));
-    }
-
-    /**
-     * @test
-     */
-    public function initializeGlobalVariablesSetsGlobalTypo3MiscArray()
-    {
-        unset($GLOBALS['TYPO3_MISC']);
-        $this->subject->_call('initializeGlobalVariables');
-        $this->assertInternalType('array', $GLOBALS['TYPO3_MISC']);
-    }
-
-    /**
-     * @test
-     */
-    public function initializeGlobalVariablesSetsGlobalT3VarArray()
-    {
-        unset($GLOBALS['T3_VAR']);
-        $this->subject->_call('initializeGlobalVariables');
-        $this->assertInternalType('array', $GLOBALS['T3_VAR']);
+        self::assertStringStartsWith($fakedAbsolutePart, $this->subject->_call('getPathThisScriptCli'));
     }
 
     /**
@@ -142,7 +89,7 @@ class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\Uni
     {
         unset($GLOBALS['T3_SERVICES']);
         $this->subject->_call('initializeGlobalVariables');
-        $this->assertInternalType('array', $GLOBALS['T3_SERVICES']);
+        self::assertIsArray($GLOBALS['T3_SERVICES']);
     }
 
     /**
@@ -153,7 +100,6 @@ class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\Uni
     public function initializeGlobalTimeTrackingVariablesSetsGlobalVariablesDataProvider()
     {
         return [
-            'PARSETIME_START' => ['PARSETIME_START'],
             'EXEC_TIME' => ['EXEC_TIME'],
             'ACCESS_TIME' => ['ACCESS_TIME'],
             'SIM_EXEC_TIME' => ['SIM_EXEC_TIME'],
@@ -170,17 +116,7 @@ class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\Uni
     {
         unset($GLOBALS[$variable]);
         $this->subject->_call('initializeGlobalTimeTrackingVariables');
-        $this->assertTrue(isset($GLOBALS[$variable]));
-    }
-
-    /**
-     * @test
-     */
-    public function initializeGlobalTimeTrackingVariablesSetsGlobalTypo3MiscMicrotimeStart()
-    {
-        unset($GLOBALS['TYPO3_MISC']['microtime_start']);
-        $this->subject->_call('initializeGlobalTimeTrackingVariables');
-        $this->assertTrue(isset($GLOBALS['TYPO3_MISC']['microtime_start']));
+        self::assertTrue(isset($GLOBALS[$variable]));
     }
 
     /**
@@ -189,7 +125,7 @@ class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\Uni
     public function initializeGlobalTimeTrackingVariablesRoundsAccessTimeToSixtySeconds()
     {
         $this->subject->_call('initializeGlobalTimeTrackingVariables');
-        $this->assertEquals(0, $GLOBALS['ACCESS_TIME'] % 60);
+        self::assertEquals(0, $GLOBALS['ACCESS_TIME'] % 60);
     }
 
     /**
@@ -198,42 +134,6 @@ class SystemEnvironmentBuilderTest extends \TYPO3\TestingFramework\Core\Unit\Uni
     public function initializeGlobalTimeTrackingVariablesRoundsSimAccessTimeToSixtySeconds()
     {
         $this->subject->_call('initializeGlobalTimeTrackingVariables');
-        $this->assertEquals(0, $GLOBALS['SIM_ACCESS_TIME'] % 60);
-    }
-
-    /**
-     * @test
-     */
-    public function initializeBasicErrorReportingExcludesStrict()
-    {
-        $backupReporting = error_reporting();
-        $this->subject->_call('initializeBasicErrorReporting');
-        $actualReporting = error_reporting();
-        error_reporting($backupReporting);
-        $this->assertEquals(0, $actualReporting & E_STRICT);
-    }
-
-    /**
-     * @test
-     */
-    public function initializeBasicErrorReportingExcludesNotice()
-    {
-        $backupReporting = error_reporting();
-        $this->subject->_call('initializeBasicErrorReporting');
-        $actualReporting = error_reporting();
-        error_reporting($backupReporting);
-        $this->assertEquals(0, $actualReporting & E_NOTICE);
-    }
-
-    /**
-     * @test
-     */
-    public function initializeBasicErrorReportingExcludesDeprecated()
-    {
-        $backupReporting = error_reporting();
-        $this->subject->_call('initializeBasicErrorReporting');
-        $actualReporting = error_reporting();
-        error_reporting($backupReporting);
-        $this->assertEquals(0, $actualReporting & E_DEPRECATED);
+        self::assertEquals(0, $GLOBALS['SIM_ACCESS_TIME'] % 60);
     }
 }

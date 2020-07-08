@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Form\FieldWizard;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Backend\Form\FieldWizard;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FieldWizard;
 
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
@@ -53,9 +55,9 @@ class RecordsOverview extends AbstractNode
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
         $recordsOverviewHtml = [];
         foreach ($selectedItems as $selectedItem) {
-            $title = $selectedItem['title'];
+            $title = (string)$selectedItem['title'];
             if (empty($title)) {
-                $title = '[' . $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.no_title') . ']';
+                $title = '[' . $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title') . ']';
             }
             $shortenedTitle = GeneralUtility::fixed_lgd_cs($title, $maxTitleLength);
             $linkedIcon = BackendUtility::wrapClickMenuOnIcon(
@@ -64,7 +66,7 @@ class RecordsOverview extends AbstractNode
                 $selectedItem['uid']
             );
             $linkedTitle = BackendUtility::wrapClickMenuOnIcon(
-                $shortenedTitle,
+                htmlspecialchars($shortenedTitle),
                 $selectedItem['table'],
                 $selectedItem['uid']
             );

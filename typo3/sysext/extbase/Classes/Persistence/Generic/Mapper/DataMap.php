@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
+
 /**
  * A data map to map a single table configured in $TCA on a domain object.
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class DataMap
 {
@@ -239,11 +241,11 @@ class DataMap
      * Returns the column map corresponding to the given property name.
      *
      * @param string $propertyName
-     * @return \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\ColumnMap|NULL The column map or NULL if no corresponding column map was found.
+     * @return \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\ColumnMap|null The column map or NULL if no corresponding column map was found.
      */
     public function getColumnMap($propertyName)
     {
-        return $this->columnMaps[$propertyName];
+        return $this->columnMaps[$propertyName] ?? null;
     }
 
     /**

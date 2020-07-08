@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Form\FieldControl;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,9 +15,12 @@ namespace TYPO3\CMS\Backend\Form\FieldControl;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\FieldControl;
+
 use TYPO3\CMS\Backend\Form\AbstractNode;
-use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 
 /**
  * Renders the icon with link parameters to add a new record,
@@ -37,7 +40,7 @@ class AddRecord extends AbstractNode
         $itemName = $parameterArray['itemFormElName'];
 
         // Handle options and fallback
-        $title = $options['title'] ?? 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.createNew';
+        $title = $options['title'] ?? 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.createNew';
         $setValue = $options['setValue'] ?? 'append';
 
         $table = '';
@@ -82,7 +85,7 @@ class AddRecord extends AbstractNode
             $flexFormPath = str_replace('][', '/', substr($itemName, strlen($prefixOfFormElName) + 1, -1));
         }
 
-        $urlParameters  = [
+        $urlParameters = [
             'P' => [
                 'params' => [
                     'table' => $table,
@@ -97,16 +100,19 @@ class AddRecord extends AbstractNode
             ],
         ];
 
-        $onClick = [];
-        $onClick[] = 'this.blur();';
-        $onClick[] = 'return !TBE_EDITOR.isFormChanged();';
+        $id = StringUtility::getUniqueId('t3js-formengine-fieldcontrol-');
 
+        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         return [
             'iconIdentifier' => 'actions-add',
             'title' => $title,
             'linkAttributes' => [
-                'onClick' => implode('', $onClick),
-                'href' => BackendUtility::getModuleUrl('wizard_add', $urlParameters),
+                'id' => htmlspecialchars($id),
+                'href' => (string)$uriBuilder->buildUriFromRoute('wizard_add', $urlParameters),
+            ],
+            'requireJsModules' => [
+                ['TYPO3/CMS/Backend/FormEngine/FieldControl/AddRecord' => 'function(FieldControl) {new FieldControl(' . GeneralUtility::quoteJSvalue('#' . $id) . ');}'],
             ],
         ];
     }

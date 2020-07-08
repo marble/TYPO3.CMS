@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +15,13 @@ namespace TYPO3\CMS\Extbase;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase;
+
+use TYPO3\CMS\Core\Exception as CoreException;
+
 /**
  * A generic Extbase exception
  */
-class Exception extends \Exception
+class Exception extends CoreException
 {
 }

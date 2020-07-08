@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\General;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,9 @@ namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\General;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
+namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\General;
+
+use TYPO3\CMS\Core\Tests\Acceptance\Support\BackendTester;
 
 /**
  * Module Menu tests
@@ -22,52 +25,48 @@ use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
 class ModuleMenuCest
 {
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function _before(Admin $I)
+    public function _before(BackendTester $I)
     {
-        $I->useExistingSession();
-        // Ensure main content frame is fully loaded, otherwise there are load-race-conditions
-        $I->switchToIFrame('list_frame');
-        $I->waitForText('Web Content Management System');
-        $I->switchToIFrame();
+        $I->useExistingSession('admin');
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function checkIfModuleMenuIsCollapsible(Admin $I)
+    public function checkIfModuleMenuIsCollapsible(BackendTester $I)
     {
         // A sub-element of web module is shown
-        $I->waitForElementVisible('#web .modulemenu-group-container .modulemenu-item');
-        $I->seeElement('#web .modulemenu-group-container .modulemenu-item');
+        $I->waitForElementVisible('#web + .modulemenu-group-container .modulemenu-action');
+        $I->seeElement('#web + .modulemenu-group-container .modulemenu-action');
 
         // Collapse web module and verify sub elements are hidden
         $I->wantTo('collapse the menu element');
-        $I->waitForElementVisible('#web .modulemenu-group-header');
-        $I->click('#web .modulemenu-group-header');
-        $I->waitForElementNotVisible('#web .modulemenu-group-container .modulemenu-item');
-        $I->dontSeeElement('#web .modulemenu-group-container .modulemenu-item');
+        $I->waitForElementVisible('#web');
+        $I->click('#web');
+        $I->waitForElementNotVisible('#web + .modulemenu-group-container .modulemenu-action');
+        $I->dontSeeElement('#web + .modulemenu-group-container .modulemenu-action');
 
         // Expand again and verify sub elements are shown
         $I->wantTo('expand the menu element again');
-        $I->click('#web .modulemenu-group-header');
-        $I->waitForElementVisible('#web .modulemenu-group-container .modulemenu-item');
-        $I->seeElement('#web .modulemenu-group-container .modulemenu-item');
+        $I->click('#web');
+        $I->waitForElementVisible('#web + .modulemenu-group-container .modulemenu-action');
+        $I->seeElement('#web + .modulemenu-group-container .modulemenu-action');
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function selectingAModuleDoesHighlightIt(Admin $I)
+    public function selectingAModuleDoesHighlightIt(BackendTester $I)
     {
-        $I->seeNumberOfElements('#web .modulemenu-item-link', [2, 20]);
+        $I->seeNumberOfElements('#web + .modulemenu-group-container .modulemenu-action', [2, 20]);
 
-        $I->wantTo('check that the second element has no "active" class\'');
-        $I->cantSeeElement('#web #web_list.active');
-        $I->click('#web #web_list .modulemenu-item-link');
+        $I->wantTo('check that the second element has no "modulemenu-action-active" class\'');
+        $I->cantSeeElement('#web_list.modulemenu-action-active');
+        $I->click('#web_list');
 
-        $I->wantTo('see that the second element has an "active" class');
-        $I->canSeeElement('#web #web_list.active');
+        $I->wantTo('see that the second element has an "modulemenu-action-active" class');
+        $I->canSeeElement('#web_list.modulemenu-action-active');
     }
 }

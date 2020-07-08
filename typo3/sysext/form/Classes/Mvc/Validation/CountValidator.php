@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Mvc\Validation;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\Mvc\Validation;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Mvc\Validation;
 
 use TYPO3\CMS\Extbase\Validation\Validator\AbstractValidator;
 
@@ -39,7 +43,6 @@ class CountValidator extends AbstractValidator
      * The given value is valid if it is an array or \Countable that contains the specified amount of elements.
      *
      * @param mixed $value
-     * @api
      */
     public function isValid($value)
     {
@@ -63,7 +66,8 @@ class CountValidator extends AbstractValidator
                     'form',
                     [$minimum, $maximum]
                 ),
-                1475002994, [$this->options['minimum'], $this->options['maximum']]
+                1475002994,
+                [$this->options['minimum'], $this->options['maximum']]
             );
         }
     }

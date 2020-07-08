@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Lowlevel\Command;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,11 +15,15 @@ namespace TYPO3\CMS\Lowlevel\Command;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Lowlevel\Command;
+
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use TYPO3\CMS\Backend\Command\ProgressListener\ReferenceIndexProgressListener;
+use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Core\Bootstrap;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\ReferenceIndex;
@@ -93,11 +97,12 @@ If you want to get more detailed information, use the --verbose option.')
      *
      * @param InputInterface $input
      * @param OutputInterface $output
+     * @return int
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         // Make sure the _cli_ user is loaded
-        Bootstrap::getInstance()->initializeBackendAuthentication();
+        Bootstrap::initializeBackendAuthentication();
 
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getDescription());
@@ -164,11 +169,14 @@ If you want to get more detailed information, use the --verbose option.')
             $this->removeReferencesToMissingRecords(
                 $results['offlineVersionRecords'],
                 $results['nonExistingRecords'],
-                $dryRun, $io);
+                $dryRun,
+                $io
+            );
             $io->success('All references were updated accordingly.');
         } else {
             $io->success('Nothing to do, no missing relations found. Everything is in place.');
         }
+        return 0;
     }
 
     /**
@@ -194,8 +202,10 @@ If you want to get more detailed information, use the --verbose option.')
 
         // Update the reference index
         if ($updateReferenceIndex) {
+            $progressListener = GeneralUtility::makeInstance(ReferenceIndexProgressListener::class);
+            $progressListener->initialize($io);
             $referenceIndex = GeneralUtility::makeInstance(ReferenceIndex::class);
-            $referenceIndex->updateIndex(false, !$io->isQuiet());
+            $referenceIndex->updateIndex(false, $progressListener);
         } else {
             $io->writeln('Reference index is assumed to be up to date, continuing.');
         }
@@ -240,6 +250,10 @@ If you want to get more detailed information, use the --verbose option.')
                 if (isset($GLOBALS['TCA'][$rec['ref_table']]['ctrl']['delete'])) {
                     $selectFields[] = $GLOBALS['TCA'][$rec['ref_table']]['ctrl']['delete'];
                 }
+                if (BackendUtility::isTableWorkspaceEnabled($rec['ref_table'])) {
+                    $selectFields[] = 't3ver_oid';
+                    $selectFields[] = 't3ver_wsid';
+                }
 
                 $existingRecords[$idx] = $queryBuilder
                     ->select(...$selectFields)
@@ -258,7 +272,7 @@ If you want to get more detailed information, use the --verbose option.')
             // Handle missing file:
             if ($existingRecords[$idx]['uid']) {
                 // Record exists, but is a reference to an offline version
-                if ((int)$existingRecords[$idx]['pid'] === -1) {
+                if ((int)($existingRecords[$idx]['t3ver_oid'] ?? 0) > 0) {
                     if ($isSoftReference) {
                         $offlineVersionRecordsInSoftReferenceRelations[] = $infoString;
                     } else {

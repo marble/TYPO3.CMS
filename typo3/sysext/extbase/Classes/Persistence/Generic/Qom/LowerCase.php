@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
+
 /**
  * Evaluates to the lower-case string value (or values, if multi-valued) of
  * operand.
@@ -22,6 +23,7 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  * to a string.
  *
  * If operand evaluates to null, the LowerCase operand also evaluates to null.
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class LowerCase implements LowerCaseInterface
 {

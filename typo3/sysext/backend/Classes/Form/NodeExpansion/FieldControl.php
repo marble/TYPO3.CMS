@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Form\NodeExpansion;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Backend\Form\NodeExpansion;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\NodeExpansion;
 
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -114,7 +116,7 @@ class FieldControl extends AbstractNode
             if (!isset($linkAttributes['class'])) {
                 $linkAttributes['class'] = 'btn btn-default';
             } else {
-                $linkAttributes['class'] .= 'btn btn-default';
+                $linkAttributes['class'] .= ' btn btn-default';
             }
             if (!isset($linkAttributes['href'])) {
                 $linkAttributes['href'] = '#';

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,16 @@ namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
+
 use TYPO3\CMS\Form\Mvc\Configuration\TypoScriptService;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TypoScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TypoScriptServiceTest extends UnitTestCase
 {
     /**
      * @test
@@ -35,17 +37,17 @@ class TypoScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             ContentObjectRenderer::class
         )->getMock();
 
-        $fakeTypoScriptFrontendController = new \stdClass;
+        $fakeTypoScriptFrontendController = new \stdClass();
         $fakeTypoScriptFrontendController->cObj = $mockContentObjectRenderer;
 
         $mockContentObjectRenderer
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('cObjGetSingle')
             ->with('TEXT', ['value' => 'rambo'])
-            ->will($this->returnValue('rambo'));
+            ->willReturn('rambo');
 
         $mockTypoScriptService
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getTypoScriptFrontendController')
             ->willReturn($fakeTypoScriptFrontendController);
 
@@ -63,6 +65,6 @@ class TypoScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             ],
         ];
 
-        $this->assertSame($expected, $mockTypoScriptService->_call('resolveTypoScriptConfiguration', $input));
+        self::assertSame($expected, $mockTypoScriptService->_call('resolveTypoScriptConfiguration', $input));
     }
 }

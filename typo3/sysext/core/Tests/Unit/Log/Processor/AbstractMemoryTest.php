@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Log\Processor;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,40 +13,25 @@ namespace TYPO3\CMS\Core\Tests\Unit\Log\Processor;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Log\Processor;
+
+use TYPO3\CMS\Core\Log\Processor\AbstractMemoryProcessor;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class AbstractMemoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractMemoryTest extends UnitTestCase
 {
-    /**
-     * @test
-     */
-    public function getRealMemoryUsageGetsRealMemoryUsage()
-    {
-        /** @var $processor \TYPO3\CMS\Core\Log\Processor\AbstractMemoryProcessor */
-        $processor = $this->getMockForAbstractClass(\TYPO3\CMS\Core\Log\Processor\AbstractMemoryProcessor::class);
-        $this->assertAttributeEquals($processor->getRealMemoryUsage(), 'realMemoryUsage', $processor);
-    }
-
     /**
      * @test
      */
     public function setRealMemoryUsageSetsRealMemoryUsage()
     {
         /** @var $processor \TYPO3\CMS\Core\Log\Processor\AbstractMemoryProcessor */
-        $processor = $this->getMockForAbstractClass(\TYPO3\CMS\Core\Log\Processor\AbstractMemoryProcessor::class);
+        $processor = $this->getMockForAbstractClass(AbstractMemoryProcessor::class);
         $processor->setRealMemoryUsage(false);
-        $this->assertAttributeEquals(false, 'realMemoryUsage', $processor);
-    }
-
-    /**
-     * @test
-     */
-    public function getFormatSizeGetsFormatSize()
-    {
-        /** @var $processor \TYPO3\CMS\Core\Log\Processor\AbstractMemoryProcessor */
-        $processor = $this->getMockForAbstractClass(\TYPO3\CMS\Core\Log\Processor\AbstractMemoryProcessor::class);
-        $this->assertAttributeEquals($processor->getFormatSize(), 'formatSize', $processor);
+        self::assertFalse($processor->getRealMemoryUsage());
     }
 
     /**
@@ -56,8 +40,8 @@ class AbstractMemoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setFormatSizeSetsFormatSize()
     {
         /** @var $processor \TYPO3\CMS\Core\Log\Processor\AbstractMemoryProcessor */
-        $processor = $this->getMockForAbstractClass(\TYPO3\CMS\Core\Log\Processor\AbstractMemoryProcessor::class);
+        $processor = $this->getMockForAbstractClass(AbstractMemoryProcessor::class);
         $processor->setFormatSize(false);
-        $this->assertAttributeEquals(false, 'formatSize', $processor);
+        self::assertFalse($processor->getFormatSize());
     }
 }

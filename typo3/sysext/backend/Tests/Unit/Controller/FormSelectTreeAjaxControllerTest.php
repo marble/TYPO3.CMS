@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,14 +13,16 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
-use Psr\Http\Message\ResponseInterface;
+namespace TYPO3\CMS\Backend\Tests\Unit\Controller;
+
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Controller\FormSelectTreeAjaxController;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FormSelectTreeAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FormSelectTreeAjaxControllerTest extends UnitTestCase
 {
     /**
      * @test
@@ -29,10 +30,9 @@ class FormSelectTreeAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit
     public function fetchDataActionThrowsExceptionIfTcaOfTableDoesNotExist()
     {
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1479386729);
-        (new FormSelectTreeAjaxController())->fetchDataAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormSelectTreeAjaxController())->fetchDataAction($requestProphecy->reveal());
     }
 
     /**
@@ -40,7 +40,6 @@ class FormSelectTreeAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function fetchDataActionThrowsExceptionIfTcaOfTableFieldDoesNotExist()
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getQueryParams()->shouldBeCalled()->willReturn([
             'tableName' => 'aTable',
@@ -49,6 +48,6 @@ class FormSelectTreeAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit
         $GLOBALS['TCA']['aTable']['columns'] = [];
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1479386990);
-        (new FormSelectTreeAjaxController())->fetchDataAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormSelectTreeAjaxController())->fetchDataAction($requestProphecy->reveal());
     }
 }

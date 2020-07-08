@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Http;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,17 +15,18 @@ namespace TYPO3\CMS\Backend\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Http;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use TYPO3\CMS\Backend\Routing\Exception\InvalidRequestTokenException;
-use TYPO3\CMS\Core\Core\Bootstrap;
-use TYPO3\CMS\Core\Http\RequestHandlerInterface;
-use TYPO3\CMS\Core\Http\Response;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
- * General RequestHandler for the TYPO3 Backend. This is used for all Backend requests except for CLI
- * or AJAX calls.
+ * General RequestHandler for the TYPO3 Backend. This is used for all Backend requests, including AJAX routes.
  *
  * If a get/post parameter "route" is set, the Backend Routing is called and searches for a
  * matching route inside the Router. The corresponding controller / action is called then which returns the response.
@@ -36,106 +38,64 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class RequestHandler implements RequestHandlerInterface
 {
     /**
-     * Instance of the current TYPO3 bootstrap
-     * @var Bootstrap
+     * @var RouteDispatcher
      */
-    protected $bootstrap;
+    protected $dispatcher;
 
     /**
-     * Constructor handing over the bootstrap and the original request
-     *
-     * @param Bootstrap $bootstrap
+     * @param RouteDispatcher $dispatcher
      */
-    public function __construct(Bootstrap $bootstrap)
+    public function __construct(RouteDispatcher $dispatcher)
     {
-        $this->bootstrap = $bootstrap;
+        $this->dispatcher = $dispatcher;
     }
 
     /**
-     * Handles any backend request
+     * Sets the global GET and POST to the values, so if people access $_GET and $_POST
+     * Within hooks starting NOW (e.g. cObject), they get the "enriched" data from query params.
+     *
+     * This needs to be run after the request object has been enriched with modified GET/POST variables.
      *
      * @param ServerRequestInterface $request
-     * @return ResponseInterface
+     * @internal this safety net will be removed in TYPO3 v11.0.
      */
-    public function handleRequest(ServerRequestInterface $request)
+    protected function resetGlobalsToCurrentRequest(ServerRequestInterface $request)
     {
-        // Allow the login page to be displayed if routing is not used and on index.php
-        $pathToRoute = (string)$request->getQueryParams()['route'] ?: '/login';
-        $request = $request->withAttribute('routePath', $pathToRoute);
-
-        // skip the BE user check on the login page
-        // should be handled differently in the future by checking the Bootstrap directly
-        $this->boot($pathToRoute === '/login');
-
-        // Check if the router has the available route and dispatch.
-        try {
-            return $this->dispatch($request);
-
-        // When token was invalid redirect to login
-        } catch (InvalidRequestTokenException $e) {
-            $url = GeneralUtility::getIndpEnv('TYPO3_SITE_URL') . TYPO3_mainDir;
-            \TYPO3\CMS\Core\Utility\HttpUtility::redirect($url);
+        if ($request->getQueryParams() !== $_GET) {
+            $queryParams = $request->getQueryParams();
+            $_GET = $queryParams;
+            $GLOBALS['HTTP_GET_VARS'] = $_GET;
         }
+        if ($request->getMethod() === 'POST') {
+            $parsedBody = $request->getParsedBody();
+            if (is_array($parsedBody) && $parsedBody !== $_POST) {
+                $_POST = $parsedBody;
+                $GLOBALS['HTTP_POST_VARS'] = $_POST;
+            }
+        }
+        $GLOBALS['TYPO3_REQUEST'] = $request;
     }
 
     /**
-     * Does the main work for setting up the backend environment for any Backend request
-     *
-     * @param bool $proceedIfNoUserIsLoggedIn option to allow to render the request even if no user is logged in
-     */
-    protected function boot($proceedIfNoUserIsLoggedIn)
-    {
-        $this->bootstrap
-            ->checkLockedBackendAndRedirectOrDie()
-            ->checkBackendIpOrDie()
-            ->checkSslBackendAndRedirectIfNeeded()
-            ->initializeBackendRouter()
-            ->loadExtTables()
-            ->initializeBackendUser()
-            ->initializeBackendAuthentication($proceedIfNoUserIsLoggedIn)
-            ->initializeLanguageObject()
-            ->initializeBackendTemplate()
-            ->endOutputBufferingAndCleanPreviousOutput()
-            ->initializeOutputCompression()
-            ->sendHttpHeaders();
-    }
-
-    /**
-     * This request handler can handle any backend request (but not CLI).
-     *
-     * @param ServerRequestInterface $request
-     * @return bool If the request is not a CLI script, TRUE otherwise FALSE
-     */
-    public function canHandleRequest(ServerRequestInterface $request)
-    {
-        return TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_BE && !(TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_CLI);
-    }
-
-    /**
-     * Returns the priority - how eager the handler is to actually handle the
-     * request.
-     *
-     * @return int The priority of the request handler.
-     */
-    public function getPriority()
-    {
-        return 50;
-    }
-
-    /**
-     * Dispatch the request to the appropriate controller through the Backend Dispatcher which resolves the routing
+     * Handles a backend request, after finishing running middlewares
+     * Dispatch the request to the appropriate controller through the
+     * Backend Dispatcher which resolves the routing
      *
      * @param ServerRequestInterface $request
      * @return ResponseInterface
-     * @throws InvalidRequestTokenException if the request could not be verified
-     * @throws \InvalidArgumentException when a route is found but the target of the route cannot be called
      */
-    protected function dispatch($request)
+    public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        /** @var Response $response */
-        $response = GeneralUtility::makeInstance(Response::class);
-        /** @var RouteDispatcher $dispatcher */
-        $dispatcher = GeneralUtility::makeInstance(RouteDispatcher::class);
-        return $dispatcher->dispatch($request, $response);
+        // safety net to have the fully-added request object globally available as long as
+        // there are Core classes that need the Request object but do not get it handed in
+        $this->resetGlobalsToCurrentRequest($request);
+        try {
+            // Check if the router has the available route and dispatch.
+            return $this->dispatcher->dispatch($request);
+        } catch (InvalidRequestTokenException $e) {
+            // When token was invalid redirect to login
+            $loginPage = GeneralUtility::makeInstance(UriBuilder::class)->buildUriFromRoute('login');
+            return new RedirectResponse((string)$loginPage);
+        }
     }
 }

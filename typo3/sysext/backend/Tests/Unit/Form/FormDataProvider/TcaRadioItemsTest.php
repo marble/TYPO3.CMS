@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaRadioItems;
@@ -22,32 +23,19 @@ use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaRadioItemsTest extends UnitTestCase
 {
     /**
-     * @var TcaRadioItems
+     * Tear down
      */
-    protected $subject;
-
-    /**
-     * @var array A backup of registered singleton instances
-     */
-    protected $singletonInstances = [];
-
-    protected function setUp()
-    {
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-        $this->subject = new TcaRadioItems();
-    }
-
-    protected function tearDown()
+    protected function tearDown(): void
     {
         GeneralUtility::purgeInstances();
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
         parent::tearDown();
     }
 
@@ -57,6 +45,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addDataThrowsExceptionIfRadioItemsNotDefined()
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -67,9 +56,14 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
+
+        $languageService = $this->prophesize(LanguageService::class);
+        $GLOBALS['LANG'] = $languageService->reveal();
+        $languageService->sL(Argument::cetera())->willReturnArgument(0);
+
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1438594829);
-        $this->subject->addData($input);
+        (new TcaRadioItems())->addData($input);
     }
 
     /**
@@ -78,6 +72,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addDataKeepExistingItems()
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -99,7 +94,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $languageService->sL(Argument::cetera())->willReturnArgument(0);
 
         $expected = $input;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaRadioItems())->addData($input));
     }
 
     /**
@@ -108,6 +103,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addDataThrowsExceptionIfItemsAreNoArray()
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -121,9 +117,14 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
+
+        $languageService = $this->prophesize(LanguageService::class);
+        $GLOBALS['LANG'] = $languageService->reveal();
+        $languageService->sL(Argument::cetera())->willReturnArgument(0);
+
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1438607163);
-        $this->subject->addData($input);
+        (new TcaRadioItems())->addData($input);
     }
 
     /**
@@ -132,6 +133,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addDataThrowsExceptionIfItemLabelIsNotSet()
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -147,9 +149,14 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
+
+        $languageService = $this->prophesize(LanguageService::class);
+        $GLOBALS['LANG'] = $languageService->reveal();
+        $languageService->sL(Argument::cetera())->willReturnArgument(0);
+
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1438607164);
-        $this->subject->addData($input);
+        (new TcaRadioItems())->addData($input);
     }
 
     /**
@@ -158,6 +165,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addDataThrowsExceptionIfItemValueIsNotSet()
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -173,9 +181,14 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
+
+        $languageService = $this->prophesize(LanguageService::class);
+        $GLOBALS['LANG'] = $languageService->reveal();
+        $languageService->sL(Argument::cetera())->willReturnArgument(0);
+
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1438607165);
-        $this->subject->addData($input);
+        (new TcaRadioItems())->addData($input);
     }
 
     /**
@@ -184,6 +197,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addDataTranslatesItemLabels()
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -210,8 +224,8 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['processedTca']['columns']['aField']['config']['items'][0][0] = 'translated';
 
-        $this->assertSame($expected, $this->subject->addData($input));
-        $this->subject->addData($input);
+        self::assertSame($expected, (new TcaRadioItems())->addData($input));
+        (new TcaRadioItems())->addData($input);
     }
 
     /**
@@ -238,6 +252,11 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
+
+        $languageService = $this->prophesize(LanguageService::class);
+        $GLOBALS['LANG'] = $languageService->reveal();
+        $languageService->sL(Argument::cetera())->willReturnArgument(0);
+
         $expected = $input;
         $expected['processedTca']['columns']['aField']['config'] = [
             'type' => 'radio',
@@ -245,7 +264,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'foo' => 'bar',
             ],
         ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaRadioItems())->addData($input));
     }
 
     /**
@@ -314,7 +333,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         // itemsProcFunc must NOT have raised an exception
         $flashMessageQueue->enqueue($flashMessage)->shouldNotBeCalled();
 
-        $this->subject->addData($input);
+        (new TcaRadioItems())->addData($input);
     }
 
     /**
@@ -373,7 +392,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $flashMessageQueue->enqueue($flashMessage)->shouldBeCalled();
 
-        $this->subject->addData($input);
+        (new TcaRadioItems())->addData($input);
     }
 
     /**
@@ -421,7 +440,7 @@ class TcaRadioItemsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['processedTca']['columns']['aField']['config']['items'][0][0] = 'labelOverride';
 
-        $this->assertSame($expected, $this->subject->addData($input));
-        $this->subject->addData($input);
+        self::assertSame($expected, (new TcaRadioItems())->addData($input));
+        (new TcaRadioItems())->addData($input);
     }
 }

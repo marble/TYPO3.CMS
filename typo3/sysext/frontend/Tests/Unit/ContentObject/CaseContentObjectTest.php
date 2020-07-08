@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,44 +14,43 @@ namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject;
  *
  * The TYPO3 project - inspiring people to share!
  */
-use TYPO3\CMS\Core\TypoScript\TemplateService;
+
+namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject;
+
 use TYPO3\CMS\Frontend\ContentObject\CaseContentObject;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\ContentObject\TextContentObject;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
-use TYPO3\CMS\Frontend\Page\PageRepository;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Testcase for TYPO3\CMS\Frontend\ContentObject\CaseContentObject
+ * Test case
  */
-class CaseContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class CaseContentObjectTest extends UnitTestCase
 {
     /**
-     * @var CaseContentObject|\PHPUnit_Framework_MockObject_MockObject
+     * @var bool Reset singletons created by subject
      */
-    protected $subject = null;
+    protected $resetSingletonInstances = true;
+
+    /**
+     * @var CaseContentObject|\PHPUnit\Framework\MockObject\MockObject
+     */
+    protected $subject;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         /** @var TypoScriptFrontendController $tsfe */
         $tsfe = $this->getMockBuilder(TypoScriptFrontendController::class)
             ->setMethods(['dummy'])
             ->disableOriginalConstructor()
             ->getMock();
-        $tsfe->tmpl = $this->getMockBuilder(TemplateService::class)
-            ->setMethods(['dummy'])
-            ->getMock();
-        $tsfe->config = [];
-        $tsfe->page = [];
-        $tsfe->sys_page = $this->getMockBuilder(PageRepository::class)
-            ->setMethods(['getRawRecord'])
-            ->getMock();
-        $GLOBALS['TSFE'] = $tsfe;
 
-        $contentObjectRenderer = new ContentObjectRenderer();
+        $contentObjectRenderer = new ContentObjectRenderer($tsfe);
         $contentObjectRenderer->setContentObjectClassMap([
             'CASE' => CaseContentObject::class,
             'TEXT' => TextContentObject::class,
@@ -61,18 +61,18 @@ class CaseContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
     /**
      * @test
      */
-    public function renderReturnsEmptyStringIfNoKeyMatchesAndIfNoDefaultObjectIsSet()
+    public function renderReturnsEmptyStringIfNoKeyMatchesAndIfNoDefaultObjectIsSet(): void
     {
         $conf = [
             'key' => 'not existing'
         ];
-        $this->assertSame('', $this->subject->render($conf));
+        self::assertSame('', $this->subject->render($conf));
     }
 
     /**
      * @test
      */
-    public function renderReturnsContentFromDefaultObjectIfKeyDoesNotExist()
+    public function renderReturnsContentFromDefaultObjectIfKeyDoesNotExist(): void
     {
         $conf = [
             'key' => 'not existing',
@@ -81,6 +81,6 @@ class CaseContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
                 'value' => 'expected value'
             ],
         ];
-        $this->assertSame('expected value', $this->subject->render($conf));
+        self::assertSame('expected value', $this->subject->render($conf));
     }
 }

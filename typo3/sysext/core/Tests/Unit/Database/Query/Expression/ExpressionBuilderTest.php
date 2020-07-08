@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Query;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Query;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Expression;
+
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
@@ -22,8 +24,12 @@ use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\Query\Expression\CompositeExpression;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Tests\Unit\Database\Mocks\MockPlatform;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+/**
+ * Test case
+ */
+class ExpressionBuilderTest extends UnitTestCase
 {
     /**
      * @var Connection
@@ -43,7 +49,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
     /**
      * Create a new database connection mock object for every test.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -61,8 +67,8 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
     {
         $result = $this->subject->andX('"uid" = 1', '"pid" = 0');
 
-        $this->assertInstanceOf(CompositeExpression::class, $result);
-        $this->assertSame(CompositeExpression::TYPE_AND, $result->getType());
+        self::assertInstanceOf(CompositeExpression::class, $result);
+        self::assertSame(CompositeExpression::TYPE_AND, $result->getType());
     }
 
     /**
@@ -72,8 +78,8 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
     {
         $result = $this->subject->orX('"uid" = 1', '"uid" = 7');
 
-        $this->assertInstanceOf(CompositeExpression::class, $result);
-        $this->assertSame(CompositeExpression::TYPE_OR, $result->getType());
+        self::assertInstanceOf(CompositeExpression::class, $result);
+        self::assertSame(CompositeExpression::TYPE_OR, $result->getType());
     }
 
     /**
@@ -84,7 +90,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->eq('aField', 1);
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField = 1', $result);
+        self::assertSame('aField = 1', $result);
     }
 
     /**
@@ -95,7 +101,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->neq('aField', 1);
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField <> 1', $result);
+        self::assertSame('aField <> 1', $result);
     }
 
     /**
@@ -106,7 +112,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->lt('aField', 1);
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField < 1', $result);
+        self::assertSame('aField < 1', $result);
     }
 
     /**
@@ -117,7 +123,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->lte('aField', 1);
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField <= 1', $result);
+        self::assertSame('aField <= 1', $result);
     }
 
     /**
@@ -128,7 +134,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->gt('aField', 1);
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField > 1', $result);
+        self::assertSame('aField > 1', $result);
     }
 
     /**
@@ -139,7 +145,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->gte('aField', 1);
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField >= 1', $result);
+        self::assertSame('aField >= 1', $result);
     }
 
     /**
@@ -150,7 +156,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->isNull('aField');
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField IS NULL', $result);
+        self::assertSame('aField IS NULL', $result);
     }
 
     /**
@@ -161,7 +167,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->isNotNull('aField');
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField IS NOT NULL', $result);
+        self::assertSame('aField IS NOT NULL', $result);
     }
 
     /**
@@ -172,7 +178,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->like('aField', "'aValue%'");
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame("aField LIKE 'aValue%'", $result);
+        self::assertSame("aField LIKE 'aValue%'", $result);
     }
 
     /**
@@ -183,7 +189,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->notLike('aField', "'aValue%'");
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame("aField NOT LIKE 'aValue%'", $result);
+        self::assertSame("aField NOT LIKE 'aValue%'", $result);
     }
 
     /**
@@ -194,7 +200,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->in('aField', '1,2,3');
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField IN (1,2,3)', $result);
+        self::assertSame('aField IN (1,2,3)', $result);
     }
 
     /**
@@ -205,7 +211,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->in('aField', [1, 2, 3]);
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField IN (1, 2, 3)', $result);
+        self::assertSame('aField IN (1, 2, 3)', $result);
     }
 
     /**
@@ -216,7 +222,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->notIn('aField', '1,2,3');
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField NOT IN (1,2,3)', $result);
+        self::assertSame('aField NOT IN (1,2,3)', $result);
     }
 
     /**
@@ -227,7 +233,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $result = $this->subject->notIn('aField', [1, 2, 3]);
 
         $this->connectionProphet->quoteIdentifier('aField')->shouldHaveBeenCalled();
-        $this->assertSame('aField NOT IN (1, 2, 3)', $result);
+        self::assertSame('aField NOT IN (1, 2, 3)', $result);
     }
 
     /**
@@ -266,7 +272,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
         $result = $this->subject->inSet('aField', "'1'");
 
-        $this->assertSame('FIND_IN_SET(\'1\', `aField`)', $result);
+        self::assertSame('FIND_IN_SET(\'1\', `aField`)', $result);
     }
 
     /**
@@ -288,7 +294,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
         $result = $this->subject->inSet('aField', "'1'");
 
-        $this->assertSame('\'1\' = ANY(string_to_array("aField"::text, \',\'))', $result);
+        self::assertSame('\'1\' = ANY(string_to_array("aField"::text, \',\'))', $result);
     }
 
     /**
@@ -308,7 +314,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
         $result = $this->subject->inSet('aField', '"testtable"."uid"', true);
 
-        $this->assertSame('"testtable"."uid"::text = ANY(string_to_array("aField"::text, \',\'))', $result);
+        self::assertSame('"testtable"."uid"::text = ANY(string_to_array("aField"::text, \',\'))', $result);
     }
 
     /**
@@ -321,7 +327,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $databasePlatform->getStringLiteralQuoteCharacter()->willReturn("'");
 
         $this->connectionProphet->quote(',', Argument::cetera())->shouldBeCalled()->willReturn("','");
-        $this->connectionProphet->quote('%,1,%', Argument::cetera())->shouldBeCalled()->willReturn("'%,1,%'");
+        $this->connectionProphet->quote(',1,', Argument::cetera())->shouldBeCalled()->willReturn("'%,1,%'");
         $this->connectionProphet->quoteIdentifier(Argument::cetera())->will(function ($args) {
             return '"' . $args[0] . '"';
         });
@@ -330,7 +336,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
         $result = $this->subject->inSet('aField', "'1'");
 
-        $this->assertSame('\',\'||"aField"||\',\' LIKE \'%,1,%\'', $result);
+        self::assertSame('instr(\',\'||"aField"||\',\', \'%,1,%\')', $result);
     }
 
     /**
@@ -343,8 +349,8 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $databasePlatform->getStringLiteralQuoteCharacter()->willReturn("'");
 
         $this->connectionProphet->quote(',', Argument::cetera())->shouldBeCalled()->willReturn("','");
-        $this->connectionProphet->quote('%,\'Some\'Value,%', Argument::cetera())->shouldBeCalled()
-            ->willReturn("'%,''Some''Value,%'");
+        $this->connectionProphet->quote(',\'Some\'Value,', Argument::cetera())->shouldBeCalled()
+            ->willReturn("',''Some''Value,'");
         $this->connectionProphet->quoteIdentifier(Argument::cetera())->will(function ($args) {
             return '"' . $args[0] . '"';
         });
@@ -353,7 +359,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
         $result = $this->subject->inSet('aField', "'''Some''Value'");
 
-        $this->assertSame('\',\'||"aField"||\',\' LIKE \'%,\'\'Some\'\'Value,%\'', $result);
+        self::assertSame('instr(\',\'||"aField"||\',\', \',\'\'Some\'\'Value,\')', $result);
     }
 
     /**
@@ -411,7 +417,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
         $result = $this->subject->inSet('aField', "'1'");
 
-        $this->assertSame("([aField] = '1') OR ([aField] LIKE '1,%') OR ([aField] LIKE '%,1') OR ([aField] LIKE '%,1,%')", $result);
+        self::assertSame("([aField] = '1') OR ([aField] LIKE '1,%') OR ([aField] LIKE '%,1') OR ([aField] LIKE '%,1,%')", $result);
     }
 
     /**
@@ -427,7 +433,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
         $this->connectionProphet->getDatabasePlatform()->willReturn($databasePlatform->reveal());
 
-        $this->assertSame('"aField" & 1', $this->subject->bitAnd('aField', 1));
+        self::assertSame('"aField" & 1', $this->subject->bitAnd('aField', 1));
     }
 
     /**
@@ -444,7 +450,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
 
         $this->connectionProphet->getDatabasePlatform()->willReturn($databasePlatform->reveal());
 
-        $this->assertSame('BITAND("aField", 1)', $this->subject->bitAnd('aField', 1));
+        self::assertSame('BITAND("aField", 1)', $this->subject->bitAnd('aField', 1));
     }
 
     /**
@@ -457,8 +463,8 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             return $platform->quoteIdentifier($args[0]);
         });
 
-        $this->assertSame('MAX("tableName"."fieldName")', $this->subject->max('tableName.fieldName'));
-        $this->assertSame(
+        self::assertSame('MAX("tableName"."fieldName")', $this->subject->max('tableName.fieldName'));
+        self::assertSame(
             'MAX("tableName"."fieldName") AS "anAlias"',
             $this->subject->max('tableName.fieldName', 'anAlias')
         );
@@ -474,8 +480,8 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             return $platform->quoteIdentifier($args[0]);
         });
 
-        $this->assertSame('MIN("tableName"."fieldName")', $this->subject->min('tableName.fieldName'));
-        $this->assertSame(
+        self::assertSame('MIN("tableName"."fieldName")', $this->subject->min('tableName.fieldName'));
+        self::assertSame(
             'MIN("tableName"."fieldName") AS "anAlias"',
             $this->subject->min('tableName.fieldName', 'anAlias')
         );
@@ -491,8 +497,8 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             return $platform->quoteIdentifier($args[0]);
         });
 
-        $this->assertSame('SUM("tableName"."fieldName")', $this->subject->sum('tableName.fieldName'));
-        $this->assertSame(
+        self::assertSame('SUM("tableName"."fieldName")', $this->subject->sum('tableName.fieldName'));
+        self::assertSame(
             'SUM("tableName"."fieldName") AS "anAlias"',
             $this->subject->sum('tableName.fieldName', 'anAlias')
         );
@@ -508,8 +514,8 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             return $platform->quoteIdentifier($args[0]);
         });
 
-        $this->assertSame('AVG("tableName"."fieldName")', $this->subject->avg('tableName.fieldName'));
-        $this->assertSame(
+        self::assertSame('AVG("tableName"."fieldName")', $this->subject->avg('tableName.fieldName'));
+        self::assertSame(
             'AVG("tableName"."fieldName") AS "anAlias"',
             $this->subject->avg('tableName.fieldName', 'anAlias')
         );
@@ -525,8 +531,8 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             return $platform->quoteIdentifier($args[0]);
         });
 
-        $this->assertSame('COUNT("tableName"."fieldName")', $this->subject->count('tableName.fieldName'));
-        $this->assertSame(
+        self::assertSame('COUNT("tableName"."fieldName")', $this->subject->count('tableName.fieldName'));
+        self::assertSame(
             'COUNT("tableName"."fieldName") AS "anAlias"',
             $this->subject->count('tableName.fieldName', 'anAlias')
         );
@@ -542,8 +548,8 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             return $platform->quoteIdentifier($args[0]);
         });
 
-        $this->assertSame('LENGTH("tableName"."fieldName")', $this->subject->length('tableName.fieldName'));
-        $this->assertSame(
+        self::assertSame('LENGTH("tableName"."fieldName")', $this->subject->length('tableName.fieldName'));
+        self::assertSame(
             'LENGTH("tableName"."fieldName") AS "anAlias"',
             $this->subject->length('tableName.fieldName', 'anAlias')
         );
@@ -566,7 +572,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
                 }
             );
 
-        $this->assertSame(
+        self::assertSame(
             'TRIM("tableName"."fieldName")',
             $this->subject->trim('tableName.fieldName')
         );
@@ -630,7 +636,7 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
                 }
             );
 
-        $this->assertSame(
+        self::assertSame(
             $expected,
             $this->subject->trim('tableName.fieldName', $position, $char)
         );
@@ -646,6 +652,6 @@ class ExpressionBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             ->willReturn('"aField"');
         $result = $this->subject->literal('aField', 'Doctrine\DBAL\Types\StringType');
 
-        $this->assertSame('"aField"', $result);
+        self::assertSame('"aField"', $result);
     }
 }

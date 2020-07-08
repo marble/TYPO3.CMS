@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Utility;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Utility;
 
 /**
  * Class with helper functions for mathematical calculations
@@ -66,7 +67,7 @@ class MathUtility
      *
      * Note: Integer casting from objects or arrays is considered undefined and thus will return false.
      *
-     * @see http://php.net/manual/en/language.types.integer.php#language.types.integer.casting.from-other
+     * @see https://php.net/manual/en/language.types.integer.php#language.types.integer.casting.from-other
      * @param mixed $var Any input variable to test
      * @return bool Returns TRUE if string is an integer
      */
@@ -152,11 +153,11 @@ class MathUtility
                     $buffer *= $v;
                 }
                 if ($sign === '^') {
-                    $buffer = pow($buffer, $v);
+                    $buffer = $buffer ** $v;
                 }
             }
         }
-        $number = $Msign === '-' ? ($number -= $buffer) : ($number += $buffer);
+        $number = $Msign === '-' ? ($number - $buffer) : ($number + $buffer);
         return $err ? 'ERROR: ' . $err : $number;
     }
 
@@ -165,7 +166,8 @@ class MathUtility
      *
      * @param string $string Input string, eg "(123 + 456) / 789 - 4
      * @return int Calculated value. Or error string.
-     * @see calculateWithPriorityToAdditionAndSubtraction(), \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::stdWrap()
+     * @see calculateWithPriorityToAdditionAndSubtraction()
+     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::stdWrap()
      */
     public static function calculateWithParentheses($string)
     {
@@ -175,11 +177,11 @@ class MathUtility
             $valueLenC = strcspn($string, ')');
             if ($valueLenC == strlen($string) || $valueLenC < $valueLenO) {
                 $value = self::calculateWithPriorityToAdditionAndSubtraction(substr($string, 0, $valueLenC));
-                $string = $value . substr($string, ($valueLenC + 1));
+                $string = $value . substr($string, $valueLenC + 1);
                 return $string;
-            } else {
-                $string = substr($string, 0, $valueLenO) . self::calculateWithParentheses(substr($string, ($valueLenO + 1)));
             }
+            $string = substr($string, 0, $valueLenO) . self::calculateWithParentheses(substr($string, $valueLenO + 1));
+
             // Security:
             $securC--;
             if ($securC <= 0) {

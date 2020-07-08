@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Http;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,12 @@ namespace TYPO3\CMS\Core\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Http;
+
+use Psr\Http\Message\ServerRequestFactoryInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
+use Psr\Http\Message\UriInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -24,8 +30,25 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  *
  * @internal Note that this is not public API yet.
  */
-class ServerRequestFactory
+class ServerRequestFactory implements ServerRequestFactoryInterface
 {
+    /**
+     * Create a new server request.
+     *
+     * Note that server-params are taken precisely as given - no parsing/processing
+     * of the given values is performed, and, in particular, no attempt is made to
+     * determine the HTTP method or URI, which must be provided explicitly.
+     *
+     * @param string $method The HTTP method associated with the request.
+     * @param UriInterface|string $uri The URI associated with the request.
+     * @param array $serverParams Array of SAPI parameters with which to seed the generated request instance.
+     * @return ServerRequestInterface
+     */
+    public function createServerRequest(string $method, $uri, array $serverParams = []): ServerRequestInterface
+    {
+        return new ServerRequest($uri, $method, null, [], $serverParams);
+    }
+
     /**
      * Create a request from the original superglobal variables.
      *
@@ -38,7 +61,7 @@ class ServerRequestFactory
         $serverParameters = $_SERVER;
         $headers = static::prepareHeaders($serverParameters);
 
-        $method = isset($serverParameters['REQUEST_METHOD']) ? $serverParameters['REQUEST_METHOD'] : 'GET';
+        $method = $serverParameters['REQUEST_METHOD'] ?? 'GET';
         $uri = new Uri(GeneralUtility::getIndpEnv('TYPO3_REQUEST_URL'));
 
         $request = new ServerRequest(
@@ -78,14 +101,17 @@ class ServerRequestFactory
     {
         $headers = [];
         foreach ($server as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
             if (strpos($key, 'HTTP_COOKIE') === 0) {
                 // Cookies are handled using the $_COOKIE superglobal
                 continue;
             }
             if (!empty($value)) {
                 if (strpos($key, 'HTTP_') === 0) {
-                    $name = strtr(substr($key, 5), '_', ' ');
-                    $name = strtr(ucwords(strtolower($name)), ' ', '-');
+                    $name = str_replace('_', ' ', substr($key, 5));
+                    $name = str_replace(' ', '-', ucwords(strtolower($name)));
                     $name = strtolower($name);
                     $headers[$name] = $value;
                 } elseif (strpos($key, 'CONTENT_') === 0) {
@@ -137,7 +163,7 @@ class ServerRequestFactory
      * recursively resolve uploaded files.
      *
      * @param array $value $_FILES structure
-     * @return UploadedFileInterface[]|UploadedFileInterface|NULL
+     * @return UploadedFileInterface[]|UploadedFileInterface|null
      */
     protected static function createUploadedFile(array $value)
     {
@@ -157,7 +183,8 @@ class ServerRequestFactory
                 }
             }
             return $files;
-        } elseif (!empty($value['tmp_name'])) {
+        }
+        if (!empty($value['tmp_name'])) {
             return new UploadedFile($value['tmp_name'], $value['size'], $value['error'], $value['name'], $value['type']);
         }
         return null;

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller\Page;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,27 +15,38 @@ namespace TYPO3\CMS\Backend\Controller\Page;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller\Page;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Configuration\TranslationConfigurationProvider;
+use TYPO3\CMS\Backend\Controller\Event\AfterPageColumnsSelectedForLocalizationEvent;
 use TYPO3\CMS\Backend\Domain\Repository\Localization\LocalizationRepository;
+use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Backend\View\BackendLayoutView;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Http\JsonResponse;
+use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Versioning\VersionState;
 
 /**
  * LocalizationController handles the AJAX requests for record localization
+ *
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class LocalizationController
 {
     /**
-     * @const string
+     * @var string
      */
     const ACTION_COPY = 'copyFromLanguage';
 
     /**
-     * @const string
+     * @var string
      */
     const ACTION_LOCALIZE = 'localize';
 
@@ -49,31 +61,34 @@ class LocalizationController
     protected $localizationRepository;
 
     /**
+     * @var EventDispatcherInterface
+     */
+    protected $eventDispatcher;
+
+    /**
      * Constructor
      */
     public function __construct()
     {
         $this->iconFactory = GeneralUtility::makeInstance(IconFactory::class);
         $this->localizationRepository = GeneralUtility::makeInstance(LocalizationRepository::class);
+        $this->eventDispatcher = GeneralUtility::makeInstance(EventDispatcherInterface::class);
     }
 
     /**
-     * Get used languages in a colPos of a page
+     * Get used languages in a page
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function getUsedLanguagesInPageAndColumn(ServerRequestInterface $request, ResponseInterface $response)
+    public function getUsedLanguagesInPage(ServerRequestInterface $request): ResponseInterface
     {
         $params = $request->getQueryParams();
-        if (!isset($params['pageId'], $params['colPos'], $params['languageId'])) {
-            $response = $response->withStatus(500);
-            return $response;
+        if (!isset($params['pageId'], $params['languageId'])) {
+            return new JsonResponse(null, 400);
         }
 
         $pageId = (int)$params['pageId'];
-        $colPos = (int)$params['colPos'];
         $languageId = (int)$params['languageId'];
 
         /** @var TranslationConfigurationProvider $translationProvider */
@@ -83,19 +98,17 @@ class LocalizationController
         $availableLanguages = [];
 
         // First check whether column has localized records
-        $elementsInColumnCount = $this->localizationRepository->getLocalizedRecordCount($pageId, $colPos, $languageId);
+        $elementsInColumnCount = $this->localizationRepository->getLocalizedRecordCount($pageId, $languageId);
 
         if ($elementsInColumnCount === 0) {
-            $fetchedAvailableLanguages = $this->localizationRepository->fetchAvailableLanguages($pageId, $colPos, $languageId);
-            $availableLanguages[] = $systemLanguages[0];
-
+            $fetchedAvailableLanguages = $this->localizationRepository->fetchAvailableLanguages($pageId, $languageId);
             foreach ($fetchedAvailableLanguages as $language) {
-                if (isset($systemLanguages[$language['uid']])) {
-                    $availableLanguages[] = $systemLanguages[$language['uid']];
+                if (isset($systemLanguages[$language['sys_language_uid']])) {
+                    $availableLanguages[] = $systemLanguages[$language['sys_language_uid']];
                 }
             }
         } else {
-            $result = $this->localizationRepository->fetchOriginLanguage($pageId, $colPos, $languageId);
+            $result = $this->localizationRepository->fetchOriginLanguage($pageId, $languageId);
             $availableLanguages[] = $systemLanguages[$result['sys_language_uid']];
         }
 
@@ -108,69 +121,78 @@ class LocalizationController
             }
         }
 
-        $response->getBody()->write(json_encode($availableLanguages));
-        return $response;
+        return (new JsonResponse())->setPayload($availableLanguages);
     }
 
     /**
      * Get a prepared summary of records being translated
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function getRecordLocalizeSummary(ServerRequestInterface $request, ResponseInterface $response)
+    public function getRecordLocalizeSummary(ServerRequestInterface $request): ResponseInterface
     {
         $params = $request->getQueryParams();
-        if (!isset($params['pageId'], $params['colPos'], $params['destLanguageId'], $params['languageId'])) {
-            $response = $response->withStatus(500);
-            return $response;
+        if (!isset($params['pageId'], $params['destLanguageId'], $params['languageId'])) {
+            return new JsonResponse(null, 400);
         }
+
+        $pageId = (int)$params['pageId'];
+        $destLanguageId = (int)$params['destLanguageId'];
+        $languageId = (int)$params['languageId'];
 
         $records = [];
         $result = $this->localizationRepository->getRecordsToCopyDatabaseResult(
-            $params['pageId'],
-            $params['colPos'],
-            $params['destLanguageId'],
-            $params['languageId'],
+            $pageId,
+            $destLanguageId,
+            $languageId,
             '*'
         );
 
+        $flatRecords = [];
         while ($row = $result->fetch()) {
-            $records[] = [
+            BackendUtility::workspaceOL('tt_content', $row, -99, true);
+            if (!$row || VersionState::cast($row['t3ver_state'])->equals(VersionState::DELETE_PLACEHOLDER)) {
+                continue;
+            }
+            $colPos = $row['colPos'];
+            if (!isset($records[$colPos])) {
+                $records[$colPos] = [];
+            }
+            $records[$colPos][] = [
                 'icon' => $this->iconFactory->getIconForRecord('tt_content', $row, Icon::SIZE_SMALL)->render(),
                 'title' => $row[$GLOBALS['TCA']['tt_content']['ctrl']['label']],
                 'uid' => $row['uid']
             ];
+            $flatRecords[] = $row;
         }
 
-        $response->getBody()->write(json_encode($records));
-        return $response;
+        return (new JsonResponse())->setPayload([
+            'records' => $records,
+            'columns' => $this->getPageColumns($pageId, $flatRecords, $params),
+        ]);
     }
 
     /**
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function localizeRecords(ServerRequestInterface $request, ResponseInterface $response)
+    public function localizeRecords(ServerRequestInterface $request): ResponseInterface
     {
         $params = $request->getQueryParams();
         if (!isset($params['pageId'], $params['srcLanguageId'], $params['destLanguageId'], $params['action'], $params['uidList'])) {
-            $response = $response->withStatus(500);
-            return $response;
+            return new JsonResponse(null, 400);
         }
 
         if ($params['action'] !== static::ACTION_COPY && $params['action'] !== static::ACTION_LOCALIZE) {
+            $response = new Response('php://temp', 400, ['Content-Type' => 'application/json; charset=utf-8']);
             $response->getBody()->write('Invalid action "' . $params['action'] . '" called.');
-            $response = $response->withStatus(500);
             return $response;
         }
 
         // Filter transmitted but invalid uids
         $params['uidList'] = $this->filterInvalidUids(
             (int)$params['pageId'],
-            (int)$params['colPos'],
             (int)$params['destLanguageId'],
             (int)$params['srcLanguageId'],
             $params['uidList']
@@ -178,8 +200,7 @@ class LocalizationController
 
         $this->process($params);
 
-        $response->getBody()->write(json_encode([]));
-        return $response;
+        return (new JsonResponse())->setPayload([]);
     }
 
     /**
@@ -187,7 +208,6 @@ class LocalizationController
      * be smuggled in.
      *
      * @param int $pageId
-     * @param int $colPos
      * @param int $destLanguageId
      * @param int $srcLanguageId
      * @param array $transmittedUidList
@@ -195,15 +215,13 @@ class LocalizationController
      */
     protected function filterInvalidUids(
         int $pageId,
-        int $colPos,
         int $destLanguageId,
         int $srcLanguageId,
         array $transmittedUidList
     ): array {
         // Get all valid uids that can be processed
-        $validUidList = $result = $this->localizationRepository->getRecordsToCopyDatabaseResult(
+        $validUidList = $this->localizationRepository->getRecordsToCopyDatabaseResult(
             $pageId,
-            $colPos,
             $destLanguageId,
             $srcLanguageId,
             'uid'
@@ -217,7 +235,7 @@ class LocalizationController
      *
      * @param array $params
      */
-    protected function process($params)
+    protected function process($params): void
     {
         $destLanguageId = (int)$params['destLanguageId'];
 
@@ -243,5 +261,30 @@ class LocalizationController
         $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
         $dataHandler->start([], $cmd);
         $dataHandler->process_cmdmap();
+    }
+
+    /**
+     * @param int $pageId
+     * @param array $flatRecords
+     * @param array $params
+     * @return array
+     */
+    protected function getPageColumns(int $pageId, array $flatRecords, array $params): array
+    {
+        $columns = [];
+        $backendLayoutView = GeneralUtility::makeInstance(BackendLayoutView::class);
+        $backendLayout = $backendLayoutView->getBackendLayoutForPage($pageId);
+
+        foreach ($backendLayout->getUsedColumns() as $columnPos => $columnLabel) {
+            $columns[$columnPos] = $GLOBALS['LANG']->sL($columnLabel);
+        }
+
+        $event = GeneralUtility::makeInstance(AfterPageColumnsSelectedForLocalizationEvent::class, $columns, array_values($backendLayout->getColumnPositionNumbers()), $backendLayout, $flatRecords, $params);
+        $this->eventDispatcher->dispatch($event);
+
+        return [
+            'columns' => $event->getColumns(),
+            'columnList' => $event->getColumnList()
+        ];
     }
 }

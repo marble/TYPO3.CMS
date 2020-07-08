@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Imaging\ImageManipulation;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Imaging\ImageManipulation;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Imaging\ImageManipulation;
 
 use TYPO3\CMS\Core\Resource\FileInterface;
 
@@ -179,8 +181,7 @@ class Area
     {
         if ($this->isEmpty()) {
             return '';
-        } else {
-            return json_encode($this->asArray());
         }
+        return json_encode($this->asArray());
     }
 }

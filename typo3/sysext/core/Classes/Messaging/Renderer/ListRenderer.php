@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Messaging\Renderer;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Messaging\Renderer;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Messaging\Renderer;
+
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 
 /**
@@ -28,7 +30,7 @@ use TYPO3\CMS\Core\Messaging\FlashMessage;
 class ListRenderer implements FlashMessageRendererInterface
 {
     /**
-     * @var string The message severity class names
+     * @var string[] The message severity class names
      */
     protected static $classes = [
         FlashMessage::NOTICE => 'notice',
@@ -39,7 +41,7 @@ class ListRenderer implements FlashMessageRendererInterface
     ];
 
     /**
-     * @var string The message severity icon names
+     * @var string[] The message severity icon names
      */
     protected static $icons = [
         FlashMessage::NOTICE => 'lightbulb-o',
@@ -55,7 +57,7 @@ class ListRenderer implements FlashMessageRendererInterface
      * @param FlashMessage[] $flashMessages
      * @return string Representation of the flash message
      */
-    public function render(array $flashMessages) : string
+    public function render(array $flashMessages): string
     {
         return $this->getMessageAsMarkup($flashMessages);
     }
@@ -67,7 +69,7 @@ class ListRenderer implements FlashMessageRendererInterface
      *
      * @return string The message severity class name
      */
-    protected function getClass(FlashMessage $flashMessage) : string
+    protected function getClass(FlashMessage $flashMessage): string
     {
         return 'alert-' . self::$classes[$flashMessage->getSeverity()];
     }
@@ -79,7 +81,7 @@ class ListRenderer implements FlashMessageRendererInterface
      *
      * @return string The message severity icon name
      */
-    protected function getIconName(FlashMessage $flashMessage) : string
+    protected function getIconName(FlashMessage $flashMessage): string
     {
         return self::$icons[$flashMessage->getSeverity()];
     }
@@ -90,7 +92,7 @@ class ListRenderer implements FlashMessageRendererInterface
      * @param FlashMessage[] $flashMessages
      * @return string
      */
-    protected function getMessageAsMarkup(array $flashMessages) : string
+    protected function getMessageAsMarkup(array $flashMessages): string
     {
         $markup = [];
         $markup[] = '<ul class="typo3-messages">';

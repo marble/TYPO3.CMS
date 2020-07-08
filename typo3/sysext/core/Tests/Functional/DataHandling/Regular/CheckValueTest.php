@@ -1,4 +1,18 @@
 <?php
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
@@ -14,7 +28,7 @@ class CheckValueTest extends AbstractDataHandlerActionTestCase
      */
     protected $scenarioDataSetDirectory = 'typo3/sysext/core/Tests/Functional/DataHandling/Regular/DataSet/';
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->testExtensionsToLoad[] = 'typo3/sysext/core/Tests/Functional/Fixtures/Extensions/test_datahandler';
 
@@ -29,7 +43,7 @@ class CheckValueTest extends AbstractDataHandlerActionTestCase
     {
         $record = $this->insertRecordWithRadioFieldValue('predefined value');
 
-        $this->assertEquals('predefined value', $record['tx_testdatahandler_radio']);
+        self::assertEquals('predefined value', $record['tx_testdatahandler_radio']);
     }
 
     /**
@@ -39,7 +53,7 @@ class CheckValueTest extends AbstractDataHandlerActionTestCase
     {
         $record = $this->insertRecordWithRadioFieldValue('processed value');
 
-        $this->assertEquals('processed value', $record['tx_testdatahandler_radio']);
+        self::assertEquals('processed value', $record['tx_testdatahandler_radio']);
     }
 
     /**
@@ -49,7 +63,7 @@ class CheckValueTest extends AbstractDataHandlerActionTestCase
     {
         $record = $this->insertRecordWithRadioFieldValue('some other value');
 
-        $this->assertEquals('', $record['tx_testdatahandler_radio']);
+        self::assertEquals('', $record['tx_testdatahandler_radio']);
     }
 
     /**

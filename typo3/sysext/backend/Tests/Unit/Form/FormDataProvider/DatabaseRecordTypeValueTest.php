@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,22 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseRecordTypeValue;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabaseRecordTypeValueTest extends UnitTestCase
 {
     /**
-     * @var DatabaseRecordTypeValue|\PHPUnit_Framework_MockObject_MockObject
+     * @var DatabaseRecordTypeValue|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->subject = $this->getMockBuilder(DatabaseRecordTypeValue::class)
             ->setMethods(['getDatabaseRow'])
@@ -39,6 +41,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
     public function addDataThrowsExceptionIfTcaTypesAreEmpty()
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'types' => [],
             ],
@@ -64,7 +67,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
             ],
         ];
         $expected = $input;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -81,7 +84,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
             ],
         ];
         $expected = $input;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -99,7 +102,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         ];
         $expected = $input;
         $expected['recordTypeValue'] = '1';
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -119,7 +122,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         $expected = $input;
         $expected['recordTypeValue'] = '0';
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -128,6 +131,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
     public function addDataThrowsExceptionIfTypePointsToANotExistingField()
     {
         $input = [
+            'tableName' => 'aTable',
             'recordTypeValue' => '',
             'processedTca' => [
                 'ctrl' => [
@@ -171,7 +175,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         $expected = $input;
         $expected['recordTypeValue'] = '3';
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -197,7 +201,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         $expected = $input;
         $expected['recordTypeValue'] = '0';
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -223,7 +227,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         $expected = $input;
         $expected['recordTypeValue'] = '0';
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -232,6 +236,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
     public function addDataThrowsExceptionIfValueTypesNotExistsAndNoFallbackExists()
     {
         $input = [
+            'tableName' => 'aTable',
             'recordTypeValue' => '',
             'processedTca' => [
                 'ctrl' => [
@@ -288,6 +293,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
     public function addDataThrowsExceptionForForeignTypeIfPointerConfigurationHasNoTable()
     {
         $input = [
+            'tableName' => 'aTable',
             'recordTypeValue' => '',
             'processedTca' => [
                 'ctrl' => [
@@ -348,7 +354,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
             'foreignField' => 3,
         ];
 
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getDatabaseRow')
             ->with('foreignTable', 42, 'foreignField')
             ->willReturn($foreignRecordResult);
@@ -356,7 +362,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         $expected = $input;
         $expected['recordTypeValue'] = '3';
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -400,7 +406,7 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
             'type' => 2,
         ];
 
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getDatabaseRow')
             ->with('sys_file', 222, 'type')
             ->willReturn($foreignRecordResult);
@@ -408,6 +414,6 @@ class DatabaseRecordTypeValueTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         $expected = $input;
         $expected['recordTypeValue'] = '2';
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 }

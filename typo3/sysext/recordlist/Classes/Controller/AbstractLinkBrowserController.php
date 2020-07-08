@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recordlist\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,27 +13,31 @@ namespace TYPO3\CMS\Recordlist\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recordlist\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use TYPO3\CMS\Backend\Routing\Router;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
-use TYPO3\CMS\Backend\Template\DocumentTemplate;
+use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Recordlist\LinkHandler\LinkHandlerInterface;
 
 /**
  * Script class for the Link Browser window.
+ * @internal This class is a specific Backend controller implementation and is not part of the TYPO3's Core API.
  */
 abstract class AbstractLinkBrowserController
 {
     /**
-     * @var DocumentTemplate
+     * @var ModuleTemplate
      */
-    protected $doc;
+    protected $moduleTemplate;
 
     /**
      * @var array
@@ -116,6 +119,9 @@ abstract class AbstractLinkBrowserController
      */
     public function __construct()
     {
+        $this->moduleTemplate = GeneralUtility::makeInstance(ModuleTemplate::class);
+        $this->moduleTemplate->getDocHeaderComponent()->disable();
+        $this->moduleTemplate->getView()->setTemplate('LinkBrowser');
         $this->initHookObjects();
         $this->init();
     }
@@ -125,7 +131,7 @@ abstract class AbstractLinkBrowserController
      */
     protected function init()
     {
-        $this->getLanguageService()->includeLLFile('EXT:lang/Resources/Private/Language/locallang_browse_links.xlf');
+        $this->getLanguageService()->includeLLFile('EXT:recordlist/Resources/Private/Language/locallang_browse_links.xlf');
     }
 
     /**
@@ -135,15 +141,11 @@ abstract class AbstractLinkBrowserController
      */
     protected function initHookObjects()
     {
-        if (isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['LinkBrowser']['hooks'])
-            && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['LinkBrowser']['hooks'])
-        ) {
-            $hooks = GeneralUtility::makeInstance(DependencyOrderingService::class)->orderByDependencies(
-                $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['LinkBrowser']['hooks']
-            );
-            foreach ($hooks as $key => $hook) {
-                $this->hookObjects[] = GeneralUtility::makeInstance($hook['handler']);
-            }
+        $hooks = GeneralUtility::makeInstance(DependencyOrderingService::class)->orderByDependencies(
+            $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['LinkBrowser']['hooks'] ?? []
+        );
+        foreach ($hooks as $key => $hook) {
+            $this->hookObjects[] = GeneralUtility::makeInstance($hook['handler']);
         }
     }
 
@@ -152,10 +154,9 @@ abstract class AbstractLinkBrowserController
      * As this controller goes only through the main() method, it is rather simple for now
      *
      * @param ServerRequestInterface $request the current request
-     * @param ResponseInterface $response the prepared response object
      * @return ResponseInterface the response with the content
      */
-    public function mainAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function mainAction(ServerRequestInterface $request): ResponseInterface
     {
         $this->determineScriptUrl($request);
         $this->initVariables($request);
@@ -167,35 +168,18 @@ abstract class AbstractLinkBrowserController
         $browserContent = $this->displayedLinkHandler->render($request);
 
         $this->initDocumentTemplate();
-        $content = $this->doc->startPage('Link Browser');
-        $content .= $this->doc->getFlashMessages();
+        $view = $this->moduleTemplate->getView();
+        $this->moduleTemplate->setTitle('Link Browser');
 
         if (!empty($this->currentLinkParts)) {
-            $content .= $this->renderCurrentUrl();
+            $this->renderCurrentUrl();
         }
 
-        $options = '';
-        foreach ($menuData as $id => $def) {
-            $class = $def['isActive'] ? 'active' : '';
-            $label = $def['label'];
-            $url = htmlspecialchars($def['url']);
-            $params = $def['addParams'];
+        $view->assign('menuItems', $menuData);
+        $view->assign('linkAttributes', $renderLinkAttributeFields);
+        $view->assign('content', $browserContent);
 
-            $options .= '<li class="' . $class . '">' .
-                '<a href="' . $url . '" ' . $params . '>' . $label . '</a>' .
-                '</li>';
-        }
-
-        $content .= '<div class="element-browser-panel element-browser-tabs"><ul class="nav nav-tabs" role="tablist">' .
-            $options . '</ul></div>';
-
-        $content .= $renderLinkAttributeFields;
-
-        $content .= $browserContent;
-        $content .= $this->doc->endPage();
-
-        $response->getBody()->write($this->doc->insertStylesAndJS($content));
-        return $response;
+        return new HtmlResponse($this->moduleTemplate->renderContent());
     }
 
     /**
@@ -209,12 +193,8 @@ abstract class AbstractLinkBrowserController
     protected function determineScriptUrl(ServerRequestInterface $request)
     {
         if ($routePath = $request->getQueryParams()['route']) {
-            $router = GeneralUtility::makeInstance(Router::class);
-            $route = $router->match($routePath);
             $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-            $this->thisScript = (string)$uriBuilder->buildUriFromRoute($route->getOption('_identifier'));
-        } elseif ($moduleName = $request->getQueryParams()['M']) {
-            $this->thisScript = BackendUtility::getModuleUrl($moduleName);
+            $this->thisScript = (string)$uriBuilder->buildUriFromRoutePath($routePath);
         } else {
             $this->thisScript = GeneralUtility::getIndpEnv('SCRIPT_NAME');
         }
@@ -226,9 +206,9 @@ abstract class AbstractLinkBrowserController
     protected function initVariables(ServerRequestInterface $request)
     {
         $queryParams = $request->getQueryParams();
-        $this->displayedLinkHandlerId = isset($queryParams['act']) ? $queryParams['act'] : '';
-        $this->parameters = isset($queryParams['P']) ? $queryParams['P'] : [];
-        $this->linkAttributeValues = isset($queryParams['linkAttributes']) ? $queryParams['linkAttributes'] : [];
+        $this->displayedLinkHandlerId = $queryParams['act'] ?? '';
+        $this->parameters = $queryParams['P'] ?? [];
+        $this->linkAttributeValues = $queryParams['linkAttributes'] ?? [];
     }
 
     /**
@@ -254,7 +234,7 @@ abstract class AbstractLinkBrowserController
             $handler->initialize(
                 $this,
                 $identifier,
-                isset($configuration['configuration.']) ? $configuration['configuration.'] : []
+                $configuration['configuration.'] ?? []
             );
 
             $label = !empty($configuration['label']) ? $lang->sL($configuration['label']) : '';
@@ -266,7 +246,7 @@ abstract class AbstractLinkBrowserController
                 'displayAfter' => isset($configuration['displayAfter']) ? GeneralUtility::trimExplode(',', $configuration['displayAfter']) : [],
                 'scanBefore' => isset($configuration['scanBefore']) ? GeneralUtility::trimExplode(',', $configuration['scanBefore']) : [],
                 'scanAfter' => isset($configuration['scanAfter']) ? GeneralUtility::trimExplode(',', $configuration['scanAfter']) : [],
-                'addParams' => isset($configuration['addParams']) ? $configuration['addParams'] : '',
+                'addParams' => $configuration['addParams'] ?? '',
             ];
         }
     }
@@ -278,10 +258,7 @@ abstract class AbstractLinkBrowserController
      */
     protected function getLinkHandlers()
     {
-        $pageTSconfig = BackendUtility::getPagesTSconfig($this->getCurrentPageId());
-        $pageTSconfig = $this->getBackendUser()->getTSConfig('TCEMAIN.linkHandler.', $pageTSconfig);
-        $linkHandlers = (array)$pageTSconfig['properties'];
-
+        $linkHandlers = (array)(BackendUtility::getPagesTSconfig($this->getCurrentPageId())['TCEMAIN.']['linkHandler.'] ?? []);
         foreach ($this->hookObjects as $hookObject) {
             if (method_exists($hookObject, 'modifyLinkHandlers')) {
                 $linkHandlers = $hookObject->modifyLinkHandlers($linkHandlers, $this->currentLinkParts);
@@ -326,35 +303,21 @@ abstract class AbstractLinkBrowserController
     }
 
     /**
-     * Initialize document template object
+     * Initialize body tag parameters, but can be used for other parts as well
      */
     protected function initDocumentTemplate()
     {
-        $this->doc = GeneralUtility::makeInstance(DocumentTemplate::class);
-        $this->doc->divClass = 'element-browser';
-
-        foreach ($this->getBodyTagAttributes() as $attributeName => $value) {
-            $this->doc->bodyTagAdditions .= ' ' . $attributeName . '="' . htmlspecialchars($value) . '"';
-        }
-
-        // Finally, add the accumulated JavaScript to the template object:
-        // also unset the default jumpToUrl() function before
-        unset($this->doc->JScodeArray['jumpToUrl']);
+        $bodyTag = $this->moduleTemplate->getBodyTag();
+        $bodyTag = str_replace('>', ' ' . GeneralUtility::implodeAttributes($this->getBodyTagAttributes(), true, true) . '>', $bodyTag);
+        $this->moduleTemplate->setBodyTag($bodyTag);
     }
 
     /**
-     * Render the currently set URL
-     *
-     * @return string
+     * Add the currently set URL to the view
      */
     protected function renderCurrentUrl()
     {
-        return '<!-- Print current URL -->
-            <div class="element-browser-panel element-browser-title">' .
-                htmlspecialchars($this->getLanguageService()->getLL('currentLink')) .
-                ': ' .
-                htmlspecialchars($this->currentLinkHandler->formatCurrentUrl()) .
-            '</div>';
+        $this->moduleTemplate->getView()->assign('currentUrl', $this->currentLinkHandler->formatCurrentUrl());
     }
 
     /**
@@ -386,17 +349,11 @@ abstract class AbstractLinkBrowserController
                 }
             }
 
-            if ($configuration['addParams']) {
-                $addParams = $configuration['addParams'];
-            } else {
-                $parameters = GeneralUtility::implodeArrayForUrl('', $this->getUrlParameters(['act' => $identifier]));
-                $addParams = 'onclick="jumpToUrl(' . GeneralUtility::quoteJSvalue('?' . ltrim($parameters, '&')) . ');return false;"';
-            }
             $menuDef[$identifier] = [
                 'isActive' => $isActive,
                 'label' => $configuration['label'],
-                'url' => '#',
-                'addParams' => $addParams,
+                'url' => $this->thisScript . HttpUtility::buildQueryString($this->getUrlParameters(['act' => $identifier]), '&'),
+                'addParams' => $configuration['addParams'] ?? '',
                 'before' => $configuration['displayBefore'],
                 'after' => $configuration['displayAfter']
             ];
@@ -467,7 +424,7 @@ abstract class AbstractLinkBrowserController
      *
      * @return string
      */
-    public function renderLinkAttributeFields()
+    protected function renderLinkAttributeFields()
     {
         $fieldRenderingDefinitions = $this->getLinkAttributeFieldDefinitions();
 
@@ -482,17 +439,9 @@ abstract class AbstractLinkBrowserController
 
         // add update button if appropriate
         if (!empty($this->currentLinkParts) && $this->displayedLinkHandler === $this->currentLinkHandler && $this->currentLinkHandler->isUpdateSupported()) {
-            $content .= '
-                <form action="" name="lparamsform" id="lparamsform" class="form-horizontal">
-                    <div class="form-group form-group-sm">
-                        <div class="col-xs-12">
-                            <input class="btn btn-default t3js-linkCurrent" type="submit" value="' . htmlspecialchars($this->getLanguageService()->getLL('update')) . '" />
-                        </div>
-                    </div>
-                </form>';
+            $this->moduleTemplate->getView()->assign('showUpdateParametersButton', true);
         }
-
-        return '<div class="element-browser-panel element-browser-attributes">' . $content . '</div>';
+        return $content;
     }
 
     /**
@@ -543,7 +492,7 @@ abstract class AbstractLinkBrowserController
                     <label class="col-xs-4 control-label">' . htmlspecialchars($lang->getLL('class')) . '</label>
                     <div class="col-xs-8">
                         <input type="text" name="lclass" class="form-control"
-                            value="' . htmlspecialchars($this->linkAttributeValues['class']) . '" /></td>
+                            value="' . htmlspecialchars($this->linkAttributeValues['class']) . '" />
                     </div>
                 </div>
             </form>';
@@ -571,7 +520,8 @@ abstract class AbstractLinkBrowserController
     public function getUrlParameters(array $overrides = null)
     {
         return [
-            'act' => isset($overrides['act']) ? $overrides['act'] : $this->displayedLinkHandlerId
+            'act' => $overrides['act'] ?? $this->displayedLinkHandlerId,
+            'P' => $overrides['P'] ?? $this->parameters,
         ];
     }
 
@@ -587,10 +537,10 @@ abstract class AbstractLinkBrowserController
         $parameters['pid'] = $this->parameters['pid'];
         $parameters['itemName'] = $this->parameters['itemName'];
         $parameters['formName'] = $this->parameters['formName'];
-        $parameters['params']['allowedExtensions'] = isset($this->parameters['params']['allowedExtensions']) ? $this->parameters['params']['allowedExtensions'] : '';
-        $parameters['params']['blindLinkOptions'] = isset($this->parameters['params']['blindLinkOptions']) ? $this->parameters['params']['blindLinkOptions'] : '';
-        $parameters['params']['blindLinkFields'] = isset($this->parameters['params']['blindLinkFields']) ? $this->parameters['params']['blindLinkFields']: '';
-        $addPassOnParams = GeneralUtility::implodeArrayForUrl('P', $parameters);
+        $parameters['params']['allowedExtensions'] = $this->parameters['params']['allowedExtensions'] ?? '';
+        $parameters['params']['blindLinkOptions'] = $this->parameters['params']['blindLinkOptions'] ?? '';
+        $parameters['params']['blindLinkFields'] = $this->parameters['params']['blindLinkFields'] ?? '';
+        $addPassOnParams = HttpUtility::buildQueryString(['P' => $parameters], '&');
 
         $attributes = $this->displayedLinkHandler->getBodyTagAttributes();
         return array_merge(
@@ -633,7 +583,7 @@ abstract class AbstractLinkBrowserController
     /**
      * @return string
      */
-    public function getDisplayedLinkHandlerId()
+    protected function getDisplayedLinkHandlerId()
     {
         return $this->displayedLinkHandlerId;
     }

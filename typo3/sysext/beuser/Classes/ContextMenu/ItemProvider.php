@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Beuser\ContextMenu;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,8 +15,13 @@ namespace TYPO3\CMS\Beuser\ContextMenu;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Beuser\ContextMenu;
+
 use TYPO3\CMS\Backend\ContextMenu\ItemProviders\PageProvider;
 
+/**
+ * @internal This class is a TYPO3 core-internal hook implementation and is not considered part of the Public TYPO3 API.
+ */
 class ItemProvider extends PageProvider
 {
     /**
@@ -25,7 +30,7 @@ class ItemProvider extends PageProvider
     protected $itemsConfiguration = [
         'permissions' => [
             'type' => 'item',
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_misc.xlf:CM_perms',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_misc.xlf:CM_perms',
             'iconIdentifier' => 'actions-lock',
             'callbackAction' => 'openPermissionsModule'
         ],

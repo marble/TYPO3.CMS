@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource\TextExtraction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,16 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource\TextExtraction;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Resource\TextExtraction;
+
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\TextExtraction\PlainTextExtractor;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Class PlainTextExtractorTest
  */
-class PlainTextExtractorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class PlainTextExtractorTest extends UnitTestCase
 {
     /**
      * @test
@@ -30,9 +32,9 @@ class PlainTextExtractorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $plainTextExtractor = new PlainTextExtractor();
 
         $fileResourceMock = $this->createMock(File::class);
-        $fileResourceMock->expects($this->any())->method('getMimeType')->will($this->returnValue('text/plain'));
+        $fileResourceMock->expects(self::any())->method('getMimeType')->willReturn('text/plain');
 
-        $this->assertTrue($plainTextExtractor->canExtractText($fileResourceMock));
+        self::assertTrue($plainTextExtractor->canExtractText($fileResourceMock));
     }
 
     /**
@@ -43,8 +45,8 @@ class PlainTextExtractorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $plainTextExtractor = new PlainTextExtractor();
 
         $fileResourceMock = $this->createMock(File::class);
-        $fileResourceMock->expects($this->any())->method('getMimeType')->will($this->returnValue('video/mp4'));
+        $fileResourceMock->expects(self::any())->method('getMimeType')->willReturn('video/mp4');
 
-        $this->assertFalse($plainTextExtractor->canExtractText($fileResourceMock));
+        self::assertFalse($plainTextExtractor->canExtractText($fileResourceMock));
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Tests\Unit\FolderStructure;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,24 +12,35 @@ namespace TYPO3\CMS\Install\Tests\Unit\FolderStructure;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Install\Tests\Unit\FolderStructure;
+
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\CMS\Install\FolderStructure\AbstractNode;
 use TYPO3\CMS\Install\FolderStructure\Exception;
 use TYPO3\CMS\Install\FolderStructure\Exception\InvalidArgumentException;
+use TYPO3\CMS\Install\FolderStructure\NodeInterface;
+use TYPO3\CMS\Install\FolderStructure\RootNodeInterface;
+use TYPO3\CMS\Install\Tests\Unit\FolderStructureTestCase;
+use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
 
 /**
  * Test case
  */
-class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTestCase
+class AbstractNodeTest extends FolderStructureTestCase
 {
     /**
      * @test
      */
     public function getNameReturnsSetName()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
-        $name = $this->getUniqueId('name_');
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
+        $name = StringUtility::getUniqueId('name_');
         $node->_set('name', $name);
-        $this->assertSame($name, $node->getName());
+        self::assertSame($name, $node->getName());
     }
 
     /**
@@ -38,11 +48,11 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function getTargetPermissionReturnsSetTargetPermission()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
         $permission = '1234';
         $node->_set('targetPermission', $permission);
-        $this->assertSame($permission, $node->_call('getTargetPermission'));
+        self::assertSame($permission, $node->_call('getTargetPermission'));
     }
 
     /**
@@ -50,11 +60,11 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function getChildrenReturnsSetChildren()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
         $children = ['1234'];
         $node->_set('children', $children);
-        $this->assertSame($children, $node->_call('getChildren'));
+        self::assertSame($children, $node->_call('getChildren'));
     }
 
     /**
@@ -62,11 +72,11 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function getParentReturnsSetParent()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
-        $parent = $this->createMock(\TYPO3\CMS\Install\FolderStructure\RootNodeInterface::class);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
+        $parent = $this->createMock(RootNodeInterface::class);
         $node->_set('parent', $parent);
-        $this->assertSame($parent, $node->_call('getParent'));
+        self::assertSame($parent, $node->_call('getParent'));
     }
 
     /**
@@ -74,15 +84,15 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function getAbsolutePathCallsParentForPathAndAppendsOwnName()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
-        $parent = $this->createMock(\TYPO3\CMS\Install\FolderStructure\RootNodeInterface::class);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
+        $parent = $this->createMock(RootNodeInterface::class);
         $parentPath = '/foo/bar';
-        $parent->expects($this->once())->method('getAbsolutePath')->will($this->returnValue($parentPath));
-        $name = $this->getUniqueId('test_');
+        $parent->expects(self::once())->method('getAbsolutePath')->willReturn($parentPath);
+        $name = StringUtility::getUniqueId('test_');
         $node->_set('parent', $parent);
         $node->_set('name', $name);
-        $this->assertSame($parentPath . '/' . $name, $node->getAbsolutePath());
+        self::assertSame($parentPath . '/' . $name, $node->getAbsolutePath());
     }
 
     /**
@@ -90,10 +100,10 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function isWritableCallsParentIsWritable()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
-        $parentMock = $this->createMock(\TYPO3\CMS\Install\FolderStructure\NodeInterface::class);
-        $parentMock->expects($this->once())->method('isWritable');
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
+        $parentMock = $this->createMock(NodeInterface::class);
+        $parentMock->expects(self::once())->method('isWritable');
         $node->_set('parent', $parentMock);
         $node->isWritable();
     }
@@ -103,12 +113,12 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function isWritableReturnsWritableStatusOfParent()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
-        $parentMock = $this->createMock(\TYPO3\CMS\Install\FolderStructure\NodeInterface::class);
-        $parentMock->expects($this->once())->method('isWritable')->will($this->returnValue(true));
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
+        $parentMock = $this->createMock(NodeInterface::class);
+        $parentMock->expects(self::once())->method('isWritable')->willReturn(true);
         $node->_set('parent', $parentMock);
-        $this->assertTrue($node->isWritable());
+        self::assertTrue($node->isWritable());
     }
 
     /**
@@ -116,11 +126,11 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function existsReturnsTrueIfNodeExists()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['getAbsolutePath'], [], '', false);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['getAbsolutePath'], [], '', false);
         $path = $this->getVirtualTestDir('dir_');
-        $node->expects($this->any())->method('getAbsolutePath')->will($this->returnValue($path));
-        $this->assertTrue($node->_call('exists'));
+        $node->expects(self::any())->method('getAbsolutePath')->willReturn($path);
+        self::assertTrue($node->_call('exists'));
     }
 
     /**
@@ -129,16 +139,16 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function existsReturnsTrueIfIsLinkAndTargetIsDead()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['getAbsolutePath'], [], '', false);
-        $path = PATH_site . 'typo3temp/var/tests/' . $this->getUniqueId('link_');
-        $target = PATH_site . 'typo3temp/var/tests/' . $this->getUniqueId('notExists_');
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['getAbsolutePath'], [], '', false);
+        $path = Environment::getVarPath() . '/tests/' . StringUtility::getUniqueId('link_');
+        $target = Environment::getVarPath() . '/tests/' . StringUtility::getUniqueId('notExists_');
         touch($target);
         symlink($target, $path);
         unlink($target);
         $this->testFilesToDelete[] = $path;
-        $node->expects($this->any())->method('getAbsolutePath')->will($this->returnValue($path));
-        $this->assertTrue($node->_call('exists'));
+        $node->expects(self::any())->method('getAbsolutePath')->willReturn($path);
+        self::assertTrue($node->_call('exists'));
     }
 
     /**
@@ -146,11 +156,11 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function existsReturnsFalseIfNodeNotExists()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['getAbsolutePath'], [], '', false);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['getAbsolutePath'], [], '', false);
         $path = $this->getVirtualTestFilePath('dir_');
-        $node->expects($this->any())->method('getAbsolutePath')->will($this->returnValue($path));
-        $this->assertFalse($node->_call('exists'));
+        $node->expects(self::any())->method('getAbsolutePath')->willReturn($path);
+        self::assertFalse($node->_call('exists'));
     }
 
     /**
@@ -158,9 +168,9 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function fixPermissionThrowsExceptionIfPermissionAreAlreadyCorrect()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
         $node = $this->getAccessibleMock(
-            \TYPO3\CMS\Install\FolderStructure\AbstractNode::class,
+            AbstractNode::class,
             ['isPermissionCorrect', 'getAbsolutePath'],
             [],
             '',
@@ -168,8 +178,8 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
         );
         $this->expectException(Exception::class);
         $this->expectExceptionCode(1366744035);
-        $node->expects($this->any())->method('getAbsolutePath')->will($this->returnValue(''));
-        $node->expects($this->once())->method('isPermissionCorrect')->will($this->returnValue(true));
+        $node->expects(self::any())->method('getAbsolutePath')->willReturn('');
+        $node->expects(self::once())->method('isPermissionCorrect')->willReturn(true);
         $node->_call('fixPermission');
     }
 
@@ -179,25 +189,25 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
     public function fixPermissionReturnsNoticeStatusIfPermissionCanNotBeChanged()
     {
         if (function_exists('posix_getegid') && posix_getegid() === 0) {
-            $this->markTestSkipped('Test skipped if run on linux as root');
+            self::markTestSkipped('Test skipped if run on linux as root');
         }
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
         $node = $this->getAccessibleMock(
-            \TYPO3\CMS\Install\FolderStructure\AbstractNode::class,
+            AbstractNode::class,
             ['isPermissionCorrect', 'getRelativePathBelowSiteRoot', 'getAbsolutePath'],
             [],
             '',
             false
         );
-        $node->expects($this->any())->method('getRelativePathBelowSiteRoot')->will($this->returnValue(''));
-        $node->expects($this->once())->method('isPermissionCorrect')->will($this->returnValue(false));
+        $node->expects(self::any())->method('getRelativePathBelowSiteRoot')->willReturn('');
+        $node->expects(self::once())->method('isPermissionCorrect')->willReturn(false);
         $path = $this->getVirtualTestDir('root_');
-        $subPath = $path . '/' . $this->getUniqueId('dir_');
+        $subPath = $path . '/' . StringUtility::getUniqueId('dir_');
         mkdir($subPath);
         chmod($path, 02000);
-        $node->expects($this->any())->method('getAbsolutePath')->will($this->returnValue($subPath));
+        $node->expects(self::any())->method('getAbsolutePath')->willReturn($subPath);
         $node->_set('targetPermission', '2770');
-        $this->assertInstanceOf(\TYPO3\CMS\Install\Status\NoticeStatus::class, $node->_call('fixPermission'));
+        self::assertEquals(FlashMessage::NOTICE, $node->_call('fixPermission')->getSeverity());
         chmod($path, 02770);
     }
 
@@ -207,25 +217,25 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
     public function fixPermissionReturnsNoticeStatusIfPermissionsCanNotBeChanged()
     {
         if (function_exists('posix_getegid') && posix_getegid() === 0) {
-            $this->markTestSkipped('Test skipped if run on linux as root');
+            self::markTestSkipped('Test skipped if run on linux as root');
         }
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
         $node = $this->getAccessibleMock(
-            \TYPO3\CMS\Install\FolderStructure\AbstractNode::class,
+            AbstractNode::class,
             ['isPermissionCorrect', 'getRelativePathBelowSiteRoot', 'getAbsolutePath'],
             [],
             '',
             false
         );
-        $node->expects($this->any())->method('getRelativePathBelowSiteRoot')->will($this->returnValue(''));
-        $node->expects($this->once())->method('isPermissionCorrect')->will($this->returnValue(false));
+        $node->expects(self::any())->method('getRelativePathBelowSiteRoot')->willReturn('');
+        $node->expects(self::once())->method('isPermissionCorrect')->willReturn(false);
         $path = $this->getVirtualTestDir('root_');
-        $subPath = $path . '/' . $this->getUniqueId('dir_');
+        $subPath = $path . '/' . StringUtility::getUniqueId('dir_');
         mkdir($subPath);
         chmod($path, 02000);
-        $node->expects($this->any())->method('getAbsolutePath')->will($this->returnValue($subPath));
+        $node->expects(self::any())->method('getAbsolutePath')->willReturn($subPath);
         $node->_set('targetPermission', '2770');
-        $this->assertInstanceOf(\TYPO3\CMS\Install\Status\NoticeStatus::class, $node->_call('fixPermission'));
+        self::assertEquals(FlashMessage::NOTICE, $node->_call('fixPermission')->getSeverity());
         chmod($path, 02770);
     }
 
@@ -234,25 +244,25 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function fixPermissionReturnsOkStatusIfPermissionCanBeFixedAndSetsPermissionToCorrectValue()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
         $node = $this->getAccessibleMock(
-            \TYPO3\CMS\Install\FolderStructure\AbstractNode::class,
+            AbstractNode::class,
             ['isPermissionCorrect', 'getRelativePathBelowSiteRoot', 'getAbsolutePath'],
             [],
             '',
             false
         );
-        $node->expects($this->any())->method('getRelativePathBelowSiteRoot')->will($this->returnValue(''));
-        $node->expects($this->once())->method('isPermissionCorrect')->will($this->returnValue(false));
+        $node->expects(self::any())->method('getRelativePathBelowSiteRoot')->willReturn('');
+        $node->expects(self::once())->method('isPermissionCorrect')->willReturn(false);
         $path = $this->getVirtualTestDir('root_');
-        $subPath = $path . '/' . $this->getUniqueId('dir_');
+        $subPath = $path . '/' . StringUtility::getUniqueId('dir_');
         mkdir($subPath);
         chmod($path, 02770);
         $node->_set('targetPermission', '2770');
-        $node->expects($this->any())->method('getAbsolutePath')->will($this->returnValue($subPath));
-        $this->assertInstanceOf(\TYPO3\CMS\Install\Status\OkStatus::class, $node->_call('fixPermission'));
+        $node->expects(self::any())->method('getAbsolutePath')->willReturn($subPath);
+        self::assertEquals(FlashMessage::OK, $node->_call('fixPermission')->getSeverity());
         $resultDirectoryPermissions = substr(decoct(fileperms($subPath)), 1);
-        $this->assertSame('2770', $resultDirectoryPermissions);
+        self::assertSame('2770', $resultDirectoryPermissions);
     }
 
     /**
@@ -260,10 +270,10 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function isPermissionCorrectReturnsTrueOnWindowsOs()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['isWindowsOs'], [], '', false);
-        $node->expects($this->once())->method('isWindowsOs')->will($this->returnValue(true));
-        $this->assertTrue($node->_call('isPermissionCorrect'));
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['isWindowsOs'], [], '', false);
+        $node->expects(self::once())->method('isWindowsOs')->willReturn(true);
+        self::assertTrue($node->_call('isPermissionCorrect'));
     }
 
     /**
@@ -271,12 +281,12 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function isPermissionCorrectReturnsFalseIfTargetPermissionAndCurrentPermissionAreNotIdentical()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['isWindowsOs', 'getCurrentPermission'], [], '', false);
-        $node->expects($this->any())->method('isWindowsOs')->will($this->returnValue(false));
-        $node->expects($this->any())->method('getCurrentPermission')->will($this->returnValue('foo'));
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['isWindowsOs', 'getCurrentPermission'], [], '', false);
+        $node->expects(self::any())->method('isWindowsOs')->willReturn(false);
+        $node->expects(self::any())->method('getCurrentPermission')->willReturn('foo');
         $node->_set('targetPermission', 'bar');
-        $this->assertFalse($node->_call('isPermissionCorrect'));
+        self::assertFalse($node->_call('isPermissionCorrect'));
     }
 
     /**
@@ -284,13 +294,13 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function getCurrentPermissionReturnsCurrentDirectoryPermission()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['getAbsolutePath'], [], '', false);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['getAbsolutePath'], [], '', false);
         $path = $this->getVirtualTestDir('dir_');
         chmod($path, 02775);
         clearstatcache();
-        $node->expects($this->any())->method('getAbsolutePath')->will($this->returnValue($path));
-        $this->assertSame('2775', $node->_call('getCurrentPermission'));
+        $node->expects(self::any())->method('getAbsolutePath')->willReturn($path);
+        self::assertSame('2775', $node->_call('getCurrentPermission'));
     }
 
     /**
@@ -298,14 +308,14 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function getCurrentPermissionReturnsCurrentFilePermission()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['getAbsolutePath'], [], '', false);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['getAbsolutePath'], [], '', false);
         $file = $this->getVirtualTestFilePath('file_');
         touch($file);
         chmod($file, 0770);
         clearstatcache();
-        $node->expects($this->any())->method('getAbsolutePath')->will($this->returnValue($file));
-        $this->assertSame('0770', $node->_call('getCurrentPermission'));
+        $node->expects(self::any())->method('getAbsolutePath')->willReturn($file);
+        self::assertSame('0770', $node->_call('getCurrentPermission'));
     }
 
     /**
@@ -315,8 +325,8 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionCode(1366398198);
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
         $node->_call('getRelativePathBelowSiteRoot', '/tmp');
     }
 
@@ -325,15 +335,15 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function getRelativePathCallsGetAbsolutePathIfPathIsNull()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
         $node = $this->getAccessibleMock(
-            \TYPO3\CMS\Install\FolderStructure\AbstractNode::class,
+            AbstractNode::class,
             ['getAbsolutePath'],
             [],
             '',
             false
         );
-        $node->expects($this->once())->method('getAbsolutePath')->will($this->returnValue(PATH_site));
+        $node->expects(self::once())->method('getAbsolutePath')->willReturn(Environment::getPublicPath());
         $node->_call('getRelativePathBelowSiteRoot', null);
     }
 
@@ -342,10 +352,10 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function getRelativePathBelowSiteRootReturnsSingleForwardSlashIfGivenPathEqualsPathSiteConstant()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
-        $result = $node->_call('getRelativePathBelowSiteRoot', PATH_site);
-        $this->assertSame('/', $result);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
+        $result = $node->_call('getRelativePathBelowSiteRoot', Environment::getPublicPath() . '/');
+        self::assertSame('/', $result);
     }
 
     /**
@@ -353,9 +363,9 @@ class AbstractNodeTest extends \TYPO3\CMS\Install\Tests\Unit\FolderStructureTest
      */
     public function getRelativePathBelowSiteRootReturnsSubPath()
     {
-        /** @var $node \TYPO3\CMS\Install\FolderStructure\AbstractNode|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $node = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\AbstractNode::class, ['dummy'], [], '', false);
-        $result = $node->_call('getRelativePathBelowSiteRoot', PATH_site . 'foo/bar');
-        $this->assertSame('/foo/bar', $result);
+        /** @var $node AbstractNode|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $node = $this->getAccessibleMock(AbstractNode::class, ['dummy'], [], '', false);
+        $result = $node->_call('getRelativePathBelowSiteRoot', Environment::getPublicPath() . '/foo/bar');
+        self::assertSame('/foo/bar', $result);
     }
 }

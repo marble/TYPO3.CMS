@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 use TYPO3\CMS\Fluid\ViewHelpers\Format\HtmlentitiesViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
@@ -35,7 +36,7 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $defaultArguments;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new HtmlentitiesViewHelper();
@@ -54,7 +55,7 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Some string', $actualResult);
+        self::assertEquals('Some string', $actualResult);
     }
 
     /**
@@ -69,7 +70,7 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
         );
         $this->setArgumentsUnderTest($this->viewHelper);
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Some string', $actualResult);
+        self::assertEquals('Some string', $actualResult);
     }
 
     /**
@@ -85,13 +86,13 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertSame($source, $actualResult);
+        self::assertSame($source, $actualResult);
     }
 
     /**
      * @test
      */
-    public function renderDecodesSimpleString()
+    public function renderEncodesSimpleString()
     {
         $source = 'Some special characters: &©"\'';
         $this->setArgumentsUnderTest(
@@ -100,9 +101,9 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
                 'value' => $source
             ]
         );
-        $expectedResult = 'Some special characters: &amp;&copy;&quot;\'';
+        $expectedResult = 'Some special characters: &amp;&copy;&quot;&#039;';
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -120,7 +121,7 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
         );
         $expectedResult = 'Some special characters: &amp;&copy;"\'';
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -136,9 +137,9 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
                 'encoding' => 'ISO-8859-1',
             ]
         );
-        $expectedResult = 'Some special characters: &amp;&copy;&quot;\'';
+        $expectedResult = 'Some special characters: &amp;&copy;&quot;&#039;';
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -155,7 +156,7 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
         );
         $expectedResult = 'already &amp;quot;encoded&amp;quot;';
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -173,7 +174,7 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
         );
         $expectedResult = 'already &quot;encoded&quot;';
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -192,6 +193,47 @@ class HtmlentitiesViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->render();
-        $this->assertSame($source, $actualResult);
+        self::assertSame($source, $actualResult);
+    }
+
+    /**
+     * Ensures that objects are handled properly:
+     * + class not having __toString() method as given
+     * + class having __toString() method gets encoded
+     *
+     * @param object $source
+     * @param mixed $expectation
+     * @test
+     * @dataProvider renderEscapesObjectIfPossibleDataProvider
+     */
+    public function renderEscapesObjectIfPossible($source, $expectation)
+    {
+        $this->setArgumentsUnderTest(
+            $this->viewHelper,
+            [
+                'value' => $source
+            ]
+        );
+        $actualResult = $this->viewHelper->render();
+        self::assertSame($expectation, $actualResult);
+    }
+
+    /**
+     * @return array
+     */
+    public function renderEscapesObjectIfPossibleDataProvider(): array
+    {
+        $stdClass = new \stdClass();
+        $toStringClass = new class() {
+            public function __toString(): string
+            {
+                return '<script>alert(\'"&xss"\')</script>';
+            }
+        };
+
+        return [
+            'plain object' => [$stdClass, $stdClass],
+            'object with __toString()' => [$toStringClass, '&lt;script&gt;alert(&#039;&quot;&amp;xss&quot;&#039;)&lt;/script&gt;'],
+        ];
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Type;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,11 @@ namespace TYPO3\CMS\Core\Type;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Type;
+
+use TYPO3\CMS\Core\Type\Exception\InvalidEnumerationDefinitionException;
+use TYPO3\CMS\Core\Type\Exception\InvalidEnumerationValueException;
 
 /**
  * Abstract class for Enumeration.
@@ -40,8 +44,8 @@ abstract class Enumeration implements TypeInterface
     public function __construct($value = null)
     {
         if ($value === null && !defined('static::__default')) {
-            throw new Exception\InvalidEnumerationValueException(
-                sprintf('A value for enumeration "%s" is required if no __default is defined.', get_class($this)),
+            throw new InvalidEnumerationValueException(
+                sprintf('A value for enumeration "%s" is required if no __default is defined.', static::class),
                 1381512753
             );
         }
@@ -50,8 +54,8 @@ abstract class Enumeration implements TypeInterface
         }
         static::loadValues();
         if (!$this->isValid($value)) {
-            throw new Exception\InvalidEnumerationValueException(
-                sprintf('Invalid value "%s" for enumeration "%s"', $value, get_class($this)),
+            throw new InvalidEnumerationValueException(
+                sprintf('Invalid value "%s" for enumeration "%s"', $value, static::class),
                 1381512761
             );
         }
@@ -79,16 +83,17 @@ abstract class Enumeration implements TypeInterface
             unset($constants['__default']);
         }
         if (empty($constants)) {
-            throw new Exception\InvalidEnumerationValueException(
+            throw new InvalidEnumerationValueException(
                 sprintf(
-                    'No constants defined in enumeration "%s"', $class
+                    'No constants defined in enumeration "%s"',
+                    $class
                 ),
                 1381512807
             );
         }
         foreach ($constants as $constant => $value) {
             if (!is_int($value) && !is_string($value)) {
-                throw new Exception\InvalidEnumerationDefinitionException(
+                throw new InvalidEnumerationDefinitionException(
                     sprintf(
                         'Constant value "%s" of enumeration "%s" must be of type integer or string, got "%s" instead',
                         $constant,
@@ -104,7 +109,7 @@ abstract class Enumeration implements TypeInterface
         $constantValueCount = current($constantValueCounts);
         $constant = key($constantValueCounts);
         if ($constantValueCount > 1) {
-            throw new Exception\InvalidEnumerationDefinitionException(
+            throw new InvalidEnumerationDefinitionException(
                 sprintf(
                     'Constant value "%s" of enumeration "%s" is not unique (defined %d times)',
                     $constant,
@@ -129,14 +134,14 @@ abstract class Enumeration implements TypeInterface
      */
     protected function setValue($value)
     {
-        $enumKey = array_search($value, static::$enumConstants[get_class($this)]);
+        $enumKey = array_search((string)$value, static::$enumConstants[static::class]);
         if ($enumKey === false) {
-            throw new Exception\InvalidEnumerationValueException(
+            throw new InvalidEnumerationValueException(
                 sprintf('Invalid value "%s" for enumeration "%s"', $value, __CLASS__),
                 1381615295
             );
         }
-        $this->value = static::$enumConstants[get_class($this)][$enumKey];
+        $this->value = static::$enumConstants[static::class][$enumKey];
     }
 
     /**
@@ -148,7 +153,7 @@ abstract class Enumeration implements TypeInterface
     protected function isValid($value)
     {
         $value = (string)$value;
-        foreach (static::$enumConstants[get_class($this)] as $constantValue) {
+        foreach (static::$enumConstants[static::class] as $constantValue) {
             if ($value === (string)$constantValue) {
                 return true;
             }
@@ -167,7 +172,7 @@ abstract class Enumeration implements TypeInterface
     public static function getConstants($include_default = false)
     {
         static::loadValues();
-        $enumConstants = static::$enumConstants[get_called_class()];
+        $enumConstants = static::$enumConstants[static::class];
         if (!$include_default) {
             unset($enumConstants['__default']);
         }
@@ -178,13 +183,12 @@ abstract class Enumeration implements TypeInterface
      * Cast value to enumeration type
      *
      * @param mixed $value Value that has to be casted
-     * @return self
+     * @return static
      */
     public static function cast($value)
     {
-        $currentClass = get_called_class();
-        if (!is_object($value) || get_class($value) !== $currentClass) {
-            $value = new $currentClass($value);
+        if (!is_object($value) || get_class($value) !== static::class) {
+            $value = new static($value);
         }
         return $value;
     }

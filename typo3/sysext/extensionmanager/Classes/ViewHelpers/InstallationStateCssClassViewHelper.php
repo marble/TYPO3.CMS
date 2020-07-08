@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,10 @@ namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
+namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
+
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
@@ -32,7 +33,6 @@ class InstallationStateCssClassViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('needle', 'string', '', true);
         $this->registerArgument('haystack', 'array', '', true);
     }
@@ -56,9 +56,8 @@ class InstallationStateCssClassViewHelper extends AbstractViewHelper
         if (array_key_exists($needle, $haystack)) {
             if (isset($haystack[$needle]['installed']) && $haystack[$needle]['installed'] === true) {
                 return 'installed';
-            } else {
-                return 'available';
             }
+            return 'available';
         }
         return '';
     }

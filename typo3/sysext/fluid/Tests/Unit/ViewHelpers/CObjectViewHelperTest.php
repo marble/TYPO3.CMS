@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +15,28 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
+
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Fluid\ViewHelpers\CObjectViewHelper;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
+use TYPO3Fluid\Fluid\Core\ViewHelper\Exception;
 
 /**
- * Class CObjectViewHelperTest
+ * Test case
  */
 class CObjectViewHelperTest extends ViewHelperBaseTestcase
 {
+    /**
+     * @var bool Reset singletons created by subject
+     */
+    protected $resetSingletonInstances = true;
+
     /**
      * @var CObjectViewHelper
      */
@@ -45,7 +55,7 @@ class CObjectViewHelperTest extends ViewHelperBaseTestcase
     /**
      * Set up the fixture
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new CObjectViewHelper();
@@ -65,12 +75,18 @@ class CObjectViewHelperTest extends ViewHelperBaseTestcase
         $this->setArgumentsUnderTest(
             $this->viewHelper,
             [
+                'typoscriptObjectPath' => 'test',
                 'data' => 'foo',
             ]
         );
+        $configArray = [
+            'test' => 'TEXT',
+            'test.' => [],
+        ];
+        $this->configurationManager->getConfiguration(Argument::any())->willReturn($configArray);
+
         $this->contentObjectRenderer->start(['foo'], '')->willReturn();
-        $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertSame('', $actualResult);
+        $this->viewHelper->initializeArgumentsAndRender();
     }
 
     /**
@@ -87,17 +103,39 @@ class CObjectViewHelperTest extends ViewHelperBaseTestcase
         );
         $this->setArgumentsUnderTest(
             $this->viewHelper,
-            []
+            [
+                'typoscriptObjectPath' => 'test',
+            ]
         );
+        $configArray = [
+            'test' => 'TEXT',
+            'test.' => [],
+        ];
+        $this->configurationManager->getConfiguration(Argument::any())->willReturn($configArray);
+
         $this->contentObjectRenderer->start(['foo'], '')->willReturn();
-        $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertSame('', $actualResult);
+        $this->viewHelper->initializeArgumentsAndRender();
+    }
+
+    public function renderThrowsExceptionIfTypoScriptObjectPathDoesNotExistDataProvider(): array
+    {
+        return [
+            'Single path' => [
+                'test',
+                1540246570
+            ],
+            'Multi path' => [
+                'test.path',
+                1253191023
+            ],
+        ];
     }
 
     /**
      * @test
+     * @dataProvider renderThrowsExceptionIfTypoScriptObjectPathDoesNotExistDataProvider
      */
-    public function renderThrowsExceptionIfTyposcriptObjectPathDoesNotExist()
+    public function renderThrowsExceptionIfTypoScriptObjectPathDoesNotExist(string $objectPath, int $exceptionCode)
     {
         $this->stubBaseDependencies();
         $this->contentObjectRenderer->start(Argument::cetera())->willReturn();
@@ -106,52 +144,92 @@ class CObjectViewHelperTest extends ViewHelperBaseTestcase
             $this->viewHelper,
             [
                 'data' => 'foo',
-                'typoscriptObjectPath' => 'test.path',
+                'typoscriptObjectPath' => $objectPath,
             ]
         );
-        $this->expectException(\TYPO3\CMS\Fluid\Core\ViewHelper\Exception::class);
-        $this->expectExceptionCode(1253191023);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode($exceptionCode);
         $this->viewHelper->initializeArgumentsAndRender();
+    }
+
+    public function renderReturnsSimpleTypoScriptValueDataProvider(): array
+    {
+        $subConfigArray = [
+            'value' => 'Hello World',
+            'wrap' => 'ab | cd',
+        ];
+        return [
+            'Single path' => [
+                'test',
+                [
+                    'test' => 'TEXT',
+                    'test.' => $subConfigArray,
+                ],
+                $subConfigArray
+            ],
+            'Single path no config' => [
+                'test',
+                [
+                    'test' => 'TEXT',
+                ],
+                []
+            ],
+            'Multi path' => [
+                'plugin.test',
+                [
+                    'plugin.' => [
+                        'test' => 'TEXT',
+                        'test.' => $subConfigArray,
+                    ]
+                ],
+                $subConfigArray
+            ],
+            'Multi path no config' => [
+                'plugin.test',
+                [
+                    'plugin.' => [
+                        'test' => 'TEXT',
+                    ]
+                ],
+                []
+            ],
+        ];
     }
 
     /**
      * @test
+     * @dataProvider renderReturnsSimpleTypoScriptValueDataProvider
+     * @param string $objectPath
+     * @param array $configArray
+     * @param array $subConfigArray
      */
-    public function renderReturnsSimpleTyposcriptValue()
+    public function renderReturnsSimpleTypoScriptValue(string $objectPath, array $configArray, array $subConfigArray)
     {
+        $this->stubBaseDependencies();
         $this->setArgumentsUnderTest(
             $this->viewHelper,
             [
-                'typoscriptObjectPath' => 'test',
+                'typoscriptObjectPath' => $objectPath,
                 'data' => 'foo',
                 'table' => 'table',
             ]
         );
 
-        $subConfigArray = [
-            'value' => 'Hello World',
-            'wrap' => 'ab | cd',
-        ];
-
-        $configArray = [
-            'test' => 'TEXT',
-            'test.' => $subConfigArray,
-        ];
-
         $this->configurationManager->getConfiguration(Argument::any())->willReturn($configArray);
 
         $this->contentObjectRenderer->start(['foo'], 'table')->willReturn();
         $this->contentObjectRenderer->setCurrentVal('foo')->willReturn();
-        $this->contentObjectRenderer->cObjGetSingle('TEXT', $subConfigArray)->willReturn('Hello World');
+        $this->contentObjectRenderer->cObjGetSingle('TEXT', $subConfigArray, Argument::any())->willReturn('Hello World');
 
         $objectManager = $this->prophesize(ObjectManager::class);
         $objectManager->get(ConfigurationManagerInterface::class)->willReturn($this->configurationManager->reveal());
+        GeneralUtility::addInstance(ContentObjectRenderer::class, $this->contentObjectRenderer->reveal());
         GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManager->reveal());
-        $GLOBALS['TSFE'] = (object) ['cObj' => $this->contentObjectRenderer->reveal()];
 
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
         $expectedResult = 'Hello World';
-        $this->assertSame($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
@@ -165,6 +243,6 @@ class CObjectViewHelperTest extends ViewHelperBaseTestcase
         $objectManager = $this->prophesize(ObjectManager::class);
         $objectManager->get(ConfigurationManagerInterface::class)->willReturn($this->configurationManager->reveal());
         GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManager->reveal());
-        $GLOBALS['TSFE'] = (object) ['cObj' => $this->contentObjectRenderer->reveal()];
+        $GLOBALS['TSFE'] = $this->getAccessibleMock(TypoScriptFrontendController::class, ['initCaches'], [], '', false);
     }
 }

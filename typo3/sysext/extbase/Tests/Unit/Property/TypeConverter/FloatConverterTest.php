@@ -1,39 +1,39 @@
 <?php
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Extbase\Tests\Unit\Property\TypeConverter;
 
-/*                                                                        *
- * This script belongs to the Extbase framework.                            *
- *                                                                        *
- * It is free software; you can redistribute it and/or modify it under    *
- * the terms of the GNU Lesser General Public License as published by the *
- * Free Software Foundation, either version 3 of the License, or (at your *
- * option) any later version.                                             *
- *                                                                        *
- * This script is distributed in the hope that it will be useful, but     *
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHAN-    *
- * TABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser       *
- * General Public License for more details.                               *
- *                                                                        *
- * You should have received a copy of the GNU Lesser General Public       *
- * License along with the script.                                         *
- * If not, see http://www.gnu.org/licenses/lgpl.html                      *
- *                                                                        *
- * The TYPO3 project - inspiring people to share!                         *
- *                                                                        */
+use TYPO3\CMS\Extbase\Error\Error;
+use TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface;
+use TYPO3\CMS\Extbase\Property\TypeConverter\FloatConverter;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FloatConverterTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Extbase\Property\TypeConverterInterface
      */
     protected $converter;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->converter = new \TYPO3\CMS\Extbase\Property\TypeConverter\FloatConverter();
+        parent::setUp();
+        $this->converter = new FloatConverter();
     }
 
     /**
@@ -41,9 +41,9 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function checkMetadata()
     {
-        $this->assertEquals(['float', 'integer', 'string'], $this->converter->getSupportedSourceTypes(), 'Source types do not match');
-        $this->assertEquals('float', $this->converter->getSupportedTargetType(), 'Target type does not match');
-        $this->assertEquals(10, $this->converter->getPriority(), 'Priority does not match');
+        self::assertEquals(['float', 'integer', 'string'], $this->converter->getSupportedSourceTypes(), 'Source types do not match');
+        self::assertEquals('float', $this->converter->getSupportedTargetType(), 'Target type does not match');
+        self::assertEquals(10, $this->converter->getPriority(), 'Priority does not match');
     }
 
     /**
@@ -51,7 +51,7 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function convertFromShouldCastTheStringToFloat()
     {
-        $this->assertSame(1.5, $this->converter->convertFrom('1.5', 'float'));
+        self::assertSame(1.5, $this->converter->convertFrom('1.5', 'float'));
     }
 
     /**
@@ -59,7 +59,7 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function convertFromReturnsNullIfEmptyStringSpecified()
     {
-        $this->assertNull($this->converter->convertFrom('', 'float'));
+        self::assertNull($this->converter->convertFrom('', 'float'));
     }
 
     /**
@@ -67,7 +67,7 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function convertFromShouldAcceptIntegers()
     {
-        $this->assertSame((float)123, $this->converter->convertFrom(123, 'float'));
+        self::assertSame((float)123, $this->converter->convertFrom(123, 'float'));
     }
 
     /**
@@ -75,18 +75,18 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function convertFromShouldRespectConfiguration()
     {
-        $mockMappingConfiguration = $this->createMock(\TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface::class);
+        $mockMappingConfiguration = $this->createMock(PropertyMappingConfigurationInterface::class);
         $mockMappingConfiguration
-            ->expects($this->at(0))
+            ->expects(self::at(0))
             ->method('getConfigurationValue')
-            ->with(\TYPO3\CMS\Extbase\Property\TypeConverter\FloatConverter::class, \TYPO3\CMS\Extbase\Property\TypeConverter\FloatConverter::CONFIGURATION_THOUSANDS_SEPARATOR)
+            ->with(FloatConverter::class, FloatConverter::CONFIGURATION_THOUSANDS_SEPARATOR)
             ->willReturn('.');
         $mockMappingConfiguration
-            ->expects($this->at(1))
+            ->expects(self::at(1))
             ->method('getConfigurationValue')
-            ->with(\TYPO3\CMS\Extbase\Property\TypeConverter\FloatConverter::class, \TYPO3\CMS\Extbase\Property\TypeConverter\FloatConverter::CONFIGURATION_DECIMAL_POINT)
+            ->with(FloatConverter::class, FloatConverter::CONFIGURATION_DECIMAL_POINT)
             ->willReturn(',');
-        $this->assertSame(1024.42, $this->converter->convertFrom('1.024,42', 'float', [], $mockMappingConfiguration));
+        self::assertSame(1024.42, $this->converter->convertFrom('1.024,42', 'float', [], $mockMappingConfiguration));
     }
 
     /**
@@ -94,7 +94,7 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function convertFromReturnsAnErrorIfSpecifiedStringIsNotNumeric()
     {
-        $this->assertInstanceOf(\TYPO3\CMS\Extbase\Error\Error::class, $this->converter->convertFrom('not numeric', 'float'));
+        self::assertInstanceOf(Error::class, $this->converter->convertFrom('not numeric', 'float'));
     }
 
     /**
@@ -102,7 +102,7 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function canConvertFromShouldReturnTrue()
     {
-        $this->assertTrue($this->converter->canConvertFrom('1.5', 'float'));
+        self::assertTrue($this->converter->canConvertFrom('1.5', 'float'));
     }
 
     /**
@@ -110,7 +110,7 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function canConvertFromShouldReturnTrueForAnEmptyValue()
     {
-        $this->assertTrue($this->converter->canConvertFrom('', 'integer'));
+        self::assertTrue($this->converter->canConvertFrom('', 'integer'));
     }
 
     /**
@@ -118,7 +118,7 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function canConvertFromShouldReturnTrueForANullValue()
     {
-        $this->assertTrue($this->converter->canConvertFrom(null, 'integer'));
+        self::assertTrue($this->converter->canConvertFrom(null, 'integer'));
     }
 
     /**
@@ -126,6 +126,6 @@ class FloatConverterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getSourceChildPropertiesToBeConvertedShouldReturnEmptyArray()
     {
-        $this->assertEquals([], $this->converter->getSourceChildPropertiesToBeConverted('myString'));
+        self::assertEquals([], $this->converter->getSourceChildPropertiesToBeConverted('myString'));
     }
 }

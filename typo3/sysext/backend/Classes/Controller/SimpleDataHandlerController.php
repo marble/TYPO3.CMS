@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +15,17 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Clipboard\Clipboard;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Http\HtmlResponse;
+use TYPO3\CMS\Core\Http\JsonResponse;
+use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Messaging\AbstractMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -39,14 +46,14 @@ class SimpleDataHandlerController
      *
      * @var array
      */
-    public $flags;
+    protected $flags;
 
     /**
      * Data array on the form [tablename][uid][fieldname] = value
      *
      * @var array
      */
-    public $data;
+    protected $data;
 
     /**
      * Command array on the form [tablename][uid][command] = value.
@@ -54,198 +61,80 @@ class SimpleDataHandlerController
      *
      * @var array
      */
-    public $cmd;
+    protected $cmd;
 
     /**
      * Array passed to ->setMirror.
      *
      * @var array
      */
-    public $mirror;
+    protected $mirror;
 
     /**
      * Cache command sent to ->clear_cacheCmd
      *
      * @var string
      */
-    public $cacheCmd;
+    protected $cacheCmd;
 
     /**
      * Redirect URL. Script will redirect to this location after performing operations (unless errors has occurred)
      *
      * @var string
      */
-    public $redirect;
-
-    /**
-     * Boolean. If set, errors will be printed on screen instead of redirection. Should always be used, otherwise you will see no errors if they happen.
-     *
-     * @var int
-     */
-    public $prErr;
+    protected $redirect;
 
     /**
      * Clipboard command array. May trigger changes in "cmd"
      *
      * @var array
      */
-    public $CB;
-
-    /**
-     * Boolean. Update Page Tree Trigger. If set and the manipulated records are pages then the update page tree signal will be set.
-     *
-     * @var int
-     */
-    public $uPT;
+    protected $CB;
 
     /**
      * TYPO3 Core Engine
      *
      * @var \TYPO3\CMS\Core\DataHandling\DataHandler
      */
-    public $tce;
-
-    /**
-     * Constructor
-     */
-    public function __construct()
-    {
-        $GLOBALS['SOBE'] = $this;
-        $this->init();
-    }
-
-    /**
-     * Initialization of the class
-     */
-    public function init()
-    {
-        $beUser = $this->getBackendUser();
-        // GPvars:
-        $this->flags = GeneralUtility::_GP('flags');
-        $this->data = GeneralUtility::_GP('data');
-        $this->cmd = GeneralUtility::_GP('cmd');
-        $this->mirror = GeneralUtility::_GP('mirror');
-        $this->cacheCmd = GeneralUtility::_GP('cacheCmd');
-        $this->redirect = GeneralUtility::sanitizeLocalUrl(GeneralUtility::_GP('redirect'));
-        $this->prErr = GeneralUtility::_GP('prErr');
-        $this->CB = GeneralUtility::_GP('CB');
-        $this->uPT = GeneralUtility::_GP('uPT');
-        // Creating DataHandler object
-        $this->tce = GeneralUtility::makeInstance(DataHandler::class);
-        // Configuring based on user prefs.
-        if ($beUser->uc['recursiveDelete']) {
-            // TRUE if the delete Recursive flag is set.
-            $this->tce->deleteTree = 1;
-        }
-        if ($beUser->uc['copyLevels']) {
-            // Set to number of page-levels to copy.
-            $this->tce->copyTree = MathUtility::forceIntegerInRange($beUser->uc['copyLevels'], 0, 100);
-        }
-        if ($beUser->uc['neverHideAtCopy']) {
-            $this->tce->neverHideAtCopy = 1;
-        }
-        $TCAdefaultOverride = $beUser->getTSConfigProp('TCAdefaults');
-        if (is_array($TCAdefaultOverride)) {
-            $this->tce->setDefaultsFromUserTS($TCAdefaultOverride);
-        }
-        // Reverse order.
-        if ($this->flags['reverseOrder']) {
-            $this->tce->reverseOrder = 1;
-        }
-    }
-
-    /**
-     * Clipboard pasting and deleting.
-     */
-    public function initClipboard()
-    {
-        if (is_array($this->CB)) {
-            $clipObj = GeneralUtility::makeInstance(Clipboard::class);
-            $clipObj->initializeClipboard();
-            if ($this->CB['paste']) {
-                $clipObj->setCurrentPad($this->CB['pad']);
-                $this->cmd = $clipObj->makePasteCmdArray(
-                    $this->CB['paste'],
-                    $this->cmd,
-                    isset($this->CB['update']) ? $this->CB['update'] : null
-                );
-            }
-            if ($this->CB['delete']) {
-                $clipObj->setCurrentPad($this->CB['pad']);
-                $this->cmd = $clipObj->makeDeleteCmdArray($this->cmd);
-            }
-        }
-    }
-
-    /**
-     * Executing the posted actions ...
-     */
-    public function main()
-    {
-        // LOAD DataHandler with data and cmd arrays:
-        $this->tce->start($this->data, $this->cmd);
-        if (is_array($this->mirror)) {
-            $this->tce->setMirror($this->mirror);
-        }
-        // Checking referer / executing
-        $refInfo = parse_url(GeneralUtility::getIndpEnv('HTTP_REFERER'));
-        $httpHost = GeneralUtility::getIndpEnv('TYPO3_HOST_ONLY');
-        if ($httpHost != $refInfo['host'] && !$GLOBALS['TYPO3_CONF_VARS']['SYS']['doNotCheckReferer']) {
-            $this->tce->log('', 0, 0, 0, 1, 'Referer host "%s" and server host "%s" did not match!', 1, [$refInfo['host'], $httpHost]);
-        } else {
-            // Register uploaded files
-            $this->tce->process_uploads($_FILES);
-            // Execute actions:
-            $this->tce->process_datamap();
-            $this->tce->process_cmdmap();
-            // Clearing cache:
-            if (!empty($this->cacheCmd)) {
-                $this->tce->clear_cacheCmd($this->cacheCmd);
-            }
-            // Update page tree?
-            if ($this->uPT && (isset($this->data['pages']) || isset($this->cmd['pages']))) {
-                BackendUtility::setUpdateSignal('updatePageTree');
-            }
-        }
-    }
+    protected $tce;
 
     /**
      * Injects the request object for the current request or subrequest
-     * As this controller goes only through the main() method, it just redirects to the given URL afterwards.
+     * As this controller goes only through the processRequest() method, it just redirects to the given URL afterwards.
      *
      * @param ServerRequestInterface $request the current request
-     * @param ResponseInterface $response
      * @return ResponseInterface the response with the content
      */
-    public function mainAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function mainAction(ServerRequestInterface $request): ResponseInterface
     {
-        $this->initClipboard();
-        $this->main();
+        $GLOBALS['SOBE'] = $this;
+        $this->init($request);
+
+        $this->initializeClipboard();
+        $this->processRequest();
 
         // Write errors to flash message queue
-        if ($this->prErr) {
-            $this->tce->printLogErrorMessages($this->redirect);
-        }
+        $this->tce->printLogErrorMessages();
         if ($this->redirect) {
-            $response = $response
-                ->withHeader('Location', GeneralUtility::locationHeaderUrl($this->redirect))
-                ->withStatus(303);
+            return new RedirectResponse(GeneralUtility::locationHeaderUrl($this->redirect), 303);
         }
-        return $response;
+        return new HtmlResponse('');
     }
 
     /**
      * Processes all AJAX calls and returns a JSON formatted string
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function processAjaxRequest(ServerRequestInterface $request, ResponseInterface $response)
+    public function processAjaxRequest(ServerRequestInterface $request): ResponseInterface
     {
+        $GLOBALS['SOBE'] = $this;
+        $this->init($request);
+
         // do the regular / main logic
-        $this->initClipboard();
-        $this->main();
+        $this->initializeClipboard();
+        $this->processRequest();
 
         /** @var \TYPO3\CMS\Core\Messaging\FlashMessageService $flashMessageService */
         $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
@@ -257,10 +146,7 @@ class SimpleDataHandlerController
         ];
 
         // Prints errors (= write them to the message queue)
-        if ($this->prErr) {
-            $content['hasErrors'] = true;
-            $this->tce->printLogErrorMessages($this->redirect);
-        }
+        $this->tce->printLogErrorMessages();
 
         $messages = $flashMessageService->getMessageQueueByIdentifier()->getAllMessagesAndFlush();
         if (!empty($messages)) {
@@ -275,17 +161,102 @@ class SimpleDataHandlerController
                 }
             }
         }
+        return new JsonResponse($content);
+    }
 
-        $response->getBody()->write(json_encode($content));
-        return $response;
+    /**
+     * Initialization of the class
+     *
+     * @param ServerRequestInterface $request
+     */
+    protected function init(ServerRequestInterface $request): void
+    {
+        $beUser = $this->getBackendUser();
+
+        $parsedBody = $request->getParsedBody();
+        $queryParams = $request->getQueryParams();
+
+        // GPvars:
+        $this->flags = $parsedBody['flags'] ?? $queryParams['flags'] ?? null;
+        $this->data = $parsedBody['data'] ?? $queryParams['data'] ?? null;
+        $this->cmd = $parsedBody['cmd'] ?? $queryParams['cmd'] ?? null;
+        $this->mirror = $parsedBody['mirror'] ?? $queryParams['mirror'] ?? null;
+        $this->cacheCmd = $parsedBody['cacheCmd'] ?? $queryParams['cacheCmd'] ?? null;
+        $redirect = $parsedBody['redirect'] ?? $queryParams['redirect'] ?? '';
+        $this->redirect = GeneralUtility::sanitizeLocalUrl($redirect);
+        $this->CB = $parsedBody['CB'] ?? $queryParams['CB'] ?? null;
+        // Creating DataHandler object
+        $this->tce = GeneralUtility::makeInstance(DataHandler::class);
+        // Configuring based on user prefs.
+        if ($beUser->uc['recursiveDelete']) {
+            // TRUE if the delete Recursive flag is set.
+            $this->tce->deleteTree = 1;
+        }
+        if ($beUser->uc['copyLevels']) {
+            // Set to number of page-levels to copy.
+            $this->tce->copyTree = MathUtility::forceIntegerInRange($beUser->uc['copyLevels'], 0, 100);
+        }
+        if ($beUser->uc['neverHideAtCopy']) {
+            $this->tce->neverHideAtCopy = 1;
+        }
+        // Reverse order.
+        if ($this->flags['reverseOrder']) {
+            $this->tce->reverseOrder = 1;
+        }
+    }
+
+    /**
+     * Clipboard pasting and deleting.
+     */
+    protected function initializeClipboard(): void
+    {
+        if (is_array($this->CB)) {
+            $clipObj = GeneralUtility::makeInstance(Clipboard::class);
+            $clipObj->initializeClipboard();
+            if ($this->CB['paste']) {
+                $clipObj->setCurrentPad($this->CB['pad']);
+                $this->cmd = $clipObj->makePasteCmdArray(
+                    $this->CB['paste'],
+                    $this->cmd,
+                    $this->CB['update'] ?? null
+                );
+            }
+            if ($this->CB['delete']) {
+                $clipObj->setCurrentPad($this->CB['pad']);
+                $this->cmd = $clipObj->makeDeleteCmdArray($this->cmd);
+            }
+        }
+    }
+
+    /**
+     * Executing the posted actions ...
+     */
+    protected function processRequest(): void
+    {
+        // LOAD DataHandler with data and cmd arrays:
+        $this->tce->start($this->data, $this->cmd);
+        if (is_array($this->mirror)) {
+            $this->tce->setMirror($this->mirror);
+        }
+        // Execute actions:
+        $this->tce->process_datamap();
+        $this->tce->process_cmdmap();
+        // Clearing cache:
+        if (!empty($this->cacheCmd)) {
+            $this->tce->clear_cacheCmd($this->cacheCmd);
+        }
+        // Update page tree?
+        if (isset($this->data['pages']) || isset($this->cmd['pages'])) {
+            BackendUtility::setUpdateSignal('updatePageTree');
+        }
     }
 
     /**
      * Returns the current BE user.
      *
-     * @return \TYPO3\CMS\Core\Authentication\BackendUserAuthentication
+     * @return BackendUserAuthentication
      */
-    protected function getBackendUser()
+    protected function getBackendUser(): BackendUserAuthentication
     {
         return $GLOBALS['BE_USER'];
     }

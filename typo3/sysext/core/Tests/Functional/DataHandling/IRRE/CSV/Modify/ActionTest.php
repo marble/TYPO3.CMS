@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\Modify;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,15 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\Modify;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\Modify;
+
+use TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\AbstractActionTestCase;
+use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\InternalRequest;
+
 /**
  * Functional test for the DataHandler
  */
-class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\AbstractActionTestCase
+class ActionTest extends AbstractActionTestCase
 {
     /**
      * @var string
@@ -30,7 +34,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
 
     /**
      * @test
-     * @see DataSet/createParentContentRecord.csv
+     * See DataSet/createParentContentRecord.csv
      */
     public function createParentContent()
     {
@@ -38,13 +42,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('createParentContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyParentContentRecord.csv
+     * See DataSet/modifyParentContentRecord.csv
      */
     public function modifyParentContent()
     {
@@ -52,16 +56,16 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('modifyParentContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteParentContentRecord.csv
+     * See DataSet/deleteParentContentRecord.csv
      */
     public function deleteParentContent()
     {
@@ -69,13 +73,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('deleteParentContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/copyParentContentRecord.csv
+     * See DataSet/copyParentContentRecord.csv
      */
     public function copyParentContent()
     {
@@ -83,14 +87,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('copyParentContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentId'])->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/copyParentContentToDifferentPage.csv
+     * See DataSet/copyParentContentToDifferentPage.csv
      */
     public function copyParentContentToDifferentPage()
     {
@@ -98,153 +102,73 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('copyParentContentToDifferentPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageIdTarget)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentId'])->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/copyParentContentToLanguageKeep.csv
+     * See DataSet/copyParentContentToLanguage.csv
      */
-    public function copyParentContentToLanguageInKeepMode()
+    public function copyParentContentToLanguageWithAllChildren()
     {
-        parent::copyParentContentToLanguageInKeepMode();
-        $this->assertAssertionDataSet('copyParentContentToLanguageKeep');
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
 
-        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
-            ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
-            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1'));
-    }
+        parent::copyParentContentToLanguage();
+        $this->assertAssertionDataSet('copyParentContentToLanguage');
 
-    /**
-     * @test
-     * @see DataSet/copyParentContentToLanguageWAllChildrenKeep.csv
-     */
-    public function copyParentContentToLanguageWithAllChildrenInKeepMode()
-    {
-        parent::copyParentContentToLanguageWithAllChildrenInKeepMode();
-        $this->assertAssertionDataSet('copyParentContentToLanguageWAllChildrenKeep');
+        // Set up "dk" to not have overlays
+        $languageConfiguration = $this->siteLanguageConfiguration;
+        $languageConfiguration[self::VALUE_LanguageId]['fallbackType'] = 'free';
+        $this->setUpFrontendSite(1, $languageConfiguration);
 
-        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
-            ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
-            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1'));
-    }
-
-    /**
-     * @test
-     * @see DataSet/copyParentContentToLanguageSelect.csv
-     */
-    public function copyParentContentToLanguageInSelectMode()
-    {
-        parent::copyParentContentToLanguageInSelectMode();
-        $this->assertAssertionDataSet('copyParentContentToLanguageSelect');
-
-        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
-            ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
-            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1'));
-    }
-
-    /**
-     * @test
-     * @see DataSet/copyParentContentToLanguageWAllChildrenSelect.csv
-     */
-    public function copyParentContentToLanguageWithAllChildrenInSelectMode()
-    {
-        parent::copyParentContentToLanguageWithAllChildrenInSelectMode();
-        $this->assertAssertionDataSet('copyParentContentToLanguageWAllChildrenSelect');
-
-        $this->setUpFrontendRootPage(1, [
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts',
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRendererNoOverlay.ts'
-        ]);
-        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections('Default');
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['localizedContentId'])->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeParentContentKeep.csv
+     * See DataSet/localizeParentContentWAllChildren.csv
      */
-    public function localizeParentContentInKeepMode()
+    public function localizeParentContentWithAllChildren()
     {
-        parent::localizeParentContentInKeepMode();
-        $this->assertAssertionDataSet('localizeParentContentKeep');
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+
+        parent::localizeParentContentWithAllChildren();
+        $this->assertAssertionDataSet('localizeParentContentWAllChildren');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeParentContentWAllChildrenKeep.csv
+     * See DataSet/localizeParentContentLanguageSynchronization.csv
      */
-    public function localizeParentContentWithAllChildrenInKeepMode()
+    public function localizeParentContentWithLanguageSynchronization()
     {
-        parent::localizeParentContentWithAllChildrenInKeepMode();
-        $this->assertAssertionDataSet('localizeParentContentWAllChildrenKeep');
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+
+        parent::localizeParentContentWithLanguageSynchronization();
+        $this->assertAssertionDataSet('localizeParentContentLanguageSynchronization');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
-            ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
-            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1'));
-    }
-
-    /**
-     * @test
-     * @see DataSet/localizeParentContentSelect.csv
-     */
-    public function localizeParentContentInSelectMode()
-    {
-        parent::localizeParentContentInSelectMode();
-        $this->assertAssertionDataSet('localizeParentContentSelect');
-
-        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
-            ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
-            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1'));
-    }
-
-    /**
-     * @test
-     * @see DataSet/localizeParentContentWAllChildrenSelect.csv
-     */
-    public function localizeParentContentWithAllChildrenInSelectMode()
-    {
-        parent::localizeParentContentWithAllChildrenInSelectMode();
-        $this->assertAssertionDataSet('localizeParentContentWAllChildrenSelect');
-
-        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
-            ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
-            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1'));
-    }
-
-    /**
-     * @test
-     * @see DataSet/localizeParentContentWAllChildrenSelectNLanguageSynchronization.csv
-     */
-    public function localizeParentContentWithAllChildrenInSelectModeAndLanguageSynchronization()
-    {
-        parent::localizeParentContentWithAllChildrenInSelectModeAndLanguageSynchronization();
-        $this->assertAssertionDataSet('localizeParentContentWAllChildrenSelectNLanguageSynchronization');
-
-        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1', '[Translate to Dansk:] Hotel #2'));
     }
 
     /**
      * @test
-     * @see DataSet/changeParentContentRecordSorting.csv
+     * See DataSet/changeParentContentRecordSorting.csv
      */
     public function changeParentContentSorting()
     {
@@ -252,17 +176,17 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('changeParentContentSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1', 'Hotel #2'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/moveParentContentRecordToDifferentPage.csv
+     * See DataSet/moveParentContentRecordToDifferentPage.csv
      */
     public function moveParentContentToDifferentPage()
     {
@@ -270,16 +194,16 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('moveParentContentToDifferentPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageIdTarget)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #2'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/moveParentContentRecordToDifferentPageAndChangeSorting.csv
+     * See DataSet/moveParentContentRecordToDifferentPageAndChangeSorting.csv
      */
     public function moveParentContentToDifferentPageAndChangeSorting()
     {
@@ -287,12 +211,12 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('moveParentContentToDifferentPageNChangeSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageIdTarget)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #2', 'Regular Element #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1', 'Hotel #2'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
     }
@@ -303,7 +227,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
 
     /**
      * @test
-     * @see DataSet/modifyPageRecord.csv
+     * See DataSet/modifyPageRecord.csv
      */
     public function modifyPage()
     {
@@ -311,26 +235,26 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('modifyPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deletePageRecord.csv
+     * See DataSet/deletePageRecord.csv
      */
     public function deletePage()
     {
         parent::deletePage();
         $this->assertAssertionDataSet('deletePage');
 
-        $response = $this->getFrontendResponse(self::VALUE_PageId, 0, 0, 0, false);
-        $this->assertContains('PageNotFoundException', $response->getError());
+        $response = $this->executeFrontendRequest((new InternalRequest())->withPageId(self::VALUE_PageId));
+        self::assertEquals(404, $response->getStatusCode());
     }
 
     /**
      * @test
-     * @see DataSet/copyPageRecord.csv
+     * See DataSet/copyPageRecord.csv
      */
     public function copyPage()
     {
@@ -338,13 +262,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('copyPage');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'])->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1', 'Hotel #2', 'Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/copyPageWHotelBeforeParentContent.csv
+     * See DataSet/copyPageWHotelBeforeParentContent.csv
      */
     public function copyPageWithHotelBeforeParentContent()
     {
@@ -352,7 +276,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('copyPageWHotelBeforeParentContent');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'])->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1', 'Hotel #2', 'Hotel #1'));
     }
 
@@ -362,7 +286,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
 
     /**
      * @test
-     * @see DataSet/createParentContentRecordWithHotelAndOfferChildRecords.csv
+     * See DataSet/createParentContentRecordWithHotelAndOfferChildRecords.csv
      */
     public function createParentContentWithHotelAndOfferChildren()
     {
@@ -370,16 +294,16 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('createParentContentNHotelNOfferChildren');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentId'])->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/createAndCopyParentContentRecordWithHotelAndOfferChildRecords.csv
+     * See DataSet/createAndCopyParentContentRecordWithHotelAndOfferChildRecords.csv
      */
     public function createAndCopyParentContentWithHotelAndOfferChildren()
     {
@@ -387,40 +311,43 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('createNCopyParentContentNHotelNOfferChildren');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentId'])->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['copiedContentId'])->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Hotel . ':' . $this->recordIds['copiedHotelId'])->setRecordField(self::FIELD_HotelOffer)
             ->setTable(self::TABLE_Offer)->setField('title')->setValues('Offer #1'));
     }
 
     /**
      * @test
-     * @see DataSet/createAndLocalizeParentContentRecordWithHotelAndOfferChildRecords.csv
+     * See DataSet/createAndLocalizeParentContentRecordWithHotelAndOfferChildRecords.csv
      */
     public function createAndLocalizeParentContentWithHotelAndOfferChildren()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+
         parent::createAndLocalizeParentContentWithHotelAndOfferChildren();
         $this->assertAssertionDataSet('createNLocalizeParentContentNHotelNOfferChildren');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
         // Content record gets overlaid, thus using newContentId
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentId'])->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #1'));
         // Content record directly points to localized child, thus using localizedHotelId
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Hotel . ':' . $this->recordIds['localizedHotelId'])->setRecordField(self::FIELD_HotelOffer)
             ->setTable(self::TABLE_Offer)->setField('title')->setValues('[Translate to Dansk:] Offer #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyOnlyHotelChildRecord.csv
+     * See DataSet/modifyOnlyHotelChildRecord.csv
      */
     public function modifyOnlyHotelChild()
     {
@@ -428,14 +355,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('modifyOnlyHotelChild');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1', 'Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyParentRecordAndChangeHotelChildRecordsSorting.csv
+     * See DataSet/modifyParentRecordAndChangeHotelChildRecordsSorting.csv
      */
     public function modifyParentAndChangeHotelChildrenSorting()
     {
@@ -443,14 +370,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('modifyParentNChangeHotelChildrenSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #2', 'Hotel #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyParentRecordWithHotelChildRecord.csv
+     * See DataSet/modifyParentRecordWithHotelChildRecord.csv
      */
     public function modifyParentWithHotelChild()
     {
@@ -458,14 +385,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('modifyParentNHotelChild');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1', 'Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyParentRecordAndAddHotelChildRecord.csv
+     * See DataSet/modifyParentRecordAndAddHotelChildRecord.csv
      */
     public function modifyParentAndAddHotelChild()
     {
@@ -473,14 +400,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('modifyParentNAddHotelChild');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1', 'Hotel #2'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyParentRecordAndDeleteHotelChildRecord.csv
+     * See DataSet/modifyParentRecordAndDeleteHotelChildRecord.csv
      */
     public function modifyParentAndDeleteHotelChild()
     {
@@ -488,11 +415,150 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\IRRE\CSV\
         $this->assertAssertionDataSet('modifyParentNDeleteHotelChild');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentHotel)
             ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #2'));
+    }
+
+    /**
+     * @test
+     * See DataSet/localizePageWExclude.csv
+     */
+    public function localizePageWithLocalizationExclude()
+    {
+        parent::localizePageWithLocalizationExclude();
+        $this->assertAssertionDataSet('localizePageWExclude');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+            ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageId)->setRecordField(self::FIELD_PageHotel)
+            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #0'));
+    }
+
+    /**
+     * @test
+     * See DataSet/localizePageTwiceWExclude.csv
+     */
+    public function localizePageTwiceWithLocalizationExclude()
+    {
+        parent::localizePageTwiceWithLocalizationExclude();
+        $this->assertAssertionDataSet('localizePageTwiceWExclude');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+            ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageId)->setRecordField(self::FIELD_PageHotel)
+            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #0'));
+    }
+
+    /**
+     * @test
+     * See DataSet/localizePageNAddHotelChildWExclude.csv
+     */
+    public function localizePageAndAddHotelChildWithLocalizationExclude()
+    {
+        parent::localizePageAndAddHotelChildWithLocalizationExclude();
+        $this->assertAssertionDataSet('localizePageNAddHotelChildWExclude');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+            ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageId)->setRecordField(self::FIELD_PageHotel)
+            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #0', 'Hotel #007'));
+    }
+
+    /**
+     * @test
+     * See DataSet/localizePageWSynchronization.csv
+     */
+    public function localizePageWithLanguageSynchronization()
+    {
+        parent::localizePageWithLanguageSynchronization();
+        $this->assertAssertionDataSet('localizePageWSynchronization');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+            ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageId)->setRecordField(self::FIELD_PageHotel)
+            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #0'));
+    }
+
+    /**
+     * @test
+     * See DataSet/localizePageNAddHotelChildWSynchronization.csv
+     */
+    public function localizePageAndAddHotelChildWithLanguageSynchronization()
+    {
+        parent::localizePageAndAddHotelChildWithLanguageSynchronization();
+        $this->assertAssertionDataSet('localizePageNAddHotelChildWSynchronization');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+            ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageId)->setRecordField(self::FIELD_PageHotel)
+            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #0', '[Translate to Dansk:] Hotel #007'));
+    }
+
+    /**
+     * @test
+     * See DataSet/localizePageNAddMonoglotHotelChildWSynchronization.csv
+     */
+    public function localizePageAndAddMonoglotHotelChildWithLanguageSynchronization()
+    {
+        parent::localizePageAndAddMonoglotHotelChildWithLanguageSynchronization();
+        $this->assertAssertionDataSet('localizePageNAddMonoglotHotelChildWSynchronization');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+            ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageId)->setRecordField(self::FIELD_PageHotel)
+            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #0', 'Hotel #007'));
+    }
+
+    /**
+     * @test
+     * See DataSet/localizeNCopyPageWSynchronization.csv
+     */
+    public function localizeAndCopyPageWithLanguageSynchronization()
+    {
+        parent::localizeAndCopyPageWithLanguageSynchronization();
+        $this->assertAssertionDataSet('localizeNCopyPageWSynchronization');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+            ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageId)->setRecordField(self::FIELD_PageHotel)
+            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #0'));
+    }
+
+    /**
+     * Checks for a page having a IRRE record. The page is then localized and
+     * an IRRE record is then added to the localized page
+     *
+     * @test
+     * See DataSet/localizePageWithSynchronizationAndCustomLocalizedHotel.csv
+     */
+    public function localizePageWithSynchronizationAndCustomLocalizedHotel()
+    {
+        parent::localizePageWithSynchronizationAndCustomLocalizedHotel();
+        $this->assertAssertionDataSet('localizePageWithSynchronizationAndCustomLocalizedHotel');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+            ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageId)->setRecordField(self::FIELD_PageHotel)
+            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('[Translate to Dansk:] Hotel #0'));
+    }
+
+    /**
+     * @test
+     * See DataSet/localizePageAddMonoglotHotelChildNCopyPageWSynchronization.csv
+     */
+    public function localizePageAddMonoglotHotelChildAndCopyPageWithLanguageSynchronization()
+    {
+        parent::localizePageAndAddMonoglotHotelChildWithLanguageSynchronization();
+        parent::copyPage();
+        $this->assertAssertionDataSet('localizePageAddMonoglotHotelChildNCopyPageWSynchronization');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+            ->setRecordIdentifier(self::TABLE_Page . ':' . self::VALUE_PageId)->setRecordField(self::FIELD_PageHotel)
+            ->setTable(self::TABLE_Hotel)->setField('title')->setValues('Hotel #0', 'Hotel #007'));
     }
 }

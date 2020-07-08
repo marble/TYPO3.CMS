@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,10 @@ namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
+
+use TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException;
+
 /**
  * Parser for TYPO3's mirrors.xml file.
  *
@@ -23,6 +26,7 @@ namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
  * array" behaviour).
  * Notice: ext/xml has proven to be buggy with entities.
  * Use at least PHP 5.2.9+ and libxml2 2.7.3+!
+ * @internal This class is a specific ExtensionManager implementation and is not part of the Public TYPO3 API.
  */
 class MirrorXmlPushParser extends AbstractMirrorXmlParser
 {
@@ -58,7 +62,7 @@ class MirrorXmlPushParser extends AbstractMirrorXmlParser
     {
         $this->createParser();
         if (!is_resource($this->objXml)) {
-            throw new \TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException('Unable to create XML parser.', 1342641009);
+            throw new ExtensionManagerException('Unable to create XML parser.', 1342641009);
         }
         // Disables the functionality to allow external entities to be loaded when parsing the XML, must be kept
         $previousValueOfEntityLoader = libxml_disable_entity_loader(true);
@@ -69,11 +73,11 @@ class MirrorXmlPushParser extends AbstractMirrorXmlParser
         xml_set_element_handler($this->objXml, 'startElement', 'endElement');
         xml_set_character_data_handler($this->objXml, 'characterData');
         if (!($fp = fopen($file, 'r'))) {
-            throw new \TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException(sprintf('Unable to open file resource %s.', $file), 1342641010);
+            throw new ExtensionManagerException(sprintf('Unable to open file resource %s.', $file), 1342641010);
         }
         while ($data = fread($fp, 4096)) {
             if (!xml_parse($this->objXml, $data, feof($fp))) {
-                throw new \TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException(sprintf('XML error %s in line %u of file resource %s.', xml_error_string(xml_get_error_code($this->objXml)), xml_get_current_line_number($this->objXml), $file), 1342641011);
+                throw new ExtensionManagerException(sprintf('XML error %s in line %u of file resource %s.', xml_error_string(xml_get_error_code($this->objXml)), xml_get_current_line_number($this->objXml), $file), 1342641011);
             }
         }
         libxml_disable_entity_loader($previousValueOfEntityLoader);
@@ -140,15 +144,6 @@ class MirrorXmlPushParser extends AbstractMirrorXmlParser
                     break;
                 case 'country':
                     $this->country = $data;
-                    break;
-                case 'name':
-                    $this->sponsorname = $data;
-                    break;
-                case 'link':
-                    $this->sponsorlink = $data;
-                    break;
-                case 'logo':
-                    $this->sponsorlogo = $data;
                     break;
                 default:
                     // Do nothing

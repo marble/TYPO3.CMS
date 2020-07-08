@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\Element;
+
 use TYPO3\CMS\Backend\Form\Element\AbstractFormElement;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class AbstractFormElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractFormElementTest extends UnitTestCase
 {
     /**
      * @return array
@@ -81,7 +83,7 @@ class AbstractFormElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTest
                     'format' => 'datetime',
                 ],
                 '1412358894',
-                '17:54 03-10-2014'
+                '03-10-14 17:54'
             ],
             'format to datetime with empty value' => [
                 [
@@ -275,13 +277,13 @@ class AbstractFormElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTest
      */
     public function formatValueWithGivenConfiguration($config, $itemValue, $expectedResult)
     {
-        /** @var AbstractFormElement|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var AbstractFormElement|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $subject = $this->getAccessibleMock(AbstractFormElement::class, ['render'], [], '', false);
         $timezoneBackup = date_default_timezone_get();
         date_default_timezone_set('UTC');
-        $result = $subject->_call('formatValue', $config['format'], $itemValue, $config['format.']);
+        $result = $subject->_call('formatValue', $config['format'], $itemValue, $config['format.'] ?? []);
         date_default_timezone_set($timezoneBackup);
 
-        $this->assertEquals($expectedResult, $result);
+        self::assertEquals($expectedResult, $result);
     }
 }

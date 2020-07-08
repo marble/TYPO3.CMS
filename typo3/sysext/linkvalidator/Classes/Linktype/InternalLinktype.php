@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Linkvalidator\Linktype;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,8 @@ namespace TYPO3\CMS\Linkvalidator\Linktype;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Utility\BackendUtility;
+namespace TYPO3\CMS\Linkvalidator\Linktype;
+
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -61,19 +61,21 @@ class InternalLinktype extends AbstractLinktype
      * Checks a given URL + /path/filename.ext for validity
      *
      * @param string $url Url to check as page-id or page-id#anchor (if anchor is present)
-     * @param array $softRefEntry: The soft reference entry which builds the context of that url
+     * @param array $softRefEntry The soft reference entry which builds the context of that url
      * @param \TYPO3\CMS\Linkvalidator\LinkAnalyzer $reference Parent instance
      * @return bool TRUE on success or FALSE on error
      */
     public function checkLink($url, $softRefEntry, $reference)
     {
+        $page = null;
         $anchor = '';
         $this->responseContent = true;
         // Might already contain values - empty it
         unset($this->errorParams);
         // Only check pages records. Content elements will also be checked
         // as we extract the anchor in the next step.
-        if (strpos($softRefEntry['substr']['recordRef'], 'pages:') !== 0) {
+        [$table] = explode(':', $softRefEntry['substr']['recordRef']);
+        if (!in_array($table, ['pages', 'tt_content'], true)) {
             return true;
         }
         // Defines the linked page and anchor (if any).
@@ -81,6 +83,18 @@ class InternalLinktype extends AbstractLinktype
             $parts = explode('#c', $url);
             $page = $parts[0];
             $anchor = $parts[1];
+        } elseif (
+            $table === 'tt_content'
+            && strpos($softRefEntry['row'][$softRefEntry['field']], 't3://') === 0
+        ) {
+            $parsedTypoLinkUrl = @parse_url($softRefEntry['row'][$softRefEntry['field']]);
+            if ($parsedTypoLinkUrl['host'] === 'page') {
+                parse_str($parsedTypoLinkUrl['query'], $query);
+                if (isset($query['uid'])) {
+                    $page = (int)$query['uid'];
+                    $anchor = (int)$url;
+                }
+            }
         } else {
             $page = $url;
         }
@@ -92,8 +106,8 @@ class InternalLinktype extends AbstractLinktype
             $this->responseContent = $this->checkContent($page, $anchor);
         }
         if (
-            is_array($this->errorParams['page']) && !$this->responsePage
-            || is_array($this->errorParams['content']) && !$this->responseContent
+            (is_array($this->errorParams['page']) && !$this->responsePage)
+            || (is_array($this->errorParams['content']) && !$this->responseContent)
         ) {
             $this->setErrorParams($this->errorParams);
         }
@@ -215,6 +229,8 @@ class InternalLinktype extends AbstractLinktype
      */
     public function getErrorMessage($errorParams)
     {
+        $errorPage = null;
+        $errorContent = null;
         $lang = $this->getLanguageService();
         $errorType = $errorParams['errorType'];
         if (is_array($errorParams['page'])) {
@@ -324,15 +340,6 @@ class InternalLinktype extends AbstractLinktype
     public function getBrokenUrl($row)
     {
         $domain = rtrim(GeneralUtility::getIndpEnv('TYPO3_SITE_URL'), '/');
-        $rootLine = BackendUtility::BEgetRootLine($row['record_pid']);
-        // checks alternate domains
-        if (!empty($rootLine)) {
-            $protocol = GeneralUtility::getIndpEnv('TYPO3_SSL') ? 'https://' : 'http://';
-            $domainRecord = BackendUtility::firstDomainRecord($rootLine);
-            if (!empty($domainRecord)) {
-                $domain = $protocol . $domainRecord;
-            }
-        }
         return $domain . '/index.php?id=' . $row['url'];
     }
 }

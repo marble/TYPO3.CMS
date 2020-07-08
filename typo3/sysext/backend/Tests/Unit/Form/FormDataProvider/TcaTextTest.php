@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,15 +15,18 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaText;
 use TYPO3\CMS\Core\Configuration\Richtext;
 use TYPO3\CMS\Core\Html\RteHtmlParser;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaTextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaTextTest extends UnitTestCase
 {
     /**
      * @test
@@ -61,6 +64,7 @@ class TcaTextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                         'config' => [
                             'type' => 'text',
                             'enableRichtext' => true,
+                            'richtextConfigurationName' => '',
                             'richtextConfiguration' => [
                                 'aConfig' => 'option',
                             ],
@@ -72,8 +76,8 @@ class TcaTextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $richtextConfigurationProphecy = $this->prophesize(Richtext::class);
         GeneralUtility::addInstance(Richtext::class, $richtextConfigurationProphecy->reveal());
-        $rteHtmlParserPropehy = $this->prophesize(RteHtmlParser::class);
-        GeneralUtility::addInstance(RteHtmlParser::class, $rteHtmlParserPropehy->reveal());
+        $rteHtmlParserProphecy = $this->prophesize(RteHtmlParser::class);
+        GeneralUtility::addInstance(RteHtmlParser::class, $rteHtmlParserProphecy->reveal());
 
         $richtextConfigurationProphecy
             ->getConfiguration(
@@ -86,17 +90,14 @@ class TcaTextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'enableRichtext' => true,
                 ]
             )
-            ->willReturn([ 'aConfig' => 'option' ]);
-        $rteHtmlParserPropehy->init('aTable:aField', 42)->shouldBeCalled();
-        $rteHtmlParserPropehy
-            ->RTE_transform(
+            ->willReturn([ 'aConfig' => 'option']);
+        $rteHtmlParserProphecy
+            ->transformTextForRichTextEditor(
                 'notProcessedContent',
-                [],
-                'rte',
-                [ 'aConfig' => 'option']
+                []
             )
             ->willReturn('processedContent');
 
-        $this->assertSame($expected, (new TcaText())->addData($input));
+        self::assertSame($expected, (new TcaText())->addData($input));
     }
 }

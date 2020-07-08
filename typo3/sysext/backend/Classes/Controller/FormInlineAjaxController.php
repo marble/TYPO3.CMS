@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Form\FormDataCompiler;
@@ -23,6 +25,9 @@ use TYPO3\CMS\Backend\Form\InlineStackProcessor;
 use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Http\JsonResponse;
+use TYPO3\CMS\Core\Messaging\AbstractMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -36,16 +41,21 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
      * Create a new inline child via AJAX.
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function createAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function createAction(ServerRequestInterface $request): ResponseInterface
     {
-        $ajaxArguments = isset($request->getParsedBody()['ajax']) ? $request->getParsedBody()['ajax'] : $request->getQueryParams()['ajax'];
+        $ajaxArguments = $request->getParsedBody()['ajax'] ?? $request->getQueryParams()['ajax'];
         $parentConfig = $this->extractSignedParentConfigFromRequest((string)$ajaxArguments['context']);
 
         $domObjectId = $ajaxArguments[0];
         $inlineFirstPid = $this->getInlineFirstPidFromDomObjectId($domObjectId);
+        if (!MathUtility::canBeInterpretedAsInteger($inlineFirstPid) && strpos($inlineFirstPid, 'NEW') !== 0) {
+            throw new \RuntimeException(
+                'inlineFirstPid should either be an integer or a "NEW..." string',
+                1521220491
+            );
+        }
         $childChildUid = null;
         if (isset($ajaxArguments[1]) && MathUtility::canBeInterpretedAsInteger($ajaxArguments[1])) {
             $childChildUid = (int)$ajaxArguments[1];
@@ -68,7 +78,7 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
             $childVanillaUid = -1 * abs((int)$child['uid']);
         } else {
             // Else inline first Pid is the storage pid of new inline records
-            $childVanillaUid = (int)$inlineFirstPid;
+            $childVanillaUid = $inlineFirstPid;
         }
 
         $childTableName = $parentConfig['foreign_table'];
@@ -97,21 +107,6 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
         }
         $childData = $formDataCompiler->compile($formDataCompilerInput);
 
-        // Set language of new child record to the language of the parent record:
-        // @todo: To my understanding, the below case can't happen: With localizationMode select, lang overlays
-        // @todo: of children are only created with the "synchronize" button that will trigger a different ajax action.
-        // @todo: The edge case of new page overlay together with localized media field, this code won't kick in either.
-        // @deprecated: IRRE 'localizationMode' is deprecated and will be removed in TYPO3 CMS 9
-        /*
-        if ($parent['localizationMode'] === 'select' && MathUtility::canBeInterpretedAsInteger($parent['uid'])) {
-            $parentRecord = $inlineRelatedRecordResolver->getRecord($parent['table'], $parent['uid']);
-            $parentLanguageField = $GLOBALS['TCA'][$parent['table']]['ctrl']['languageField'];
-            $childLanguageField = $GLOBALS['TCA'][$child['table']]['ctrl']['languageField'];
-            if ($parentRecord[$parentLanguageField] > 0) {
-                $record[$childLanguageField] = $parentRecord[$parentLanguageField];
-            }
-        }
-         */
         if ($parentConfig['foreign_selector'] && $parentConfig['appearance']['useCombination']) {
             // We have a foreign_selector. So, we just created a new record on an intermediate table in $childData.
             // Now, if a valid id is given as second ajax parameter, the intermediate row should be connected to an
@@ -131,17 +126,17 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
                 $formDataCompilerInput = [
                     'command' => 'new',
                     'tableName' => $childData['processedTca']['columns'][$parentConfig['foreign_selector']]['config']['foreign_table'],
-                    'vanillaUid' => (int)$inlineFirstPid,
+                    'vanillaUid' => $inlineFirstPid,
                     'isInlineChild' => true,
                     'isInlineAjaxOpeningContext' => true,
                     'inlineStructure' => $inlineStackProcessor->getStructure(),
-                    'inlineFirstPid' => (int)$inlineFirstPid,
+                    'inlineFirstPid' => $inlineFirstPid,
                 ];
                 $childData['combinationChild'] = $formDataCompiler->compile($formDataCompilerInput);
             }
         }
 
-        $childData['inlineParentUid'] = (int)$parent['uid'];
+        $childData['inlineParentUid'] = $parent['uid'];
         $childData['renderType'] = 'inlineRecordContainer';
         $nodeFactory = GeneralUtility::makeInstance(NodeFactory::class);
         $childResult = $nodeFactory->create($childData)->render();
@@ -150,48 +145,29 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
             'data' => '',
             'stylesheetFiles' => [],
             'scriptCall' => [],
+            'compilerInput' => [
+                'uid' => $childData['databaseRow']['uid'],
+                'childChildUid' => $childChildUid,
+                'parentConfig' => $parentConfig,
+            ],
         ];
 
-        // The HTML-object-id's prefix of the dynamically created record
-        $objectName = $inlineStackProcessor->getCurrentStructureDomObjectIdPrefix($inlineFirstPid);
-        $objectPrefix = $objectName . '-' . $child['table'];
-        $objectId = $objectPrefix . '-' . $childData['databaseRow']['uid'];
-        $expandSingle = $parentConfig['appearance']['expandSingle'];
-        if (!$child['uid']) {
-            $jsonArray['scriptCall'][] = 'inline.domAddNewRecord(\'bottom\',' . GeneralUtility::quoteJSvalue($objectName . '_records') . ',' . GeneralUtility::quoteJSvalue($objectPrefix) . ',json.data);';
-            $jsonArray['scriptCall'][] = 'inline.memorizeAddRecord(' . GeneralUtility::quoteJSvalue($objectPrefix) . ',' . GeneralUtility::quoteJSvalue($childData['databaseRow']['uid']) . ',null,' . GeneralUtility::quoteJSvalue($childChildUid) . ');';
-        } else {
-            $jsonArray['scriptCall'][] = 'inline.domAddNewRecord(\'after\',' . GeneralUtility::quoteJSvalue($domObjectId . '_div') . ',' . GeneralUtility::quoteJSvalue($objectPrefix) . ',json.data);';
-            $jsonArray['scriptCall'][] = 'inline.memorizeAddRecord(' . GeneralUtility::quoteJSvalue($objectPrefix) . ',' . GeneralUtility::quoteJSvalue($childData['databaseRow']['uid']) . ',' . GeneralUtility::quoteJSvalue($child['uid']) . ',' . GeneralUtility::quoteJSvalue($childChildUid) . ');';
-        }
         $jsonArray = $this->mergeChildResultIntoJsonResult($jsonArray, $childResult);
-        if ($parentConfig['appearance']['useSortable']) {
-            $inlineObjectName = $inlineStackProcessor->getCurrentStructureDomObjectIdPrefix($inlineFirstPid);
-            $jsonArray['scriptCall'][] = 'inline.createDragAndDropSorting(' . GeneralUtility::quoteJSvalue($inlineObjectName . '_records') . ');';
-        }
-        if (!$parentConfig['appearance']['collapseAll'] && $expandSingle) {
-            $jsonArray['scriptCall'][] = 'inline.collapseAllRecords(' . GeneralUtility::quoteJSvalue($objectId) . ',' . GeneralUtility::quoteJSvalue($objectPrefix) . ',' . GeneralUtility::quoteJSvalue($childData['databaseRow']['uid']) . ');';
-        }
-        // Fade out and fade in the new record in the browser view to catch the user's eye
-        $jsonArray['scriptCall'][] = 'inline.fadeOutFadeIn(' . GeneralUtility::quoteJSvalue($objectId . '_div') . ');';
 
-        $response->getBody()->write(json_encode($jsonArray));
-
-        return $response;
+        return new JsonResponse($jsonArray);
     }
 
     /**
      * Show the details of a child record.
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function detailsAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function detailsAction(ServerRequestInterface $request): ResponseInterface
     {
-        $ajaxArguments = isset($request->getParsedBody()['ajax']) ? $request->getParsedBody()['ajax'] : $request->getQueryParams()['ajax'];
+        $ajaxArguments = $request->getParsedBody()['ajax'] ?? $request->getQueryParams()['ajax'];
 
-        $domObjectId = $ajaxArguments[0];
+        $domObjectId = $ajaxArguments[0] ?? null;
         $inlineFirstPid = $this->getInlineFirstPidFromDomObjectId($domObjectId);
         $parentConfig = $this->extractSignedParentConfigFromRequest((string)$ajaxArguments['context']);
 
@@ -217,8 +193,14 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
                     ],
                 ],
             ],
+            'uid' => $parent['uid'],
             'tableName' => $parent['table'],
             'inlineFirstPid' => $inlineFirstPid,
+            // Hand over given original return url to compile stack. Needed if inline children compile links to
+            // another view (eg. edit metadata in a nested inline situation like news with inline content element image),
+            // so the back link is still the link from the original request. See issue #82525. This is additionally
+            // given down in TcaInline data provider to compiled children data.
+            'returnUrl' => $parentConfig['originalReturnUrl'],
         ];
 
         // Child, a record from this table should be rendered
@@ -237,26 +219,9 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
             'scriptCall' => [],
         ];
 
-        // The HTML-object-id's prefix of the dynamically created record
-        $objectPrefix = $inlineStackProcessor->getCurrentStructureDomObjectIdPrefix($inlineFirstPid) . '-' . $child['table'];
-        $objectId = $objectPrefix . '-' . (int)$child['uid'];
-        $expandSingle = $parentConfig['appearance']['expandSingle'];
-        $jsonArray['scriptCall'][] = 'inline.domAddRecordDetails(' . GeneralUtility::quoteJSvalue($domObjectId) . ',' . GeneralUtility::quoteJSvalue($objectPrefix) . ',' . ($expandSingle ? '1' : '0') . ',json.data);';
-        if ($parentConfig['foreign_unique']) {
-            $jsonArray['scriptCall'][] = 'inline.removeUsed(' . GeneralUtility::quoteJSvalue($objectPrefix) . ',\'' . (int)$child['uid'] . '\');';
-        }
         $jsonArray = $this->mergeChildResultIntoJsonResult($jsonArray, $childResult);
-        if ($parentConfig['appearance']['useSortable']) {
-            $inlineObjectName = $inlineStackProcessor->getCurrentStructureDomObjectIdPrefix($inlineFirstPid);
-            $jsonArray['scriptCall'][] = 'inline.createDragAndDropSorting(' . GeneralUtility::quoteJSvalue($inlineObjectName . '_records') . ');';
-        }
-        if (!$parentConfig['appearance']['collapseAll'] && $expandSingle) {
-            $jsonArray['scriptCall'][] = 'inline.collapseAllRecords(' . GeneralUtility::quoteJSvalue($objectId) . ',' . GeneralUtility::quoteJSvalue($objectPrefix) . ',\'' . (int)$child['uid'] . '\');';
-        }
 
-        $response->getBody()->write(json_encode($jsonArray));
-
-        return $response;
+        return new JsonResponse($jsonArray);
     }
 
     /**
@@ -264,14 +229,13 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
      * Handle AJAX calls to localize all records of a parent, localize a single record or to synchronize with the original language parent.
      *
      * @param ServerRequestInterface $request the incoming request
-     * @param ResponseInterface $response the empty response
      * @return ResponseInterface the filled response
      */
-    public function synchronizeLocalizeAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function synchronizeLocalizeAction(ServerRequestInterface $request): ResponseInterface
     {
-        $ajaxArguments = isset($request->getParsedBody()['ajax']) ? $request->getParsedBody()['ajax'] : $request->getQueryParams()['ajax'];
-        $domObjectId = $ajaxArguments[0];
-        $type = $ajaxArguments[1];
+        $ajaxArguments = $request->getParsedBody()['ajax'] ?? $request->getQueryParams()['ajax'];
+        $domObjectId = $ajaxArguments[0] ?? null;
+        $type = $ajaxArguments[1] ?? null;
         $parentConfig = $this->extractSignedParentConfigFromRequest((string)$ajaxArguments['context']);
 
         /** @var InlineStackProcessor $inlineStackProcessor */
@@ -281,7 +245,13 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
         $inlineStackProcessor->injectAjaxConfiguration($parentConfig);
         $inlineFirstPid = $this->getInlineFirstPidFromDomObjectId($domObjectId);
 
-        $jsonArray = false;
+        $jsonArray = [
+            'data' => '',
+            'stylesheetFiles' => [],
+            'compilerInput' => [
+                'localize' => [],
+            ],
+        ];
         if ($type === 'localize' || $type === 'synchronize' || MathUtility::canBeInterpretedAsInteger($type)) {
             // Parent, this table embeds the child table
             $parent = $inlineStackProcessor->getStructureLevel(-1);
@@ -289,9 +259,6 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
 
             $processedTca = $GLOBALS['TCA'][$parent['table']];
             $processedTca['columns'][$parentFieldName]['config'] = $parentConfig;
-
-            // Child, a record from this table should be rendered
-            $child = $inlineStackProcessor->getUnstableStructure();
 
             $formDataCompilerInputForParent = [
                 'vanillaUid' => (int)$parent['uid'],
@@ -331,8 +298,8 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
                     'language' => $parentLanguage,
                     'ids' => [$type],
                 ];
-            // Either localize or synchronize all child elements from default language of the parent element
             } else {
+                // Either localize or synchronize all child elements from default language of the parent element
                 $cmd[$parent['table']][$parent['uid']]['inlineLocalizeSynchronize'] = [
                     'field' => $parent['field'],
                     'language' => $parentLanguage,
@@ -340,32 +307,39 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
                 ];
             }
 
-            /** @var $tce DataHandler */
+            /** @var DataHandler $tce */
             $tce = GeneralUtility::makeInstance(DataHandler::class);
             $tce->start([], $cmd);
             $tce->process_cmdmap();
 
             $newItemList = $tce->registerDBList[$parent['table']][$parent['uid']][$parentFieldName];
 
-            $jsonArray = [
-                'data' => '',
-                'stylesheetFiles' => [],
-                'scriptCall' => [],
-            ];
-            $nameObject = $inlineStackProcessor->getCurrentStructureDomObjectIdPrefix($inlineFirstPid);
-            $nameObjectForeignTable = $nameObject . '-' . $child['table'];
-
             $oldItems = $this->getInlineRelatedRecordsUidArray($oldItemList);
             $newItems = $this->getInlineRelatedRecordsUidArray($newItemList);
 
-            // Set the items that should be removed in the forms view:
-            $removedItems = array_diff($oldItems, $newItems);
-            foreach ($removedItems as $childUid) {
-                $jsonArray['scriptCall'][] = 'inline.deleteRecord(' . GeneralUtility::quoteJSvalue($nameObjectForeignTable . '-' . $childUid) . ', {forceDirectRemoval: true});';
+            // Render error messages from DataHandler
+            $tce->printLogErrorMessages();
+            $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
+            $messages = $flashMessageService->getMessageQueueByIdentifier()->getAllMessagesAndFlush();
+            if (!empty($messages)) {
+                foreach ($messages as $message) {
+                    $jsonArray['messages'][] = [
+                        'title'    => $message->getTitle(),
+                        'message'  => $message->getMessage(),
+                        'severity' => $message->getSeverity()
+                    ];
+                    if ($message->getSeverity() === AbstractMessage::ERROR) {
+                        $jsonArray['hasErrors'] = true;
+                    }
+                }
             }
 
+            // Set the items that should be removed in the forms view:
+            $removedItems = array_diff($oldItems, $newItems);
+            $jsonArray['compilerInput']['delete'] = $removedItems;
+
             $localizedItems = array_diff($newItems, $oldItems);
-            foreach ($localizedItems as $childUid) {
+            foreach ($localizedItems as $i => $childUid) {
                 $childData = $this->compileChild($parentData, $parentFieldName, (int)$childUid, $inlineStackProcessor->getStructure());
 
                 $childData['inlineParentUid'] = (int)$parent['uid'];
@@ -377,52 +351,45 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
 
                 // Get the name of the field used as foreign selector (if any):
                 $foreignSelector = isset($parentConfig['foreign_selector']) && $parentConfig['foreign_selector'] ? $parentConfig['foreign_selector'] : false;
-                $selectedValue = $foreignSelector ? GeneralUtility::quoteJSvalue($childData['databaseRow'][$foreignSelector]) : 'null';
+                $selectedValue = $foreignSelector ? GeneralUtility::quoteJSvalue($childData['databaseRow'][$foreignSelector]) : null;
                 if (is_array($selectedValue)) {
                     $selectedValue = $selectedValue[0];
                 }
-                $jsonArray['scriptCall'][] = 'inline.memorizeAddRecord(' . GeneralUtility::quoteJSvalue($nameObjectForeignTable) . ', ' . GeneralUtility::quoteJSvalue($childUid) . ', null, ' . $selectedValue . ');';
+
+                $jsonArray['compilerInput']['localize'][$i] = [
+                    'uid' => $childUid,
+                    'selectedValue' => $selectedValue,
+                ];
+
                 // Remove possible virtual records in the form which showed that a child records could be localized:
                 $transOrigPointerFieldName = $childData['processedTca']['ctrl']['transOrigPointerField'];
                 if (isset($childData['databaseRow'][$transOrigPointerFieldName]) && $childData['databaseRow'][$transOrigPointerFieldName]) {
-                    $transOrigPointerField = $childData['databaseRow'][$transOrigPointerFieldName];
-                    if (is_array($transOrigPointerField)) {
-                        $transOrigPointerField = $transOrigPointerField[0];
+                    $transOrigPointerFieldValue = $childData['databaseRow'][$transOrigPointerFieldName];
+                    if (is_array($transOrigPointerFieldValue)) {
+                        $transOrigPointerFieldValue = $transOrigPointerFieldValue[0];
                     }
-                    $jsonArray['scriptCall'][] = 'inline.fadeAndRemove(' . GeneralUtility::quoteJSvalue($nameObjectForeignTable . '-' . $transOrigPointerField . '_div') . ');';
+                    $jsonArray['compilerInput']['localize'][$i]['remove'] = $transOrigPointerFieldValue;
                 }
             }
-            // Tell JS to add new HTML of one or multiple (localize all) records to DOM
-            if (!empty($jsonArray['data'])) {
-                $jsonArray['scriptCall'][] = 'inline.domAddNewRecord(\'bottom\', ' . GeneralUtility::quoteJSvalue($nameObject . '_records')
-                . ', ' . GeneralUtility::quoteJSvalue($nameObjectForeignTable)
-                . ', json.data);';
-            }
         }
-
-        $response->getBody()->write(json_encode($jsonArray));
-
-        return $response;
+        return new JsonResponse($jsonArray);
     }
 
     /**
      * Store status of inline children expand / collapse state in backend user uC.
      *
      * @param ServerRequestInterface $request the incoming request
-     * @param ResponseInterface $response the empty response
      * @return ResponseInterface the filled response
      */
-    public function expandOrCollapseAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function expandOrCollapseAction(ServerRequestInterface $request): ResponseInterface
     {
-        $ajaxArguments = isset($request->getParsedBody()['ajax']) ? $request->getParsedBody()['ajax'] : $request->getQueryParams()['ajax'];
-        $domObjectId = $ajaxArguments[0];
+        $ajaxArguments = $request->getParsedBody()['ajax'] ?? $request->getQueryParams()['ajax'];
+        [$domObjectId, $expand, $collapse] = $ajaxArguments;
 
         /** @var InlineStackProcessor $inlineStackProcessor */
         $inlineStackProcessor = GeneralUtility::makeInstance(InlineStackProcessor::class);
         // Parse the DOM identifier (string), add the levels to the structure stack (array), don't load TCA config
         $inlineStackProcessor->initializeByParsingDomObjectIdString($domObjectId);
-        $expand = $ajaxArguments[1];
-        $collapse = $ajaxArguments[2];
 
         $backendUser = $this->getBackendUserAuthentication();
         // The current table - for this table we should add/import records
@@ -448,13 +415,11 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
             // Save states back to database
             if (is_array($inlineView[$topTable][$topUid][$currentTable])) {
                 $inlineView[$topTable][$topUid][$currentTable] = array_unique($inlineView[$topTable][$topUid][$currentTable]);
-                $backendUser->uc['inlineView'] = serialize($inlineView);
+                $backendUser->uc['inlineView'] = json_encode($inlineView);
                 $backendUser->writeUC();
             }
         }
-
-        $response->getBody()->write(json_encode([]));
-        return $response;
+        return (new JsonResponse())->setPayload([]);
     }
 
     /**
@@ -490,6 +455,7 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
             'command' => 'edit',
             'tableName' => $childTableName,
             'vanillaUid' => (int)$childUid,
+            'returnUrl' => $parentData['returnUrl'],
             'isInlineChild' => true,
             'inlineStructure' => $inlineStructure,
             'inlineFirstPid' => $parentData['inlineFirstPid'],
@@ -498,11 +464,11 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
 
             // values of the current parent element
             // it is always a string either an id or new...
-            'inlineParentUid' => $parentData['databaseRow']['uid'],
+            'inlineParentUid' => $parentData['databaseRow']['uid'] ?? $parentData['uid'],
             'inlineParentTableName' => $parentData['tableName'],
             'inlineParentFieldName' => $parentFieldName,
 
-             // values of the top most parent element set on first level and not overridden on following levels
+            // values of the top most parent element set on first level and not overridden on following levels
             'inlineTopMostParentUid' => $inlineTopMostParent['uid'],
             'inlineTopMostParentTableName' => $inlineTopMostParent['table'],
             'inlineTopMostParentFieldName' => $inlineTopMostParent['field'],
@@ -570,12 +536,7 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
             $jsonResult['stylesheetFiles'][] = $this->getRelativePathToStylesheetFile($stylesheetFile);
         }
         if (!empty($childResult['inlineData'])) {
-            $jsonResult['scriptCall'][] = 'inline.addToDataArray(' . json_encode($childResult['inlineData']) . ');';
-        }
-        if (!empty($childResult['additionalJavaScriptSubmit'])) {
-            $additionalJavaScriptSubmit = implode('', $childResult['additionalJavaScriptSubmit']);
-            $additionalJavaScriptSubmit = str_replace([CR, LF], '', $additionalJavaScriptSubmit);
-            $jsonResult['scriptCall'][] = 'TBE_EDITOR.addActionChecks("submit", "' . addslashes($additionalJavaScriptSubmit) . '");';
+            $jsonResult['inlineData'] = $childResult['inlineData'];
         }
         foreach ($childResult['additionalJavaScriptPost'] as $singleAdditionalJavaScriptPost) {
             $jsonResult['scriptCall'][] = $singleAdditionalJavaScriptPost;
@@ -601,8 +562,7 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
 
             $jsonResult['scriptCall'][] = implode(LF, $javaScriptCode);
         }
-        $requireJsModule = $this->createExecutableStringRepresentationOfRegisteredRequireJsModules($childResult);
-        $jsonResult['scriptCall'] = array_merge($requireJsModule, $jsonResult['scriptCall']);
+        $jsonResult['requireJsModules'] = $this->createExecutableStringRepresentationOfRegisteredRequireJsModules($childResult);
 
         return $jsonResult;
     }
@@ -658,7 +618,7 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
             return [];
         }
 
-        $inlineView = unserialize($backendUser->uc['inlineView']);
+        $inlineView = json_decode($backendUser->uc['inlineView'], true);
         if (!is_array($inlineView)) {
             $inlineView = [];
         }
@@ -668,7 +628,7 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
 
     /**
      * Method to check whether the backend user has the property inline view for the current IRRE item.
-     * In existing or old IRRE items the attribute may not exist, then the unserialize will fail.
+     * In existing or old IRRE items the attribute may not exist, then the json_decode will fail.
      *
      * @param BackendUserAuthentication $backendUser
      * @return bool
@@ -715,14 +675,14 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
      * Get inlineFirstPid from a given objectId string
      *
      * @param string $domObjectId The id attribute of an element
-     * @return int|NULL Pid or null
+     * @return int|null Pid or null
      */
     protected function getInlineFirstPidFromDomObjectId($domObjectId)
     {
         // Substitute FlexForm addition and make parsing a bit easier
         $domObjectId = str_replace('---', ':', $domObjectId);
         // The starting pattern of an object identifier (e.g. "data-<firstPidValue>-<anything>)
-        $pattern = '/^data' . '-' . '(.+?)' . '-' . '(.+)$/';
+        $pattern = '/^data-(.+?)-(.+)$/';
         if (preg_match($pattern, $domObjectId, $match)) {
             return $match[1];
         }
@@ -746,10 +706,10 @@ class FormInlineAjaxController extends AbstractFormEngineAjaxController
         if (empty($context['config'])) {
             throw new \RuntimeException('Empty context config section given', 1489751362);
         }
-        if (!\hash_equals(GeneralUtility::hmac(json_encode($context['config']), 'InlineContext'), $context['hmac'])) {
+        if (!hash_equals(GeneralUtility::hmac((string)$context['config'], 'InlineContext'), (string)$context['hmac'])) {
             throw new \RuntimeException('Hash does not validate', 1489751363);
         }
-        return $context['config'];
+        return json_decode($context['config'], true);
     }
 
     /**

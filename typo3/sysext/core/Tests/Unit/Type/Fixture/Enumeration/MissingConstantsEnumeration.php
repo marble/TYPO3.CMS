@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Type\Fixture\Enumeration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,13 @@ namespace TYPO3\CMS\Core\Tests\Unit\Type\Fixture\Enumeration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Type\Fixture\Enumeration;
+
+use TYPO3\CMS\Core\Type\Enumeration;
+
 /**
  * This is an invalid enumeration because no constants are defined
  */
-class MissingConstantsEnumeration extends \TYPO3\CMS\Core\Type\Enumeration
+final class MissingConstantsEnumeration extends Enumeration
 {
 }

@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Imaging\ImageManipulation;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Imaging\ImageManipulation;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Imaging\ImageManipulation;
+
 use TYPO3\CMS\Core\Resource\FileInterface;
 
 class CropVariantCollection
@@ -25,7 +27,7 @@ class CropVariantCollection
     protected $cropVariants;
 
     /**
-     * @param CropVariant[] cropVariants
+     * @param CropVariant[] $cropVariants
      * @throws \TYPO3\CMS\Core\Imaging\ImageManipulation\InvalidConfigurationException
      */
     public function __construct(array $cropVariants)
@@ -118,7 +120,7 @@ class CropVariantCollection
         foreach ($this->cropVariants as $id => $cropVariant) {
             $cropVariantsAsArray[$id] = array_filter($cropVariant->asArray(), $filterNonPersistentKeys, ARRAY_FILTER_USE_KEY);
         }
-        return json_encode($cropVariantsAsArray);
+        return json_encode($cropVariantsAsArray) ?: '[]';
     }
 
     /**
@@ -129,9 +131,8 @@ class CropVariantCollection
     {
         if (isset($this->cropVariants[$id])) {
             return $this->cropVariants[$id]->getCropArea();
-        } else {
-            return Area::createEmpty();
         }
+        return Area::createEmpty();
     }
 
     /**
@@ -142,9 +143,8 @@ class CropVariantCollection
     {
         if (isset($this->cropVariants[$id]) && $this->cropVariants[$id]->getFocusArea() !== null) {
             return $this->cropVariants[$id]->getFocusArea();
-        } else {
-            return Area::createEmpty();
         }
+        return Area::createEmpty();
     }
 
     /**
@@ -156,7 +156,7 @@ class CropVariantCollection
     }
 
     /**
-     * @param CropVariant[] ...$cropVariants
+     * @param array<int,CropVariant> $cropVariants
      * @throws \TYPO3\CMS\Core\Imaging\ImageManipulation\InvalidConfigurationException
      */
     protected function setCropVariants(CropVariant ...$cropVariants)

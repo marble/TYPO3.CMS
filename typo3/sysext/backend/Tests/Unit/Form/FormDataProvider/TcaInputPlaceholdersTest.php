@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,28 +13,21 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Form\FormDataCompiler;
 use TYPO3\CMS\Backend\Form\FormDataGroup\TcaInputPlaceholderRecord;
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaInputPlaceholders;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaInputPlaceholdersTest extends UnitTestCase
 {
-    /**
-     * @var TcaInputPlaceholders
-     */
-    protected $subject;
-
-    public function setUp()
-    {
-        $this->subject = new TcaInputPlaceholders();
-    }
-
     /**
      * @test
      */
@@ -59,7 +51,7 @@ class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $expected = $input;
         unset($expected['processedTca']['columns']['aField']['config']['placeholder']);
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaInputPlaceholders())->addData($input));
     }
 
     /**
@@ -84,7 +76,7 @@ class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
 
         $expected = $input;
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaInputPlaceholders())->addData($input));
     }
 
     /**
@@ -112,7 +104,7 @@ class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $expected = $input;
         $expected['processedTca']['columns']['aField']['config']['placeholder'] = 'anotherPlaceholder';
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaInputPlaceholders())->addData($input));
     }
 
     /**
@@ -176,7 +168,7 @@ class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $expected = $input;
         $expected['processedTca']['columns']['aField']['config']['placeholder'] = $aForeignTableInput['databaseRow']['aForeignField'];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaInputPlaceholders())->addData($input));
     }
 
     /**
@@ -211,7 +203,7 @@ class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $expected = $input;
         unset($expected['processedTca']['columns']['aField']['config']['placeholder']);
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaInputPlaceholders())->addData($input));
     }
 
     /**
@@ -285,7 +277,7 @@ class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $expected = $input;
         $expected['processedTca']['columns']['aField']['config']['placeholder'] = $sysFileProphecyResult['databaseRow']['sha1'];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaInputPlaceholders())->addData($input));
     }
 
     /**
@@ -351,7 +343,7 @@ class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $expected = $input;
         $expected['processedTca']['columns']['aField']['config']['placeholder'] = $sysFileMetadataProphecyResult['databaseRow']['title'];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaInputPlaceholders())->addData($input));
     }
 
     /**
@@ -455,7 +447,7 @@ class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $expected = $input;
         $expected['processedTca']['columns']['aField']['config']['placeholder'] = $sysFileMetadataProphecyResult['databaseRow']['title'];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaInputPlaceholders())->addData($input));
     }
 
     /**
@@ -487,6 +479,6 @@ class TcaInputPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $GLOBALS['LANG'] = $languageService->reveal();
         $languageService->sL($labelString)->shouldBeCalled()->willReturn($localizedString);
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaInputPlaceholders())->addData($input));
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,22 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseParentPageRow;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabaseParentPageRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabaseParentPageRowTest extends UnitTestCase
 {
     /**
-     * @var DatabaseParentPageRow|\PHPUnit_Framework_MockObject_MockObject
+     * @var DatabaseParentPageRow|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->subject = $this->getMockBuilder(DatabaseParentPageRow::class)
             ->setMethods(['getDatabaseRow'])
@@ -48,32 +50,32 @@ class DatabaseParentPageRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             'pid' => 321
         ];
 
-        $this->subject->expects($this->at(0))
+        $this->subject->expects(self::at(0))
             ->method('getDatabaseRow')
             ->with($input['tableName'], 10)
             ->willReturn(['pid' => 123]);
 
-        $this->subject->expects($this->at(1))
+        $this->subject->expects(self::at(1))
             ->method('getDatabaseRow')
             ->with('pages', 123)
             ->willReturn($parentPageRow);
 
         $result = $this->subject->addData($input);
 
-        $this->assertSame($parentPageRow, $result['parentPageRow']);
+        self::assertSame($parentPageRow, $result['parentPageRow']);
     }
 
     /**
      * @test
      */
-    public function addDataSetsNeigborRowIfNegativeUidGiven()
+    public function addDataSetsNeighborRowIfNegativeUidGiven()
     {
         $input = [
             'tableName' => 'tt_content',
             'command' => 'new',
             'vanillaUid' => -10,
         ];
-        $neigborRow = [
+        $neighborRow = [
             'uid' => 10,
             'pid' => 321
         ];
@@ -81,19 +83,19 @@ class DatabaseParentPageRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             'uid' => 123,
             'pid' => 321
         ];
-        $this->subject->expects($this->at(0))
+        $this->subject->expects(self::at(0))
             ->method('getDatabaseRow')
             ->with($input['tableName'], 10)
-            ->willReturn($neigborRow);
+            ->willReturn($neighborRow);
 
-        $this->subject->expects($this->at(1))
+        $this->subject->expects(self::at(1))
             ->method('getDatabaseRow')
             ->with('pages', 321)
             ->willReturn($parentPageRow);
 
         $result = $this->subject->addData($input);
 
-        $this->assertSame($neigborRow, $result['neighborRow']);
+        self::assertSame($neighborRow, $result['neighborRow']);
     }
 
     /**
@@ -107,14 +109,14 @@ class DatabaseParentPageRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             'vanillaUid' => -10,
         ];
 
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getDatabaseRow')
             ->with($input['tableName'], 10)
             ->willReturn(['pid' => 0]);
 
         $result = $this->subject->addData($input);
 
-        $this->assertNull($result['parentPageRow']);
+        self::assertNull($result['parentPageRow']);
     }
 
     /**
@@ -132,14 +134,14 @@ class DatabaseParentPageRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             'pid' => 321
         ];
 
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getDatabaseRow')
             ->with('pages', 123)
             ->willReturn($parentPageRow);
 
         $result = $this->subject->addData($input);
 
-        $this->assertSame($parentPageRow, $result['parentPageRow']);
+        self::assertSame($parentPageRow, $result['parentPageRow']);
     }
 
     /**
@@ -160,13 +162,13 @@ class DatabaseParentPageRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             'uid' => 321,
             'pid' => 456
         ];
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getDatabaseRow')
             ->with('pages', 321)
             ->willReturn($parentPageRow);
 
         $result = $this->subject->addData($input);
 
-        $this->assertSame($parentPageRow, $result['parentPageRow']);
+        self::assertSame($parentPageRow, $result['parentPageRow']);
     }
 }

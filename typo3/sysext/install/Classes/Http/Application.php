@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,79 +12,53 @@ namespace TYPO3\CMS\Install\Http;
  *
  * The TYPO3 project - inspiring people to share!
  */
-use TYPO3\CMS\Core\Core\ApplicationInterface;
-use TYPO3\CMS\Core\Core\Bootstrap;
+
+namespace TYPO3\CMS\Install\Http;
+
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\DateTimeAspect;
+use TYPO3\CMS\Core\Context\UserAspect;
+use TYPO3\CMS\Core\Context\VisibilityAspect;
+use TYPO3\CMS\Core\Context\WorkspaceAspect;
+use TYPO3\CMS\Core\Http\AbstractApplication;
 
 /**
  * Entry point for the TYPO3 Install Tool
+ * @internal This class is only meant to be used within EXT:install and is not part of the TYPO3 Core API.
  */
-class Application implements ApplicationInterface
+class Application extends AbstractApplication
 {
     /**
-     * @var Bootstrap
+     * @var Context
      */
-    protected $bootstrap;
+    protected $context;
 
-    /**
-     * Number of subdirectories where the entry script is located, relative to PATH_site
-     * @var int
-     */
-    protected $entryPointLevel = 4;
+    public function __construct(
+        RequestHandlerInterface $requestHandler,
+        Context $context
+    ) {
+        $this->requestHandler = $requestHandler;
+        $this->context = $context;
+    }
 
-    /**
-     * All available request handlers that can handle an install tool request
-     * @var array
-     */
-    protected $availableRequestHandlers = [
-        \TYPO3\CMS\Install\Http\RequestHandler::class
-    ];
-
-    /**
-     * Constructor setting up legacy constant and register available Request Handlers
-     *
-     * @param \Composer\Autoload\ClassLoader $classLoader an instance of the class loader
-     */
-    public function __construct($classLoader)
+    protected function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $this->defineLegacyConstants();
-
-        $this->bootstrap = Bootstrap::getInstance()
-            ->initializeClassLoader($classLoader)
-            ->setRequestType(TYPO3_REQUESTTYPE_INSTALL)
-            ->baseSetup($this->entryPointLevel);
-
-        foreach ($this->availableRequestHandlers as $requestHandler) {
-            $this->bootstrap->registerRequestHandlerImplementation($requestHandler);
-        }
-
-        $this->bootstrap
-            ->startOutputBuffering()
-            ->loadConfigurationAndInitialize(false, \TYPO3\CMS\Core\Package\FailsafePackageManager::class);
+        $this->initializeContext();
+        return parent::handle($request)
+            ->withHeader('X-Frame-Options', 'SAMEORIGIN');
     }
 
     /**
-     * Set up the application and shut it down afterwards
-     * Failsafe minimal setup mode for the install tool
-     * Does not call "run()" therefore
-     *
-     * @param callable $execute
+     * Initializes the Context used for accessing data and finding out the current state of the application
      */
-    public function run(callable $execute = null)
+    protected function initializeContext(): void
     {
-        $this->bootstrap->handleRequest(\TYPO3\CMS\Core\Http\ServerRequestFactory::fromGlobals());
-
-        if ($execute !== null) {
-            call_user_func($execute);
-        }
-
-        $this->bootstrap->shutdown();
-    }
-
-    /**
-     * Define constants
-     */
-    protected function defineLegacyConstants()
-    {
-        define('TYPO3_MODE', 'BE');
+        $this->context->setAspect('date', new DateTimeAspect(new \DateTimeImmutable('@' . $GLOBALS['EXEC_TIME'])));
+        $this->context->setAspect('visibility', new VisibilityAspect(true, true, true));
+        $this->context->setAspect('workspace', new WorkspaceAspect(0));
+        $this->context->setAspect('backend.user', new UserAspect());
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource\Index;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,93 +13,47 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource\Index;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Resource\Index;
+
 use TYPO3\CMS\Core\Resource\File;
-use TYPO3\CMS\Core\Resource\Index\ExtractorInterface;
+use TYPO3\CMS\Core\Resource\Index\FileIndexRepository;
 use TYPO3\CMS\Core\Resource\Index\Indexer;
+use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\CMS\Core\Resource\Service\ExtractorService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Class IndexerTest
  */
-class IndexerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class IndexerTest extends UnitTestCase
 {
     /**
      * @test
      */
-    public function isFileTypeSupportedByExtractorReturnsFalesForFileTypeTextAndExtractorLimitedToFileTypeImage()
+    public function extractMetaDataCallsSubsequentMethodsWithCorrectArguments(): void
     {
-        $mockStorage = $this->createMock(\TYPO3\CMS\Core\Resource\ResourceStorage::class);
-        $mockFile = $this->createMock(File::class);
-        $mockFile->expects($this->any())->method('getType')->will($this->returnValue(
-            File::FILETYPE_TEXT
-        ));
+        $mockStorage = $this->createMock(ResourceStorage::class);
 
-        $mockExtractor = $this->createMock(ExtractorInterface::class);
-        $mockExtractor->expects($this->any())->method('getFileTypeRestrictions')->will($this->returnValue(
-            [File::FILETYPE_IMAGE]
-        ));
+        /** @var Indexer|\PHPUnit\Framework\MockObject\MockObject $subject */
+        $subject = $this->getMockBuilder(Indexer::class)
+            ->setConstructorArgs([$mockStorage])
+            ->setMethods(['getFileIndexRepository', 'extractRequiredMetaData', 'getExtractorService'])
+            ->getMock();
 
-        $method = new \ReflectionMethod(Indexer::class, 'isFileTypeSupportedByExtractor');
-        $method->setAccessible(true);
-        $arguments = [
-            $mockFile,
-            $mockExtractor
-        ];
+        $indexFileRepositoryMock = $this->createMock(FileIndexRepository::class);
+        $subject->expects(self::any())->method('getFileIndexRepository')->willReturn($indexFileRepositoryMock);
 
-        $result = $method->invokeArgs(new Indexer($mockStorage), $arguments);
-        $this->assertFalse($result);
-    }
+        $fileMock = $this->createMock(File::class);
+        $fileMock->expects(self::any())->method('getUid')->willReturn(42);
+        $fileMock->expects(self::any())->method('getType')->willReturn(File::FILETYPE_TEXT);
+        $fileMock->expects(self::any())->method('getStorage')->willReturn($mockStorage);
 
-    /**
-     * @test
-     */
-    public function isFileTypeSupportedByExtractorReturnsTrueForFileTypeImageAndExtractorLimitedToFileTypeImage()
-    {
-        $mockStorage = $this->createMock(\TYPO3\CMS\Core\Resource\ResourceStorage::class);
-        $mockFile = $this->createMock(File::class);
-        $mockFile->expects($this->any())->method('getType')->will($this->returnValue(
-            File::FILETYPE_IMAGE
-        ));
+        $extractorServiceMock = $this->getMockBuilder(ExtractorService::class)->getMock();
+        $extractorServiceMock->expects(self::once())->method('extractMetaData')->with($fileMock);
+        $subject->expects(self::any())->method('getExtractorService')->willReturn($extractorServiceMock);
 
-        $mockExtractor = $this->createMock(ExtractorInterface::class);
-        $mockExtractor->expects($this->any())->method('getFileTypeRestrictions')->will($this->returnValue(
-            [File::FILETYPE_IMAGE]
-        ));
+        $indexFileRepositoryMock->expects(self::once())->method('updateIndexingTime')->with($fileMock->getUid());
 
-        $method = new \ReflectionMethod(Indexer::class, 'isFileTypeSupportedByExtractor');
-        $method->setAccessible(true);
-        $arguments = [
-            $mockFile,
-            $mockExtractor
-        ];
-
-        $result = $method->invokeArgs(new Indexer($mockStorage), $arguments);
-        $this->assertTrue($result);
-    }
-
-    /**
-     * @test
-     */
-    public function isFileTypeSupportedByExtractorReturnsTrueForFileTypeTextAndExtractorHasNoFileTypeLimitation()
-    {
-        $mockStorage = $this->createMock(\TYPO3\CMS\Core\Resource\ResourceStorage::class);
-        $mockFile = $this->createMock(File::class);
-        $mockFile->expects($this->any())->method('getType')->will($this->returnValue(
-            File::FILETYPE_TEXT
-        ));
-
-        $mockExtractor = $this->createMock(ExtractorInterface::class);
-        $mockExtractor->expects($this->any())->method('getFileTypeRestrictions')->will($this->returnValue(
-            []
-        ));
-
-        $method = new \ReflectionMethod(Indexer::class, 'isFileTypeSupportedByExtractor');
-        $method->setAccessible(true);
-        $arguments = [
-            $mockFile,
-            $mockExtractor
-        ];
-
-        $result = $method->invokeArgs(new Indexer($mockStorage), $arguments);
-        $this->assertTrue($result);
+        $subject->extractMetaData($fileMock);
     }
 }

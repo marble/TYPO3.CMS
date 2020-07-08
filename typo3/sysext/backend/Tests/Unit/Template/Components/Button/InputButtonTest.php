@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Template\Components\Buttons;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,16 @@ namespace TYPO3\CMS\Backend\Tests\Template\Components\Buttons;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Template\Components\Button;
+
 use TYPO3\CMS\Backend\Template\Components\Buttons\InputButton;
 use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case for InputButton
  */
-class InputButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class InputButtonTest extends UnitTestCase
 {
     /**
      * Try to validate an empty button
@@ -31,7 +33,7 @@ class InputButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $button = new InputButton();
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -44,7 +46,7 @@ class InputButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $button = new InputButton();
         $button->setName('husel')->setValue('1')->setTitle('huhu');
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -58,7 +60,7 @@ class InputButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $icon = new Icon();
         $button->setName('husel')->setValue('1')->setIcon($icon);
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -72,7 +74,7 @@ class InputButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $icon = new Icon();
         $button->setTitle('husel')->setValue('1')->setIcon($icon);
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -86,7 +88,7 @@ class InputButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $icon = new Icon();
         $button->setTitle('husel')->setName('husel')->setIcon($icon);
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -100,6 +102,6 @@ class InputButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $icon = new Icon();
         $button->setTitle('husel')->setName('husel')->setIcon($icon)->setValue('1');
         $isValid = $button->isValid();
-        $this->assertTrue($isValid);
+        self::assertTrue($isValid);
     }
 }

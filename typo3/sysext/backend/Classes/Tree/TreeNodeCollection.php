@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tree;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,11 @@ namespace TYPO3\CMS\Backend\Tree;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Tree;
+
+use TYPO3\CMS\Core\Exception;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Tree Node Collection
@@ -47,9 +51,12 @@ class TreeNodeCollection extends \ArrayObject
      * Compares a node with another one
      *
      * @see \TYPO3\CMS\Backend\Tree\TreeNode::compareTo
-     * @noapi
+     * @internal
+     * @param TreeNode $node
+     * @param TreeNode $otherNode
+     * @return int
      */
-    public function nodeCompare(\TYPO3\CMS\Backend\Tree\TreeNode $node, \TYPO3\CMS\Backend\Tree\TreeNode $otherNode)
+    public function nodeCompare(TreeNode $node, TreeNode $otherNode)
     {
         return $node->compareTo($otherNode);
     }
@@ -73,8 +80,8 @@ class TreeNodeCollection extends \ArrayObject
     public function unserialize($serializedString)
     {
         $arrayRepresentation = unserialize($serializedString);
-        if ($arrayRepresentation['serializeClassName'] !== get_class($this)) {
-            throw new \TYPO3\CMS\Core\Exception('Deserialized object type is not identical!', 1294586647);
+        if ($arrayRepresentation['serializeClassName'] !== static::class) {
+            throw new Exception('Deserialized object type is not identical!', 1294586647);
         }
         $this->dataFromArray($arrayRepresentation);
     }
@@ -87,7 +94,7 @@ class TreeNodeCollection extends \ArrayObject
     public function toArray()
     {
         $arrayRepresentation = [
-            'serializeClassName' => get_class($this)
+            'serializeClassName' => static::class
         ];
         $iterator = $this->getIterator();
         while ($iterator->valid()) {
@@ -106,7 +113,7 @@ class TreeNodeCollection extends \ArrayObject
     {
         unset($data['serializeClassName']);
         foreach ($data as $index => $nodeArray) {
-            $node = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance($nodeArray['serializeClassName'], $nodeArray);
+            $node = GeneralUtility::makeInstance($nodeArray['serializeClassName'], $nodeArray);
             $this->offsetSet($index, $node);
         }
     }

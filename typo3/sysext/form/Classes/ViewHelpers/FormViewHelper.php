@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,8 +15,13 @@ namespace TYPO3\CMS\Form\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Extbase\Mvc\Web\Request;
-use TYPO3\CMS\Extbase\Security\Cryptography\HashService;
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\ViewHelpers;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Fluid\ViewHelpers\FormViewHelper as FluidFormViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder;
 
@@ -26,7 +29,6 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder;
  * Custom form ViewHelper that renders the form state instead of referrer fields
  *
  * Scope: frontend
- * @api
  */
 class FormViewHelper extends FluidFormViewHelper
 {
@@ -39,7 +41,7 @@ class FormViewHelper extends FluidFormViewHelper
      */
     protected function renderHiddenReferrerFields()
     {
-        $tagBuilder = $this->objectManager->get(TagBuilder::class, 'input');
+        $tagBuilder = GeneralUtility::makeInstance(TagBuilder::class, 'input');
         $tagBuilder->addAttribute('type', 'hidden');
         $stateName = $this->prefixFieldName($this->arguments['object']->getFormDefinition()->getIdentifier()) . '[__state]';
         $tagBuilder->addAttribute('name', $stateName);

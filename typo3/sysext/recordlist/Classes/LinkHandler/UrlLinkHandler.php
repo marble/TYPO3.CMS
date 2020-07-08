@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recordlist\LinkHandler;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Recordlist\LinkHandler;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recordlist\LinkHandler;
+
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Link handler for external URLs
+ * @internal This class is a specific LinkHandler implementation and is not part of the TYPO3's Core API.
  */
 class UrlLinkHandler extends AbstractLinkHandler implements LinkHandlerInterface
 {
@@ -88,7 +90,7 @@ class UrlLinkHandler extends AbstractLinkHandler implements LinkHandlerInterface
     {
         GeneralUtility::makeInstance(PageRenderer::class)->loadRequireJsModule('TYPO3/CMS/Recordlist/UrlLinkHandler');
 
-        $this->view->assign('url', !empty($this->linkParts) ? $this->linkParts['url'] : 'http://');
+        $this->view->assign('url', !empty($this->linkParts) ? $this->linkParts['url'] : '');
         return $this->view->render('Url');
     }
 

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Mvc;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Error\Result;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
@@ -21,99 +22,63 @@ use TYPO3\CMS\Extbase\Validation\Validator\AbstractValidator;
 use TYPO3\CMS\Extbase\Validation\Validator\ConjunctionValidator;
 use TYPO3\CMS\Form\Mvc\ProcessingRule;
 use TYPO3\CMS\Form\Tests\Unit\Mvc\Validation\Fixtures\TestValidator;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class ProcessingRuleTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ProcessingRuleTest extends UnitTestCase
 {
-
     /**
-     * @var array A backup of registered singleton instances
+     * @var bool Reset singletons created by subject
      */
-    protected $singletonInstances = [];
+    protected $resetSingletonInstances = true;
 
-    /**
-     * Set up
-     */
-    public function setUp()
+    protected function setUp(): void
     {
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-    }
-
-    /**
-     * Tear down
-     */
-    public function tearDown()
-    {
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
+        parent::setUp();
+        $objectManagerProphecy = $this->prophesize(ObjectManager::class);
+        $objectManagerProphecy->get(Result::class)->willReturn(new Result());
+        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManagerProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function addValidatorAddValidator()
+    public function addValidatorAddsValidator(): void
     {
-        $mockProcessingRule = $this->getAccessibleMock(ProcessingRule::class, [
-            'dummy'
-        ], [], '', false);
-
-        $mockProcessingRule->_set('validator', new ConjunctionValidator([]));
+        $mockProcessingRule = new ProcessingRule();
+        $mockProcessingRule->injectConjunctionValidator(new ConjunctionValidator([]));
         $mockProcessingRule->addValidator(new TestValidator());
-        $validators = $mockProcessingRule->_get('validator')->getValidators();
+        $validators = $mockProcessingRule->getValidators();
         $validators->rewind();
-        $this->assertInstanceOf(AbstractValidator::class, $validators->current());
+        self::assertInstanceOf(AbstractValidator::class, $validators->current());
     }
 
     /**
      * @test
      */
-    public function processNoPropertyMappingReturnsNotModifiedValue()
+    public function processNoPropertyMappingReturnsNotModifiedValue(): void
     {
-        $objectMangerProphecy = $this->prophesize(ObjectManager::class);
-        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectMangerProphecy->reveal());
-        $resultProphecy = $this->prophesize(Result::class);
-
-        $objectMangerProphecy
-            ->get(Result::class)
-            ->willReturn($resultProphecy->reveal());
-
-        $mockProcessingRule = $this->getAccessibleMock(ProcessingRule::class, [
-            'dummy'
-        ], [], '', false);
-
-        $mockProcessingRule->_set('dataType', null);
-        $mockProcessingRule->_set('processingMessages', $resultProphecy->reveal());
-        $mockProcessingRule->_set('validator', new ConjunctionValidator([]));
+        $processingRule = new ProcessingRule();
+        $processingRule->injectConjunctionValidator(new ConjunctionValidator([]));
 
         $input = 'someValue';
-        $this->assertSame($input, $mockProcessingRule->_call('process', $input));
+        self::assertSame($input, $processingRule->process($input));
     }
 
     /**
      * @test
      */
-    public function processNoPropertyMappingAndHasErrorsIfValidatorContainsErrors()
+    public function processNoPropertyMappingAndHasErrorsIfValidatorContainsErrors(): void
     {
-        $objectMangerProphecy = $this->prophesize(ObjectManager::class);
-        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectMangerProphecy->reveal());
-
-        $objectMangerProphecy
-            ->get(Result::class)
-            ->willReturn(new Result);
-
-        $mockProcessingRule = $this->getAccessibleMock(ProcessingRule::class, [
-            'dummy'
-        ], [], '', true);
-
-        $mockProcessingRule->_set('dataType', null);
-        $mockProcessingRule->_set('validator', new ConjunctionValidator([]));
-        $mockProcessingRule->addValidator(new TestValidator());
+        $processingRule = new ProcessingRule();
+        $processingRule->injectConjunctionValidator(new ConjunctionValidator([]));
+        $processingRule->addValidator(new TestValidator());
 
         $input = 'addError';
-        $mockProcessingRule->_call('process', $input);
+        $processingRule->process($input);
 
-        $this->assertTrue($mockProcessingRule->_get('processingMessages')->hasErrors());
+        self::assertTrue($processingRule->getProcessingMessages()->hasErrors());
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Page;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +13,31 @@ namespace TYPO3\CMS\Core\Tests\Unit\Page;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Page;
+
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Unit test case
- *
- * @see According functional test case
+ * Test case
  */
-class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class PageRendererTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function renderMethodCallsResetInAnyCase()
     {
-        $pageRenderer = $this->getMockBuilder(\TYPO3\CMS\Core\Page\PageRenderer::class)
-            ->setMethods(['reset', 'prepareRendering', 'renderJavaScriptAndCss', 'getPreparedMarkerArray', 'getTemplateForPart'])
+        $this->resetSingletonInstances = true;
+        $tsfe = $this->prophesize(TypoScriptFrontendController::class);
+
+        $pageRenderer = $this->getMockBuilder(PageRenderer::class)
+            ->setMethods(['reset', 'prepareRendering', 'renderJavaScriptAndCss', 'getPreparedMarkerArray', 'getTemplateForPart', 'getTypoScriptFrontendController'])
             ->getMock();
-        $pageRenderer->expects($this->exactly(3))->method('reset');
+        $pageRenderer->expects(self::any())->method('getTypoScriptFrontendController')->willReturn($tsfe->reveal());
+        $pageRenderer->expects(self::exactly(3))->method('reset');
 
         $pageRenderer->render(PageRenderer::PART_COMPLETE);
         $pageRenderer->render(PageRenderer::PART_HEADER);
@@ -41,38 +47,10 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function includingNotAvailableLocalJqueryVersionThrowsException()
-    {
-        $this->expectException(\UnexpectedValueException::class);
-        $this->expectExceptionCode(1341505305);
-
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['dummy'], [], '', false);
-        $subject->_set('availableLocalJqueryVersions', ['1.1.1']);
-        $subject->loadJquery('2.2.2');
-    }
-
-    /**
-     * @test
-     */
-    public function includingJqueryWithNonAlphnumericNamespaceThrowsException()
-    {
-        $this->expectException(\UnexpectedValueException::class);
-        $this->expectExceptionCode(1341571604);
-
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['dummy'], [], '', false);
-        $subject->loadJquery(null, null, '12sd.12fsd');
-        $subject->render();
-    }
-
-    /**
-     * @test
-     */
     public function addBodyContentAddsContent()
     {
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['dummy'], [], '', false);
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['dummy'], [], '', false);
         $expectedReturnValue = 'ABCDE';
         $subject->addBodyContent('A');
         $subject->addBodyContent('B');
@@ -80,7 +58,7 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $subject->addBodyContent('D');
         $subject->addBodyContent('E');
         $out = $subject->getBodyContent();
-        $this->assertEquals($expectedReturnValue, $out);
+        self::assertEquals($expectedReturnValue, $out);
     }
 
     /**
@@ -88,11 +66,11 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function addInlineLanguageLabelFileSetsInlineLanguageLabelFiles()
     {
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['dummy'], [], '', false);
-        $fileReference = $this->getUniqueId('file_');
-        $selectionPrefix = $this->getUniqueId('prefix_');
-        $stripFromSelectionName = $this->getUniqueId('strip_');
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['dummy'], [], '', false);
+        $fileReference = StringUtility::getUniqueId('file_');
+        $selectionPrefix = StringUtility::getUniqueId('prefix_');
+        $stripFromSelectionName = StringUtility::getUniqueId('strip_');
 
         $expectedInlineLanguageLabelFile = [
             'fileRef' => $fileReference,
@@ -103,7 +81,7 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $subject->addInlineLanguageLabelFile($fileReference, $selectionPrefix, $stripFromSelectionName);
         $actualResult = $subject->getInlineLanguageLabelFiles();
 
-        $this->assertSame($expectedInlineLanguageLabelFile, array_pop($actualResult));
+        self::assertSame($expectedInlineLanguageLabelFile, array_pop($actualResult));
     }
 
     /**
@@ -111,19 +89,19 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function addInlineLanguageLabelFileSetsTwoDifferentInlineLanguageLabelFiles()
     {
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['dummy'], [], '', false);
-        $fileReference1 = $this->getUniqueId('file1_');
-        $selectionPrefix1 = $this->getUniqueId('prefix1_');
-        $stripFromSelectionName1 = $this->getUniqueId('strip1_');
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['dummy'], [], '', false);
+        $fileReference1 = StringUtility::getUniqueId('file1_');
+        $selectionPrefix1 = StringUtility::getUniqueId('prefix1_');
+        $stripFromSelectionName1 = StringUtility::getUniqueId('strip1_');
         $expectedInlineLanguageLabelFile1 = [
             'fileRef' => $fileReference1,
             'selectionPrefix' => $selectionPrefix1,
             'stripFromSelectionName' => $stripFromSelectionName1
         ];
-        $fileReference2 = $this->getUniqueId('file2_');
-        $selectionPrefix2 = $this->getUniqueId('prefix2_');
-        $stripFromSelectionName2 = $this->getUniqueId('strip2_');
+        $fileReference2 = StringUtility::getUniqueId('file2_');
+        $selectionPrefix2 = StringUtility::getUniqueId('prefix2_');
+        $stripFromSelectionName2 = StringUtility::getUniqueId('strip2_');
         $expectedInlineLanguageLabelFile2 = [
             'fileRef' => $fileReference2,
             'selectionPrefix' => $selectionPrefix2,
@@ -134,8 +112,8 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $subject->addInlineLanguageLabelFile($fileReference2, $selectionPrefix2, $stripFromSelectionName2);
         $actualResult = $subject->getInlineLanguageLabelFiles();
 
-        $this->assertSame($expectedInlineLanguageLabelFile2, array_pop($actualResult));
-        $this->assertSame($expectedInlineLanguageLabelFile1, array_pop($actualResult));
+        self::assertSame($expectedInlineLanguageLabelFile2, array_pop($actualResult));
+        self::assertSame($expectedInlineLanguageLabelFile1, array_pop($actualResult));
     }
 
     /**
@@ -143,15 +121,15 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function addInlineLanguageLabelFileDoesNotSetSameLanguageFileTwice()
     {
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['dummy'], [], '', false);
-        $fileReference = $this->getUniqueId('file2_');
-        $selectionPrefix = $this->getUniqueId('prefix2_');
-        $stripFromSelectionName = $this->getUniqueId('strip2_');
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['dummy'], [], '', false);
+        $fileReference = StringUtility::getUniqueId('file2_');
+        $selectionPrefix = StringUtility::getUniqueId('prefix2_');
+        $stripFromSelectionName = StringUtility::getUniqueId('strip2_');
 
         $subject->addInlineLanguageLabelFile($fileReference, $selectionPrefix, $stripFromSelectionName);
         $subject->addInlineLanguageLabelFile($fileReference, $selectionPrefix, $stripFromSelectionName);
-        $this->assertSame(1, count($subject->getInlineLanguageLabelFiles()));
+        self::assertSame(1, count($subject->getInlineLanguageLabelFiles()));
     }
 
     /**
@@ -162,8 +140,8 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1284906026);
 
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['dummy'], [], '', false);
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['dummy'], [], '', false);
         $subject->_set('charSet', 'utf-8');
         $subject->_call('includeLanguageFileForInline', 'someLLFile.xml');
     }
@@ -176,8 +154,8 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1284906026);
 
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['dummy'], [], '', false);
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['dummy'], [], '', false);
         $subject->_set('lang', 'default');
         $subject->_call('includeLanguageFileForInline', 'someLLFile.xml');
     }
@@ -187,14 +165,14 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function includeLanguageFileForInlineDoesNotAddToInlineLanguageLabelsIfFileCouldNotBeRead()
     {
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['readLLfile'], [], '', false);
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['readLLfile'], [], '', false);
         $subject->_set('lang', 'default');
         $subject->_set('charSet', 'utf-8');
         $subject->_set('inlineLanguageLabels', []);
         $subject->method('readLLfile')->willReturn(false);
         $subject->_call('includeLanguageFileForInline', 'someLLFile.xml');
-        $this->assertEquals([], $subject->_get('inlineLanguageLabels'));
+        self::assertEquals([], $subject->_get('inlineLanguageLabels'));
     }
 
     /**
@@ -253,13 +231,109 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function includeLanguageFileForInlineAddsProcessesLabelsToInlineLanguageLabels($llFileContent, $selectionPrefix, $stripFromSelectionName, $expectation)
     {
-        /** @var \TYPO3\CMS\Core\Page\PageRenderer|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Page\PageRenderer::class, ['readLLfile'], [], '', false);
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['readLLfile'], [], '', false);
         $subject->_set('lang', 'default');
         $subject->_set('charSet', 'utf-8');
         $subject->_set('inlineLanguageLabels', []);
         $subject->method('readLLfile')->willReturn($llFileContent);
         $subject->_call('includeLanguageFileForInline', 'someLLFile.xml', $selectionPrefix, $stripFromSelectionName);
-        $this->assertEquals($expectation, $subject->_get('inlineLanguageLabels'));
+        self::assertEquals($expectation, $subject->_get('inlineLanguageLabels'));
+    }
+
+    /**
+     * @test
+     */
+    public function getAddedMetaTag()
+    {
+        $this->resetSingletonInstances = true;
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['whatDoesThisDo']);
+        $subject->setMetaTag('nAme', 'Author', 'foobar');
+        $actualResult = $subject->getMetaTag('naMe', 'AUTHOR');
+        $expectedResult = [
+            'type' => 'name',
+            'name' => 'author',
+            'content' => 'foobar'
+        ];
+        self::assertSame($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function overrideMetaTag()
+    {
+        $this->resetSingletonInstances = true;
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['whatDoesThisDo']);
+        $subject->setMetaTag('nAme', 'Author', 'Axel Foley');
+        $subject->setMetaTag('nAme', 'Author', 'foobar');
+        $actualResult = $subject->getMetaTag('naMe', 'AUTHOR');
+        $expectedResult = [
+            'type' => 'name',
+            'name' => 'author',
+            'content' => 'foobar'
+        ];
+        self::assertSame($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function unsetAddedMetaTag()
+    {
+        $this->resetSingletonInstances = true;
+        /** @var PageRenderer|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['whatDoesThisDo']);
+        $subject->setMetaTag('nAme', 'Author', 'foobar');
+        $subject->removeMetaTag('naMe', 'AUTHOR');
+        $actualResult = $subject->getMetaTag('naMe', 'AUTHOR');
+        $expectedResult = [];
+        self::assertSame($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function parseLanguageLabelsForJavaScriptReturnsEmptyStringIfEmpty()
+    {
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['dummy'], [], '', false);
+        $inlineLanguageLabels = [];
+        $subject->_set('inlineLanguageLabels', $inlineLanguageLabels);
+        $actual = $subject->_call('parseLanguageLabelsForJavaScript');
+        self::assertEmpty($actual);
+    }
+
+    /**
+     * @test
+     */
+    public function parseLanguageLabelsForJavaScriptReturnsFlatArray()
+    {
+        $subject = $this->getAccessibleMock(PageRenderer::class, ['dummy'], [], '', false);
+        $inlineLanguageLabels = [
+            'key' => 'label',
+            'foo' => 'bar',
+            'husel' => [
+                [
+                    'source' => 'pusel',
+                ]
+            ],
+            'hello' => [
+                [
+                    'source' => 'world',
+                    'target' => 'welt',
+                ]
+            ],
+        ];
+        $subject->_set('inlineLanguageLabels', $inlineLanguageLabels);
+        $expected = [
+            'key' => 'label',
+            'foo' => 'bar',
+            'husel' => 'pusel',
+            'hello' => 'welt',
+        ];
+        $actual = $subject->_call('parseLanguageLabelsForJavaScript');
+        self::assertSame($expected, $actual);
     }
 }

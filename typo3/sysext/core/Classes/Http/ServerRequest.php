@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Core\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Http;
+
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UploadedFileInterface;
+use Psr\Http\Message\UriInterface;
 
 /**
  * Represents a typical request incoming from the server to be processed
@@ -66,9 +68,9 @@ class ServerRequest extends Request implements ServerRequestInterface
     /**
      * Constructor, the only place to set all parameters of this Message/Request
      *
-     * @param NULL|string $uri URI for the request, if any.
-     * @param NULL|string $method HTTP method for the request, if any.
-     * @param string|resource|StreamInterface $body Message body, if any.
+     * @param string|UriInterface|null $uri URI for the request, if any.
+     * @param string|null $method HTTP method for the request, if any.
+     * @param string|resource|StreamInterface|null $body Message body, if any.
      * @param array $headers Headers for the message, if any.
      * @param array $serverParams Server parameters, typically from $_SERVER
      * @param array $uploadedFiles Upload file information, a tree of UploadedFiles
@@ -130,7 +132,7 @@ class ServerRequest extends Request implements ServerRequestInterface
      * updated cookie values.
      *
      * @param array $cookies Array of key/value pairs representing cookies.
-     * @return ServerRequest
+     * @return static
      */
     public function withCookieParams(array $cookies)
     {
@@ -176,7 +178,7 @@ class ServerRequest extends Request implements ServerRequestInterface
      *
      * @param array $query Array of query string arguments, typically from
      *     $_GET.
-     * @return ServerRequest
+     * @return static
      */
     public function withQueryParams(array $query)
     {
@@ -210,7 +212,7 @@ class ServerRequest extends Request implements ServerRequestInterface
      * updated body parameters.
      *
      * @param array $uploadedFiles An array tree of UploadedFileInterface instances.
-     * @return ServerRequest
+     * @return static
      * @throws \InvalidArgumentException if an invalid structure is provided.
      */
     public function withUploadedFiles(array $uploadedFiles)
@@ -233,7 +235,7 @@ class ServerRequest extends Request implements ServerRequestInterface
      * potential types MUST be arrays or objects only. A null value indicates
      * the absence of body content.
      *
-     * @return null|array|object The deserialized body parameters, if any.
+     * @return array|object|null The deserialized body parameters, if any.
      *     These will typically be an array or object.
      */
     public function getParsedBody()
@@ -263,9 +265,9 @@ class ServerRequest extends Request implements ServerRequestInterface
      * immutability of the message, and MUST return an instance that has the
      * updated body parameters.
      *
-     * @param null|array|object $data The deserialized body data. This will
+     * @param array|object|null $data The deserialized body data. This will
      *     typically be in an array or object.
-     * @return ServerRequest
+     * @return static
      * @throws \InvalidArgumentException if an unsupported argument type is
      *     provided.
      */
@@ -310,7 +312,7 @@ class ServerRequest extends Request implements ServerRequestInterface
      */
     public function getAttribute($name, $default = null)
     {
-        return isset($this->attributes[$name]) ? $this->attributes[$name] : $default;
+        return $this->attributes[$name] ?? $default;
     }
 
     /**
@@ -327,7 +329,7 @@ class ServerRequest extends Request implements ServerRequestInterface
      *
      * @param string $name The attribute name.
      * @param mixed $value The value of the attribute.
-     * @return ServerRequest
+     * @return static
      */
     public function withAttribute($name, $value)
     {
@@ -349,17 +351,16 @@ class ServerRequest extends Request implements ServerRequestInterface
      * @see getAttributes()
      *
      * @param string $name The attribute name.
-     * @return ServerRequest
+     * @return static
      */
     public function withoutAttribute($name)
     {
         $clonedObject = clone $this;
         if (!isset($clonedObject->attributes[$name])) {
             return $clonedObject;
-        } else {
-            unset($clonedObject->attributes[$name]);
-            return $clonedObject;
         }
+        unset($clonedObject->attributes[$name]);
+        return $clonedObject;
     }
 
     /**

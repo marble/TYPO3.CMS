@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\LinkHandling\UrlLinkHandler;
+namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
 
-class UrlLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+use TYPO3\CMS\Core\LinkHandling\UrlLinkHandler;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
+class UrlLinkHandlerTest extends UnitTestCase
 {
 
     /**
@@ -89,7 +91,22 @@ class UrlLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'url' => 'sftp://nice:andsecret@www.have.you:23/ever?did=this'
                 ],
                 'sftp://nice:andsecret@www.have.you:23/ever?did=this'
-            ]
+            ],
+            'tel URL' => [
+                ['url' => 'tel:+1-2345-6789'],
+                ['url' => 'tel:+1-2345-6789'],
+                'tel:+1-2345-6789'
+            ],
+            'javascript URL (denied)' => [
+                ['url' => 'javascript:alert(\'XSS\')'],
+                ['url' => ''],
+                ''
+            ],
+            'data URL (denied)' => [
+                ['url' => 'data:text/html;base64,SGVsbG8sIFdvcmxkIQ%3D%3D'],
+                ['url' => ''],
+                ''
+            ],
         ];
     }
 
@@ -105,7 +122,7 @@ class UrlLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function resolveReturnsSplitParameters($input, $expected, $finalString)
     {
         $subject = new UrlLinkHandler();
-        $this->assertEquals($expected, $subject->resolveHandlerData($input));
+        self::assertEquals($expected, $subject->resolveHandlerData($input));
     }
 
     /**
@@ -120,6 +137,6 @@ class UrlLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function splitParametersToUnifiedIdentifier($input, $parameters, $expected)
     {
         $subject = new UrlLinkHandler();
-        $this->assertEquals($expected, $subject->asString($parameters));
+        self::assertEquals($expected, $subject->asString($parameters));
     }
 }

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Topbar;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,28 +15,26 @@ namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Topbar;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
+namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Topbar;
+
+use TYPO3\CMS\Core\Tests\Acceptance\Support\BackendTester;
 
 /**
  * Topbar username and avatar module tests.
  */
 class UsernameOnAvatarCest
 {
-    public function _before(Admin $I)
+    public function _before(BackendTester $I)
     {
-        $I->useExistingSession();
-        // Ensure main content frame is fully loaded, otherwise there are load-race-conditions
-        $I->switchToIFrame('list_frame');
-        $I->waitForText('Web Content Management System');
-        $I->switchToIFrame();
+        $I->useExistingSession('admin');
     }
 
     /**
      * This test case is used to check if username is visible in the toolbar.
      *
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function usernameIsShown(Admin $I)
+    public function usernameIsShown(BackendTester $I)
     {
         $I->see('admin', '#typo3-cms-backend-backend-toolbaritems-usertoolbaritem');
     }

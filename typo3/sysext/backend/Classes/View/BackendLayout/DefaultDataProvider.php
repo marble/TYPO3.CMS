@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\View\BackendLayout;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,15 @@ namespace TYPO3\CMS\Backend\View\BackendLayout;
  * The TYPO3 project - inspiring people to share!
  */
 
-use Doctrine\Common\Collections\Expr\Comparison;
+namespace TYPO3\CMS\Backend\View\BackendLayout;
+
+use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Backend\View\BackendLayoutView;
+use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
+use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
+use TYPO3\CMS\Core\Resource\FileRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -59,7 +65,7 @@ class DefaultDataProvider implements DataProviderInterface
      *
      * @param string $identifier
      * @param int $pageId
-     * @return NULL|BackendLayout
+     * @return BackendLayout|null
      */
     public function getBackendLayout($identifier, $pageId)
     {
@@ -69,14 +75,7 @@ class DefaultDataProvider implements DataProviderInterface
             return $this->createDefaultBackendLayout();
         }
 
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable($this->tableName);
-        $data = $queryBuilder
-            ->select('*')
-            ->from($this->tableName)
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($identifier, \PDO::PARAM_INT)))
-            ->execute()
-            ->fetch();
+        $data = BackendUtility::getRecordWSOL($this->tableName, $identifier);
 
         if (is_array($data)) {
             $backendLayout = $this->createBackendLayout($data);
@@ -95,7 +94,7 @@ class DefaultDataProvider implements DataProviderInterface
         return BackendLayout::create(
             'default',
             'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:pages.backend_layout.default',
-            \TYPO3\CMS\Backend\View\BackendLayoutView::getDefaultColumnLayout()
+            BackendLayoutView::getDefaultColumnLayout()
         );
     }
 
@@ -108,27 +107,26 @@ class DefaultDataProvider implements DataProviderInterface
     protected function createBackendLayout(array $data)
     {
         $backendLayout = BackendLayout::create($data['uid'], $data['title'], $data['config']);
-        $backendLayout->setIconPath($this->getIconPath($data['icon']));
+        $backendLayout->setIconPath($this->getIconPath($data));
         $backendLayout->setData($data);
         return $backendLayout;
     }
 
     /**
-     * Gets and sanitizes the icon path.
+     * Resolves the icon from the database record
      *
-     * @param string $icon Name of the icon file
+     * @param array $icon
      * @return string
      */
-    protected function getIconPath($icon)
+    protected function getIconPath(array $icon)
     {
-        $iconPath = '';
-
-        if (!empty($icon)) {
-            $path = rtrim($GLOBALS['TCA']['backend_layout']['ctrl']['selicon_field_path'], '/') . '/';
-            $iconPath = $path . $icon;
+        $fileRepository = GeneralUtility::makeInstance(FileRepository::class);
+        $references = $fileRepository->findByRelation($this->tableName, 'icon', $icon['uid']);
+        if (!empty($references)) {
+            $icon = reset($references);
+            return $icon->getPublicUrl();
         }
-
-        return $iconPath;
+        return '';
     }
 
     /**
@@ -147,6 +145,13 @@ class DefaultDataProvider implements DataProviderInterface
         // Add layout records
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable($this->tableName);
+        $queryBuilder->getRestrictions()
+            ->add(
+                GeneralUtility::makeInstance(
+                    WorkspaceRestriction::class,
+                    GeneralUtility::makeInstance(Context::class)->getPropertyFromAspect('workspace', 'id')
+                )
+            );
         $queryBuilder
             ->select('*')
             ->from($this->tableName)
@@ -155,12 +160,12 @@ class DefaultDataProvider implements DataProviderInterface
                     $queryBuilder->expr()->andX(
                         $queryBuilder->expr()->comparison(
                             $queryBuilder->createNamedParameter($pageTsConfigId[$fieldName], \PDO::PARAM_INT),
-                            Comparison::EQ,
+                            ExpressionBuilder::EQ,
                             $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
                         ),
                         $queryBuilder->expr()->comparison(
                             $queryBuilder->createNamedParameter($storagePid, \PDO::PARAM_INT),
-                            Comparison::EQ,
+                            ExpressionBuilder::EQ,
                             $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
                         )
                     ),
@@ -177,7 +182,7 @@ class DefaultDataProvider implements DataProviderInterface
                     $queryBuilder->expr()->andX(
                         $queryBuilder->expr()->comparison(
                             $queryBuilder->createNamedParameter($pageTsConfigId[$fieldName], \PDO::PARAM_INT),
-                            Comparison::EQ,
+                            ExpressionBuilder::EQ,
                             $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
                         ),
                         $queryBuilder->expr()->eq(
@@ -192,9 +197,15 @@ class DefaultDataProvider implements DataProviderInterface
             $queryBuilder->orderBy($GLOBALS['TCA'][$this->tableName]['ctrl']['sortby']);
         }
 
-        $results = $queryBuilder
-            ->execute()
-            ->fetchAll();
+        $statement = $queryBuilder->execute();
+
+        $results = [];
+        while ($record = $statement->fetch()) {
+            BackendUtility::workspaceOL($this->tableName, $record);
+            if (is_array($record)) {
+                $results[$record['t3ver_oid'] ?: $record['uid']] = $record;
+            }
+        }
 
         return $results;
     }

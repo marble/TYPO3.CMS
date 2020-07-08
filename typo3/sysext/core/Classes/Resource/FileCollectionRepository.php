@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,10 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
 use TYPO3\CMS\Core\Collection\RecordCollectionRepository;
+use TYPO3\CMS\Core\Resource\Exception\ResourceDoesNotExistException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -36,14 +38,14 @@ class FileCollectionRepository extends RecordCollectionRepository
      * Finds a record collection by uid.
      *
      * @param int $uid The uid to be looked up
-     * @return NULL|Collection\AbstractFileCollection
+     * @return Collection\AbstractFileCollection|null
      * @throws Exception\ResourceDoesNotExistException
      */
     public function findByUid($uid)
     {
         $object = parent::findByUid($uid);
         if ($object === null) {
-            throw new Exception\ResourceDoesNotExistException('Could not find row with uid "' . $uid . '" in table "' . $this->table . '"', 1314354066);
+            throw new ResourceDoesNotExistException('Could not find row with uid "' . $uid . '" in table "' . $this->table . '"', 1314354066);
         }
         return $object;
     }
@@ -51,7 +53,7 @@ class FileCollectionRepository extends RecordCollectionRepository
     /**
      * Creates a record collection domain object.
      *
-     * @param array $record Database record to be reconsituted
+     * @param array $record Database record to be reconstituted
      *
      * @return Collection\AbstractFileCollection
      */

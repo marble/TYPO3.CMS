@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Tests\Unit\ViewHelpers\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,24 +15,28 @@ namespace TYPO3\CMS\Form\Tests\Unit\ViewHelpers\Form;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\ViewHelpers\Form;
+
 use TYPO3\CMS\Form\ViewHelpers\Form\DatePickerViewHelper;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatePickerViewHelperTest extends UnitTestCase
 {
 
     /**
      * @var \TYPO3\CMS\Form\ViewHelpers\Form\DatePickerViewHelper
      */
-    protected $subject = null;
+    protected $subject;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = $this->getAccessibleMock(DatePickerViewHelper::class, [
             'dummy'
         ], [], '', false);
@@ -45,7 +49,7 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'd';
         $expected = 'dd';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 
     /**
@@ -55,7 +59,7 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'D';
         $expected = 'D';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 
     /**
@@ -65,7 +69,7 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'j';
         $expected = 'o';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 
     /**
@@ -75,7 +79,7 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'l';
         $expected = 'DD';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 
     /**
@@ -85,7 +89,7 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'F';
         $expected = 'MM';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 
     /**
@@ -95,7 +99,7 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'm';
         $expected = 'mm';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 
     /**
@@ -105,7 +109,7 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'M';
         $expected = 'M';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 
     /**
@@ -115,7 +119,7 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'n';
         $expected = 'm';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 
     /**
@@ -125,7 +129,7 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'Y';
         $expected = 'yy';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 
     /**
@@ -135,6 +139,6 @@ class DatePickerViewHelperTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $input = 'y';
         $expected = 'y';
-        $this->assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
+        self::assertSame($expected, $this->subject->_call('convertDateFormatToDatePickerFormat', $input));
     }
 }

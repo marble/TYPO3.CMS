@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,11 @@ namespace TYPO3\CMS\Workspaces\Domain\Model;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Workspaces\Domain\Model;
+
+use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Database record class
@@ -38,30 +42,30 @@ class DatabaseRecord
      * Creates database record object just by id of database record.
      *
      * @param string $table Name of the database table
-     * @param int $uid Id of the datbase record row
-     * @return \TYPO3\CMS\Workspaces\Domain\Model\DatabaseRecord
+     * @param int $uid Id of the database record row
+     * @return DatabaseRecord
      */
     public static function create($table, $uid)
     {
-        return \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Workspaces\Domain\Model\DatabaseRecord::class, $table, $uid);
+        return GeneralUtility::makeInstance(DatabaseRecord::class, $table, $uid);
     }
 
     /**
-     * Creates datbase record object by relevant database record row.
+     * Creates database record object by relevant database record row.
      *
      * @param string $table Name of the database table
      * @param array $row The relevant database record row
-     * @return \TYPO3\CMS\Workspaces\Domain\Model\DatabaseRecord
+     * @return DatabaseRecord
      */
     public static function createFromArray($table, array $row)
     {
-        return \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Workspaces\Domain\Model\DatabaseRecord::class, $table, $row['uid'], $row);
+        return GeneralUtility::makeInstance(DatabaseRecord::class, $table, $row['uid'], $row);
     }
 
     /**
      * @param string $table Name of the database table
-     * @param int $uid Id of the datbase record row
-     * @param array|NULL $row The relevant database record row
+     * @param int $uid Id of the database record row
+     * @param array|null $row The relevant database record row
      */
     public function __construct($table, $uid, array $row = null)
     {
@@ -149,7 +153,7 @@ class DatabaseRecord
     protected function loadRow()
     {
         if ($this->row === null) {
-            $this->row = \TYPO3\CMS\Backend\Utility\BackendUtility::getRecord($this->getTable(), $this->getUid());
+            $this->row = BackendUtility::getRecord($this->getTable(), $this->getUid());
         }
     }
 }

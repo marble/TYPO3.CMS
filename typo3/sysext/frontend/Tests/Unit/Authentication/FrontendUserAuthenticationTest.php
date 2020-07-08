@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Frontend\Tests\Unit\Authentication;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,8 +15,11 @@ namespace TYPO3\CMS\Frontend\Tests\Unit\Authentication;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Tests\Unit\Authentication;
+
 use Doctrine\DBAL\Statement;
 use Prophecy\Argument;
+use Psr\Log\NullLogger;
 use TYPO3\CMS\Core\Authentication\AuthenticationService;
 use TYPO3\CMS\Core\Crypto\Random;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -27,6 +30,7 @@ use TYPO3\CMS\Core\Session\Backend\Exception\SessionNotFoundException;
 use TYPO3\CMS\Core\Session\Backend\SessionBackendInterface;
 use TYPO3\CMS\Core\Session\SessionManager;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
@@ -38,28 +42,9 @@ use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 class FrontendUserAuthenticationTest extends UnitTestCase
 {
     /**
-     * @var array A backup of registered singleton instances
+     * @var bool Reset singletons created by subject
      */
-    protected $singletonInstances = [];
-
-    /**
-     * Sets up FrontendUserAuthentication mock
-     */
-    protected function setUp()
-    {
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-        $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_userauth.php']['writeDevLog'] = false;
-    }
-
-    /**
-     * Reset singletons and purge created test instances
-     */
-    protected function tearDown()
-    {
-        GeneralUtility::purgeInstances();
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
-    }
+    protected $resetSingletonInstances = true;
 
     /**
      * User properties should not be set for anonymous sessions
@@ -68,7 +53,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
      */
     public function userFieldIsNotSetForAnonymousSessions()
     {
-        $uniqueSessionId = $this->getUniqueId('test');
+        $uniqueSessionId = StringUtility::getUniqueId('test');
         $_COOKIE['fe_typo_user'] = $uniqueSessionId;
 
         // This setup fakes the "getAuthInfoArray() db call
@@ -96,12 +81,13 @@ class FrontendUserAuthenticationTest extends UnitTestCase
         $sessionManagerProphecy->getSessionBackend('FE')->willReturn($sessionBackendProphecy->reveal());
 
         $subject = new FrontendUserAuthentication();
+        $subject->setLogger(new NullLogger());
         $subject->gc_probability = -1;
         $subject->start();
 
-        $this->assertArrayNotHasKey('uid', $subject->user);
-        $this->assertEquals('bar', $subject->getSessionData('foo'));
-        $this->assertEquals($uniqueSessionId, $subject->id);
+        self::assertArrayNotHasKey('uid', $subject->user);
+        self::assertEquals('bar', $subject->getSessionData('foo'));
+        self::assertEquals($uniqueSessionId, $subject->id);
     }
 
     /**
@@ -136,6 +122,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
         $sessionBackendProphecy->update(Argument::cetera())->shouldNotBeCalled();
 
         $subject = new FrontendUserAuthentication();
+        $subject->setLogger(new NullLogger());
         $subject->gc_probability = -1;
         $subject->start();
         $subject->storeSessionData();
@@ -149,7 +136,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
      */
     public function canSetAndUnsetSessionKey()
     {
-        $uniqueSessionId = $this->getUniqueId('test');
+        $uniqueSessionId = StringUtility::getUniqueId('test');
         $_COOKIE['fe_typo_user'] = $uniqueSessionId;
 
         // This setup fakes the "getAuthInfoArray() db call
@@ -183,11 +170,12 @@ class FrontendUserAuthenticationTest extends UnitTestCase
         $sessionBackendProphecy->remove($uniqueSessionId)->shouldBeCalled();
 
         $subject = new FrontendUserAuthentication();
+        $subject->setLogger(new NullLogger());
         $subject->gc_probability = -1;
         $subject->start();
         $subject->setSessionData('foo', 'bar');
         $subject->removeSessionData();
-        $this->assertAttributeEmpty('sessionData', $subject);
+        self::assertNull($subject->getSessionData('someKey'));
     }
 
     /**
@@ -197,8 +185,9 @@ class FrontendUserAuthenticationTest extends UnitTestCase
      */
     public function canSetSessionDataForAnonymousUser()
     {
-        $uniqueSessionId = $this->getUniqueId('test');
+        $uniqueSessionId = StringUtility::getUniqueId('test');
         $_COOKIE['fe_typo_user'] = $uniqueSessionId;
+        $GLOBALS['TYPO3_CONF_VARS']['FE']['lockIP'] = 0;
         $currentTime = $GLOBALS['EXEC_TIME'];
 
         // This setup fakes the "getAuthInfoArray() db call
@@ -233,7 +222,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
             'newSessionId',
             [
                 'ses_id' => 'newSessionId',
-                'ses_iplock' => '',
+                'ses_iplock' => '[DISABLED]',
                 'ses_userid' => 0,
                 'ses_tstamp' => $currentTime,
                 'ses_data' => serialize(['foo' => 'bar']),
@@ -243,12 +232,13 @@ class FrontendUserAuthenticationTest extends UnitTestCase
         )->shouldBeCalled();
 
         $subject = new FrontendUserAuthentication();
+        $subject->setLogger(new NullLogger());
         $subject->gc_probability = -1;
         $subject->start();
-        $this->assertEmpty($subject->getSessionData($uniqueSessionId));
-        $this->assertEmpty($subject->user);
+        self::assertEmpty($subject->getSessionData($uniqueSessionId));
+        self::assertEmpty($subject->user);
         $subject->setSessionData('foo', 'bar');
-        $this->assertAttributeNotEmpty('sessionData', $subject);
+        self::assertNotNull($subject->getSessionData('foo'));
 
         // Suppress "headers already sent" errors - phpunit does that internally already
         $prev = error_reporting(0);
@@ -263,7 +253,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
      */
     public function canLoadExistingAuthenticatedSession()
     {
-        $uniqueSessionId = $this->getUniqueId('test');
+        $uniqueSessionId = StringUtility::getUniqueId('test');
         $_COOKIE['fe_typo_user'] = $uniqueSessionId;
         $currentTime = $GLOBALS['EXEC_TIME'];
 
@@ -324,11 +314,12 @@ class FrontendUserAuthenticationTest extends UnitTestCase
         );
 
         $subject = new FrontendUserAuthentication();
+        $subject->setLogger(new NullLogger());
         $subject->gc_probability = -1;
         $subject->start();
 
-        $this->assertAttributeNotEmpty('user', $subject);
-        $this->assertEquals('existingUserName', $subject->user['username']);
+        self::assertNotNull($subject->user);
+        self::assertEquals('existingUserName', $subject->user['username']);
     }
 
     /**
@@ -336,6 +327,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
      */
     public function canLogUserInWithoutAnonymousSession()
     {
+        $GLOBALS['BE_USER'] = [];
         // This setup fakes the "getAuthInfoArray() db call
         $queryBuilderProphecy = $this->prophesize(QueryBuilder::class);
         $connectionPoolProphecy = $this->prophesize(ConnectionPool::class);
@@ -363,14 +355,16 @@ class FrontendUserAuthenticationTest extends UnitTestCase
         GeneralUtility::addInstance(Random::class, $randomProphecy->reveal());
 
         // Mock the login data and auth services here since fully prophesize this is a lot of hassle
-        $subject = $this->getMockBuilder($this->buildAccessibleProxy(FrontendUserAuthentication::class))
-            ->setMethods([
+        $subject = $this->getAccessibleMock(
+            FrontendUserAuthentication::class,
+            [
                 'getLoginFormData',
                 'getAuthServices',
                 'createUserSession',
                 'getCookie',
-            ])
-            ->getMock();
+            ]
+        );
+        $subject->setLogger(new NullLogger());
         $subject->gc_probability = -1;
 
         // Mock a login attempt
@@ -385,8 +379,8 @@ class FrontendUserAuthenticationTest extends UnitTestCase
             'uid' => 1,
             'username' => 'existingUserName'
         ]);
-        // Auth services can return true or 200
-        $authServiceMock->method('authUser')->willReturn(true);
+        // Auth services can return status codes: 0 (failed/abort), 100 (not responsible, continue), 200 (ok)
+        $authServiceMock->method('authUser')->willReturn(200);
         // We need to wrap the array to something thats is \Traversable, in PHP 7.1 we can use traversable pseudo type instead
         $subject->method('getAuthServices')->willReturn(new \ArrayIterator([$authServiceMock]));
 
@@ -397,8 +391,8 @@ class FrontendUserAuthenticationTest extends UnitTestCase
         $subject->method('getCookie')->willReturn(null);
 
         $subject->start();
-        $this->assertFalse($subject->_get('loginFailure'));
-        $this->assertEquals('existingUserName', $subject->user['username']);
+        self::assertFalse($subject->loginFailure);
+        self::assertEquals('existingUserName', $subject->user['username']);
     }
 
     /**
@@ -408,7 +402,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
      */
     public function canPreserveSessionDataWhenAuthenticating()
     {
-        $this->markTestSkipped('Test is flaky, convert to a functional test');
+        self::markTestSkipped('Test is flaky, convert to a functional test');
         // Mock SessionBackend
         $sessionBackend = $this->getMockBuilder(SessionBackendInterface::class)->getMock();
 
@@ -432,9 +426,9 @@ class FrontendUserAuthenticationTest extends UnitTestCase
 
         $expectedUserId = 1;
 
-        $sessionBackend->expects($this->once())->method('set')->with(
+        $sessionBackend->expects(self::once())->method('set')->with(
             'newSessionId',
-            $this->equalTo($expectedSessionRecord)
+            self::equalTo($expectedSessionRecord)
         )->willReturnArgument(1);
 
         $this->subject->method('getSessionBackend')->willReturn($sessionBackend);
@@ -464,11 +458,11 @@ class FrontendUserAuthenticationTest extends UnitTestCase
         // New session should be stored with with old values
         $this->subject->start();
 
-        $this->assertEquals('newSessionId', $this->subject->id);
-        $this->assertEquals($expectedUserId, $this->subject->user['uid']);
+        self::assertEquals('newSessionId', $this->subject->id);
+        self::assertEquals($expectedUserId, $this->subject->user['uid']);
         $this->subject->setSessionData('foobar', 'baz');
-        $this->assertArraySubset(['foo' => 'bar'], $this->subject->_get('sessionData'));
-        $this->assertTrue($this->subject->sesData_change);
+        self::assertArraySubset(['foo' => 'bar'], $this->subject->_get('sessionData'));
+        self::assertTrue($this->subject->sesData_change);
     }
 
     /**
@@ -478,7 +472,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
      */
     public function canRemoveSessionData()
     {
-        $this->markTestSkipped('Test is flaky, convert to a functional test');
+        self::markTestSkipped('Test is flaky, convert to a functional test');
         // Mock SessionBackend
         $sessionBackend = $this->getMockBuilder(SessionBackendInterface::class)->getMock();
         $sessionBackend->method('get')->willReturn(
@@ -496,9 +490,9 @@ class FrontendUserAuthenticationTest extends UnitTestCase
         $this->subject->start();
 
         $this->subject->removeSessionData();
-        $this->assertEmpty($this->subject->getSessionData('foo'));
+        self::assertEmpty($this->subject->getSessionData('foo'));
         $this->subject->storeSessionData();
-        $this->assertEmpty($this->subject->getSessionData('foo'));
+        self::assertEmpty($this->subject->getSessionData('foo'));
     }
 
     /**
@@ -508,7 +502,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
      */
     public function destroysAnonymousSessionIfDataIsNull()
     {
-        $this->markTestSkipped('Test is flaky, convert to a functional test');
+        self::markTestSkipped('Test is flaky, convert to a functional test');
         $sessionBackend = $this->getMockBuilder(SessionBackendInterface::class)->getMock();
         // Mock SessionBackend
         $this->subject->method('getSessionBackend')->willReturn($sessionBackend);
@@ -520,16 +514,16 @@ class FrontendUserAuthenticationTest extends UnitTestCase
             'ses_data' => serialize(['foo' => 'bar'])
         ];
 
-        $sessionBackend->expects($this->at(0))->method('get')->willThrowException(new SessionNotFoundException('testing', 1486045419));
-        $sessionBackend->expects($this->at(1))->method('get')->willThrowException(new SessionNotFoundException('testing', 1486045420));
-        $sessionBackend->expects($this->at(2))->method('get')->willReturn(
+        $sessionBackend->expects(self::at(0))->method('get')->willThrowException(new SessionNotFoundException('testing', 1486045419));
+        $sessionBackend->expects(self::at(1))->method('get')->willThrowException(new SessionNotFoundException('testing', 1486045420));
+        $sessionBackend->expects(self::at(2))->method('get')->willReturn(
             [
                 'ses_id' => 'newSessionId',
                 'ses_anonymous' => 1
             ]
         );
 
-        $sessionBackend->expects($this->once())
+        $sessionBackend->expects(self::once())
             ->method('set')
             ->with('newSessionId', new \PHPUnit_Framework_Constraint_ArraySubset($expectedSessionRecord))
             ->willReturn([
@@ -540,17 +534,17 @@ class FrontendUserAuthenticationTest extends UnitTestCase
 
         // Can set and store session data
         $this->subject->start();
-        $this->assertEmpty($this->subject->_get('sessionData'));
-        $this->assertEmpty($this->subject->user);
+        self::assertEmpty($this->subject->_get('sessionData'));
+        self::assertEmpty($this->subject->user);
         $this->subject->setSessionData('foo', 'bar');
-        $this->assertAttributeNotEmpty('sessionData', $this->subject);
+        self::assertNotNull($this->subject->getSessionData('foo'));
         $this->subject->storeSessionData();
 
         // Should delete session after setting to null
         $this->subject->setSessionData('foo', null);
-        $this->assertAttributeEmpty('sessionData', $this->subject);
-        $sessionBackend->expects($this->once())->method('remove')->with('newSessionId');
-        $sessionBackend->expects($this->never())->method('update');
+        self::assertNull($this->subject->getSessionData('foo'));
+        $sessionBackend->expects(self::once())->method('remove')->with('newSessionId');
+        $sessionBackend->expects(self::never())->method('update');
 
         $this->subject->storeSessionData();
     }
@@ -561,7 +555,7 @@ class FrontendUserAuthenticationTest extends UnitTestCase
      */
     public function sessionDataShouldBePreservedOnLogout()
     {
-        $this->markTestSkipped('Test is flaky, convert to a functional test');
+        self::markTestSkipped('Test is flaky, convert to a functional test');
         $sessionBackend = $this->getMockBuilder(SessionBackendInterface::class)->getMock();
         $this->subject->method('getSessionBackend')->willReturn($sessionBackend);
         $this->subject->method('createSessionId')->willReturn('newSessionId');
@@ -589,16 +583,16 @@ class FrontendUserAuthenticationTest extends UnitTestCase
 
         ]);
 
-        $sessionBackend->expects($this->once())->method('set')->with('newSessionId', $this->anything())->willReturnArgument(1);
-        $sessionBackend->expects($this->once())->method('remove')->with('existingId');
+        $sessionBackend->expects(self::once())->method('set')->with('newSessionId', self::anything())->willReturnArgument(1);
+        $sessionBackend->expects(self::once())->method('remove')->with('existingId');
 
         // start
         $this->subject->start();
         // asset that session data is there
-        $this->assertNotEmpty($this->subject->user);
-        $this->assertEquals(1, (int)$this->subject->user['ses_anonymous']);
-        $this->assertEquals(['foo' => 'bar'], $this->subject->_get('sessionData'));
+        self::assertNotEmpty($this->subject->user);
+        self::assertEquals(1, (int)$this->subject->user['ses_anonymous']);
+        self::assertEquals(['foo' => 'bar'], $this->subject->_get('sessionData'));
 
-        $this->assertEquals('newSessionId', $this->subject->id);
+        self::assertEquals('newSessionId', $this->subject->id);
     }
 }

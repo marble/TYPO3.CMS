@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\Element;
+
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -24,6 +25,17 @@ use TYPO3\CMS\Core\Utility\StringUtility;
  */
 class TextTableElement extends AbstractFormElement
 {
+    /**
+     * Default field information enabled for this element.
+     *
+     * @var array
+     */
+    protected $defaultFieldInformation = [
+        'tcaDescription' => [
+            'renderType' => 'tcaDescription',
+        ],
+    ];
+
     /**
      * Default field wizards enabled for this element.
      *
@@ -99,9 +111,14 @@ class TextTableElement extends AbstractFormElement
             }
         }
 
+        $fieldInformationResult = $this->renderFieldInformation();
+        $fieldInformationHtml = $fieldInformationResult['html'];
+        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
+
         if ($config['readOnly']) {
             $html = [];
             $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
+            $html[] =   $fieldInformationHtml;
             $html[] =   '<div class="form-wizards-wrap">';
             $html[] =       '<div class="form-wizards-element">';
             $html[] =           '<div class="form-control-wrap" style="max-width: ' . $width . 'px">';
@@ -118,7 +135,7 @@ class TextTableElement extends AbstractFormElement
 
         // @todo: The whole eval handling is a mess and needs refactoring
         foreach ($evalList as $func) {
-            // @todo: This is ugly: The code should find out on it's own whether a eval definition is a
+            // @todo: This is ugly: The code should find out on it's own whether an eval definition is a
             // @todo: keyword like "date", or a class reference. The global registration could be dropped then
             // Pair hook to the one in \TYPO3\CMS\Core\DataHandling\DataHandler::checkValue_input_Eval()
             // There is a similar hook for "evaluateFieldValue" in DataHandler and InputTextElement
@@ -135,8 +152,10 @@ class TextTableElement extends AbstractFormElement
             }
         }
 
+        $fieldId = StringUtility::getUniqueId('formengine-textarea-');
+
         $attributes = [
-            'id' => StringUtility::getUniqueId('formengine-textarea-'),
+            'id' => $fieldId,
             'name' => htmlspecialchars($parameterArray['itemFormElName']),
             'data-formengine-validation-rules' => $this->getValidationDataAsJsonString($config),
             'data-formengine-input-name' => htmlspecialchars($parameterArray['itemFormElName']),
@@ -168,10 +187,6 @@ class TextTableElement extends AbstractFormElement
             $attributes['placeholder'] = htmlspecialchars(trim($config['placeholder']));
         }
 
-        $fieldInformationResult = $this->renderFieldInformation();
-        $fieldInformationHtml = $fieldInformationResult['html'];
-        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
-
         $fieldControlResult = $this->renderFieldControl();
         $fieldControlHtml = $fieldControlResult['html'];
         $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldControlResult, false);
@@ -188,18 +203,27 @@ class TextTableElement extends AbstractFormElement
         $html[] =           '<div class="form-wizards-element">';
         $html[] =               '<textarea ' . GeneralUtility::implodeAttributes($attributes, true) . '>' . htmlspecialchars($itemValue) . '</textarea>';
         $html[] =           '</div>';
-        $html[] =           '<div class="form-wizards-items-aside">';
-        $html[] =               '<div class="btn-group">';
-        $html[] =                   $fieldControlHtml;
-        $html[] =               '</div>';
-        $html[] =           '</div>';
-        $html[] =           '<div class="form-wizards-items-bottom">';
-        $html[] =               $fieldWizardHtml;
-        $html[] =           '</div>';
+        if (!empty($fieldControlHtml)) {
+            $html[] =           '<div class="form-wizards-items-aside">';
+            $html[] =               '<div class="btn-group">';
+            $html[] =                   $fieldControlHtml;
+            $html[] =               '</div>';
+            $html[] =           '</div>';
+        }
+        if (!empty($fieldWizardHtml)) {
+            $html[] = '<div class="form-wizards-items-bottom">';
+            $html[] = $fieldWizardHtml;
+            $html[] = '</div>';
+        }
         $html[] =       '</div>';
         $html[] =   '</div>';
         $html[] = '</div>';
 
+        $resultArray['requireJsModules'][] = ['TYPO3/CMS/Backend/FormEngine/Element/TextTableElement' => '
+            function(TextTableElement) {
+                new TextTableElement(' . GeneralUtility::quoteJSvalue($fieldId) . ');
+            }'
+        ];
         $resultArray['html'] = implode(LF, $html);
         return $resultArray;
     }

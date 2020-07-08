@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,14 @@ namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
-class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+use ExtbaseTeam\BlogExample\Domain\Repository\BlogRepository;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
+
+class QueryParserTest extends FunctionalTestCase
 {
 
     /**
@@ -42,7 +46,7 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
     /**
      * Sets up this test suite.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -57,13 +61,12 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/fe_users.xml');
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/fe_groups.xml');
 
-        $this->objectManager = GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
-        $this->blogRepository = $this->objectManager->get(\ExtbaseTeam\BlogExample\Domain\Repository\BlogRepository::class);
+        $this->objectManager = GeneralUtility::makeInstance(ObjectManager::class);
+        $this->blogRepository = $this->objectManager->get(BlogRepository::class);
     }
 
     /**
      * @test
-     * @group not-mssql
      */
     public function queryWithMultipleRelationsToIdenticalTablesReturnsExpectedResultForOrQuery()
     {
@@ -81,14 +84,13 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
         );
 
         $result = $query->execute()->toArray();
-        $this->assertEquals(3, count($result));
+        self::assertEquals(3, count($result));
     }
 
     /**
      * Test ColumnMap::RELATION_HAS_AND_BELONGS_TO_MANY
      *
      * @test
-     * @group not-mssql
      */
     public function queryWithRelationHasAndBelongsToManyReturnsExpectedResult()
     {
@@ -99,7 +101,7 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
             $query->equals('tags.name', 'Tag12')
         );
         $result = $query->execute()->toArray();
-        $this->assertEquals(2, count($result));
+        self::assertEquals(2, count($result));
     }
 
     /**
@@ -118,14 +120,13 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
         );
 
         $result = $query->execute()->toArray();
-        $this->assertCount(2, $result);
+        self::assertCount(3, $result);
     }
 
     /**
      * Test ColumnMap::RELATION_HAS_ONE, ColumnMap::ColumnMap::RELATION_HAS_AND_BELONGS_TO_MANY
      *
      * @test
-     * @group not-mssql
      */
     public function queryWithRelationHasOneAndHasAndBelongsToManyWithoutParentKeyFieldNameReturnsExpectedResult()
     {
@@ -136,12 +137,12 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
             $query->equals('author.firstname', 'Author')
         );
         $result = $query->execute()->toArray();
-        $this->assertCount(2, $result);
+        // there are 16 post in total, 2 without author, 1 hidden, 1 deleted => 12 posts
+        self::assertCount(12, $result);
     }
 
     /**
      * @test
-     * @group not-mssql
      */
     public function orReturnsExpectedResult()
     {
@@ -155,12 +156,11 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
             )
         );
         $result = $query->execute()->toArray();
-        $this->assertCount(2, $result);
+        self::assertCount(2, $result);
     }
 
     /**
      * @test
-     * @group not-mssql
      */
     public function queryWithMultipleRelationsToIdenticalTablesReturnsExpectedResultForAndQuery()
     {
@@ -175,12 +175,11 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
             )
         );
         $result = $query->execute()->toArray();
-        $this->assertCount(1, $result);
+        self::assertCount(1, $result);
     }
 
     /**
      * @test
-     * @group not-mssql
      */
     public function queryWithFindInSetReturnsExpectedResult()
     {
@@ -190,7 +189,7 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
 
         $result = $query->matching($query->contains('usergroup', 1))
             ->execute();
-        $this->assertCount(2, $result);
+        self::assertCount(3, $result);
     }
 
     /**
@@ -201,6 +200,6 @@ class QueryParserTest extends \TYPO3\TestingFramework\Core\Functional\Functional
         $postRepository = $this->objectManager->get('ExtbaseTeam\\BlogExample\\Domain\\Repository\\PostRepository');
         $query = $postRepository->createQuery();
         $post = $query->matching($query->equals('uid', 1))->execute()->current();
-        $this->assertCount(3, $post->getCategories());
+        self::assertCount(3, $post->getCategories());
     }
 }

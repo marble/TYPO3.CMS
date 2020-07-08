@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,42 +13,68 @@ namespace TYPO3\CMS\Frontend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
-use Doctrine\DBAL\Exception\ConnectionException;
+namespace TYPO3\CMS\Frontend\Controller;
+
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Backend\FrontendBackendUserAuthentication;
-use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Charset\CharsetConverter;
-use TYPO3\CMS\Core\Controller\ErrorPageController;
+use TYPO3\CMS\Core\Charset\UnknownCharsetException;
+use TYPO3\CMS\Core\Configuration\Loader\PageTsConfigLoader;
+use TYPO3\CMS\Core\Configuration\Parser\PageTsConfigParser;
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\DateTimeAspect;
+use TYPO3\CMS\Core\Context\LanguageAspect;
+use TYPO3\CMS\Core\Context\LanguageAspectFactory;
+use TYPO3\CMS\Core\Context\UserAspect;
+use TYPO3\CMS\Core\Context\VisibilityAspect;
+use TYPO3\CMS\Core\Context\WorkspaceAspect;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Query\QueryHelper;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\EndTimeRestriction;
-use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
 use TYPO3\CMS\Core\Database\Query\Restriction\StartTimeRestriction;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Error\Http\PageNotFoundException;
 use TYPO3\CMS\Core\Error\Http\ServiceUnavailableException;
-use TYPO3\CMS\Core\Localization\Locales;
-use TYPO3\CMS\Core\Localization\LocalizationFactory;
+use TYPO3\CMS\Core\Error\Http\ShortcutTargetPageNotFoundException;
+use TYPO3\CMS\Core\Exception\Page\RootLineException;
+use TYPO3\CMS\Core\Http\ImmediateResponseException;
+use TYPO3\CMS\Core\Http\ServerRequestFactory;
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Locking\Exception\LockAcquireWouldBlockException;
 use TYPO3\CMS\Core\Locking\LockFactory;
 use TYPO3\CMS\Core\Locking\LockingStrategyInterface;
+use TYPO3\CMS\Core\Page\AssetCollector;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\PageTitle\PageTitleProviderManager;
+use TYPO3\CMS\Core\Resource\Exception;
 use TYPO3\CMS\Core\Resource\StorageRepository;
-use TYPO3\CMS\Core\Service\DependencyOrderingService;
+use TYPO3\CMS\Core\Routing\PageArguments;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Site\Entity\SiteInterface;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
+use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser;
 use TYPO3\CMS\Core\TypoScript\TemplateService;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
+use TYPO3\CMS\Core\Utility\PathUtility;
+use TYPO3\CMS\Core\Utility\RootlineUtility;
+use TYPO3\CMS\Frontend\Aspect\PreviewAspect;
 use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
+use TYPO3\CMS\Frontend\Configuration\TypoScript\ConditionMatching\ConditionMatcher;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
-use TYPO3\CMS\Frontend\Http\UrlHandlerInterface;
 use TYPO3\CMS\Frontend\Page\CacheHashCalculator;
-use TYPO3\CMS\Frontend\Page\PageGenerator;
-use TYPO3\CMS\Frontend\Page\PageRepository;
-use TYPO3\CMS\Frontend\View\AdminPanelView;
+use TYPO3\CMS\Frontend\Page\PageAccessFailureReasons;
+use TYPO3\CMS\Frontend\Resource\FilePathSanitizer;
 
 /**
  * Class for the built TypoScript based frontend. Instantiated in
@@ -66,8 +91,10 @@ use TYPO3\CMS\Frontend\View\AdminPanelView;
  * The use of this class should be inspired by the order of function calls as
  * found in \TYPO3\CMS\Frontend\Http\RequestHandler.
  */
-class TypoScriptFrontendController
+class TypoScriptFrontendController implements LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     /**
      * The page id (int)
      * @var string
@@ -76,15 +103,25 @@ class TypoScriptFrontendController
 
     /**
      * The type (read-only)
-     * @var int
+     * @var int|string
      */
     public $type = '';
 
     /**
-     * The submitted cHash
-     * @var string
+     * @var Site
      */
-    public $cHash = '';
+    protected $site;
+
+    /**
+     * @var SiteLanguage
+     */
+    protected $language;
+
+    /**
+     * @var PageArguments
+     * @internal
+     */
+    protected $pageArguments;
 
     /**
      * Page will not be cached. Write only TRUE. Never clear value (some other
@@ -97,13 +134,13 @@ class TypoScriptFrontendController
      * The rootLine (all the way to tree root, not only the current site!)
      * @var array
      */
-    public $rootLine = '';
+    public $rootLine = [];
 
     /**
      * The pagerecord
      * @var array
      */
-    public $page = '';
+    public $page = [];
 
     /**
      * This will normally point to the same value as id, but can be changed to
@@ -117,161 +154,70 @@ class TypoScriptFrontendController
      * Used later in checkPageForMountpointRedirect() to determine the final target URL where the user
      * should be redirected to.
      *
-     * @var array|NULL
+     * @var array|null
      */
-    protected $originalMountPointPage = null;
+    protected $originalMountPointPage;
 
     /**
      * Gets set when we are processing a page of type shortcut in the early stages
      * of the request when we do not know about languages yet, used later in the request
      * to determine the correct shortcut in case a translation changes the shortcut
      * target
-     * @var array|NULL
+     * @var array|null
      * @see checkTranslatedShortcut()
      */
-    protected $originalShortcutPage = null;
+    protected $originalShortcutPage;
 
     /**
      * sys_page-object, pagefunctions
      *
-     * @var PageRepository
+     * @var PageRepository|string
      */
     public $sys_page = '';
 
     /**
-     * Contains all URL handler instances that are active for the current request.
-     *
-     * The methods isGeneratePage(), isOutputting() and isINTincScript() depend on this property.
-     *
-     * @var \TYPO3\CMS\Frontend\Http\UrlHandlerInterface[]
-     * @see initializeRedirectUrlHandlers()
-     */
-    protected $activeUrlHandlers = [];
-
-    /**
      * Is set to 1 if a pageNotFound handler could have been called.
      * @var int
+     * @internal
      */
     public $pageNotFound = 0;
-
-    /**
-     * Domain start page
-     * @var int
-     */
-    public $domainStartPage = 0;
 
     /**
      * Array containing a history of why a requested page was not accessible.
      * @var array
      */
-    public $pageAccessFailureHistory = [];
+    protected $pageAccessFailureHistory = [];
 
     /**
      * @var string
+     * @internal
      */
     public $MP = '';
-
-    /**
-     * @var string
-     */
-    public $RDCT = '';
-
-    /**
-     * This can be set from applications as a way to tag cached versions of a page
-     * and later perform some external cache management, like clearing only a part
-     * of the cache of a page...
-     * @var int
-     */
-    public $page_cache_reg1 = 0;
-
-    /**
-     * Contains the value of the current script path that activated the frontend.
-     * Typically "index.php" but by rewrite rules it could be something else! Used
-     * for Speaking Urls / Simulate Static Documents.
-     * @var string
-     */
-    public $siteScript = '';
 
     /**
      * The frontend user
      *
      * @var FrontendUserAuthentication
      */
-    public $fe_user = '';
-
-    /**
-     * Global flag indicating that a frontend user is logged in. This is set only if
-     * a user really IS logged in. The group-list may show other groups (like added
-     * by IP filter or so) even though there is no user.
-     * @var bool
-     */
-    public $loginUser = false;
-
-    /**
-     * (RO=readonly) The group list, sorted numerically. Group '0,-1' is the default
-     * group, but other groups may be added by other means than a user being logged
-     * in though...
-     * @var string
-     */
-    public $gr_list = '';
-
-    /**
-     * Flag that indicates if a backend user is logged in!
-     * @var bool
-     */
-    public $beUserLogin = false;
-
-    /**
-     * Integer, that indicates which workspace is being previewed.
-     * @var int
-     */
-    public $workspacePreview = 0;
+    public $fe_user;
 
     /**
      * Shows whether logins are allowed in branch
      * @var bool
      */
-    public $loginAllowedInBranch = true;
+    protected $loginAllowedInBranch = true;
 
     /**
      * Shows specific mode (all or groups)
      * @var string
+     * @internal
      */
-    public $loginAllowedInBranch_mode = '';
-
-    /**
-     * Set to backend user ID to initialize when keyword-based preview is used
-     * @var int
-     */
-    public $ADMCMD_preview_BEUSER_uid = 0;
-
-    /**
-     * Flag indication that preview is active. This is based on the login of a
-     * backend user and whether the backend user has read access to the current
-     * page. A value of 1 means ordinary preview, 2 means preview of a non-live
-     * workspace
-     * @var int
-     */
-    public $fePreview = 0;
-
-    /**
-     * Flag indicating that hidden pages should be shown, selected and so on. This
-     * goes for almost all selection of pages!
-     * @var bool
-     */
-    public $showHiddenPage = false;
-
-    /**
-     * Flag indicating that hidden records should be shown. This includes
-     * sys_template, pages_language_overlay and even fe_groups in addition to all
-     * other regular content. So in effect, this includes everything except pages.
-     * @var bool
-     */
-    public $showHiddenRecords = false;
+    protected $loginAllowedInBranch_mode = '';
 
     /**
      * Value that contains the simulated usergroup if any
      * @var int
+     * @internal only to be used in AdminPanel, and within TYPO3 Core
      */
     public $simUserGroup = 0;
 
@@ -287,114 +233,92 @@ class TypoScriptFrontendController
      *
      * @var TemplateService
      */
-    public $tmpl = null;
+    public $tmpl;
 
     /**
-     * Is set to the time-to-live time of cached pages. If FALSE, default is
-     * 60*60*24, which is 24 hours.
-     * @var bool|int
+     * Is set to the time-to-live time of cached pages. Default is 60*60*24, which is 24 hours.
+     *
+     * @var int
+     * @internal
      */
-    public $cacheTimeOutDefault = false;
+    protected $cacheTimeOutDefault = 86400;
 
     /**
-     * Set internally if cached content is fetched from the database
+     * Set internally if cached content is fetched from the database.
+     *
      * @var bool
      * @internal
      */
-    public $cacheContentFlag = false;
+    protected $cacheContentFlag = false;
 
     /**
      * Set to the expire time of cached content
      * @var int
+     * @internal
      */
-    public $cacheExpires = 0;
+    protected $cacheExpires = 0;
 
     /**
      * Set if cache headers allowing caching are sent.
      * @var bool
+     * @internal
      */
-    public $isClientCachable = false;
+    protected $isClientCachable = false;
 
     /**
      * Used by template fetching system. This array is an identification of
      * the template. If $this->all is empty it's because the template-data is not
      * cached, which it must be.
      * @var array
+     * @internal
      */
     public $all = [];
 
     /**
      * Toplevel - objArrayName, eg 'page'
      * @var string
+     * @internal should only be used by TYPO3 Core
      */
     public $sPre = '';
 
     /**
      * TypoScript configuration of the page-object pointed to by sPre.
      * $this->tmpl->setup[$this->sPre.'.']
-     * @var array
+     * @var array|string
+     * @internal should only be used by TYPO3 Core
      */
     public $pSetup = '';
 
     /**
      * This hash is unique to the template, the $this->id and $this->type vars and
-     * the gr_list (list of groups). Used to get and later store the cached data
+     * the list of groups. Used to get and later store the cached data
      * @var string
+     * @internal
      */
     public $newHash = '';
 
     /**
-     * If config.ftu (Frontend Track User) is set in TypoScript for the current
-     * page, the string value of this var is substituted in the rendered source-code
-     * with the string, '&ftu=[token...]' which enables GET-method usertracking as
-     * opposed to cookie based
-     * @var string
-     */
-    public $getMethodUrlIdToken = '';
-
-    /**
-     * This flag is set before inclusion of pagegen.php IF no_cache is set. If this
-     * flag is set after the inclusion of pagegen.php, no_cache is forced to be set.
-     * This is done in order to make sure that php-code from pagegen does not falsely
+     * This flag is set before the page is generated IF $this->no_cache is set. If this
+     * flag is set after the page content was generated, $this->no_cache is forced to be set.
+     * This is done in order to make sure that PHP code from Plugins / USER scripts does not falsely
      * clear the no_cache flag.
      * @var bool
+     * @internal
      */
-    public $no_cacheBeforePageGen = false;
-
-    /**
-     * This flag indicates if temporary content went into the cache during
-     * page-generation.
-     * @var mixed
-     */
-    public $tempContent = false;
-
-    /**
-     * Passed to TypoScript template class and tells it to force template rendering
-     * @var bool
-     */
-    public $forceTemplateParsing = false;
-
-    /**
-     * The array which cHash_calc is based on, see ->makeCacheHash().
-     * @var array
-     */
-    public $cHash_array = [];
+    protected $no_cacheBeforePageGen = false;
 
     /**
      * May be set to the pagesTSconfig
-     * @var array
+     * @var array|string
+     * @internal
      */
-    public $pagesTSconfig = '';
+    protected $pagesTSconfig = '';
 
     /**
      * Eg. insert JS-functions in this array ($additionalHeaderData) to include them
      * once. Use associative keys.
      *
      * Keys in use:
-     *
-     * JSFormValidate: <script type="text/javascript" src="'.$GLOBALS["TSFE"]->absRefPrefix.'typo3/sysext/frontend/Resources/Public/JavaScript/jsfunc.validateform.js"></script>
-     * JSMenuCode, JSMenuCode_menu: JavaScript for the JavaScript menu
-     * JSCode: reserved
      *
      * used to accumulate additional HTML-code for the header-section,
      * <head>...</head>. Insert either associative keys (like
@@ -410,43 +334,6 @@ class TypoScriptFrontendController
      * @var array
      */
     public $additionalFooterData = [];
-
-    /**
-     * Used to accumulate additional JavaScript-code. Works like
-     * additionalHeaderData. Reserved keys at 'openPic' and 'mouseOver'
-     *
-     * @var array
-     */
-    public $additionalJavaScript = [];
-
-    /**
-     * Used to accumulate additional Style code. Works like additionalHeaderData.
-     *
-     * @var array
-     */
-    public $additionalCSS = [];
-
-    /**
-     * @var  string
-     */
-    public $JSCode;
-
-    /**
-     * @var string
-     */
-    public $inlineJS;
-
-    /**
-     * Used to accumulate DHTML-layers.
-     * @var string
-     */
-    public $divSection = '';
-
-    /**
-     * Debug flag. If TRUE special debug-output maybe be shown (which includes html-formatting).
-     * @var bool
-     */
-    public $debug = false;
 
     /**
      * Default internal target
@@ -467,14 +354,7 @@ class TypoScriptFrontendController
     public $fileTarget = '';
 
     /**
-     * Keys are page ids and values are default &MP (mount point) values to set
-     * when using the linking features...)
-     * @var array
-     */
-    public $MP_defaults = [];
-
-    /**
-     * If set, typolink() function encrypts email addresses. Is set in pagegen-class.
+     * If set, typolink() function encrypts email addresses.
      * @var string|int
      */
     public $spamProtectEmailAddresses = 0;
@@ -484,12 +364,6 @@ class TypoScriptFrontendController
      * @var string
      */
     public $absRefPrefix = '';
-
-    /**
-     * Lock file path
-     * @var string
-     */
-    public $lockFilePath = '';
 
     /**
      * <A>-tag parameters
@@ -502,6 +376,7 @@ class TypoScriptFrontendController
      * used to mark up the found search words on a page when jumped to from a link
      * in a search-result.
      * @var string
+     * @internal
      */
     public $sWordRegEx = '';
 
@@ -509,6 +384,7 @@ class TypoScriptFrontendController
      * Is set to the incoming array sword_list in case of a page-view jumped to from
      * a search-result.
      * @var string
+     * @internal
      */
     public $sWordList = '';
 
@@ -534,43 +410,6 @@ class TypoScriptFrontendController
      * @var string
      */
     public $displayFieldEditIcons = '';
-
-    /**
-     * Site language, 0 (zero) is default, int+ is uid pointing to a sys_language
-     * record. Should reflect which language menus, templates etc is displayed in
-     * (master language) - but not necessarily the content which could be falling
-     * back to default (see sys_language_content)
-     * @var int
-     */
-    public $sys_language_uid = 0;
-
-    /**
-     * Site language mode for content fall back.
-     * @var string
-     */
-    public $sys_language_mode = '';
-
-    /**
-     * Site content selection uid (can be different from sys_language_uid if content
-     * is to be selected from a fall-back language. Depends on sys_language_mode)
-     * @var int
-     */
-    public $sys_language_content = 0;
-
-    /**
-     * Site content overlay flag; If set - and sys_language_content is > 0 - ,
-     * records selected will try to look for a translation pointing to their uid. (If
-     * configured in [ctrl][languageField] / [ctrl][transOrigP...]
-     * @var int
-     */
-    public $sys_language_contentOL = 0;
-
-    /**
-     * Is set to the iso code of the sys_language_content if that is properly defined
-     * by the sys_language record representing the sys_language_uid.
-     * @var string
-     */
-    public $sys_language_isocode = '';
 
     /**
      * 'Global' Storage for various applications. Keys should be 'tx_'.extKey for
@@ -622,44 +461,26 @@ class TypoScriptFrontendController
     public $accessKey = [];
 
     /**
-     * Numerical array where image filenames are added if they are referenced in the
-     * rendered document. This includes only TYPO3 generated/inserted images.
-     * @var array
-     */
-    public $imagesOnPage = [];
-
-    /**
-     * Is set in ContentObjectRenderer->cImage() function to the info-array of the
-     * most recent rendered image. The information is used in ImageTextContentObject
-     * @var array
-     */
-    public $lastImageInfo = [];
-
-    /**
      * Used to generate page-unique keys. Point is that uniqid() functions is very
      * slow, so a unikey key is made based on this, see function uniqueHash()
      * @var int
+     * @internal
      */
-    public $uniqueCounter = 0;
+    protected $uniqueCounter = 0;
 
     /**
      * @var string
+     * @internal
      */
-    public $uniqueString = '';
+    protected $uniqueString = '';
 
     /**
      * This value will be used as the title for the page in the indexer (if
      * indexing happens)
      * @var string
+     * @internal only used by TYPO3 Core, use PageTitle API instead.
      */
     public $indexedDocTitle = '';
-
-    /**
-     * Alternative page title (normally the title of the page record). Can be set
-     * from applications you make.
-     * @var string
-     */
-    public $altPageTitle = '';
 
     /**
      * The base URL set for the page header.
@@ -668,20 +489,14 @@ class TypoScriptFrontendController
     public $baseUrl = '';
 
     /**
-     * IDs we already rendered for this page (to make sure they are unique)
-     * @var array
-     */
-    private $usedUniqueIds = [];
-
-    /**
      * Page content render object
      *
-     * @var ContentObjectRenderer
+     * @var ContentObjectRenderer|string
      */
     public $cObj = '';
 
     /**
-     * All page content is accumulated in this variable. See pagegen.php
+     * All page content is accumulated in this variable. See RequestHandler
      * @var string
      */
     public $content = '';
@@ -695,29 +510,11 @@ class TypoScriptFrontendController
     public $metaCharset = 'utf-8';
 
     /**
-     * Set to the system language key (used on the site)
-     * @var string
-     */
-    public $lang = '';
-
-    /**
-     * @var array
-     */
-    public $LL_labels_cache = [];
-
-    /**
-     * @var array
-     */
-    public $LL_files_cache = [];
-
-    /**
-     * List of language dependencies for actual language. This is used for local
-     * variants of a language that depend on their "main" language, like Brazilian,
-     * Portuguese or Canadian French.
+     * Internal calculations for labels
      *
-     * @var array
+     * @var LanguageService
      */
-    protected $languageDependencies = [];
+    protected $languageService;
 
     /**
      * @var LockingStrategyInterface[][]
@@ -727,13 +524,13 @@ class TypoScriptFrontendController
     /**
      * @var PageRenderer
      */
-    protected $pageRenderer = null;
+    protected $pageRenderer;
 
     /**
      * The page cache object, use this to save pages to the cache and to
      * retrieve them again
      *
-     * @var \TYPO3\CMS\Core\Cache\Backend\AbstractBackend
+     * @var \TYPO3\CMS\Core\Cache\Frontend\FrontendInterface
      */
     protected $pageCache;
 
@@ -741,20 +538,6 @@ class TypoScriptFrontendController
      * @var array
      */
     protected $pageCacheTags = [];
-
-    /**
-     * The cHash Service class used for cHash related functionality
-     *
-     * @var CacheHashCalculator
-     */
-    protected $cacheHash;
-
-    /**
-     * Runtime cache of domains per processed page ids.
-     *
-     * @var array
-     */
-    protected $domainDataCache = [];
 
     /**
      * Content type HTTP header being sent in the request.
@@ -785,50 +568,48 @@ class TypoScriptFrontendController
     protected $requestedId;
 
     /**
-     * Class constructor
-     * Takes a number of GET/POST input variable as arguments and stores them internally.
-     * The processing of these variables goes on later in this class.
+     * The context for keeping the current state, mostly related to current page information,
+     * backend user / frontend user access, workspaceId
+     *
+     * @var Context
+     */
+    protected $context;
+
+    /**
+     * Since TYPO3 v10.0, TSFE is composed out of
+     *  - Context
+     *  - Site
+     *  - SiteLanguage
+     *  - PageArguments (containing ID, Type, cHash and MP arguments)
+     *
      * Also sets a unique string (->uniqueString) for this script instance; A md5 hash of the microtime()
      *
-     * @param array $_ unused, previously defined to set TYPO3_CONF_VARS
-     * @param mixed $id The value of GeneralUtility::_GP('id')
-     * @param int $type The value of GeneralUtility::_GP('type')
-     * @param bool|string $no_cache The value of GeneralUtility::_GP('no_cache'), evaluated to 1/0
-     * @param string $cHash The value of GeneralUtility::_GP('cHash')
-     * @param string $_2 previously was used to define the jumpURL
-     * @param string $MP The value of GeneralUtility::_GP('MP')
-     * @param string $RDCT The value of GeneralUtility::_GP('RDCT')
-     * @see \TYPO3\CMS\Frontend\Http\RequestHandler
+     * @param Context $context the Context object to work with
+     * @param SiteInterface $site The resolved site to work with
+     * @param SiteLanguage $siteLanguage The resolved language to work with
+     * @param PageArguments $pageArguments The PageArguments object containing Page ID, type and GET parameters
+     * @param FrontendUserAuthentication $frontendUser a FrontendUserAuthentication object
      */
-    public function __construct($_ = null, $id, $type, $no_cache = '', $cHash = '', $_2 = null, $MP = '', $RDCT = '')
+    public function __construct(Context $context, SiteInterface $site, SiteLanguage $siteLanguage, PageArguments $pageArguments, FrontendUserAuthentication $frontendUser)
     {
-        // Setting some variables:
-        $this->id = $id;
-        $this->type = $type;
-        if ($no_cache) {
-            if ($GLOBALS['TYPO3_CONF_VARS']['FE']['disableNoCacheParameter']) {
-                $warning = '&no_cache=1 has been ignored because $TYPO3_CONF_VARS[\'FE\'][\'disableNoCacheParameter\'] is set!';
-                $this->getTimeTracker()->setTSlogMessage($warning, 2);
-            } else {
-                $warning = '&no_cache=1 has been supplied, so caching is disabled! URL: "' . GeneralUtility::getIndpEnv('TYPO3_REQUEST_URL') . '"';
-                $this->disableCache();
-            }
-            GeneralUtility::sysLog($warning, 'cms', GeneralUtility::SYSLOG_SEVERITY_WARNING);
-        }
-        $this->cHash = $cHash;
-        $this->MP = $GLOBALS['TYPO3_CONF_VARS']['FE']['enable_mount_pids'] ? (string)$MP : '';
-        $this->RDCT = $RDCT;
+        $this->initializeContext($context);
+        $this->site = $site;
+        $this->language = $siteLanguage;
+        $this->setPageArguments($pageArguments);
+        $this->fe_user = $frontendUser;
         $this->uniqueString = md5(microtime());
         $this->initPageRenderer();
-        // Call post processing function for constructor:
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['tslib_fe-PostProc'])) {
-            $_params = ['pObj' => &$this];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['tslib_fe-PostProc'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
-        }
-        $this->cacheHash = GeneralUtility::makeInstance(CacheHashCalculator::class);
         $this->initCaches();
+        // Initialize LLL behaviour
+        $this->setOutputLanguage();
+    }
+
+    private function initializeContext(Context $context): void
+    {
+        $this->context = $context;
+        if (!$this->context->hasAspect('frontend.preview')) {
+            $this->context->setAspect('frontend.preview', GeneralUtility::makeInstance(PreviewAspect::class));
+        }
     }
 
     /**
@@ -841,6 +622,11 @@ class TypoScriptFrontendController
         }
         $this->pageRenderer = GeneralUtility::makeInstance(PageRenderer::class);
         $this->pageRenderer->setTemplateFile('EXT:frontend/Resources/Private/Templates/MainPage.html');
+        // As initPageRenderer could be called in constructor and for USER_INTs, this information is only set
+        // once - in order to not override any previous settings of PageRenderer.
+        if ($this->language instanceof SiteLanguage) {
+            $this->pageRenderer->setLanguage($this->language->getTypo3Language());
+        }
     }
 
     /**
@@ -850,69 +636,6 @@ class TypoScriptFrontendController
     public function setContentType($contentType)
     {
         $this->contentType = $contentType;
-    }
-
-    /**
-     * Connect to SQL database. May exit after outputting an error message
-     * or some JavaScript redirecting to the install tool.
-     *
-     * @throws \RuntimeException
-     * @throws ServiceUnavailableException
-     */
-    public function connectToDB()
-    {
-        $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('pages');
-        try {
-            $connection->connect();
-        } catch (ConnectionException $exception) {
-            // Cannot connect to current database
-            $message = 'Cannot connect to the configured database "' . $connection->getDatabase() . '"';
-            if ($this->checkPageUnavailableHandler()) {
-                $this->pageUnavailableAndExit($message);
-            } else {
-                GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
-                throw new ServiceUnavailableException($message, 1301648782);
-            }
-        }
-        // Call post processing function for DB connection:
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['connectToDB'])) {
-            $_params = ['pObj' => &$this];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['connectToDB'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
-        }
-    }
-
-    /**
-     * Looks up the value of $this->RDCT in the database and if it is
-     * found to be associated with a redirect URL then the redirection
-     * is carried out with a 'Location:' header
-     * May exit after sending a location-header.
-     */
-    public function sendRedirect()
-    {
-        if ($this->RDCT) {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                ->getQueryBuilderForTable('cache_md5params');
-
-            $row = $queryBuilder
-                ->select('params')
-                ->from('cache_md5params')
-                ->where(
-                    $queryBuilder->expr()->eq(
-                        'md5hash',
-                        $queryBuilder->createNamedParameter($this->RDCT, \PDO::PARAM_STR)
-                    )
-                )
-                ->execute()
-                ->fetch();
-
-            if ($row) {
-                $this->updateMD5paramsRecord($this->RDCT);
-                header('Location: ' . $row['params']);
-                die;
-            }
-        }
     }
 
     /********************************************
@@ -925,99 +648,54 @@ class TypoScriptFrontendController
      */
     protected function initCaches()
     {
-        $this->pageCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('cache_pages');
-    }
-
-    /**
-     * Initializes the front-end login user.
-     */
-    public function initFEuser()
-    {
-        $this->fe_user = GeneralUtility::makeInstance(FrontendUserAuthentication::class);
-        // List of pid's acceptable
-        $pid = GeneralUtility::_GP('pid');
-        $this->fe_user->checkPid_value = $pid ? implode(',', GeneralUtility::intExplode(',', $pid)) : 0;
-        // Check if a session is transferred:
-        if (GeneralUtility::_GP('FE_SESSION_KEY')) {
-            $fe_sParts = explode('-', GeneralUtility::_GP('FE_SESSION_KEY'));
-            // If the session key hash check is OK:
-            if (md5(($fe_sParts[0] . '/' . $GLOBALS['TYPO3_CONF_VARS']['SYS']['encryptionKey'])) === (string)$fe_sParts[1]) {
-                $cookieName = FrontendUserAuthentication::getCookieName();
-                $_COOKIE[$cookieName] = $fe_sParts[0];
-                if (isset($_SERVER['HTTP_COOKIE'])) {
-                    // See http://forge.typo3.org/issues/27740
-                    $_SERVER['HTTP_COOKIE'] .= ';' . $cookieName . '=' . $fe_sParts[0];
-                }
-                $this->fe_user->forceSetCookie = 1;
-                $this->fe_user->dontSetCookie = false;
-                unset($cookieName);
-            }
-        }
-        $this->fe_user->start();
-        $this->fe_user->unpack_uc();
-
-        // Call hook for possible manipulation of frontend user object
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['initFEuser'])) {
-            $_params = ['pObj' => &$this];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['initFEuser'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
-        }
-        // For every 60 seconds the is_online timestamp is updated.
-        if (is_array($this->fe_user->user) && $this->fe_user->user['uid'] && $this->fe_user->user['is_online'] < $GLOBALS['EXEC_TIME'] - 60) {
-            $dbConnection = GeneralUtility::makeInstance(ConnectionPool::class)
-                ->getConnectionForTable('fe_users');
-            $dbConnection->update(
-                'fe_users',
-                [
-                    'is_online' => $GLOBALS['EXEC_TIME']
-                ],
-                [
-                    'uid' => (int)$this->fe_user->user['uid']
-                ]
-            );
-        }
+        $this->pageCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('pages');
     }
 
     /**
      * Initializes the front-end user groups.
-     * Sets ->loginUser and ->gr_list based on front-end user status.
+     * Sets frontend.user aspect based on front-end user status.
      */
     public function initUserGroups()
     {
+        $userGroups = [0];
         // This affects the hidden-flag selecting the fe_groups for the user!
-        $this->fe_user->showHiddenRecords = $this->showHiddenRecords;
+        $this->fe_user->showHiddenRecords = $this->context->getPropertyFromAspect('visibility', 'includeHiddenContent', false);
         // no matter if we have an active user we try to fetch matching groups which can be set without an user (simulation for instance!)
         $this->fe_user->fetchGroupData();
-        if (is_array($this->fe_user->user) && !empty($this->fe_user->groupData['uid'])) {
-            // global flag!
-            $this->loginUser = true;
-            // group -2 is not an existing group, but denotes a 'default' group when a user IS logged in. This is used to let elements be shown for all logged in users!
-            $this->gr_list = '0,-2';
-            $gr_array = $this->fe_user->groupData['uid'];
+        $isUserAndGroupSet = is_array($this->fe_user->user) && !empty($this->fe_user->groupData['uid']);
+        if ($isUserAndGroupSet) {
+            // group -2 is not an existing group, but denotes a 'default' group when a user IS logged in.
+            // This is used to let elements be shown for all logged in users!
+            $userGroups[] = -2;
+            $groupsFromUserRecord = $this->fe_user->groupData['uid'];
         } else {
-            $this->loginUser = false;
-            // group -1 is not an existing group, but denotes a 'default' group when not logged in. This is used to let elements be hidden, when a user is logged in!
-            $this->gr_list = '0,-1';
+            // group -1 is not an existing group, but denotes a 'default' group when not logged in.
+            // This is used to let elements be hidden, when a user is logged in!
+            $userGroups[] = -1;
             if ($this->loginAllowedInBranch) {
                 // For cases where logins are not banned from a branch usergroups can be set based on IP masks so we should add the usergroups uids.
-                $gr_array = $this->fe_user->groupData['uid'];
+                $groupsFromUserRecord = $this->fe_user->groupData['uid'];
             } else {
                 // Set to blank since we will NOT risk any groups being set when no logins are allowed!
-                $gr_array = [];
+                $groupsFromUserRecord = [];
             }
         }
         // Clean up.
-        // Make unique...
-        $gr_array = array_unique($gr_array);
-        // sort
-        sort($gr_array);
-        if (!empty($gr_array) && !$this->loginAllowedInBranch_mode) {
-            $this->gr_list .= ',' . implode(',', $gr_array);
+        // Make unique and sort the groups
+        $groupsFromUserRecord = array_unique($groupsFromUserRecord);
+        if (!empty($groupsFromUserRecord) && !$this->loginAllowedInBranch_mode) {
+            sort($groupsFromUserRecord);
+            $userGroups = array_merge($userGroups, array_map('intval', $groupsFromUserRecord));
         }
-        if ($this->fe_user->writeDevLog) {
-            GeneralUtility::devLog('Valid usergroups for TSFE: ' . $this->gr_list, __CLASS__);
+
+        $this->context->setAspect('frontend.user', GeneralUtility::makeInstance(UserAspect::class, $this->fe_user, $userGroups));
+
+        // For every 60 seconds the is_online timestamp for a logged-in user is updated
+        if ($isUserAndGroupSet) {
+            $this->fe_user->updateOnlineTimestamp();
         }
+
+        $this->logger->debug('Valid usergroups for TSFE: ' . implode(',', $userGroups));
     }
 
     /**
@@ -1027,26 +705,9 @@ class TypoScriptFrontendController
      */
     public function isUserOrGroupSet()
     {
-        return is_array($this->fe_user->user) || $this->gr_list !== '0,-1';
-    }
-
-    /**
-     * Provides ways to bypass the '?id=[xxx]&type=[xx]' format, using either PATH_INFO or virtual HTML-documents (using Apache mod_rewrite)
-     *
-     * Two options:
-     * 1) Use PATH_INFO (also Apache) to extract id and type from that var. Does not require any special modules compiled with apache. (less typical)
-     * 2) Using hook which enables features like those provided from "realurl" extension (AKA "Speaking URLs")
-     */
-    public function checkAlternativeIdMethods()
-    {
-        $this->siteScript = GeneralUtility::getIndpEnv('TYPO3_SITE_SCRIPT');
-        // Call post processing function for custom URL methods.
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['checkAlternativeIdMethods-PostProc'])) {
-            $_params = ['pObj' => &$this];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['checkAlternativeIdMethods-PostProc'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
-        }
+        /** @var UserAspect $userAspect */
+        $userAspect = $this->context->getAspect('frontend.user');
+        return $userAspect->isUserOrGroupSet();
     }
 
     /**
@@ -1056,11 +717,17 @@ class TypoScriptFrontendController
      */
     public function clear_preview()
     {
-        $this->showHiddenPage = false;
-        $this->showHiddenRecords = false;
-        $GLOBALS['SIM_EXEC_TIME'] = $GLOBALS['EXEC_TIME'];
-        $GLOBALS['SIM_ACCESS_TIME'] = $GLOBALS['ACCESS_TIME'];
-        $this->fePreview = 0;
+        if ($this->context->getPropertyFromAspect('frontend.preview', 'isPreview')
+            || $GLOBALS['EXEC_TIME'] !== $GLOBALS['SIM_EXEC_TIME']
+            || $this->context->getPropertyFromAspect('visibility', 'includeHiddenPages', false)
+            || $this->context->getPropertyFromAspect('visibility', 'includeHiddenContent', false)
+        ) {
+            $GLOBALS['SIM_EXEC_TIME'] = $GLOBALS['EXEC_TIME'];
+            $GLOBALS['SIM_ACCESS_TIME'] = $GLOBALS['ACCESS_TIME'];
+            $this->context->setAspect('frontend.preview', GeneralUtility::makeInstance(PreviewAspect::class));
+            $this->context->setAspect('date', GeneralUtility::makeInstance(DateTimeAspect::class, new \DateTimeImmutable('@' . $GLOBALS['SIM_EXEC_TIME'])));
+            $this->context->setAspect('visibility', GeneralUtility::makeInstance(VisibilityAspect::class));
+        }
     }
 
     /**
@@ -1070,59 +737,7 @@ class TypoScriptFrontendController
      */
     public function isBackendUserLoggedIn()
     {
-        return (bool)$this->beUserLogin;
-    }
-
-    /**
-     * Creates the backend user object and returns it.
-     *
-     * @return FrontendBackendUserAuthentication the backend user object
-     */
-    public function initializeBackendUser()
-    {
-        // PRE BE_USER HOOK
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/index_ts.php']['preBeUser'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/index_ts.php']['preBeUser'] as $_funcRef) {
-                $_params = [];
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
-        }
-        $backendUserObject = null;
-        // If the backend cookie is set,
-        // we proceed and check if a backend user is logged in.
-        if ($_COOKIE[BackendUserAuthentication::getCookieName()]) {
-            $GLOBALS['TYPO3_MISC']['microtime_BE_USER_start'] = microtime(true);
-            $this->getTimeTracker()->push('Back End user initialized', '');
-            $this->beUserLogin = false;
-            // New backend user object
-            $backendUserObject = GeneralUtility::makeInstance(FrontendBackendUserAuthentication::class);
-            $backendUserObject->start();
-            $backendUserObject->unpack_uc();
-            if (!empty($backendUserObject->user['uid'])) {
-                $backendUserObject->fetchGroupData();
-            }
-            // Unset the user initialization if any setting / restriction applies
-            if (!$backendUserObject->checkBackendAccessSettingsFromInitPhp()) {
-                $backendUserObject = null;
-            } elseif (!empty($backendUserObject->user['uid'])) {
-                // If the user is active now, let the controller know
-                $this->beUserLogin = true;
-            } else {
-                $backendUserObject = null;
-            }
-            $this->getTimeTracker()->pull();
-            $GLOBALS['TYPO3_MISC']['microtime_BE_USER_end'] = microtime(true);
-        }
-        // POST BE_USER HOOK
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/index_ts.php']['postBeUser'])) {
-            $_params = [
-                'BE_USER' => &$backendUserObject
-            ];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/index_ts.php']['postBeUser'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
-        }
-        return $backendUserObject;
+        return (bool)$this->context->getPropertyFromAspect('backend.user', 'isLoggedIn', false);
     }
 
     /**
@@ -1130,109 +745,48 @@ class TypoScriptFrontendController
      * Basically this function is about determining whether a backend user is logged in,
      * if he has read access to the page and if he's previewing the page.
      * That all determines which id to show and how to initialize the id.
+     *
+     * @param ServerRequestInterface|null $request
      */
-    public function determineId()
+    public function determineId(ServerRequestInterface $request = null)
     {
+        $request = $request ?? $GLOBALS['TYPO3_REQUEST'] ?? ServerRequestFactory::fromGlobals();
         // Call pre processing function for id determination
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['determineId-PreProcessing'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['determineId-PreProcessing'] as $functionReference) {
-                $parameters = ['parentObject' => $this];
-                GeneralUtility::callUserFunction($functionReference, $parameters, $this);
-            }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['determineId-PreProcessing'] ?? [] as $functionReference) {
+            $parameters = ['parentObject' => $this];
+            GeneralUtility::callUserFunction($functionReference, $parameters, $this);
         }
-        // If there is a Backend login we are going to check for any preview settings:
-        $this->getTimeTracker()->push('beUserLogin', '');
-        $originalFrontendUser = null;
-        $backendUser = $this->getBackendUser();
-        if ($this->beUserLogin || $this->doWorkspacePreview()) {
-            // Backend user preview features:
-            if ($this->beUserLogin && $backendUser->adminPanel instanceof AdminPanelView) {
-                $this->fePreview = (int)$backendUser->adminPanel->extGetFeAdminValue('preview');
-                // If admin panel preview is enabled...
-                if ($this->fePreview) {
-                    if ($this->fe_user->user) {
-                        $originalFrontendUser = $this->fe_user->user;
-                    }
-                    $this->showHiddenPage = (bool)$backendUser->adminPanel->extGetFeAdminValue('preview', 'showHiddenPages');
-                    $this->showHiddenRecords = (bool)$backendUser->adminPanel->extGetFeAdminValue('preview', 'showHiddenRecords');
-                    // Simulate date
-                    $simTime = $backendUser->adminPanel->extGetFeAdminValue('preview', 'simulateDate');
-                    if ($simTime) {
-                        $GLOBALS['SIM_EXEC_TIME'] = $simTime;
-                        $GLOBALS['SIM_ACCESS_TIME'] = $simTime - $simTime % 60;
-                    }
-                    // simulate user
-                    $simUserGroup = $backendUser->adminPanel->extGetFeAdminValue('preview', 'simulateUserGroup');
-                    $this->simUserGroup = $simUserGroup;
-                    if ($simUserGroup) {
-                        if ($this->fe_user->user) {
-                            $this->fe_user->user[$this->fe_user->usergroup_column] = $simUserGroup;
-                        } else {
-                            $this->fe_user->user = [
-                                $this->fe_user->usergroup_column => $simUserGroup
-                            ];
-                        }
-                    }
-                    if (!$simUserGroup && !$simTime && !$this->showHiddenPage && !$this->showHiddenRecords) {
-                        $this->fePreview = 0;
-                    }
-                }
-            }
-            if ($this->id && $this->determineIdIsHiddenPage()) {
-                // The preview flag is set only if the current page turns out to actually be hidden!
-                $this->fePreview = 1;
-                $this->showHiddenPage = true;
-            }
-            // The preview flag will be set if a backend user is in an offline workspace
-            if (
-                    (
-                        $backendUser->user['workspace_preview']
-                        || GeneralUtility::_GP('ADMCMD_view')
-                        || $this->doWorkspacePreview()
-                    )
-                    && (
-                        $this->whichWorkspace() === -1
-                        || $this->whichWorkspace() > 0
-                    )
-                    && !GeneralUtility::_GP('ADMCMD_noBeUser')
-            ) {
-                // Will show special preview message.
-                $this->fePreview = 2;
-            }
-            // If the front-end is showing a preview, caching MUST be disabled.
-            if ($this->fePreview) {
-                $this->disableCache();
-            }
+        // If there is a Backend login we are going to check for any preview settings
+        $originalFrontendUserGroups = $this->applyPreviewSettings($this->getBackendUser());
+        // If the front-end is showing a preview, caching MUST be disabled.
+        $isPreview = $this->context->getPropertyFromAspect('frontend.preview', 'isPreview');
+        if ($isPreview) {
+            $this->disableCache();
         }
-        $this->getTimeTracker()->pull();
         // Now, get the id, validate access etc:
-        $this->fetch_the_id();
+        $this->fetch_the_id($request);
         // Check if backend user has read access to this page. If not, recalculate the id.
-        if ($this->beUserLogin && $this->fePreview) {
-            if (!$backendUser->doesUserHaveAccess($this->page, 1)) {
-                // Resetting
-                $this->clear_preview();
-                $this->fe_user->user = $originalFrontendUser;
-                // Fetching the id again, now with the preview settings reset.
-                $this->fetch_the_id();
-            }
+        if ($this->isBackendUserLoggedIn() && $isPreview && !$this->getBackendUser()->doesUserHaveAccess($this->page, Permission::PAGE_SHOW)) {
+            // Resetting
+            $this->clear_preview();
+            $this->fe_user->user[$this->fe_user->usergroup_column] = $originalFrontendUserGroups;
+            // Fetching the id again, now with the preview settings reset.
+            $this->fetch_the_id($request);
         }
         // Checks if user logins are blocked for a certain branch and if so, will unset user login and re-fetch ID.
         $this->loginAllowedInBranch = $this->checkIfLoginAllowedInBranch();
-        // Logins are not allowed:
-        if (!$this->loginAllowedInBranch) {
-            // Only if there is a login will we run this...
-            if ($this->isUserOrGroupSet()) {
-                if ($this->loginAllowedInBranch_mode === 'all') {
-                    // Clear out user and group:
-                    $this->fe_user->hideActiveLogin();
-                    $this->gr_list = '0,-1';
-                } else {
-                    $this->gr_list = '0,-2';
-                }
-                // Fetching the id again, now with the preview settings reset.
-                $this->fetch_the_id();
+        // Logins are not allowed, but there is a login, so will we run this.
+        if (!$this->loginAllowedInBranch && $this->isUserOrGroupSet()) {
+            if ($this->loginAllowedInBranch_mode === 'all') {
+                // Clear out user and group:
+                $this->fe_user->hideActiveLogin();
+                $userGroups = [0, -1];
+            } else {
+                $userGroups = [0, -2];
             }
+            $this->context->setAspect('frontend.user', GeneralUtility::makeInstance(UserAspect::class, $this->fe_user ?: null, $userGroups));
+            // Fetching the id again, now with the preview settings reset.
+            $this->fetch_the_id($request);
         }
         // Final cleaning.
         // Make sure it's an integer
@@ -1240,12 +794,48 @@ class TypoScriptFrontendController
         // Make sure it's an integer
         $this->type = (int)$this->type;
         // Call post processing function for id determination:
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['determineId-PostProc'])) {
-            $_params = ['pObj' => &$this];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['determineId-PostProc'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
+        $_params = ['pObj' => &$this];
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['determineId-PostProc'] ?? [] as $_funcRef) {
+            GeneralUtility::callUserFunction($_funcRef, $_params, $this);
         }
+    }
+
+    /**
+     * Evaluates admin panel or workspace settings to see if
+     * visibility settings like
+     * - Preview Aspect: isPreview
+     * - Visibility Aspect: includeHiddenPages
+     * - Visibility Aspect: includeHiddenContent
+     * - $simUserGroup
+     * should be applied to the current object.
+     *
+     * @param FrontendBackendUserAuthentication $backendUser
+     * @return string|null null if no changes to the current frontend usergroups have been made, otherwise the original list of frontend usergroups
+     * @internal
+     */
+    protected function applyPreviewSettings($backendUser = null)
+    {
+        if (!$backendUser) {
+            return null;
+        }
+        $originalFrontendUserGroup = null;
+        if ($this->fe_user->user) {
+            $originalFrontendUserGroup = $this->context->getPropertyFromAspect('frontend.user', 'groupIds');
+        }
+
+        // The preview flag is set if the current page turns out to be hidden
+        if ($this->id && $this->determineIdIsHiddenPage()) {
+            $this->context->setAspect('frontend.preview', GeneralUtility::makeInstance(PreviewAspect::class, true));
+            /** @var VisibilityAspect $aspect */
+            $aspect = $this->context->getAspect('visibility');
+            $newAspect = GeneralUtility::makeInstance(VisibilityAspect::class, true, $aspect->includeHiddenContent(), $aspect->includeDeletedRecords());
+            $this->context->setAspect('visibility', $newAspect);
+        }
+        // The preview flag will be set if an offline workspace will be previewed
+        if ($this->whichWorkspace() > 0) {
+            $this->context->setAspect('frontend.preview', GeneralUtility::makeInstance(PreviewAspect::class, true));
+        }
+        return $this->context->getPropertyFromAspect('frontend.preview', 'preview', false) ? $originalFrontendUserGroup : null;
     }
 
     /**
@@ -1256,8 +846,6 @@ class TypoScriptFrontendController
      */
     protected function determineIdIsHiddenPage()
     {
-        $field = MathUtility::canBeInterpretedAsInteger($this->id) ? 'uid' : 'alias';
-
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable('pages');
         $queryBuilder
@@ -1265,25 +853,52 @@ class TypoScriptFrontendController
             ->removeAll()
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
 
-        $page = $queryBuilder
+        $queryBuilder
             ->select('uid', 'hidden', 'starttime', 'endtime')
             ->from('pages')
             ->where(
-                $queryBuilder->expr()->eq($field, $queryBuilder->createNamedParameter($this->id)),
                 $queryBuilder->expr()->gte('pid', $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT))
             )
-            ->setMaxResults(1)
-            ->execute()
-            ->fetch();
+            ->setMaxResults(1);
 
-        $workspace = $this->whichWorkspace();
-        if ($workspace !== 0 && $workspace !== false) {
+        // $this->id always points to the ID of the default language page, so we check
+        // the current site language to determine if we need to fetch a translation but consider fallbacks
+        if ($this->language->getLanguageId() > 0) {
+            $languagesToCheck = array_merge([$this->language->getLanguageId()], $this->language->getFallbackLanguageIds());
+            // Check for the language and all its fallbacks
+            $constraint = $queryBuilder->expr()->andX(
+                $queryBuilder->expr()->eq('l10n_parent', $queryBuilder->createNamedParameter($this->id, \PDO::PARAM_INT)),
+                $queryBuilder->expr()->in('sys_language_uid', $queryBuilder->createNamedParameter(array_filter($languagesToCheck), Connection::PARAM_INT_ARRAY))
+            );
+            // If the fallback language Ids also contains the default language, this needs to be considered
+            if (in_array(0, $languagesToCheck, true)) {
+                $constraint = $queryBuilder->expr()->orX(
+                    $constraint,
+                    // Ensure to also fetch the default record
+                    $queryBuilder->expr()->andX(
+                        $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($this->id, \PDO::PARAM_INT)),
+                        $queryBuilder->expr()->in('sys_language_uid', 0)
+                    )
+                );
+            }
+            // Ensure that the translated records are shown first (maxResults is set to 1)
+            $queryBuilder->orderBy('sys_language_uid', 'DESC');
+        } else {
+            $constraint = $queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($this->id, \PDO::PARAM_INT));
+        }
+        $queryBuilder->andWhere($constraint);
+
+        $page = $queryBuilder->execute()->fetch();
+
+        if ($this->whichWorkspace() > 0) {
             // Fetch overlay of page if in workspace and check if it is hidden
-            $pageSelectObject = GeneralUtility::makeInstance(PageRepository::class);
-            $pageSelectObject->versioningPreview = true;
-            $pageSelectObject->init(false);
+            $customContext = clone $this->context;
+            $customContext->setAspect('workspace', GeneralUtility::makeInstance(WorkspaceAspect::class, $this->whichWorkspace()));
+            $customContext->setAspect('visibility', GeneralUtility::makeInstance(VisibilityAspect::class));
+            $pageSelectObject = GeneralUtility::makeInstance(PageRepository::class, $customContext);
             $targetPage = $pageSelectObject->getWorkspaceVersionOfRecord($this->whichWorkspace(), 'pages', $page['uid']);
-            $result = $targetPage === -1 || $targetPage === -2;
+            // Also checks if the workspace version is NOT hidden but the live version is in fact still hidden
+            $result = $targetPage === -1 || $targetPage === -2 || (is_array($targetPage) && $targetPage['hidden'] == 0 && $page['hidden'] == 1);
         } else {
             $result = is_array($page) && ($page['hidden'] || $page['starttime'] > $GLOBALS['SIM_EXEC_TIME'] || $page['endtime'] != 0 && $page['endtime'] <= $GLOBALS['SIM_EXEC_TIME']);
         }
@@ -1291,93 +906,132 @@ class TypoScriptFrontendController
     }
 
     /**
-     * Get The Page ID
-     * This gets the id of the page, checks if the page is in the domain and if the page is accessible
-     * Sets variables such as $this->sys_page, $this->loginUser, $this->gr_list, $this->id, $this->type, $this->domainStartPage
+     * Resolves the page id and sets up several related properties.
      *
-     * @throws ServiceUnavailableException
-     * @access private
+     * If $this->id is not set at all or is not a plain integer, the method
+     * does it's best to set the value to an integer. Resolving is based on
+     * this options:
+     *
+     * - Splitting $this->id if it contains an additional type parameter.
+     * - Finding the domain record start page
+     * - First visible page
+     * - Relocating the id below the domain record if outside
+     *
+     * The following properties may be set up or updated:
+     *
+     * - id
+     * - requestedId
+     * - type
+     * - sys_page
+     * - sys_page->where_groupAccess
+     * - sys_page->where_hid_del
+     * - Context: FrontendUser Aspect
+     * - no_cache
+     * - register['SYS_LASTCHANGED']
+     * - pageNotFound
+     *
+     * Via getPageAndRootlineWithDomain()
+     *
+     * - rootLine
+     * - page
+     * - MP
+     * - originalShortcutPage
+     * - originalMountPointPage
+     * - pageAccessFailureHistory['direct_access']
+     * - pageNotFound
+     *
+     * @todo:
+     *
+     * On the first impression the method does to much. This is increased by
+     * the fact, that is is called repeated times by the method determineId.
+     * The reasons are manifold.
+     *
+     * 1.) The first part, the creation of sys_page and the type
+     * resolution don't need to be repeated. They could be separated to be
+     * called only once.
+     *
+     * 2.) The user group setup could be done once on a higher level.
+     *
+     * 3.) The workflow of the resolution could be elaborated to be less
+     * tangled. Maybe the check of the page id to be below the domain via the
+     * root line doesn't need to be done each time, but for the final result
+     * only.
+     *
+     * 4.) The root line does not need to be directly addressed by this class.
+     * A root line is always related to one page. The rootline could be handled
+     * indirectly by page objects. Page objects still don't exist.
+     *
+     * @internal
+     * @param ServerRequestInterface|null $request
      */
-    public function fetch_the_id()
+    public function fetch_the_id(ServerRequestInterface $request = null)
     {
+        $request = $request ?? $GLOBALS['TYPO3_REQUEST'] ?? ServerRequestFactory::fromGlobals();
         $timeTracker = $this->getTimeTracker();
-        $timeTracker->push('fetch_the_id initialize/', '');
-        // Initialize the page-select functions.
-        $this->sys_page = GeneralUtility::makeInstance(PageRepository::class);
-        $this->sys_page->versioningPreview = $this->fePreview === 2 || (int)$this->workspacePreview || (bool)GeneralUtility::_GP('ADMCMD_view');
-        $this->sys_page->versioningWorkspaceId = $this->whichWorkspace();
-        $this->sys_page->init($this->showHiddenPage);
+        $timeTracker->push('fetch_the_id initialize/');
         // Set the valid usergroups for FE
         $this->initUserGroups();
-        // Sets sys_page where-clause
-        $this->setSysPageWhereClause();
-        // Splitting $this->id by a period (.).
-        // First part is 'id' and second part (if exists) will overrule the &type param
-        $idParts = explode('.', $this->id, 2);
-        $this->id = $idParts[0];
-        if (isset($idParts[1])) {
-            $this->type = $idParts[1];
-        }
-
-        // If $this->id is a string, it's an alias
-        $this->checkAndSetAlias();
+        // Initialize the PageRepository has to be done after the frontend usergroups are initialized / resolved, as
+        // frontend group aspect is modified before
+        $this->sys_page = GeneralUtility::makeInstance(PageRepository::class, $this->context);
         // The id and type is set to the integer-value - just to be sure...
         $this->id = (int)$this->id;
         $this->type = (int)$this->type;
         $timeTracker->pull();
         // We find the first page belonging to the current domain
-        $timeTracker->push('fetch_the_id domain/', '');
-        // The page_id of the current domain
-        $this->domainStartPage = $this->findDomainRecord($GLOBALS['TYPO3_CONF_VARS']['SYS']['recursiveDomainSearch']);
+        $timeTracker->push('fetch_the_id domain/');
         if (!$this->id) {
-            if ($this->domainStartPage) {
-                // If the id was not previously set, set it to the id of the domain.
-                $this->id = $this->domainStartPage;
-            } else {
-                // Find the first 'visible' page in that domain
-                $theFirstPage = $this->sys_page->getFirstWebPage($this->id);
-                if ($theFirstPage) {
-                    $this->id = $theFirstPage['uid'];
-                } else {
-                    $message = 'No pages are found on the rootlevel!';
-                    if ($this->checkPageUnavailableHandler()) {
-                        $this->pageUnavailableAndExit($message);
-                    } else {
-                        GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
-                        throw new ServiceUnavailableException($message, 1301648975);
-                    }
-                }
-            }
+            // If the id was not previously set, set it to the root page id of the site.
+            $this->id = $this->site->getRootPageId();
         }
         $timeTracker->pull();
-        $timeTracker->push('fetch_the_id rootLine/', '');
+        $timeTracker->push('fetch_the_id rootLine/');
         // We store the originally requested id
         $this->requestedId = $this->id;
-        $this->getPageAndRootlineWithDomain($this->domainStartPage);
+        try {
+            $this->getPageAndRootlineWithDomain($this->site->getRootPageId(), $request);
+        } catch (ShortcutTargetPageNotFoundException $e) {
+            $this->pageNotFound = 1;
+        }
         $timeTracker->pull();
-        if ($this->pageNotFound && $GLOBALS['TYPO3_CONF_VARS']['FE']['pageNotFound_handling']) {
-            $pNotFoundMsg = [
-                1 => 'ID was not an accessible page',
-                2 => 'Subsection was found and not accessible',
-                3 => 'ID was outside the domain',
-                4 => 'The requested page alias does not exist'
-            ];
-            $this->pageNotFoundAndExit($pNotFoundMsg[$this->pageNotFound]);
-        }
-        // Set no_cache if set
-        if ($this->page['no_cache']) {
-            $this->set_no_cache('no_cache is set in page properties');
-        }
-        // Init SYS_LASTCHANGED
-        $this->register['SYS_LASTCHANGED'] = (int)$this->page['tstamp'];
-        if ($this->register['SYS_LASTCHANGED'] < (int)$this->page['SYS_LASTCHANGED']) {
-            $this->register['SYS_LASTCHANGED'] = (int)$this->page['SYS_LASTCHANGED'];
-        }
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['fetchPageId-PostProcessing'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['fetchPageId-PostProcessing'] as $functionReference) {
-                $parameters = ['parentObject' => $this];
-                GeneralUtility::callUserFunction($functionReference, $parameters, $this);
+        if ($this->pageNotFound) {
+            switch ($this->pageNotFound) {
+                case 1:
+                    $response = GeneralUtility::makeInstance(ErrorController::class)->accessDeniedAction(
+                        $request,
+                        'ID was not an accessible page',
+                        $this->getPageAccessFailureReasons(PageAccessFailureReasons::ACCESS_DENIED_PAGE_NOT_RESOLVED)
+                    );
+                    break;
+                case 2:
+                    $response = GeneralUtility::makeInstance(ErrorController::class)->accessDeniedAction(
+                        $request,
+                        'Subsection was found and not accessible',
+                        $this->getPageAccessFailureReasons(PageAccessFailureReasons::ACCESS_DENIED_SUBSECTION_NOT_RESOLVED)
+                    );
+                    break;
+                case 3:
+                    $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                        $request,
+                        'ID was outside the domain',
+                        $this->getPageAccessFailureReasons(PageAccessFailureReasons::ACCESS_DENIED_HOST_PAGE_MISMATCH)
+                    );
+                    break;
+                default:
+                    $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                        $request,
+                        'Unspecified error',
+                        $this->getPageAccessFailureReasons()
+                    );
             }
+            throw new ImmediateResponseException($response, 1533931329);
+        }
+
+        $this->setRegisterValueForSysLastChanged($this->page);
+
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['fetchPageId-PostProcessing'] ?? [] as $functionReference) {
+            $parameters = ['parentObject' => $this];
+            GeneralUtility::callUserFunction($functionReference, $parameters, $this);
         }
     }
 
@@ -1412,10 +1066,6 @@ class TypoScriptFrontendController
      * Exceptions may be thrown for DOKTYPE_SPACER and not loadable page records
      * or root lines.
      *
-     * If $GLOBALS['TYPO3_CONF_VARS']['FE']['pageNotFound_handling'] is set,
-     * instead of throwing an exception it's handled by a page unavailable
-     * handler.
-     *
      * May set or update this properties:
      *
      * @see TypoScriptFrontendController::$id
@@ -1428,48 +1078,66 @@ class TypoScriptFrontendController
      *
      * @throws ServiceUnavailableException
      * @throws PageNotFoundException
-     * @access private
      */
-    public function getPageAndRootline()
+    protected function getPageAndRootline(ServerRequestInterface $request)
     {
-        $this->page = $this->sys_page->getPage($this->id);
+        $requestedPageRowWithoutGroupCheck = [];
+        $this->resolveTranslatedPageId();
         if (empty($this->page)) {
             // If no page, we try to find the page before in the rootLine.
             // Page is 'not found' in case the id itself was not an accessible page. code 1
             $this->pageNotFound = 1;
-            $this->rootLine = $this->sys_page->getRootLine($this->id, $this->MP);
-            if (!empty($this->rootLine)) {
-                $c = count($this->rootLine) - 1;
-                while ($c > 0) {
-                    // Add to page access failure history:
-                    $this->pageAccessFailureHistory['direct_access'][] = $this->rootLine[$c];
-                    // Decrease to next page in rootline and check the access to that, if OK, set as page record and ID value.
-                    $c--;
-                    $this->id = $this->rootLine[$c]['uid'];
-                    $this->page = $this->sys_page->getPage($this->id);
-                    if (!empty($this->page)) {
-                        break;
+            try {
+                $requestedPageRowWithoutGroupCheck = $this->sys_page->getPage($this->id, true);
+                if (!empty($requestedPageRowWithoutGroupCheck)) {
+                    $this->pageAccessFailureHistory['direct_access'][] = $requestedPageRowWithoutGroupCheck;
+                }
+                $this->rootLine = GeneralUtility::makeInstance(RootlineUtility::class, $this->id, $this->MP, $this->context)->get();
+                if (!empty($this->rootLine)) {
+                    $c = count($this->rootLine) - 1;
+                    while ($c > 0) {
+                        // Add to page access failure history:
+                        $this->pageAccessFailureHistory['direct_access'][] = $this->rootLine[$c];
+                        // Decrease to next page in rootline and check the access to that, if OK, set as page record and ID value.
+                        $c--;
+                        $this->id = $this->rootLine[$c]['uid'];
+                        $this->page = $this->sys_page->getPage($this->id);
+                        if (!empty($this->page)) {
+                            break;
+                        }
                     }
                 }
+            } catch (RootLineException $e) {
+                $this->rootLine = [];
             }
             // If still no page...
-            if (empty($this->page)) {
+            if (empty($requestedPageRowWithoutGroupCheck) && empty($this->page)) {
                 $message = 'The requested page does not exist!';
-                if ($GLOBALS['TYPO3_CONF_VARS']['FE']['pageNotFound_handling']) {
-                    $this->pageNotFoundAndExit($message);
-                } else {
-                    GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
+                $this->logger->error($message);
+                try {
+                    $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                        $request,
+                        $message,
+                        $this->getPageAccessFailureReasons(PageAccessFailureReasons::PAGE_NOT_FOUND)
+                    );
+                    throw new ImmediateResponseException($response, 1533931330);
+                } catch (PageNotFoundException $e) {
                     throw new PageNotFoundException($message, 1301648780);
                 }
             }
         }
-        // Spacer is not accessible in frontend
-        if ($this->page['doktype'] == PageRepository::DOKTYPE_SPACER) {
+        // Spacer and sysfolders is not accessible in frontend
+        if ($this->page['doktype'] == PageRepository::DOKTYPE_SPACER || $this->page['doktype'] == PageRepository::DOKTYPE_SYSFOLDER) {
             $message = 'The requested page does not exist!';
-            if ($GLOBALS['TYPO3_CONF_VARS']['FE']['pageNotFound_handling']) {
-                $this->pageNotFoundAndExit($message);
-            } else {
-                GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
+            $this->logger->error($message);
+            try {
+                $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                    $request,
+                    $message,
+                    $this->getPageAccessFailureReasons(PageAccessFailureReasons::ACCESS_DENIED_INVALID_PAGETYPE)
+                );
+                throw new ImmediateResponseException($response, 1533931343);
+            } catch (PageNotFoundException $e) {
                 throw new PageNotFoundException($message, 1301648781);
             }
         }
@@ -1482,7 +1150,7 @@ class TypoScriptFrontendController
             // whether a translation of the page overwrites the shortcut
             // target and we need to follow the new target
             $this->originalShortcutPage = $this->page;
-            $this->page = $this->getPageShortcut($this->page['shortcut'], $this->page['shortcut_mode'], $this->page['uid']);
+            $this->page = $this->sys_page->getPageShortcut($this->page['shortcut'], $this->page['shortcut_mode'], $this->page['uid']);
             $this->id = $this->page['uid'];
         }
         // If the page is a mountpoint which should be overlaid with the contents of the mounted page,
@@ -1496,18 +1164,32 @@ class TypoScriptFrontendController
                     . 'mounts a page which is not accessible (ID ' . $this->originalMountPointPage['mount_pid'] . ').';
                 throw new PageNotFoundException($message, 1402043263);
             }
-            $this->MP = $this->page['uid'] . '-' . $this->originalMountPointPage['uid'];
+            // If the current page is a shortcut, the MP parameter will be replaced
+            if ($this->MP === '' || !empty($this->originalShortcutPage)) {
+                $this->MP = $this->page['uid'] . '-' . $this->originalMountPointPage['uid'];
+            } else {
+                $this->MP .= ',' . $this->page['uid'] . '-' . $this->originalMountPointPage['uid'];
+            }
             $this->id = $this->page['uid'];
         }
         // Gets the rootLine
-        $this->rootLine = $this->sys_page->getRootLine($this->id, $this->MP);
+        try {
+            $this->rootLine = GeneralUtility::makeInstance(RootlineUtility::class, $this->id, $this->MP, $this->context)->get();
+        } catch (RootLineException $e) {
+            $this->rootLine = [];
+        }
         // If not rootline we're off...
         if (empty($this->rootLine)) {
             $message = 'The requested page didn\'t have a proper connection to the tree-root!';
-            if ($this->checkPageUnavailableHandler()) {
-                $this->pageUnavailableAndExit($message);
-            } else {
-                GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
+            $this->logger->error($message);
+            try {
+                $response = GeneralUtility::makeInstance(ErrorController::class)->unavailableAction(
+                    $request,
+                    $message,
+                    $this->getPageAccessFailureReasons(PageAccessFailureReasons::ROOTLINE_BROKEN)
+                );
+                throw new ImmediateResponseException($response, 1533931350);
+            } catch (ServiceUnavailableException $e) {
                 throw new ServiceUnavailableException($message, 1301648167);
             }
         }
@@ -1515,115 +1197,88 @@ class TypoScriptFrontendController
         if ($this->checkRootlineForIncludeSection()) {
             if (empty($this->rootLine)) {
                 $message = 'The requested page was not accessible!';
-                if ($this->checkPageUnavailableHandler()) {
-                    $this->pageUnavailableAndExit($message);
-                } else {
-                    GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
+                try {
+                    $response = GeneralUtility::makeInstance(ErrorController::class)->unavailableAction(
+                        $request,
+                        $message,
+                        $this->getPageAccessFailureReasons(PageAccessFailureReasons::ACCESS_DENIED_GENERAL)
+                    );
+                    throw new ImmediateResponseException($response, 1533931351);
+                } catch (ServiceUnavailableException $e) {
+                    $this->logger->warning($message);
                     throw new ServiceUnavailableException($message, 1301648234);
                 }
             } else {
                 $el = reset($this->rootLine);
                 $this->id = $el['uid'];
                 $this->page = $this->sys_page->getPage($this->id);
-                $this->rootLine = $this->sys_page->getRootLine($this->id, $this->MP);
+                try {
+                    $this->rootLine = GeneralUtility::makeInstance(RootlineUtility::class, $this->id, $this->MP, $this->context)->get();
+                } catch (RootLineException $e) {
+                    $this->rootLine = [];
+                }
             }
         }
     }
 
     /**
-     * Get page shortcut; Finds the records pointed to by input value $SC (the shortcut value)
+     * If $this->id contains a translated page record, this needs to be resolved to the default language
+     * in order for all rootline functionality and access restrictions to be in place further on.
      *
-     * @param int $SC The value of the "shortcut" field from the pages record
-     * @param int $mode The shortcut mode: 1 will select first subpage, 2 a random subpage, 3 the parent page; default is the page pointed to by $SC
-     * @param int $thisUid The current page UID of the page which is a shortcut
-     * @param int $itera Safety feature which makes sure that the function is calling itself recursively max 20 times (since this function can find shortcuts to other shortcuts to other shortcuts...)
-     * @param array $pageLog An array filled with previous page uids tested by the function - new page uids are evaluated against this to avoid going in circles.
-     * @param bool $disableGroupCheck If true, the group check is disabled when fetching the target page (needed e.g. for menu generation)
-     * @throws \RuntimeException
-     * @throws PageNotFoundException
-     * @return mixed Returns the page record of the page that the shortcut pointed to.
-     * @access private
-     * @see getPageAndRootline()
+     * Additionally, if a translated page is found, LanguageAspect is set as well.
      */
-    public function getPageShortcut($SC, $mode, $thisUid, $itera = 20, $pageLog = [], $disableGroupCheck = false)
+    protected function resolveTranslatedPageId()
     {
-        $idArray = GeneralUtility::intExplode(',', $SC);
-        // Find $page record depending on shortcut mode:
-        switch ($mode) {
-            case PageRepository::SHORTCUT_MODE_FIRST_SUBPAGE:
-
-            case PageRepository::SHORTCUT_MODE_RANDOM_SUBPAGE:
-                $pageArray = $this->sys_page->getMenu($idArray[0] ? $idArray[0] : $thisUid, '*', 'sorting', 'AND pages.doktype<199 AND pages.doktype!=' . PageRepository::DOKTYPE_BE_USER_SECTION);
-                $pO = 0;
-                if ($mode == PageRepository::SHORTCUT_MODE_RANDOM_SUBPAGE && !empty($pageArray)) {
-                    $randval = (int)rand(0, count($pageArray) - 1);
-                    $pO = $randval;
-                }
-                $c = 0;
-                $page = [];
-                foreach ($pageArray as $pV) {
-                    if ($c === $pO) {
-                        $page = $pV;
-                        break;
-                    }
-                    $c++;
-                }
-                if (empty($page)) {
-                    $message = 'This page (ID ' . $thisUid . ') is of type "Shortcut" and configured to redirect to a subpage. ' . 'However, this page has no accessible subpages.';
-                    throw new PageNotFoundException($message, 1301648328);
-                }
-                break;
-            case PageRepository::SHORTCUT_MODE_PARENT_PAGE:
-                $parent = $this->sys_page->getPage($idArray[0] ? $idArray[0] : $thisUid, $disableGroupCheck);
-                $page = $this->sys_page->getPage($parent['pid'], $disableGroupCheck);
-                if (empty($page)) {
-                    $message = 'This page (ID ' . $thisUid . ') is of type "Shortcut" and configured to redirect to its parent page. ' . 'However, the parent page is not accessible.';
-                    throw new PageNotFoundException($message, 1301648358);
-                }
-                break;
-            default:
-                $page = $this->sys_page->getPage($idArray[0], $disableGroupCheck);
-                if (empty($page)) {
-                    $message = 'This page (ID ' . $thisUid . ') is of type "Shortcut" and configured to redirect to a page, which is not accessible (ID ' . $idArray[0] . ').';
-                    throw new PageNotFoundException($message, 1301648404);
-                }
+        $this->page = $this->sys_page->getPage($this->id);
+        // Accessed a default language page record, nothing to resolve
+        if (empty($this->page) || (int)$this->page[$GLOBALS['TCA']['pages']['ctrl']['languageField']] === 0) {
+            return;
         }
-        // Check if short cut page was a shortcut itself, if so look up recursively:
-        if ($page['doktype'] == PageRepository::DOKTYPE_SHORTCUT) {
-            if (!in_array($page['uid'], $pageLog) && $itera > 0) {
-                $pageLog[] = $page['uid'];
-                $page = $this->getPageShortcut($page['shortcut'], $page['shortcut_mode'], $page['uid'], $itera - 1, $pageLog, $disableGroupCheck);
-            } else {
-                $pageLog[] = $page['uid'];
-                $message = 'Page shortcuts were looping in uids ' . implode(',', $pageLog) . '...!';
-                GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
-                throw new \RuntimeException($message, 1294587212);
-            }
-        }
-        // Return resulting page:
-        return $page;
+        $languageId = (int)$this->page[$GLOBALS['TCA']['pages']['ctrl']['languageField']];
+        $this->page = $this->sys_page->getPage($this->page[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']]);
+        $this->context->setAspect('language', GeneralUtility::makeInstance(LanguageAspect::class, $languageId));
+        $this->id = $this->page['uid'];
     }
 
     /**
-     * Checks the current rootline for defined sections.
+     * Checks if visibility of the page is blocked upwards in the root line.
+     *
+     * If any page in the root line is blocking visibility, true is returned.
+     *
+     * All pages from the blocking page downwards are removed from the root
+     * line, so that the remaining pages can be used to relocate the page up
+     * to lowest visible page.
+     *
+     * The blocking feature of a page must be turned on by setting the page
+     * record field 'extendToSubpages' to 1 in case of hidden, starttime,
+     * endtime or fe_group restrictions.
+     *
+     * Additionally this method checks for backend user sections in root line
+     * and if found evaluates if a backend user is logged in and has access.
+     *
+     * Recyclers are also checked and trigger page not found if found in root
+     * line.
+     *
+     * @todo Find a better name, i.e. checkVisibilityByRootLine
+     * @todo Invert boolean return value. Return true if visible.
      *
      * @return bool
-     * @access private
      */
-    public function checkRootlineForIncludeSection()
+    protected function checkRootlineForIncludeSection(): bool
     {
         $c = count($this->rootLine);
-        $removeTheRestFlag = 0;
+        $removeTheRestFlag = false;
         for ($a = 0; $a < $c; $a++) {
             if (!$this->checkPagerecordForIncludeSection($this->rootLine[$a])) {
-                // Add to page access failure history:
+                // Add to page access failure history and mark the page as not found
+                // Keep the rootline however to trigger an access denied error instead of a service unavailable error
                 $this->pageAccessFailureHistory['sub_section'][] = $this->rootLine[$a];
-                $removeTheRestFlag = 1;
+                $this->pageNotFound = 2;
             }
 
-            if ($this->rootLine[$a]['doktype'] == PageRepository::DOKTYPE_BE_USER_SECTION) {
-                // If there is a backend user logged in, check if he has read access to the page:
-                if ($this->beUserLogin) {
+            if ((int)$this->rootLine[$a]['doktype'] === PageRepository::DOKTYPE_BE_USER_SECTION) {
+                // If there is a backend user logged in, check if they have read access to the page:
+                if ($this->isBackendUserLoggedIn()) {
                     $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
                         ->getQueryBuilderForTable('pages');
 
@@ -1639,7 +1294,7 @@ class TypoScriptFrontendController
                                 'uid',
                                 $queryBuilder->createNamedParameter($this->id, \PDO::PARAM_INT)
                             ),
-                            $this->getBackendUser()->getPagePermsClause(1)
+                            $this->getBackendUser()->getPagePermsClause(Permission::PAGE_SHOW)
                         )
                         ->execute()
                         ->fetch();
@@ -1647,12 +1302,15 @@ class TypoScriptFrontendController
                     // versionOL()?
                     if (!$row) {
                         // If there was no page selected, the user apparently did not have read access to the current PAGE (not position in rootline) and we set the remove-flag...
-                        $removeTheRestFlag = 1;
+                        $removeTheRestFlag = true;
                     }
                 } else {
                     // Don't go here, if there is no backend user logged in.
-                    $removeTheRestFlag = 1;
+                    $removeTheRestFlag = true;
                 }
+            } elseif ((int)$this->rootLine[$a]['doktype'] === PageRepository::DOKTYPE_RECYCLER) {
+                // page is in a recycler
+                $removeTheRestFlag = true;
             }
             if ($removeTheRestFlag) {
                 // Page is 'not found' in case a subsection was found and not accessible, code 2
@@ -1666,26 +1324,28 @@ class TypoScriptFrontendController
     /**
      * Checks page record for enableFields
      * Returns TRUE if enableFields does not disable the page record.
-     * Takes notice of the ->showHiddenPage flag and uses SIM_ACCESS_TIME for start/endtime evaluation
+     * Takes notice of the includeHiddenPages visibility aspect flag and uses SIM_ACCESS_TIME for start/endtime evaluation
      *
      * @param array $row The page record to evaluate (needs fields: hidden, starttime, endtime, fe_group)
      * @param bool $bypassGroupCheck Bypass group-check
      * @return bool TRUE, if record is viewable.
-     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::getTreeList(), checkPagerecordForIncludeSection()
+     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::getTreeList()
+     * @see checkPagerecordForIncludeSection()
      */
     public function checkEnableFields($row, $bypassGroupCheck = false)
     {
-        if (isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_checkEnableFields']) && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_checkEnableFields'])) {
-            $_params = ['pObj' => $this, 'row' => &$row, 'bypassGroupCheck' => &$bypassGroupCheck];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_checkEnableFields'] as $_funcRef) {
-                // Call hooks: If one returns FALSE, method execution is aborted with result "This record is not available"
-                $return = GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-                if ($return === false) {
-                    return false;
-                }
+        $_params = ['pObj' => $this, 'row' => &$row, 'bypassGroupCheck' => &$bypassGroupCheck];
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_checkEnableFields'] ?? [] as $_funcRef) {
+            // Call hooks: If one returns FALSE, method execution is aborted with result "This record is not available"
+            $return = GeneralUtility::callUserFunction($_funcRef, $_params, $this);
+            if ($return === false) {
+                return false;
             }
         }
-        if ((!$row['hidden'] || $this->showHiddenPage) && $row['starttime'] <= $GLOBALS['SIM_ACCESS_TIME'] && ($row['endtime'] == 0 || $row['endtime'] > $GLOBALS['SIM_ACCESS_TIME']) && ($bypassGroupCheck || $this->checkPageGroupAccess($row))) {
+        if ((!$row['hidden'] || $this->context->getPropertyFromAspect('visibility', 'includeHiddenPages', false))
+            && $row['starttime'] <= $GLOBALS['SIM_ACCESS_TIME']
+            && ($row['endtime'] == 0 || $row['endtime'] > $GLOBALS['SIM_ACCESS_TIME'])
+            && ($bypassGroupCheck || $this->checkPageGroupAccess($row))) {
             return true;
         }
         return false;
@@ -1695,33 +1355,35 @@ class TypoScriptFrontendController
      * Check group access against a page record
      *
      * @param array $row The page record to evaluate (needs field: fe_group)
-     * @param mixed $groupList List of group id's (comma list or array). Default is $this->gr_list
      * @return bool TRUE, if group access is granted.
-     * @access private
+     * @internal
      */
-    public function checkPageGroupAccess($row, $groupList = null)
+    public function checkPageGroupAccess($row)
     {
-        if (is_null($groupList)) {
-            $groupList = $this->gr_list;
-        }
-        if (!is_array($groupList)) {
-            $groupList = explode(',', $groupList);
-        }
+        /** @var UserAspect $userAspect */
+        $userAspect = $this->context->getAspect('frontend.user');
         $pageGroupList = explode(',', $row['fe_group'] ?: 0);
-        return count(array_intersect($groupList, $pageGroupList)) > 0;
+        return count(array_intersect($userAspect->getGroupIds(), $pageGroupList)) > 0;
     }
 
     /**
-     * Checks page record for include section
+     * Checks if the current page of the root line is visible.
      *
-     * @param array $row The page record to evaluate (needs fields: extendToSubpages + hidden, starttime, endtime, fe_group)
-     * @return bool Returns TRUE if either extendToSubpages is not checked or if the enableFields does not disable the page record.
-     * @access private
-     * @see checkEnableFields(), \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::getTreeList(), checkRootlineForIncludeSection()
+     * If the field extendToSubpages is 0, access is granted,
+     * else the fields hidden, starttime, endtime, fe_group are evaluated.
+     *
+     * @todo Find a better name, i.e. isVisibleRecord()
+     *
+     * @param array $row The page record
+     * @return bool true if visible
+     * @internal
+     * @see checkEnableFields()
+     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::getTreeList()
+     * @see checkRootlineForIncludeSection()
      */
-    public function checkPagerecordForIncludeSection($row)
+    public function checkPagerecordForIncludeSection(array $row): bool
     {
-        return !$row['extendToSubpages'] || $this->checkEnableFields($row) ? 1 : 0;
+        return !$row['extendToSubpages'] || $this->checkEnableFields($row);
     }
 
     /**
@@ -1756,11 +1418,15 @@ class TypoScriptFrontendController
     /**
      * Analysing $this->pageAccessFailureHistory into a summary array telling which features disabled display and on which pages and conditions. That data can be used inside a page-not-found handler
      *
+     * @param string $failureReasonCode the error code to be attached (optional), see PageAccessFailureReasons list for details
      * @return array Summary of why page access was not allowed.
      */
-    public function getPageAccessFailureReasons()
+    public function getPageAccessFailureReasons(string $failureReasonCode = null)
     {
         $output = [];
+        if ($failureReasonCode) {
+            $output['code'] = $failureReasonCode;
+        }
         $combinedRecords = array_merge(is_array($this->pageAccessFailureHistory['direct_access']) ? $this->pageAccessFailureHistory['direct_access'] : [['fe_group' => 0]], is_array($this->pageAccessFailureHistory['sub_section']) ? $this->pageAccessFailureHistory['sub_section'] : []);
         if (!empty($combinedRecords)) {
             foreach ($combinedRecords as $k => $pagerec) {
@@ -1787,332 +1453,29 @@ class TypoScriptFrontendController
 
     /**
      * Gets ->page and ->rootline information based on ->id. ->id may change during this operation.
-     * If not inside domain, then default to first page in domain.
+     * If not inside a site, then default to first page in site.
      *
-     * @param int $domainStartPage Page uid of the page where the found domain record is (pid of the domain record)
-     * @access private
+     * @param int $rootPageId Page uid of the page where the found site is located
+     * @internal
      */
-    public function getPageAndRootlineWithDomain($domainStartPage)
+    public function getPageAndRootlineWithDomain($rootPageId, ServerRequestInterface $request)
     {
-        $this->getPageAndRootline();
-        // Checks if the $domain-startpage is in the rootLine. This is necessary so that references to page-id's from other domains are not possible.
-        if ($domainStartPage && is_array($this->rootLine)) {
-            $idFound = 0;
+        $this->getPageAndRootline($request);
+        // Checks if the $domain-startpage is in the rootLine. This is necessary so that references to page-id's via ?id=123 from other sites are not possible.
+        if (is_array($this->rootLine) && $this->rootLine !== []) {
+            $idFound = false;
             foreach ($this->rootLine as $key => $val) {
-                if ($val['uid'] == $domainStartPage) {
-                    $idFound = 1;
+                if ($val['uid'] == $rootPageId) {
+                    $idFound = true;
                     break;
                 }
             }
             if (!$idFound) {
                 // Page is 'not found' in case the id was outside the domain, code 3
                 $this->pageNotFound = 3;
-                $this->id = $domainStartPage;
+                $this->id = $rootPageId;
                 // re-get the page and rootline if the id was not found.
-                $this->getPageAndRootline();
-            }
-        }
-    }
-
-    /**
-     * Sets sys_page where-clause
-     *
-     * @access private
-     */
-    public function setSysPageWhereClause()
-    {
-        $expressionBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getConnectionForTable('pages')
-            ->getExpressionBuilder();
-        $this->sys_page->where_hid_del = ' AND ' . (string)$expressionBuilder->andX(
-            QueryHelper::stripLogicalOperatorPrefix($this->sys_page->where_hid_del),
-            $expressionBuilder->lt('pages.doktype', 200)
-        );
-        $this->sys_page->where_groupAccess = $this->sys_page->getMultipleGroupsWhereClause('pages.fe_group', 'pages');
-    }
-
-    /**
-     * Looking up a domain record based on HTTP_HOST
-     *
-     * @param bool $recursive If set, it looks "recursively" meaning that a domain like "123.456.typo3.com" would find a domain record like "typo3.com" if "123.456.typo3.com" or "456.typo3.com" did not exist.
-     * @return int Returns the page id of the page where the domain record was found.
-     * @access private
-     */
-    public function findDomainRecord($recursive = false)
-    {
-        if ($recursive) {
-            $pageUid = 0;
-            $host = explode('.', GeneralUtility::getIndpEnv('HTTP_HOST'));
-            while (count($host)) {
-                $pageUid = $this->sys_page->getDomainStartPage(implode('.', $host), GeneralUtility::getIndpEnv('SCRIPT_NAME'), GeneralUtility::getIndpEnv('REQUEST_URI'));
-                if ($pageUid) {
-                    return $pageUid;
-                } else {
-                    array_shift($host);
-                }
-            }
-            return $pageUid;
-        } else {
-            return $this->sys_page->getDomainStartPage(GeneralUtility::getIndpEnv('HTTP_HOST'), GeneralUtility::getIndpEnv('SCRIPT_NAME'), GeneralUtility::getIndpEnv('REQUEST_URI'));
-        }
-    }
-
-    /**
-     * Page unavailable handler for use in frontend plugins from extensions.
-     *
-     * @param string $reason Reason text
-     * @param string $header HTTP header to send
-     */
-    public function pageUnavailableAndExit($reason = '', $header = '')
-    {
-        $header = $header ?: $GLOBALS['TYPO3_CONF_VARS']['FE']['pageUnavailable_handling_statheader'];
-        $this->pageUnavailableHandler($GLOBALS['TYPO3_CONF_VARS']['FE']['pageUnavailable_handling'], $header, $reason);
-        die;
-    }
-
-    /**
-     * Page-not-found handler for use in frontend plugins from extensions.
-     *
-     * @param string $reason Reason text
-     * @param string $header HTTP header to send
-     */
-    public function pageNotFoundAndExit($reason = '', $header = '')
-    {
-        $header = $header ?: $GLOBALS['TYPO3_CONF_VARS']['FE']['pageNotFound_handling_statheader'];
-        $this->pageNotFoundHandler($GLOBALS['TYPO3_CONF_VARS']['FE']['pageNotFound_handling'], $header, $reason);
-        die;
-    }
-
-    /**
-     * Checks whether the pageUnavailableHandler should be used. To be used, pageUnavailable_handling must be set
-     * and devIPMask must not match the current visitor's IP address.
-     *
-     * @return bool TRUE/FALSE whether the pageUnavailable_handler should be used.
-     */
-    public function checkPageUnavailableHandler()
-    {
-        if (
-            $GLOBALS['TYPO3_CONF_VARS']['FE']['pageUnavailable_handling']
-            && !GeneralUtility::cmpIP(
-                GeneralUtility::getIndpEnv('REMOTE_ADDR'),
-                $GLOBALS['TYPO3_CONF_VARS']['SYS']['devIPmask']
-            )
-        ) {
-            $checkPageUnavailableHandler = true;
-        } else {
-            $checkPageUnavailableHandler = false;
-        }
-        return $checkPageUnavailableHandler;
-    }
-
-    /**
-     * Page unavailable handler. Acts a wrapper for the pageErrorHandler method.
-     *
-     * @param mixed $code Which type of handling; If a true PHP-boolean or TRUE then a \TYPO3\CMS\Core\Messaging\ErrorpageMessage is outputted. If integer an error message with that number is shown. Otherwise the $code value is expected to be a "Location:" header value.
-     * @param string $header If set, this is passed directly to the PHP function, header()
-     * @param string $reason If set, error messages will also mention this as the reason for the page-not-found.
-     */
-    public function pageUnavailableHandler($code, $header, $reason)
-    {
-        $this->pageErrorHandler($code, $header, $reason);
-    }
-
-    /**
-     * Page not found handler. Acts a wrapper for the pageErrorHandler method.
-     *
-     * @param mixed $code Which type of handling; If a true PHP-boolean or TRUE then a \TYPO3\CMS\Core\Messaging\ErrorpageMessage is outputted. If integer an error message with that number is shown. Otherwise the $code value is expected to be a "Location:" header value.
-     * @param string $header If set, this is passed directly to the PHP function, header()
-     * @param string $reason If set, error messages will also mention this as the reason for the page-not-found.
-     */
-    public function pageNotFoundHandler($code, $header = '', $reason = '')
-    {
-        $this->pageErrorHandler($code, $header, $reason);
-    }
-
-    /**
-     * Generic error page handler.
-     * Exits.
-     *
-     * @param mixed $code Which type of handling; If a true PHP-boolean or TRUE then a \TYPO3\CMS\Core\Messaging\ErrorpageMessage is outputted. If integer an error message with that number is shown. Otherwise the $code value is expected to be a "Location:" header value.
-     * @param string $header If set, this is passed directly to the PHP function, header()
-     * @param string $reason If set, error messages will also mention this as the reason for the page-not-found.
-     * @throws \RuntimeException
-     */
-    public function pageErrorHandler($code, $header = '', $reason = '')
-    {
-        // Issue header in any case:
-        if ($header) {
-            $headerArr = preg_split('/\\r|\\n/', $header, -1, PREG_SPLIT_NO_EMPTY);
-            foreach ($headerArr as $header) {
-                header($header);
-            }
-        }
-        // Create response:
-        // Simply boolean; Just shows TYPO3 error page with reason:
-        if (strtolower($code) === 'true' || (string)$code === '1' || gettype($code) === 'boolean') {
-            echo GeneralUtility::makeInstance(ErrorPageController::class)->errorAction(
-                'Page Not Found',
-                'The page did not exist or was inaccessible.' . ($reason ? ' Reason: ' . $reason : '')
-            );
-        } elseif (GeneralUtility::isFirstPartOfStr($code, 'USER_FUNCTION:')) {
-            $funcRef = trim(substr($code, 14));
-            $params = [
-                'currentUrl' => GeneralUtility::getIndpEnv('REQUEST_URI'),
-                'reasonText' => $reason,
-                'pageAccessFailureReasons' => $this->getPageAccessFailureReasons()
-            ];
-            echo GeneralUtility::callUserFunction($funcRef, $params, $this);
-        } elseif (GeneralUtility::isFirstPartOfStr($code, 'READFILE:')) {
-            $readFile = GeneralUtility::getFileAbsFileName(trim(substr($code, 9)));
-            if (@is_file($readFile)) {
-                echo str_replace(
-                    [
-                        '###CURRENT_URL###',
-                        '###REASON###'
-                    ],
-                    [
-                        GeneralUtility::getIndpEnv('REQUEST_URI'),
-                        htmlspecialchars($reason)
-                    ],
-                    file_get_contents($readFile)
-                );
-            } else {
-                throw new \RuntimeException('Configuration Error: 404 page "' . $readFile . '" could not be found.', 1294587214);
-            }
-        } elseif (GeneralUtility::isFirstPartOfStr($code, 'REDIRECT:')) {
-            HttpUtility::redirect(substr($code, 9));
-        } elseif ($code !== '') {
-            // Check if URL is relative
-            $url_parts = parse_url($code);
-            // parse_url could return an array without the key "host", the empty check works better than strict check
-            if (empty($url_parts['host'])) {
-                $url_parts['host'] = GeneralUtility::getIndpEnv('HTTP_HOST');
-                if ($code[0] === '/') {
-                    $code = GeneralUtility::getIndpEnv('TYPO3_REQUEST_HOST') . $code;
-                } else {
-                    $code = GeneralUtility::getIndpEnv('TYPO3_REQUEST_DIR') . $code;
-                }
-                $checkBaseTag = false;
-            } else {
-                $checkBaseTag = true;
-            }
-            // Check recursion
-            if ($code == GeneralUtility::getIndpEnv('TYPO3_REQUEST_URL')) {
-                if ($reason == '') {
-                    $reason = 'Page cannot be found.';
-                }
-                $reason .= LF . LF . 'Additionally, ' . $code . ' was not found while trying to retrieve the error document.';
-                throw new \RuntimeException(nl2br(htmlspecialchars($reason)), 1294587215);
-            }
-            // Prepare headers
-            $headerArr = [
-                'User-agent: ' . GeneralUtility::getIndpEnv('HTTP_USER_AGENT'),
-                'Referer: ' . GeneralUtility::getIndpEnv('TYPO3_REQUEST_URL')
-            ];
-            $res = GeneralUtility::getUrl($code, 1, $headerArr);
-            // Header and content are separated by an empty line
-            list($header, $content) = explode(CRLF . CRLF, $res, 2);
-            $content .= CRLF;
-            if (false === $res) {
-                // Last chance -- redirect
-                HttpUtility::redirect($code);
-            } else {
-                // Forward these response headers to the client
-                $forwardHeaders = [
-                    'Content-Type:'
-                ];
-                $headerArr = preg_split('/\\r|\\n/', $header, -1, PREG_SPLIT_NO_EMPTY);
-                foreach ($headerArr as $header) {
-                    foreach ($forwardHeaders as $h) {
-                        if (preg_match('/^' . $h . '/', $header)) {
-                            header($header);
-                        }
-                    }
-                }
-                // Put <base> if necessary
-                if ($checkBaseTag) {
-                    // If content already has <base> tag, we do not need to do anything
-                    if (false === stristr($content, '<base ')) {
-                        // Generate href for base tag
-                        $base = $url_parts['scheme'] . '://';
-                        if ($url_parts['user'] != '') {
-                            $base .= $url_parts['user'];
-                            if ($url_parts['pass'] != '') {
-                                $base .= ':' . $url_parts['pass'];
-                            }
-                            $base .= '@';
-                        }
-                        $base .= $url_parts['host'];
-                        // Add path portion skipping possible file name
-                        $base .= preg_replace('/(.*\\/)[^\\/]*/', '${1}', $url_parts['path']);
-                        // Put it into content (generate also <head> if necessary)
-                        $replacement = LF . '<base href="' . htmlentities($base) . '" />' . LF;
-                        if (stristr($content, '<head>')) {
-                            $content = preg_replace('/(<head>)/i', '\\1' . $replacement, $content);
-                        } else {
-                            $content = preg_replace('/(<html[^>]*>)/i', '\\1<head>' . $replacement . '</head>', $content);
-                        }
-                    }
-                }
-                // Output the content
-                echo $content;
-            }
-        } else {
-            echo GeneralUtility::makeInstance(ErrorPageController::class)->errorAction(
-                'Page Not Found',
-                $reason ? 'Reason: ' . $reason : 'Page cannot be found.'
-            );
-        }
-        die;
-    }
-
-    /**
-     * Fetches the integer page id for a page alias.
-     * Looks if ->id is not an integer and if so it will search for a page alias and if found the page uid of that page is stored in $this->id
-     *
-     * @access private
-     */
-    public function checkAndSetAlias()
-    {
-        if ($this->id && !MathUtility::canBeInterpretedAsInteger($this->id)) {
-            $aid = $this->sys_page->getPageIdFromAlias($this->id);
-            if ($aid) {
-                $this->id = $aid;
-            } else {
-                $this->pageNotFound = 4;
-            }
-        }
-    }
-
-    /**
-     * Merging values into the global $_GET
-     *
-     * @param array $GET_VARS Array of key/value pairs that will be merged into the current GET-vars. (Non-escaped values)
-     */
-    public function mergingWithGetVars($GET_VARS)
-    {
-        if (is_array($GET_VARS)) {
-            // Getting $_GET var, unescaped.
-            $realGet = GeneralUtility::_GET();
-            if (!is_array($realGet)) {
-                $realGet = [];
-            }
-            // Merge new values on top:
-            ArrayUtility::mergeRecursiveWithOverrule($realGet, $GET_VARS);
-            // Write values back to $_GET:
-            GeneralUtility::_GETset($realGet);
-            // Setting these specifically (like in the init-function):
-            if (isset($GET_VARS['type'])) {
-                $this->type = (int)$GET_VARS['type'];
-            }
-            if (isset($GET_VARS['cHash'])) {
-                $this->cHash = $GET_VARS['cHash'];
-            }
-            if (isset($GET_VARS['MP'])) {
-                $this->MP = $GLOBALS['TYPO3_CONF_VARS']['FE']['enable_mount_pids'] ? $GET_VARS['MP'] : '';
-            }
-            if (isset($GET_VARS['no_cache']) && $GET_VARS['no_cache']) {
-                $this->set_no_cache('no_cache is requested via GET parameter');
+                $this->getPageAndRootline($request);
             }
         }
     }
@@ -2122,82 +1485,43 @@ class TypoScriptFrontendController
      * Template and caching related functions.
      *
      *******************************************/
-    /**
-     * Calculates a hash string based on additional parameters in the url.
-     *
-     * Calculated hash is stored in $this->cHash_array.
-     * This is used to cache pages with more parameters than just id and type.
-     *
-     * @see reqCHash()
-     */
-    public function makeCacheHash()
+
+    protected function setPageArguments(PageArguments $pageArguments): void
     {
-        // No need to test anything if caching was already disabled.
-        if ($this->no_cache && !$GLOBALS['TYPO3_CONF_VARS']['FE']['pageNotFoundOnCHashError']) {
-            return;
-        }
-        $GET = GeneralUtility::_GET();
-        if ($this->cHash && is_array($GET)) {
-            // Make sure we use the page uid and not the page alias
-            $GET['id'] = $this->id;
-            $this->cHash_array = $this->cacheHash->getRelevantParameters(GeneralUtility::implodeArrayForUrl('', $GET));
-            $cHash_calc = $this->cacheHash->calculateCacheHash($this->cHash_array);
-            if ($cHash_calc != $this->cHash) {
-                if ($GLOBALS['TYPO3_CONF_VARS']['FE']['pageNotFoundOnCHashError']) {
-                    $this->pageNotFoundAndExit('Request parameters could not be validated (&cHash comparison failed)');
-                } else {
-                    $this->disableCache();
-                    $this->getTimeTracker()->setTSlogMessage('The incoming cHash "' . $this->cHash . '" and calculated cHash "' . $cHash_calc . '" did not match, so caching was disabled. The fieldlist used was "' . implode(',', array_keys($this->cHash_array)) . '"', 2);
-                }
-            }
-        } elseif (is_array($GET)) {
-            // No cHash is set, check if that is correct
-            if ($this->cacheHash->doParametersRequireCacheHash(GeneralUtility::implodeArrayForUrl('', $GET))) {
-                $this->reqCHash();
-            }
+        $this->pageArguments = $pageArguments;
+        $this->id = $pageArguments->getPageId();
+        $this->type = $pageArguments->getPageType() ?: 0;
+        if ($GLOBALS['TYPO3_CONF_VARS']['FE']['enable_mount_pids']) {
+            $this->MP = (string)($pageArguments->getArguments()['MP'] ?? '');
         }
     }
 
     /**
-     * Will disable caching if the cHash value was not set.
-     * This function should be called to check the _existence_ of "&cHash" whenever a plugin generating cacheable output is using extra GET variables. If there _is_ a cHash value the validation of it automatically takes place in makeCacheHash() (see above)
+     * Fetches the arguments that are relevant for creating the hash base from the given PageArguments object.
+     * Excluded parameters are not taken into account when calculating the hash base.
      *
-     * @see makeCacheHash(), \TYPO3\CMS\Frontend\Plugin\AbstractPlugin::pi_cHashCheck()
+     * @param PageArguments $pageArguments
+     * @return array
      */
-    public function reqCHash()
+    protected function getRelevantParametersForCachingFromPageArguments(PageArguments $pageArguments): array
     {
-        if (!$this->cHash) {
-            if ($GLOBALS['TYPO3_CONF_VARS']['FE']['pageNotFoundOnCHashError']) {
-                if ($this->tempContent) {
-                    $this->clearPageCacheContent();
-                }
-                $this->pageNotFoundAndExit('Request parameters could not be validated (&cHash empty)');
-            } else {
-                $this->disableCache();
-                $this->getTimeTracker()->setTSlogMessage('TSFE->reqCHash(): No &cHash parameter was sent for GET vars though required so caching is disabled', 2);
-            }
+        $queryParams = $pageArguments->getDynamicArguments();
+        if (!empty($queryParams) && $pageArguments->getArguments()['cHash'] ?? false) {
+            $queryParams['id'] = $pageArguments->getPageId();
+            return GeneralUtility::makeInstance(CacheHashCalculator::class)
+                ->getRelevantParameters(HttpUtility::buildQueryString($queryParams));
         }
-    }
-
-    /**
-     * Initialize the TypoScript template parser
-     */
-    public function initTemplate()
-    {
-        $this->tmpl = GeneralUtility::makeInstance(TemplateService::class);
-        $this->tmpl->setVerbose((bool)$this->beUserLogin);
-        $this->tmpl->init();
-        $this->tmpl->tt_track = (bool)$this->beUserLogin;
+        return [];
     }
 
     /**
      * See if page is in cache and get it if so
      * Stores the page content in $this->content if something is found.
      *
-     * @throws \InvalidArgumentException
-     * @throws \RuntimeException
+     * @param ServerRequestInterface|null $request if given this is used to determine values in headerNoCache() instead of the superglobal $_SERVER
+     * @throws \TYPO3\CMS\Core\Cache\Exception\NoSuchCacheException
      */
-    public function getFromCache()
+    public function getFromCache(ServerRequestInterface $request = null)
     {
         // clearing the content-variable, which will hold the pagecontent
         $this->content = '';
@@ -2209,7 +1533,11 @@ class TypoScriptFrontendController
             return;
         }
 
-        $pageSectionCacheContent = $this->tmpl->getCurrentPageData();
+        if (!$this->tmpl instanceof TemplateService) {
+            $this->tmpl = GeneralUtility::makeInstance(TemplateService::class, $this->context, null, $this);
+        }
+
+        $pageSectionCacheContent = $this->tmpl->getCurrentPageData((int)$this->id, (string)$this->MP);
         if (!is_array($pageSectionCacheContent)) {
             // Nothing in the cache, we acquire an "exclusive lock" for the key now.
             // We use the Registry to store this lock centrally,
@@ -2221,15 +1549,13 @@ class TypoScriptFrontendController
             //
 
             // query the cache again to see if the page data are there meanwhile
-            $pageSectionCacheContent = $this->tmpl->getCurrentPageData();
+            $pageSectionCacheContent = $this->tmpl->getCurrentPageData((int)$this->id, (string)$this->MP);
             if (is_array($pageSectionCacheContent)) {
                 // we have the content, nice that some other process did the work for us already
                 $this->releaseLock('pagesection');
-            } else {
-                // We keep the lock set, because we are the ones generating the page now
-                // and filling the cache.
-                // This indicates that we have to release the lock in the Registry later in releaseLocks()
             }
+            // We keep the lock set, because we are the ones generating the page now and filling the cache.
+            // This indicates that we have to release the lock later in releaseLocks()
         }
 
         if (is_array($pageSectionCacheContent)) {
@@ -2240,80 +1566,40 @@ class TypoScriptFrontendController
             ksort($pageSectionCacheContent);
             $this->all = $pageSectionCacheContent;
         }
-        unset($pageSectionCacheContent);
 
         // Look for page in cache only if a shift-reload is not sent to the server.
         $lockHash = $this->getLockHash();
-        if (!$this->headerNoCache()) {
-            if ($this->all) {
-                // we got page section information
-                $this->newHash = $this->getHash();
-                $this->getTimeTracker()->push('Cache Row', '');
+        if (!$this->headerNoCache($request) && $this->all) {
+            // we got page section information (TypoScript), so lets see if there is also a cached version
+            // of this page in the pages cache.
+            $this->newHash = $this->getHash();
+            $this->getTimeTracker()->push('Cache Row');
+            $row = $this->getFromCache_queryRow();
+            if (!is_array($row)) {
+                // nothing in the cache, we acquire an exclusive lock now
+                $this->acquireLock('pages', $lockHash);
+                //
+                // from this point on we're the only one working on that page ($lockHash)
+                //
+
+                // query the cache again to see if the data are there meanwhile
                 $row = $this->getFromCache_queryRow();
-                if (!is_array($row)) {
-                    // nothing in the cache, we acquire an exclusive lock now
-
-                    $this->acquireLock('pages', $lockHash);
-                    //
-                    // from this point on we're the only one working on that page ($lockHash)
-                    //
-
-                    // query the cache again to see if the data are there meanwhile
-                    $row = $this->getFromCache_queryRow();
-                    if (is_array($row)) {
-                        // we have the content, nice that some other process did the work for us
-                        $this->releaseLock('pages');
-                    } else {
-                        // We keep the lock set, because we are the ones generating the page now
-                        // and filling the cache.
-                        // This indicates that we have to release the lock in the Registry later in releaseLocks()
-                    }
-                }
                 if (is_array($row)) {
-                    // we have data from cache
-
-                    // Call hook when a page is retrieved from cache:
-                    if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['pageLoadedFromCache'])) {
-                        $_params = ['pObj' => &$this, 'cache_pages_row' => &$row];
-                        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['pageLoadedFromCache'] as $_funcRef) {
-                            GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-                        }
-                    }
-                    // Fetches the lowlevel config stored with the cached data
-                    $this->config = $row['cache_data'];
-                    // Getting the content
-                    $this->content = $row['content'];
-                    // Flag for temp content
-                    $this->tempContent = $row['temp_content'];
-                    // Setting flag, so we know, that some cached content has been loaded
-                    $this->cacheContentFlag = true;
-                    $this->cacheExpires = $row['expires'];
-
-                    // Restore page title information, this is needed to generate the page title for
-                    // partially cached pages.
-                    $this->page['title'] = $row['pageTitleInfo']['title'];
-                    $this->altPageTitle = $row['pageTitleInfo']['altPageTitle'];
-                    $this->indexedDocTitle = $row['pageTitleInfo']['indexedDocTitle'];
-
-                    if (isset($this->config['config']['debug'])) {
-                        $debugCacheTime = (bool)$this->config['config']['debug'];
-                    } else {
-                        $debugCacheTime = !empty($GLOBALS['TYPO3_CONF_VARS']['FE']['debug']);
-                    }
-                    if ($debugCacheTime) {
-                        $dateFormat = $GLOBALS['TYPO3_CONF_VARS']['SYS']['ddmmyy'];
-                        $timeFormat = $GLOBALS['TYPO3_CONF_VARS']['SYS']['hhmm'];
-                        $this->content .= LF . '<!-- Cached page generated ' . date(($dateFormat . ' ' . $timeFormat), $row['tstamp']) . '. Expires ' . date(($dateFormat . ' ' . $timeFormat), $row['expires']) . ' -->';
-                    }
+                    // we have the content, nice that some other process did the work for us
+                    $this->releaseLock('pages');
                 }
-                $this->getTimeTracker()->pull();
-
-                return;
+                // We keep the lock set, because we are the ones generating the page now and filling the cache.
+                // This indicates that we have to release the lock later in releaseLocks()
             }
+            if (is_array($row)) {
+                $this->populatePageDataFromCache($row);
+            }
+            $this->getTimeTracker()->pull();
+        } else {
+            // the user forced rebuilding the page cache or there was no pagesection information
+            // get a lock for the page content so other processes will not interrupt the regeneration
+            $this->acquireLock('pages', $lockHash);
         }
-        // the user forced rebuilding the page cache or there was no pagesection information
-        // get a lock for the page content so other processes will not interrupt the regeneration
-        $this->acquireLock('pages', $lockHash);
     }
 
     /**
@@ -2323,10 +1609,54 @@ class TypoScriptFrontendController
      */
     public function getFromCache_queryRow()
     {
-        $this->getTimeTracker()->push('Cache Query', '');
+        $this->getTimeTracker()->push('Cache Query');
         $row = $this->pageCache->get($this->newHash);
         $this->getTimeTracker()->pull();
         return $row;
+    }
+
+    /**
+     * This method properly sets the values given from the pages cache into the corresponding
+     * TSFE variables. The counterpart is setPageCacheContent() where all relevant information is fetched.
+     * This also contains all data that could be cached, even for pages that are partially cached, as they
+     * have non-cacheable content still to be rendered.
+     *
+     * @see getFromCache()
+     * @see setPageCacheContent()
+     * @param array $cachedData
+     */
+    protected function populatePageDataFromCache(array $cachedData): void
+    {
+        // Call hook when a page is retrieved from cache
+        $_params = ['pObj' => &$this, 'cache_pages_row' => &$cachedData];
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['pageLoadedFromCache'] ?? [] as $_funcRef) {
+            GeneralUtility::callUserFunction($_funcRef, $_params, $this);
+        }
+        // Fetches the lowlevel config stored with the cached data
+        $this->config = $cachedData['cache_data'];
+        // Getting the content
+        $this->content = $cachedData['content'];
+        // Setting flag, so we know, that some cached content has been loaded
+        $this->cacheContentFlag = true;
+        $this->cacheExpires = $cachedData['expires'];
+        // Restore the current tags as they can be retrieved by getPageCacheTags()
+        $this->pageCacheTags = $cachedData['cacheTags'] ?? [];
+
+        // Restore page title information, this is needed to generate the page title for
+        // partially cached pages.
+        $this->page['title'] = $cachedData['pageTitleInfo']['title'];
+        $this->indexedDocTitle = $cachedData['pageTitleInfo']['indexedDocTitle'];
+
+        if (isset($this->config['config']['debug'])) {
+            $debugCacheTime = (bool)$this->config['config']['debug'];
+        } else {
+            $debugCacheTime = !empty($GLOBALS['TYPO3_CONF_VARS']['FE']['debug']);
+        }
+        if ($debugCacheTime) {
+            $dateFormat = $GLOBALS['TYPO3_CONF_VARS']['SYS']['ddmmyy'];
+            $timeFormat = $GLOBALS['TYPO3_CONF_VARS']['SYS']['hhmm'];
+            $this->content .= LF . '<!-- Cached page generated ' . date($dateFormat . ' ' . $timeFormat, $cachedData['tstamp']) . '. Expires ' . date($dateFormat . ' ' . $timeFormat, $cachedData['expires']) . ' -->';
+        }
     }
 
     /**
@@ -2334,36 +1664,40 @@ class TypoScriptFrontendController
      * Will not be called if re-generation of page happens by other reasons (for instance that the page is not in cache yet!)
      * Also, a backend user MUST be logged in for the shift-reload to be detected due to DoS-attack-security reasons.
      *
+     * @param ServerRequestInterface|null $request
      * @return bool If shift-reload in client browser has been clicked, disable getting cached page (and regenerate it).
      */
-    public function headerNoCache()
+    public function headerNoCache(ServerRequestInterface $request = null)
     {
+        if ($request instanceof ServerRequestInterface) {
+            $serverParams = $request->getServerParams();
+        } else {
+            $serverParams = $_SERVER;
+        }
         $disableAcquireCacheData = false;
-        if ($this->beUserLogin) {
-            if (strtolower($_SERVER['HTTP_CACHE_CONTROL']) === 'no-cache' || strtolower($_SERVER['HTTP_PRAGMA']) === 'no-cache') {
+        if ($this->isBackendUserLoggedIn()) {
+            if (strtolower($serverParams['HTTP_CACHE_CONTROL']) === 'no-cache' || strtolower($serverParams['HTTP_PRAGMA']) === 'no-cache') {
                 $disableAcquireCacheData = true;
             }
         }
         // Call hook for possible by-pass of requiring of page cache (for recaching purpose)
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['headerNoCache'])) {
-            $_params = ['pObj' => &$this, 'disableAcquireCacheData' => &$disableAcquireCacheData];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['headerNoCache'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
+        $_params = ['pObj' => &$this, 'disableAcquireCacheData' => &$disableAcquireCacheData];
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['headerNoCache'] ?? [] as $_funcRef) {
+            GeneralUtility::callUserFunction($_funcRef, $_params, $this);
         }
         return $disableAcquireCacheData;
     }
 
     /**
      * Calculates the cache-hash
-     * This hash is unique to the template, the variables ->id, ->type, ->gr_list (list of groups), ->MP (Mount Points) and cHash array
+     * This hash is unique to the template, the variables ->id, ->type, list of fe user groups, ->MP (Mount Points) and cHash array
      * Used to get and later store the cached data.
      *
      * @return string MD5 hash of serialized hash base from createHashBase()
-     * @access private
-     * @see getFromCache(), getLockHash()
+     * @see getFromCache()
+     * @see getLockHash()
      */
-    public function getHash()
+    protected function getHash()
     {
         return md5($this->createHashBase(false));
     }
@@ -2373,10 +1707,10 @@ class TypoScriptFrontendController
      * This hash is unique to the above hash, except that it doesn't contain the template information in $this->all.
      *
      * @return string MD5 hash
-     * @access private
-     * @see getFromCache(), getHash()
+     * @see getFromCache()
+     * @see getHash()
      */
-    public function getLockHash()
+    protected function getLockHash()
     {
         $lockHash = $this->createHashBase(true);
         return md5($lockHash);
@@ -2385,7 +1719,7 @@ class TypoScriptFrontendController
     /**
      * Calculates the cache-hash (or the lock-hash)
      * This hash is unique to the template,
-     * the variables ->id, ->type, ->gr_list (list of groups),
+     * the variables ->id, ->type, list of frontend user groups,
      * ->MP (Mount Points) and cHash array
      * Used to get and later store the cached data.
      *
@@ -2394,27 +1728,34 @@ class TypoScriptFrontendController
      */
     protected function createHashBase($createLockHashBase = false)
     {
+        // Fetch the list of user groups
+        /** @var UserAspect $userAspect */
+        $userAspect = $this->context->getAspect('frontend.user');
         $hashParameters = [
             'id' => (int)$this->id,
             'type' => (int)$this->type,
-            'gr_list' => (string)$this->gr_list,
+            'groupIds' => (string)implode(',', $userAspect->getGroupIds()),
             'MP' => (string)$this->MP,
-            'cHash' => $this->cHash_array,
-            'domainStartPage' => $this->domainStartPage
+            'site' => $this->site->getIdentifier(),
+            // Ensure the language base is used for the hash base calculation as well, otherwise TypoScript and page-related rendering
+            // is not cached properly as we don't have any language-specific conditions anymore
+            'siteBase' => (string)$this->language->getBase(),
+            // additional variation trigger for static routes
+            'staticRouteArguments' => $this->pageArguments->getStaticArguments(),
+            // dynamic route arguments (if route was resolved)
+            'dynamicArguments' => $this->getRelevantParametersForCachingFromPageArguments($this->pageArguments),
         ];
         // Include the template information if we shouldn't create a lock hash
         if (!$createLockHashBase) {
             $hashParameters['all'] = $this->all;
         }
         // Call hook to influence the hash calculation
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['createHashBase'])) {
-            $_params = [
-                'hashParameters' => &$hashParameters,
-                'createLockHashBase' => $createLockHashBase
-            ];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['createHashBase'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
+        $_params = [
+            'hashParameters' => &$hashParameters,
+            'createLockHashBase' => $createLockHashBase
+        ];
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['createHashBase'] ?? [] as $_funcRef) {
+            GeneralUtility::callUserFunction($_funcRef, $_params, $this);
         }
         return serialize($hashParameters);
     }
@@ -2422,31 +1763,44 @@ class TypoScriptFrontendController
     /**
      * Checks if config-array exists already but if not, gets it
      *
+     * @param ServerRequestInterface|null $request
      * @throws ServiceUnavailableException
      */
-    public function getConfigArray()
+    public function getConfigArray(ServerRequestInterface $request = null)
     {
+        $request = $request ?? $GLOBALS['TYPO3_REQUEST'] ?? ServerRequestFactory::fromGlobals();
+        if (!$this->tmpl instanceof TemplateService) {
+            $this->tmpl = GeneralUtility::makeInstance(TemplateService::class, $this->context, null, $this);
+        }
+
         // If config is not set by the cache (which would be a major mistake somewhere) OR if INTincScripts-include-scripts have been registered, then we must parse the template in order to get it
-        if (empty($this->config) || is_array($this->config['INTincScript']) || $this->forceTemplateParsing) {
+        if (empty($this->config) || $this->isINTincScript() || $this->context->getPropertyFromAspect('typoscript', 'forcedTemplateParsing')) {
             $timeTracker = $this->getTimeTracker();
-            $timeTracker->push('Parse template', '');
-            // Force parsing, if set?:
-            $this->tmpl->forceTemplateParsing = $this->forceTemplateParsing;
+            $timeTracker->push('Parse template');
             // Start parsing the TS template. Might return cached version.
             $this->tmpl->start($this->rootLine);
             $timeTracker->pull();
+            // At this point we have a valid pagesection_cache (generated in $this->tmpl->start()),
+            // so let all other processes proceed now. (They are blocked at the pagessection_lock in getFromCache())
+            $this->releaseLock('pagesection');
             if ($this->tmpl->loaded) {
-                $timeTracker->push('Setting the config-array', '');
+                $timeTracker->push('Setting the config-array');
                 // toplevel - objArrayName
-                $this->sPre = $this->tmpl->setup['types.'][$this->type];
-                $this->pSetup = $this->tmpl->setup[$this->sPre . '.'];
+                $typoScriptPageTypeName = $this->tmpl->setup['types.'][$this->type];
+                $this->sPre = $typoScriptPageTypeName;
+                $this->pSetup = $this->tmpl->setup[$typoScriptPageTypeName . '.'];
                 if (!is_array($this->pSetup)) {
-                    $message = 'The page is not configured! [type=' . $this->type . '][' . $this->sPre . '].';
-                    if ($this->checkPageUnavailableHandler()) {
-                        $this->pageUnavailableAndExit($message);
-                    } else {
+                    $message = 'The page is not configured! [type=' . $this->type . '][' . $typoScriptPageTypeName . '].';
+                    $this->logger->alert($message);
+                    try {
+                        $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                            $request,
+                            $message,
+                            ['code' => PageAccessFailureReasons::RENDERING_INSTRUCTIONS_NOT_CONFIGURED]
+                        );
+                        throw new ImmediateResponseException($response, 1533931374);
+                    } catch (PageNotFoundException $e) {
                         $explanation = 'This means that there is no TypoScript object of type PAGE with typeNum=' . $this->type . ' configured.';
-                        GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
                         throw new ServiceUnavailableException($message . ' ' . $explanation, 1294587217);
                     }
                 } else {
@@ -2462,9 +1816,6 @@ class TypoScriptFrontendController
                     if (is_array($this->pSetup['config.'])) {
                         ArrayUtility::mergeRecursiveWithOverrule($this->config['config'], $this->pSetup['config.']);
                     }
-                    if ($this->config['config']['typolinkEnableLinksAcrossDomains']) {
-                        $this->config['config']['typolinkCheckRootline'] = true;
-                    }
                     // Set default values for removeDefaultJS and inlineStyle2TempFile so CSS and JS are externalized if compatversion is higher than 4.0
                     if (!isset($this->config['config']['removeDefaultJS'])) {
                         $this->config['config']['removeDefaultJS'] = 'external';
@@ -2476,23 +1827,40 @@ class TypoScriptFrontendController
                     if (!isset($this->config['config']['compressJs'])) {
                         $this->config['config']['compressJs'] = 0;
                     }
+                    // Rendering charset of HTML page.
+                    if (isset($this->config['config']['metaCharset']) && $this->config['config']['metaCharset'] !== 'utf-8') {
+                        $this->metaCharset = $this->config['config']['metaCharset'];
+                    }
+                    // Setting default cache_timeout
+                    if (isset($this->config['config']['cache_period'])) {
+                        $this->set_cache_timeout_default((int)$this->config['config']['cache_period']);
+                    }
+
                     // Processing for the config_array:
                     $this->config['rootLine'] = $this->tmpl->rootLine;
                     // Class for render Header and Footer parts
                     if ($this->pSetup['pageHeaderFooterTemplateFile']) {
-                        $file = $this->tmpl->getFileName($this->pSetup['pageHeaderFooterTemplateFile']);
-                        if ($file) {
+                        try {
+                            $file = GeneralUtility::makeInstance(FilePathSanitizer::class)
+                                ->sanitize((string)$this->pSetup['pageHeaderFooterTemplateFile']);
                             $this->pageRenderer->setTemplateFile($file);
+                        } catch (Exception $e) {
+                            // do nothing
                         }
                     }
                 }
                 $timeTracker->pull();
             } else {
-                if ($this->checkPageUnavailableHandler()) {
-                    $this->pageUnavailableAndExit('No TypoScript template found!');
-                } else {
-                    $message = 'No TypoScript template found!';
-                    GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
+                $message = 'No TypoScript template found!';
+                $this->logger->alert($message);
+                try {
+                    $response = GeneralUtility::makeInstance(ErrorController::class)->unavailableAction(
+                        $request,
+                        $message,
+                        ['code' => PageAccessFailureReasons::RENDERING_INSTRUCTIONS_NOT_FOUND]
+                    );
+                    throw new ImmediateResponseException($response, 1533931380);
+                } catch (ServiceUnavailableException $e) {
                     throw new ServiceUnavailableException($message, 1294587218);
                 }
             }
@@ -2501,20 +1869,16 @@ class TypoScriptFrontendController
         // No cache
         // Set $this->no_cache TRUE if the config.no_cache value is set!
         if ($this->config['config']['no_cache']) {
-            $this->set_no_cache('config.no_cache is set');
+            $this->set_no_cache('config.no_cache is set', true);
         }
-        // Merge GET with defaultGetVars
-        if (!empty($this->config['config']['defaultGetVars.'])) {
-            $modifiedGetVars = GeneralUtility::removeDotsFromTS($this->config['config']['defaultGetVars.']);
-            ArrayUtility::mergeRecursiveWithOverrule($modifiedGetVars, GeneralUtility::_GET());
-            GeneralUtility::_GETset($modifiedGetVars);
-        }
+
+        // Auto-configure settings when a site is configured
+        $this->config['config']['absRefPrefix'] = $this->config['config']['absRefPrefix'] ?? 'auto';
+
         // Hook for postProcessing the configuration array
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['configArrayPostProc'])) {
-            $params = ['config' => &$this->config['config']];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['configArrayPostProc'] as $funcRef) {
-                GeneralUtility::callUserFunction($funcRef, $params, $this);
-            }
+        $params = ['config' => &$this->config['config']];
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['configArrayPostProc'] ?? [] as $funcRef) {
+            GeneralUtility::callUserFunction($funcRef, $params, $this);
         }
     }
 
@@ -2523,111 +1887,133 @@ class TypoScriptFrontendController
      * Further initialization and data processing
      *
      *******************************************/
-
     /**
      * Setting the language key that will be used by the current page.
      * In this function it should be checked, 1) that this language exists, 2) that a page_overlay_record exists, .. and if not the default language, 0 (zero), should be set.
      *
-     * @access private
+     * @param ServerRequestInterface|null $request
+     * @internal
      */
-    public function settingLanguage()
+    public function settingLanguage(ServerRequestInterface $request = null)
     {
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['settingLanguage_preProcess'])) {
-            $_params = [];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['settingLanguage_preProcess'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
+        $request = $request ?? $GLOBALS['TYPO3_REQUEST'] ?? ServerRequestFactory::fromGlobals();
+        $_params = [];
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['settingLanguage_preProcess'] ?? [] as $_funcRef) {
+            $ref = $this; // introduced for phpstan to not lose type information when passing $this into callUserFunction
+            GeneralUtility::callUserFunction($_funcRef, $_params, $ref);
         }
 
-        // Initialize charset settings etc.
-        $this->initLLvars();
+        // Get values from site language
+        $languageAspect = LanguageAspectFactory::createFromSiteLanguage($this->language);
 
-        // Get values from TypoScript:
-        $this->sys_language_uid = ($this->sys_language_content = (int)$this->config['config']['sys_language_uid']);
-        list($this->sys_language_mode, $sys_language_content) = GeneralUtility::trimExplode(';', $this->config['config']['sys_language_mode']);
-        $this->sys_language_contentOL = $this->config['config']['sys_language_overlay'];
+        $languageId = $languageAspect->getId();
+        $languageContentId = $languageAspect->getContentId();
+
         // If sys_language_uid is set to another language than default:
-        if ($this->sys_language_uid > 0) {
+        if ($languageAspect->getId() > 0) {
             // check whether a shortcut is overwritten by a translated page
             // we can only do this now, as this is the place where we get
             // to know about translations
-            $this->checkTranslatedShortcut();
+            $this->checkTranslatedShortcut($languageAspect->getId(), $request);
             // Request the overlay record for the sys_language_uid:
-            $olRec = $this->sys_page->getPageOverlay($this->id, $this->sys_language_uid);
+            $olRec = $this->sys_page->getPageOverlay($this->id, $languageAspect->getId());
             if (empty($olRec)) {
-                // If no OL record exists and a foreign language is asked for...
-                if ($this->sys_language_uid) {
-                    // If requested translation is not available:
-                    if (GeneralUtility::hideIfNotTranslated($this->page['l18n_cfg'])) {
-                        $this->pageNotFoundAndExit('Page is not available in the requested language.');
-                    } else {
-                        switch ((string)$this->sys_language_mode) {
-                            case 'strict':
-                                $this->pageNotFoundAndExit('Page is not available in the requested language (strict).');
-                                break;
-                            case 'content_fallback':
-                                $fallBackOrder = GeneralUtility::intExplode(',', $sys_language_content);
-                                foreach ($fallBackOrder as $orderValue) {
-                                    if ((string)$orderValue === '0' || !empty($this->sys_page->getPageOverlay($this->id, $orderValue))) {
-                                        $this->sys_language_content = $orderValue;
-                                        // Setting content uid (but leaving the sys_language_uid)
-                                        break;
-                                    }
-                                }
-                                break;
-                            case 'ignore':
-                                $this->sys_language_content = $this->sys_language_uid;
-                                break;
-                            default:
-                                // Default is that everything defaults to the default language...
-                                $this->sys_language_uid = ($this->sys_language_content = 0);
-                        }
-                    }
+                // If requested translation is not available:
+                if (GeneralUtility::hideIfNotTranslated($this->page['l18n_cfg'])) {
+                    $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                        $request,
+                        'Page is not available in the requested language.',
+                        ['code' => PageAccessFailureReasons::LANGUAGE_NOT_AVAILABLE]
+                    );
+                    throw new ImmediateResponseException($response, 1533931388);
                 }
-            } else {
-                // Setting sys_language if an overlay record was found (which it is only if a language is used)
-                $this->page = $this->sys_page->getPageOverlay($this->page, $this->sys_language_uid);
+                switch ((string)$languageAspect->getLegacyLanguageMode()) {
+                    case 'strict':
+                        $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                            $request,
+                            'Page is not available in the requested language (strict).',
+                            ['code' => PageAccessFailureReasons::LANGUAGE_NOT_AVAILABLE_STRICT_MODE]
+                        );
+                        throw new ImmediateResponseException($response, 1533931395);
+                    case 'fallback':
+                    case 'content_fallback':
+                        // Setting content uid (but leaving the sys_language_uid) when a content_fallback
+                        // value was found.
+                        foreach ($languageAspect->getFallbackChain() ?? [] as $orderValue) {
+                            if ($orderValue === '0' || $orderValue === 0 || $orderValue === '') {
+                                $languageContentId = 0;
+                                break;
+                            }
+                            if (MathUtility::canBeInterpretedAsInteger($orderValue) && !empty($this->sys_page->getPageOverlay($this->id, (int)$orderValue))) {
+                                $languageContentId = (int)$orderValue;
+                                break;
+                            }
+                            if ($orderValue === 'pageNotFound') {
+                                // The existing fallbacks have not been found, but instead of continuing
+                                // page rendering with default language, a "page not found" message should be shown
+                                // instead.
+                                $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                                    $request,
+                                    'Page is not available in the requested language (fallbacks did not apply).',
+                                    ['code' => PageAccessFailureReasons::LANGUAGE_AND_FALLBACKS_NOT_AVAILABLE]
+                                );
+                                throw new ImmediateResponseException($response, 1533931402);
+                            }
+                        }
+                        break;
+                    case 'ignore':
+                        $languageContentId = $languageAspect->getId();
+                        break;
+                    default:
+                        // Default is that everything defaults to the default language...
+                        $languageId = ($languageContentId = 0);
+                }
             }
+
+            // Define the language aspect again now
+            $languageAspect = GeneralUtility::makeInstance(
+                LanguageAspect::class,
+                $languageId,
+                $languageContentId,
+                $languageAspect->getOverlayType(),
+                $languageAspect->getFallbackChain()
+            );
+
+            // Setting sys_language if an overlay record was found (which it is only if a language is used)
+            // We'll do this every time since the language aspect might have changed now
+            // Doing this ensures that page properties like the page title are returned in the correct language
+            $this->page = $this->sys_page->getPageOverlay($this->page, $languageAspect->getContentId());
+
+            // Update SYS_LASTCHANGED for localized page record
+            $this->setRegisterValueForSysLastChanged($this->page);
         }
-        // Setting sys_language_uid inside sys-page:
-        $this->sys_page->sys_language_uid = $this->sys_language_uid;
-        // If default translation is not available:
-        if ((!$this->sys_language_uid || !$this->sys_language_content) && GeneralUtility::hideIfDefaultLanguage($this->page['l18n_cfg'])) {
+
+        // Set the language aspect
+        $this->context->setAspect('language', $languageAspect);
+
+        // Setting sys_language_uid inside sys-page by creating a new page repository
+        $this->sys_page = GeneralUtility::makeInstance(PageRepository::class, $this->context);
+        // If default language is not available:
+        if ((!$languageAspect->getContentId() || !$languageAspect->getId())
+            && GeneralUtility::hideIfDefaultLanguage($this->page['l18n_cfg'] ?? 0)
+        ) {
             $message = 'Page is not available in default language.';
-            GeneralUtility::sysLog($message, 'cms', GeneralUtility::SYSLOG_SEVERITY_ERROR);
-            $this->pageNotFoundAndExit($message);
-        }
-        $this->updateRootLinesWithTranslations();
-
-        // Finding the ISO code for the currently selected language
-        // fetched by the sys_language record when not fetching content from the default language
-        if ($this->sys_language_content > 0) {
-            // using sys_language_content because the ISO code only (currently) affect content selection from FlexForms - which should follow "sys_language_content"
-            // Set the fourth parameter to TRUE in the next two getRawRecord() calls to
-            // avoid versioning overlay to be applied as it generates an SQL error
-            $sys_language_row = $this->sys_page->getRawRecord('sys_language', $this->sys_language_content, 'language_isocode,static_lang_isocode');
-            if (is_array($sys_language_row) && !empty($sys_language_row['language_isocode'])) {
-                $this->sys_language_isocode = $sys_language_row['language_isocode'];
-            }
-            // the DB value is overridden by TypoScript
-            if (!empty($this->config['config']['sys_language_isocode'])) {
-                $this->sys_language_isocode = $this->config['config']['sys_language_isocode'];
-            }
-        } else {
-            // fallback to the TypoScript option when rendering with sys_language_uid=0
-            // also: use "en" by default
-            if (!empty($this->config['config']['sys_language_isocode_default'])) {
-                $this->sys_language_isocode = $this->config['config']['sys_language_isocode_default'];
-            } else {
-                $this->sys_language_isocode = $this->lang !== 'default' ? $this->lang : 'en';
-            }
+            $this->logger->error($message);
+            $response = GeneralUtility::makeInstance(ErrorController::class)->pageNotFoundAction(
+                $request,
+                $message,
+                ['code' => PageAccessFailureReasons::LANGUAGE_DEFAULT_NOT_AVAILABLE]
+            );
+            throw new ImmediateResponseException($response, 1533931423);
         }
 
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['settingLanguage_postProcess'])) {
-            $_params = [];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['settingLanguage_postProcess'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
+        if ($languageAspect->getId() > 0) {
+            $this->updateRootLinesWithTranslations();
+        }
+
+        $_params = [];
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['settingLanguage_postProcess'] ?? [] as $_funcRef) {
+            GeneralUtility::callUserFunction($_funcRef, $_params, $this);
         }
     }
 
@@ -2636,37 +2022,12 @@ class TypoScriptFrontendController
      */
     protected function updateRootLinesWithTranslations()
     {
-        if ($this->sys_language_uid) {
-            $this->rootLine = $this->sys_page->getRootLine($this->id, $this->MP);
-            $this->tmpl->updateRootlineData($this->rootLine);
+        try {
+            $this->rootLine = GeneralUtility::makeInstance(RootlineUtility::class, $this->id, $this->MP, $this->context)->get();
+        } catch (RootLineException $e) {
+            $this->rootLine = [];
         }
-    }
-
-    /**
-     * Setting locale for frontend rendering
-     */
-    public function settingLocale()
-    {
-        // Setting locale
-        if ($this->config['config']['locale_all']) {
-            $availableLocales = GeneralUtility::trimExplode(',', $this->config['config']['locale_all'], true);
-            // If LC_NUMERIC is set e.g. to 'de_DE' PHP parses float values locale-aware resulting in strings with comma
-            // as decimal point which causes problems with value conversions - so we set all locale types except LC_NUMERIC
-            // @see https://bugs.php.net/bug.php?id=53711
-            $locale = setlocale(LC_COLLATE, ...$availableLocales);
-            if ($locale) {
-                // As str_* methods are locale aware and turkish has no upper case I
-                // Class autoloading and other checks depending on case changing break with turkish locale LC_CTYPE
-                // @see http://bugs.php.net/bug.php?id=35050
-                if (substr($this->config['config']['locale_all'], 0, 2) !== 'tr') {
-                    setlocale(LC_CTYPE, ...$availableLocales);
-                }
-                setlocale(LC_MONETARY, ...$availableLocales);
-                setlocale(LC_TIME, ...$availableLocales);
-            } else {
-                $this->getTimeTracker()->setTSlogMessage('Locale "' . htmlspecialchars($this->config['config']['locale_all']) . '" not found.', 3);
-            }
-        }
+        $this->tmpl->updateRootlineData($this->rootLine);
     }
 
     /**
@@ -2674,196 +2035,212 @@ class TypoScriptFrontendController
      * target than the original language page.
      * If that is the case, things get corrected to follow that alternative
      * shortcut
+     * @param int $languageId
+     * @param ServerRequestInterface $request
      */
-    protected function checkTranslatedShortcut()
+    protected function checkTranslatedShortcut(int $languageId, ServerRequestInterface $request)
     {
         if (!is_null($this->originalShortcutPage)) {
-            $originalShortcutPageOverlay = $this->sys_page->getPageOverlay($this->originalShortcutPage['uid'], $this->sys_language_uid);
+            $originalShortcutPageOverlay = $this->sys_page->getPageOverlay($this->originalShortcutPage['uid'], $languageId);
             if (!empty($originalShortcutPageOverlay['shortcut']) && $originalShortcutPageOverlay['shortcut'] != $this->id) {
                 // the translation of the original shortcut page has a different shortcut target!
                 // set the correct page and id
-                $shortcut = $this->getPageShortcut($originalShortcutPageOverlay['shortcut'], $originalShortcutPageOverlay['shortcut_mode'], $originalShortcutPageOverlay['uid']);
+                $shortcut = $this->sys_page->getPageShortcut($originalShortcutPageOverlay['shortcut'], $originalShortcutPageOverlay['shortcut_mode'], $originalShortcutPageOverlay['uid']);
                 $this->id = ($this->contentPid = $shortcut['uid']);
                 $this->page = $this->sys_page->getPage($this->id);
                 // Fix various effects on things like menus f.e.
-                $this->fetch_the_id();
+                $this->fetch_the_id($request);
                 $this->tmpl->rootLine = array_reverse($this->rootLine);
             }
         }
     }
 
     /**
-     * Handle data submission
-     * This is done at this point, because we need the config values
-     */
-    public function handleDataSubmission()
-    {
-        // Hook for processing data submission to extensions
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['checkDataSubmission'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['checkDataSubmission'] as $className) {
-                $_procObj = GeneralUtility::makeInstance($className);
-                $_procObj->checkDataSubmission($this);
-            }
-        }
-    }
-
-    /**
-     * Loops over all configured URL handlers and registers all active handlers in the redirect URL handler array.
+     * Calculates and sets the internal linkVars based upon the current request parameters
+     * and the setting "config.linkVars".
      *
-     * @see $activeRedirectUrlHandlers
+     * @param array $queryParams $_GET (usually called with a PSR-7 $request->getQueryParams())
      */
-    public function initializeRedirectUrlHandlers()
+    public function calculateLinkVars(array $queryParams)
     {
-        if (
-            empty($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['urlProcessing']['urlHandlers'])
-            || !is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['urlProcessing']['urlHandlers'])
-        ) {
+        $this->linkVars = '';
+        if (empty($this->config['config']['linkVars'])) {
             return;
         }
 
-        $urlHandlers = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['urlProcessing']['urlHandlers'];
-        foreach ($urlHandlers as $identifier => $configuration) {
-            if (empty($configuration) || !is_array($configuration)) {
-                throw new \RuntimeException('Missing configuration for URL handler "' . $identifier . '".', 1442052263);
-            }
-            if (!is_string($configuration['handler']) || empty($configuration['handler']) || !class_exists($configuration['handler']) || !is_subclass_of($configuration['handler'], UrlHandlerInterface::class)) {
-                throw new \RuntimeException('The URL handler "' . $identifier . '" defines an invalid provider. Ensure the class exists and implements the "' . UrlHandlerInterface::class . '".', 1442052249);
-            }
-        }
+        $linkVars = $this->splitLinkVarsString((string)$this->config['config']['linkVars']);
 
-        $orderedHandlers = GeneralUtility::makeInstance(DependencyOrderingService::class)->orderByDependencies($urlHandlers);
-
-        foreach ($orderedHandlers as $configuration) {
-            /** @var UrlHandlerInterface $urlHandler */
-            $urlHandler = GeneralUtility::makeInstance($configuration['handler']);
-            if ($urlHandler->canHandleCurrentUrl()) {
-                $this->activeUrlHandlers[] = $urlHandler;
-            }
-        }
-    }
-
-    /**
-     * Loops over all registered URL handlers and lets them process the current URL.
-     *
-     * If no handler has stopped the current process (e.g. by redirecting) and a
-     * the redirectUrl propert is not empty, the user will be redirected to this URL.
-     *
-     * @internal Should be called by the FrontendRequestHandler only.
-     */
-    public function redirectToExternalUrl()
-    {
-        foreach ($this->activeUrlHandlers as $redirectHandler) {
-            $redirectHandler->handle();
-        }
-
-        if (!empty($this->activeUrlHandlers)) {
-            throw new \RuntimeException('A URL handler is active but did not process the URL.', 1442305505);
-        }
-    }
-
-    /**
-     * Sets the URL_ID_TOKEN in the internal var, $this->getMethodUrlIdToken
-     * This feature allows sessions to use a GET-parameter instead of a cookie.
-     *
-     * @access private
-     */
-    public function setUrlIdToken()
-    {
-        if ($this->config['config']['ftu']) {
-            $this->getMethodUrlIdToken = $GLOBALS['TYPO3_CONF_VARS']['FE']['get_url_id_token'];
-        } else {
-            $this->getMethodUrlIdToken = '';
-        }
-    }
-
-    /**
-     * Calculates and sets the internal linkVars based upon the current
-     * $_GET parameters and the setting "config.linkVars".
-     */
-    public function calculateLinkVars()
-    {
-        $this->linkVars = '';
-        $linkVars = GeneralUtility::trimExplode(',', (string)$this->config['config']['linkVars']);
         if (empty($linkVars)) {
             return;
         }
-        $getData = GeneralUtility::_GET();
         foreach ($linkVars as $linkVar) {
-            $test = ($value = '');
+            $test = $value = '';
             if (preg_match('/^(.*)\\((.+)\\)$/', $linkVar, $match)) {
                 $linkVar = trim($match[1]);
                 $test = trim($match[2]);
             }
-            if ($linkVar === '' || !isset($getData[$linkVar])) {
+
+            $keys = explode('|', $linkVar);
+            $numberOfLevels = count($keys);
+            $rootKey = trim($keys[0]);
+            if (!isset($queryParams[$rootKey])) {
                 continue;
             }
-            if (!is_array($getData[$linkVar])) {
-                $temp = rawurlencode($getData[$linkVar]);
-                if ($test !== '' && !PageGenerator::isAllowedLinkVarValue($temp, $test)) {
-                    // Error: This value was not allowed for this key
-                    continue;
+            $value = $queryParams[$rootKey];
+            for ($i = 1; $i < $numberOfLevels; $i++) {
+                $currentKey = trim($keys[$i]);
+                if (isset($value[$currentKey])) {
+                    $value = $value[$currentKey];
+                } else {
+                    $value = false;
+                    break;
                 }
-                $value = '&' . $linkVar . '=' . $temp;
-            } else {
-                if ($test !== '' && $test !== 'array') {
-                    // Error: This key must not be an array!
-                    continue;
-                }
-                $value = GeneralUtility::implodeArrayForUrl($linkVar, $getData[$linkVar]);
             }
-            $this->linkVars .= $value;
+            if ($value !== false) {
+                $parameterName = $keys[0];
+                for ($i = 1; $i < $numberOfLevels; $i++) {
+                    $parameterName .= '[' . $keys[$i] . ']';
+                }
+                if (!is_array($value)) {
+                    $temp = rawurlencode($value);
+                    if ($test !== '' && !$this->isAllowedLinkVarValue($temp, $test)) {
+                        // Error: This value was not allowed for this key
+                        continue;
+                    }
+                    $value = '&' . $parameterName . '=' . $temp;
+                } else {
+                    if ($test !== '' && $test !== 'array') {
+                        // Error: This key must not be an array!
+                        continue;
+                    }
+                    $value = HttpUtility::buildQueryString([$parameterName => $value], '&');
+                }
+                $this->linkVars .= $value;
+            }
         }
     }
 
     /**
-     * Redirect to target page if the current page is an overlaid mountpoint.
+     * Split the link vars string by "," but not if the "," is inside of braces
+     *
+     * @param string $string
+     *
+     * @return array
+     */
+    protected function splitLinkVarsString(string $string): array
+    {
+        $tempCommaReplacementString = '###KASPER###';
+
+        // replace every "," wrapped in "()" by a "unique" string
+        $string = preg_replace_callback('/\((?>[^()]|(?R))*\)/', function ($result) use ($tempCommaReplacementString) {
+            return str_replace(',', $tempCommaReplacementString, $result[0]);
+        }, $string);
+
+        $string = GeneralUtility::trimExplode(',', $string);
+
+        // replace all "unique" strings back to ","
+        return str_replace($tempCommaReplacementString, ',', $string);
+    }
+
+    /**
+     * Checks if the value defined in "config.linkVars" contains an allowed value.
+     * Otherwise, return FALSE which means the value will not be added to any links.
+     *
+     * @param string $haystack The string in which to find $needle
+     * @param string $needle The string to find in $haystack
+     * @return bool Returns TRUE if $needle matches or is found in $haystack
+     */
+    protected function isAllowedLinkVarValue(string $haystack, string $needle): bool
+    {
+        $isAllowed = false;
+        // Integer
+        if ($needle === 'int' || $needle === 'integer') {
+            if (MathUtility::canBeInterpretedAsInteger($haystack)) {
+                $isAllowed = true;
+            }
+        } elseif (preg_match('/^\\/.+\\/[imsxeADSUXu]*$/', $needle)) {
+            // Regular expression, only "//" is allowed as delimiter
+            if (@preg_match($needle, $haystack)) {
+                $isAllowed = true;
+            }
+        } elseif (strpos($needle, '-') !== false) {
+            // Range
+            if (MathUtility::canBeInterpretedAsInteger($haystack)) {
+                $range = explode('-', $needle);
+                if ($range[0] <= $haystack && $range[1] >= $haystack) {
+                    $isAllowed = true;
+                }
+            }
+        } elseif (strpos($needle, '|') !== false) {
+            // List
+            // Trim the input
+            $haystack = str_replace(' ', '', $haystack);
+            if (strpos('|' . $needle . '|', '|' . $haystack . '|') !== false) {
+                $isAllowed = true;
+            }
+        } elseif ((string)$needle === (string)$haystack) {
+            // String comparison
+            $isAllowed = true;
+        }
+        return $isAllowed;
+    }
+
+    /**
+     * Returns URI of target page, if the current page is an overlaid mountpoint.
      *
      * If the current page is of type mountpoint and should be overlaid with the contents of the mountpoint page
      * and is accessed directly, the user will be redirected to the mountpoint context.
+     * @internal
+     * @param ServerRequestInterface $request
+     * @return string|null
      */
-    public function checkPageForMountpointRedirect()
+    public function getRedirectUriForMountPoint(ServerRequestInterface $request): ?string
     {
-        if (!empty($this->originalMountPointPage) && $this->originalMountPointPage['doktype'] == PageRepository::DOKTYPE_MOUNTPOINT) {
-            $this->redirectToCurrentPage();
+        if (!empty($this->originalMountPointPage) && (int)$this->originalMountPointPage['doktype'] === PageRepository::DOKTYPE_MOUNTPOINT) {
+            return $this->getUriToCurrentPageForRedirect($request);
         }
+
+        return null;
     }
 
     /**
-     * Redirect to target page, if the current page is a Shortcut.
+     * Returns URI of target page, if the current page is a Shortcut.
      *
-     * If the current page is of type shortcut and accessed directly via its URL, this function redirects to the
-     * Shortcut target using a Location header.
+     * If the current page is of type shortcut and accessed directly via its URL,
+     * the user will be redirected to shortcut target.
+     *
+     * @internal
+     * @param ServerRequestInterface $request
+     * @return string|null
      */
-    public function checkPageForShortcutRedirect()
+    public function getRedirectUriForShortcut(ServerRequestInterface $request): ?string
     {
         if (!empty($this->originalShortcutPage) && $this->originalShortcutPage['doktype'] == PageRepository::DOKTYPE_SHORTCUT) {
-            $this->redirectToCurrentPage();
+            return $this->getUriToCurrentPageForRedirect($request);
         }
+
+        return null;
     }
 
     /**
-     * Builds a typolink to the current page, appends the type paremeter if required
-     * and redirects the user to the generated URL using a Location header.
+     * Instantiate \TYPO3\CMS\Frontend\ContentObject to generate the correct target URL
+     *
+     * @param ServerRequestInterface $request
+     * @return string
      */
-    protected function redirectToCurrentPage()
+    protected function getUriToCurrentPageForRedirect(ServerRequestInterface $request): string
     {
-        $this->calculateLinkVars();
-        // Instantiate \TYPO3\CMS\Frontend\ContentObject to generate the correct target URL
-        /** @var $cObj ContentObjectRenderer */
-        $cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class);
+        $this->calculateLinkVars($request->getQueryParams());
         $parameter = $this->page['uid'];
-        $type = GeneralUtility::_GET('type');
-        if ($type && MathUtility::canBeInterpretedAsInteger($type)) {
-            $parameter .= ',' . $type;
+        if ($this->type && MathUtility::canBeInterpretedAsInteger($this->type)) {
+            $parameter .= ',' . $this->type;
         }
-        $redirectUrl = $cObj->typoLink_URL(['parameter' => $parameter, 'addQueryString' => true,
-            'addQueryString.' => ['exclude' => 'id']]);
-
-        // Prevent redirection loop
-        if (!empty($redirectUrl)) {
-            // redirect and exit
-            HttpUtility::redirect($redirectUrl, HttpUtility::HTTP_STATUS_307);
-        }
+        return GeneralUtility::makeInstance(ContentObjectRenderer::class, $this)->typoLink_URL([
+            'parameter' => $parameter,
+            'addQueryString' => true,
+            'addQueryString.' => ['exclude' => 'id'],
+            'forceAbsoluteUrl' => true
+        ]);
     }
 
     /********************************************
@@ -2879,93 +2256,31 @@ class TypoScriptFrontendController
      */
     public function isGeneratePage()
     {
-        return !$this->cacheContentFlag && empty($this->activeUrlHandlers);
-    }
-
-    /**
-     * Temp cache content
-     * The temporary cache will expire after a few seconds (typ. 30) or will be cleared by the rendered page, which will also clear and rewrite the cache.
-     */
-    public function tempPageCacheContent()
-    {
-        $this->tempContent = false;
-        if (!$this->no_cache) {
-            $seconds = 30;
-            $title = htmlspecialchars($this->tmpl->printTitle($this->page['title']));
-            $request_uri = htmlspecialchars(GeneralUtility::getIndpEnv('REQUEST_URI'));
-            $stdMsg = '
-		<strong>Page is being generated.</strong><br />
-		If this message does not disappear within ' . $seconds . ' seconds, please reload.';
-            $message = $this->config['config']['message_page_is_being_generated'];
-            if ((string)$message !== '') {
-                $message = str_replace('###TITLE###', $title, $message);
-                $message = str_replace('###REQUEST_URI###', $request_uri, $message);
-            } else {
-                $message = $stdMsg;
-            }
-            $temp_content = '<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-	<head>
-		<title>' . $title . '</title>
-		<meta http-equiv="refresh" content="10" />
-	</head>
-	<body style="background-color:white; font-family:Verdana,Arial,Helvetica,sans-serif; color:#cccccc; text-align:center;">' . $message . '
-	</body>
-</html>';
-            // Fix 'nice errors' feature in modern browsers
-            $padSuffix = '<!--pad-->';
-            // prevent any trims
-            $padSize = 768 - strlen($padSuffix) - strlen($temp_content);
-            if ($padSize > 0) {
-                $temp_content = str_pad($temp_content, $padSize, LF) . $padSuffix;
-            }
-            if (!$this->headerNoCache() && ($cachedRow = $this->getFromCache_queryRow())) {
-                // We are here because between checking for cached content earlier and now some other HTTP-process managed to store something in cache AND it was not due to a shift-reload by-pass.
-                // This is either the "Page is being generated" screen or it can be the final result.
-                // In any case we should not begin another rendering process also, so we silently disable caching and render the page ourselves and that's it.
-                // Actually $cachedRow contains content that we could show instead of rendering. Maybe we should do that to gain more performance but then we should set all the stuff done in $this->getFromCache()... For now we stick to this...
-                $this->set_no_cache('Another process wrote into the cache since the beginning of the render process', true);
-
-                // Since the new Locking API this should never be the case
-            } else {
-                $this->tempContent = true;
-                // This flag shows that temporary content is put in the cache
-                $this->setPageCacheContent($temp_content, $this->config, $GLOBALS['EXEC_TIME'] + $seconds);
-            }
-        }
+        return !$this->cacheContentFlag;
     }
 
     /**
      * Set cache content to $this->content
      */
-    public function realPageCacheContent()
+    protected function realPageCacheContent()
     {
         // seconds until a cached page is too old
         $cacheTimeout = $this->get_cache_timeout();
         $timeOutTime = $GLOBALS['EXEC_TIME'] + $cacheTimeout;
-        $this->tempContent = false;
         $usePageCache = true;
         // Hook for deciding whether page cache should be written to the cache backend or not
         // NOTE: as hooks are called in a loop, the last hook will have the final word (however each
         // hook receives the current status of the $usePageCache flag)
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['usePageCache'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['usePageCache'] as $className) {
-                $_procObj = GeneralUtility::makeInstance($className);
-                $usePageCache = $_procObj->usePageCache($this, $usePageCache);
-            }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['usePageCache'] ?? [] as $className) {
+            $usePageCache = GeneralUtility::makeInstance($className)->usePageCache($this, $usePageCache);
         }
         // Write the page to cache, if necessary
         if ($usePageCache) {
             $this->setPageCacheContent($this->content, $this->config, $timeOutTime);
         }
         // Hook for cache post processing (eg. writing static files!)
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['insertPageIncache'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['insertPageIncache'] as $className) {
-                $_procObj = GeneralUtility::makeInstance($className);
-                $_procObj->insertPageIncache($this, $timeOutTime);
-            }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['insertPageIncache'] ?? [] as $className) {
+            GeneralUtility::makeInstance($className)->insertPageIncache($this, $timeOutTime);
         }
     }
 
@@ -2975,35 +2290,34 @@ class TypoScriptFrontendController
      * @param string $content The content to store in the HTML field of the cache table
      * @param mixed $data The additional cache_data array, fx. $this->config
      * @param int $expirationTstamp Expiration timestamp
-     * @see realPageCacheContent(), tempPageCacheContent()
+     * @see realPageCacheContent()
      */
-    public function setPageCacheContent($content, $data, $expirationTstamp)
+    protected function setPageCacheContent($content, $data, $expirationTstamp)
     {
         $cacheData = [
             'identifier' => $this->newHash,
             'page_id' => $this->id,
             'content' => $content,
-            'temp_content' => $this->tempContent,
             'cache_data' => $data,
             'expires' => $expirationTstamp,
             'tstamp' => $GLOBALS['EXEC_TIME'],
             'pageTitleInfo' => [
                 'title' => $this->page['title'],
-                'altPageTitle' => $this->altPageTitle,
                 'indexedDocTitle' => $this->indexedDocTitle
             ]
         ];
         $this->cacheExpires = $expirationTstamp;
         $this->pageCacheTags[] = 'pageId_' . $cacheData['page_id'];
-        if ($this->page_cache_reg1) {
-            $reg1 = (int)$this->page_cache_reg1;
-            $cacheData['reg1'] = $reg1;
-            $this->pageCacheTags[] = 'reg1_' . $reg1;
+        // Respect the page cache when content of pid is shown
+        if ($this->id !== $this->contentPid) {
+            $this->pageCacheTags[] = 'pageId_' . $this->contentPid;
         }
         if (!empty($this->page['cache_tags'])) {
             $tags = GeneralUtility::trimExplode(',', $this->page['cache_tags'], true);
             $this->pageCacheTags = array_merge($this->pageCacheTags, $tags);
         }
+        // Add the cache themselves as well, because they are fetched by getPageCacheTags()
+        $cacheData['cacheTags'] = $this->pageCacheTags;
         $this->pageCache->set($this->newHash, $cacheData, $this->pageCacheTags, $expirationTstamp - $GLOBALS['EXEC_TIME']);
     }
 
@@ -3016,39 +2330,42 @@ class TypoScriptFrontendController
     }
 
     /**
-     * Clears cache content for a list of page ids
-     *
-     * @param string $pidList A list of INTEGER numbers which points to page uids for which to clear entries in the cache_pages cache (page content cache)
-     */
-    public function clearPageCacheContent_pidList($pidList)
-    {
-        $pageIds = GeneralUtility::trimExplode(',', $pidList);
-        foreach ($pageIds as $pageId) {
-            $this->pageCache->flushByTag('pageId_' . (int)$pageId);
-        }
-    }
-
-    /**
      * Sets sys last changed
      * Setting the SYS_LASTCHANGED value in the pagerecord: This value will thus be set to the highest tstamp of records rendered on the page. This includes all records with no regard to hidden records, userprotection and so on.
      *
      * @see ContentObjectRenderer::lastChanged()
      */
-    public function setSysLastChanged()
+    protected function setSysLastChanged()
     {
-        // Draft workspaces are always uid 1 or more. We do not update SYS_LASTCHANGED if we are browsing page from one of theses workspaces
-        if ((int)$this->whichWorkspace() < 1 && $this->page['SYS_LASTCHANGED'] < (int)$this->register['SYS_LASTCHANGED']) {
+        // We only update the info if browsing the live workspace
+        if ($this->page['SYS_LASTCHANGED'] < (int)$this->register['SYS_LASTCHANGED'] && !$this->doWorkspacePreview()) {
             $connection = GeneralUtility::makeInstance(ConnectionPool::class)
                 ->getConnectionForTable('pages');
+            $pageId = $this->page['_PAGES_OVERLAY_UID'] ?? $this->id;
             $connection->update(
                 'pages',
                 [
                     'SYS_LASTCHANGED' => (int)$this->register['SYS_LASTCHANGED']
                 ],
                 [
-                    'uid' => (int)$this->id
+                    'uid' => (int)$pageId
                 ]
             );
+        }
+    }
+
+    /**
+     * Set the SYS_LASTCHANGED register value, is also called when a translated page is in use,
+     * so the register reflects the state of the translated page, not the page in the default language.
+     *
+     * @param array $page
+     * @internal
+     */
+    protected function setRegisterValueForSysLastChanged(array $page): void
+    {
+        $this->register['SYS_LASTCHANGED'] = (int)$page['tstamp'];
+        if ($this->register['SYS_LASTCHANGED'] < (int)$page['SYS_LASTCHANGED']) {
+            $this->register['SYS_LASTCHANGED'] = (int)$page['SYS_LASTCHANGED'];
         }
     }
 
@@ -3074,13 +2391,21 @@ class TypoScriptFrontendController
         $this->pageCacheTags = array_merge($this->pageCacheTags, $tags);
     }
 
+    /**
+     * @return array
+     */
+    public function getPageCacheTags(): array
+    {
+        return $this->pageCacheTags;
+    }
+
     /********************************************
      *
      * Page generation; rendering and inclusion
      *
      *******************************************/
     /**
-     * Does some processing BEFORE the pagegen script is included.
+     * Does some processing BEFORE the page content is generated / built.
      */
     public function generatePage_preProcessing()
     {
@@ -3088,64 +2413,55 @@ class TypoScriptFrontendController
         // \TYPO3\CMS\Core\TypoScript\TemplateService::start() in the meantime, so this must be called again!
         $this->newHash = $this->getHash();
 
-        // If the pages_lock is set, we are in charge of generating the page.
-        if (is_object($this->locks['pages']['accessLock'])) {
-            // Here we put some temporary stuff in the cache in order to let the first hit generate the page.
-            // The temporary cache will expire after a few seconds (typ. 30) or will be cleared by the rendered page,
-            // which will also clear and rewrite the cache.
-            $this->tempPageCacheContent();
-        }
-        // At this point we have a valid pagesection_cache and also some temporary page_cache content,
-        // so let all other processes proceed now. (They are blocked at the pagessection_lock in getFromCache())
-        $this->releaseLock('pagesection');
-
-        // Setting cache_timeout_default. May be overridden by PHP include scripts.
-        $this->cacheTimeOutDefault = (int)$this->config['config']['cache_period'];
-        // Page is generated
+        // Used as a safety check in case a PHP script is falsely disabling $this->no_cache during page generation.
         $this->no_cacheBeforePageGen = $this->no_cache;
     }
 
     /**
-     * Previously located in static method in PageGenerator::init. Is solely used to set up TypoScript
-     * config. options and set properties in $TSFE for that.
+     * Check the value of "content_from_pid" of the current page record, and see if the current request
+     * should actually show content from another page.
+     *
+     * By using $TSFE->getPageAndRootline() on the cloned object, all rootline restrictions (extendToSubPages)
+     * are evaluated as well.
+     *
+     * @param ServerRequestInterface $request
+     * @return int the current page ID or another one if resolved properly - usually set to $this->contentPid
      */
-    public function preparePageContentGeneration()
+    protected function resolveContentPid(ServerRequestInterface $request): int
     {
-        if ($this->page['content_from_pid'] > 0) {
-            // make REAL copy of TSFE object - not reference!
-            $temp_copy_TSFE = clone $this;
-            // Set ->id to the content_from_pid value - we are going to evaluate this pid as was it a given id for a page-display!
-            $temp_copy_TSFE->id = $this->page['content_from_pid'];
-            $temp_copy_TSFE->MP = '';
-            $temp_copy_TSFE->getPageAndRootlineWithDomain($this->config['config']['content_from_pid_allowOutsideDomain'] ? 0 : $this->domainStartPage);
-            $this->contentPid = (int)$temp_copy_TSFE->id;
-            unset($temp_copy_TSFE);
+        if (!isset($this->page['content_from_pid']) || empty($this->page['content_from_pid'])) {
+            return (int)$this->id;
         }
-        if ($this->config['config']['MP_defaults']) {
-            $temp_parts = GeneralUtility::trimExplode('|', $this->config['config']['MP_defaults'], true);
-            foreach ($temp_parts as $temp_p) {
-                list($temp_idP, $temp_MPp) = explode(':', $temp_p, 2);
-                $temp_ids = GeneralUtility::intExplode(',', $temp_idP);
-                foreach ($temp_ids as $temp_id) {
-                    $this->MP_defaults[$temp_id] = $temp_MPp;
-                }
-            }
-        }
+        // make REAL copy of TSFE object - not reference!
+        $temp_copy_TSFE = clone $this;
+        // Set ->id to the content_from_pid value - we are going to evaluate this pid as was it a given id for a page-display!
+        $temp_copy_TSFE->id = $this->page['content_from_pid'];
+        $temp_copy_TSFE->MP = '';
+        $temp_copy_TSFE->getPageAndRootline($request);
+        return (int)$temp_copy_TSFE->id;
+    }
+    /**
+     * Sets up TypoScript "config." options and set properties in $TSFE.
+     *
+     * @param ServerRequestInterface $request
+     */
+    public function preparePageContentGeneration(ServerRequestInterface $request)
+    {
+        $this->getTimeTracker()->push('Prepare page content generation');
+        $this->contentPid = $this->resolveContentPid($request);
         // Global vars...
-        $this->indexedDocTitle = $this->page['title'];
-        $this->debug = !empty($this->config['config']['debug']);
+        $this->indexedDocTitle = $this->page['title'] ?? null;
         // Base url:
         if (isset($this->config['config']['baseURL'])) {
             $this->baseUrl = $this->config['config']['baseURL'];
         }
         // Internal and External target defaults
-        $this->intTarget = '' . $this->config['config']['intTarget'];
-        $this->extTarget = '' . $this->config['config']['extTarget'];
-        $this->fileTarget = '' . $this->config['config']['fileTarget'];
-        if ($this->config['config']['spamProtectEmailAddresses'] === 'ascii') {
-            $this->spamProtectEmailAddresses = 'ascii';
-        } else {
-            $this->spamProtectEmailAddresses = MathUtility::forceIntegerInRange($this->config['config']['spamProtectEmailAddresses'], -10, 10, 0);
+        $this->intTarget = (string)($this->config['config']['intTarget'] ?? '');
+        $this->extTarget = (string)($this->config['config']['extTarget'] ?? '');
+        $this->fileTarget = (string)($this->config['config']['fileTarget'] ?? '');
+        $this->spamProtectEmailAddresses = $this->config['config']['spamProtectEmailAddresses'] ?? 0;
+        if ($this->spamProtectEmailAddresses !== 'ascii') {
+            $this->spamProtectEmailAddresses = MathUtility::forceIntegerInRange($this->spamProtectEmailAddresses, -10, 10, 0);
         }
         // calculate the absolute path prefix
         if (!empty($this->config['config']['absRefPrefix'])) {
@@ -3158,15 +2474,13 @@ class TypoScriptFrontendController
         } else {
             $this->absRefPrefix = '';
         }
-        $this->lockFilePath = '' . $this->config['config']['lockFilePath'];
-        $this->lockFilePath = $this->lockFilePath ?: $GLOBALS['TYPO3_CONF_VARS']['BE']['fileadminDir'];
-        $this->ATagParams = trim($this->config['config']['ATagParams']) ? ' ' . trim($this->config['config']['ATagParams']) : '';
-        $this->initializeSearchWordDataInTsfe();
+        $this->ATagParams = trim($this->config['config']['ATagParams'] ?? '') ? ' ' . trim($this->config['config']['ATagParams']) : '';
+        $this->initializeSearchWordData($request->getParsedBody()['sword_list'] ?? $request->getQueryParams()['sword_list'] ?? null);
         // linkVars
-        $this->calculateLinkVars();
+        $this->calculateLinkVars($request->getQueryParams());
         // Setting XHTML-doctype from doctype
-        if (!$this->config['config']['xhtmlDoctype']) {
-            $this->config['config']['xhtmlDoctype'] = $this->config['config']['doctype'];
+        if (!isset($this->config['config']['xhtmlDoctype']) || !$this->config['config']['xhtmlDoctype']) {
+            $this->config['config']['xhtmlDoctype'] = $this->config['config']['doctype'] ?? '';
         }
         if ($this->config['config']['xhtmlDoctype']) {
             $this->xhtmlDoctype = $this->config['config']['xhtmlDoctype'];
@@ -3194,88 +2508,171 @@ class TypoScriptFrontendController
 
         // Global content object
         $this->newCObj();
+        $this->getTimeTracker()->pull();
     }
 
     /**
      * Fills the sWordList property and builds the regular expression in TSFE that can be used to split
      * strings by the submitted search words.
      *
+     * @param mixed $searchWords - usually an array, but we can't be sure (yet)
      * @see sWordList
      * @see sWordRegEx
      */
-    protected function initializeSearchWordDataInTsfe()
+    protected function initializeSearchWordData($searchWords)
     {
         $this->sWordRegEx = '';
-        $this->sWordList = GeneralUtility::_GP('sword_list');
+        $this->sWordList = $searchWords ?? '';
         if (is_array($this->sWordList)) {
-            $space = !empty($this->config['config']['sword_standAlone']) ? '[[:space:]]' : '';
+            $space = !empty($this->config['config']['sword_standAlone'] ?? null) ? '[[:space:]]' : '';
+            $regexpParts = [];
             foreach ($this->sWordList as $val) {
                 if (trim($val) !== '') {
-                    $this->sWordRegEx .= $space . preg_quote($val, '/') . $space . '|';
+                    $regexpParts[] = $space . preg_quote($val, '/') . $space;
                 }
             }
-            $this->sWordRegEx = rtrim($this->sWordRegEx, '|');
+            $this->sWordRegEx = implode('|', $regexpParts);
         }
     }
 
     /**
-     * Does some processing AFTER the pagegen script is included.
+     * Does processing of the content after the page content was generated.
+     *
      * This includes caching the page, indexing the page (if configured) and setting sysLastChanged
      */
     public function generatePage_postProcessing()
     {
+        $this->setAbsRefPrefix();
         // This is to ensure, that the page is NOT cached if the no_cache parameter was set before the page was generated. This is a safety precaution, as it could have been unset by some script.
         if ($this->no_cacheBeforePageGen) {
             $this->set_no_cache('no_cache has been set before the page was generated - safety check', true);
         }
         // Hook for post-processing of page content cached/non-cached:
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['contentPostProc-all'])) {
-            $_params = ['pObj' => &$this];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['contentPostProc-all'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
+        $_params = ['pObj' => &$this];
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['contentPostProc-all'] ?? [] as $_funcRef) {
+            GeneralUtility::callUserFunction($_funcRef, $_params, $this);
         }
         // Processing if caching is enabled:
         if (!$this->no_cache) {
             // Hook for post-processing of page content before being cached:
-            if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['contentPostProc-cached'])) {
-                $_params = ['pObj' => &$this];
-                foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['contentPostProc-cached'] as $_funcRef) {
-                    GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-                }
+            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['contentPostProc-cached'] ?? [] as $_funcRef) {
+                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
             }
         }
-        // Convert char-set for output: (should be BEFORE indexing of the content (changed 22/4 2005)),
-        // because otherwise indexed search might convert from the wrong charset!
-        // One thing is that the charset mentioned in the HTML header would be wrong since the output charset (metaCharset)
-        // has not been converted to from utf-8. And indexed search will internally convert from metaCharset
-        // to utf-8 so the content MUST be in metaCharset already!
+        // Convert charset for output. Any hooks before (including indexed search) will have to convert from UTF-8 to the target
+        // charset as well.
         $this->content = $this->convOutputCharset($this->content);
-        // Hook for indexing pages
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['pageIndexing'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['pageIndexing'] as $className) {
-                $_procObj = GeneralUtility::makeInstance($className);
-                $_procObj->hook_indexContent($this);
-            }
-        }
         // Storing for cache:
         if (!$this->no_cache) {
             $this->realPageCacheContent();
-        } elseif ($this->tempContent) {
-            // If there happens to be temporary content in the cache and the cache was not cleared due to new content, put it in... ($this->no_cache=0)
-            $this->clearPageCacheContent();
-            $this->tempContent = false;
         }
         // Sets sys-last-change:
         $this->setSysLastChanged();
     }
 
     /**
-     * Generate the page title again as TSFE->altPageTitle might have been modified by an inc script
+     * Generate the page title, can be called multiple times,
+     * as PageTitleProvider might have been modified by an uncached plugin etc.
+     *
+     * @return string the generated page title
      */
-    protected function regeneratePageTitle()
+    public function generatePageTitle(): string
     {
-        PageGenerator::generatePageTitle();
+        $pageTitleSeparator = '';
+
+        // Check for a custom pageTitleSeparator, and perform stdWrap on it
+        if (isset($this->config['config']['pageTitleSeparator']) && $this->config['config']['pageTitleSeparator'] !== '') {
+            $pageTitleSeparator = $this->config['config']['pageTitleSeparator'];
+
+            if (isset($this->config['config']['pageTitleSeparator.']) && is_array($this->config['config']['pageTitleSeparator.'])) {
+                $pageTitleSeparator = $this->cObj->stdWrap($pageTitleSeparator, $this->config['config']['pageTitleSeparator.']);
+            } else {
+                $pageTitleSeparator .= ' ';
+            }
+        }
+
+        $titleProvider = GeneralUtility::makeInstance(PageTitleProviderManager::class);
+        if (!empty($this->config['config']['pageTitleCache'])) {
+            $titleProvider->setPageTitleCache($this->config['config']['pageTitleCache']);
+        }
+        $pageTitle = $titleProvider->getTitle();
+        $this->config['config']['pageTitleCache'] = $titleProvider->getPageTitleCache();
+
+        if ($pageTitle !== '') {
+            $this->indexedDocTitle = $pageTitle;
+        }
+
+        $titleTagContent = $this->printTitle(
+            $pageTitle,
+            (bool)($this->config['config']['noPageTitle'] ?? false),
+            (bool)($this->config['config']['pageTitleFirst'] ?? false),
+            $pageTitleSeparator
+        );
+        // stdWrap around the title tag
+        if (isset($this->config['config']['pageTitle.']) && is_array($this->config['config']['pageTitle.'])) {
+            $titleTagContent = $this->cObj->stdWrap($titleTagContent, $this->config['config']['pageTitle.']);
+        }
+
+        // config.noPageTitle = 2 - means do not render the page title
+        if (isset($this->config['config']['noPageTitle']) && (int)$this->config['config']['noPageTitle'] === 2) {
+            $titleTagContent = '';
+        }
+        if ($titleTagContent !== '') {
+            $this->pageRenderer->setTitle($titleTagContent);
+        }
+        return (string)$titleTagContent;
+    }
+
+    /**
+     * Compiles the content for the page <title> tag.
+     *
+     * @param string $pageTitle The input title string, typically the "title" field of a page's record.
+     * @param bool $noTitle If set, then only the site title is outputted (from $this->setup['sitetitle'])
+     * @param bool $showTitleFirst If set, then "sitetitle" and $title is swapped
+     * @param string $pageTitleSeparator an alternative to the ": " as the separator between site title and page title
+     * @return string The page title on the form "[sitetitle]: [input-title]". Not htmlspecialchar()'ed.
+     * @see generatePageTitle()
+     */
+    protected function printTitle(string $pageTitle, bool $noTitle = false, bool $showTitleFirst = false, string $pageTitleSeparator = ''): string
+    {
+        $websiteTitle = $this->getWebsiteTitle();
+        $pageTitle = $noTitle ? '' : $pageTitle;
+        if ($showTitleFirst) {
+            $temp = $websiteTitle;
+            $websiteTitle = $pageTitle;
+            $pageTitle = $temp;
+        }
+        // only show a separator if there are both site title and page title
+        if ($pageTitle === '' || $websiteTitle === '') {
+            $pageTitleSeparator = '';
+        } elseif (empty($pageTitleSeparator)) {
+            // use the default separator if non given
+            $pageTitleSeparator = ': ';
+        }
+        return $websiteTitle . $pageTitleSeparator . $pageTitle;
+    }
+
+    /**
+     * @return string
+     */
+    protected function getWebsiteTitle(): string
+    {
+        if ($this->language instanceof SiteLanguage
+            && trim($this->language->getWebsiteTitle()) !== ''
+        ) {
+            return trim($this->language->getWebsiteTitle());
+        }
+        if ($this->site instanceof SiteInterface
+            && trim($this->site->getConfiguration()['websiteTitle']) !== ''
+        ) {
+            return trim($this->site->getConfiguration()['websiteTitle']);
+        }
+        if (!empty($this->tmpl->setup['sitetitle'])) {
+            // @deprecated since TYPO3 v10.2 and will be removed in TYPO3 v11.0
+            return trim($this->tmpl->setup['sitetitle']);
+        }
+
+        return '';
     }
 
     /**
@@ -3283,37 +2680,34 @@ class TypoScriptFrontendController
      */
     public function INTincScript()
     {
-        // Deprecated stuff:
-        // @deprecated: annotation added TYPO3 4.6
-        $this->additionalHeaderData = is_array($this->config['INTincScript_ext']['additionalHeaderData']) ? $this->config['INTincScript_ext']['additionalHeaderData'] : [];
-        $this->additionalFooterData = is_array($this->config['INTincScript_ext']['additionalFooterData']) ? $this->config['INTincScript_ext']['additionalFooterData'] : [];
-        $this->additionalJavaScript = $this->config['INTincScript_ext']['additionalJavaScript'];
-        $this->additionalCSS = $this->config['INTincScript_ext']['additionalCSS'];
-        $this->divSection = '';
+        $this->additionalHeaderData = $this->config['INTincScript_ext']['additionalHeaderData'] ?? [];
+        $this->additionalFooterData = $this->config['INTincScript_ext']['additionalFooterData'] ?? [];
         if (empty($this->config['INTincScript_ext']['pageRenderer'])) {
             $this->initPageRenderer();
         } else {
             /** @var PageRenderer $pageRenderer */
             $pageRenderer = unserialize($this->config['INTincScript_ext']['pageRenderer']);
-            $this->pageRenderer = $pageRenderer;
-            GeneralUtility::setSingletonInstance(PageRenderer::class, $pageRenderer);
+            $this->pageRenderer->updateState($pageRenderer->getState());
+        }
+        if (!empty($this->config['INTincScript_ext']['assetCollector'])) {
+            /** @var AssetCollector $assetCollector */
+            $assetCollector = unserialize($this->config['INTincScript_ext']['assetCollector'], ['allowed_classes' => [AssetCollector::class]]);
+            GeneralUtility::makeInstance(AssetCollector::class)->updateState($assetCollector->getState());
         }
 
         $this->recursivelyReplaceIntPlaceholdersInContent();
         $this->getTimeTracker()->push('Substitute header section');
         $this->INTincScript_loadJSCode();
-        $this->regeneratePageTitle();
+        $this->generatePageTitle();
 
         $this->content = str_replace(
             [
                 '<!--HD_' . $this->config['INTincScript_ext']['divKey'] . '-->',
                 '<!--FD_' . $this->config['INTincScript_ext']['divKey'] . '-->',
-                '<!--TDS_' . $this->config['INTincScript_ext']['divKey'] . '-->'
             ],
             [
                 $this->convOutputCharset(implode(LF, $this->additionalHeaderData)),
                 $this->convOutputCharset(implode(LF, $this->additionalFooterData)),
-                $this->convOutputCharset($this->divSection),
             ],
             $this->pageRenderer->renderJavaScriptAndCssForProcessingOfUncachedContentObjects($this->content, $this->config['INTincScript_ext']['divKey'])
         );
@@ -3331,240 +2725,188 @@ class TypoScriptFrontendController
     protected function recursivelyReplaceIntPlaceholdersInContent()
     {
         do {
-            $INTiS_config = $this->config['INTincScript'];
-            $this->INTincScript_process($INTiS_config);
+            $nonCacheableData = $this->config['INTincScript'];
+            $this->processNonCacheableContentPartsAndSubstituteContentMarkers($nonCacheableData);
             // Check if there were new items added to INTincScript during the previous execution:
-            $INTiS_config = array_diff_assoc($this->config['INTincScript'], $INTiS_config);
-            $reprocess = count($INTiS_config) > 0;
+            // array_diff_assoc throws notices if values are arrays but not strings. We suppress this here.
+            $nonCacheableData = @array_diff_assoc($this->config['INTincScript'], $nonCacheableData);
+            $reprocess = count($nonCacheableData) > 0;
         } while ($reprocess);
     }
 
     /**
-     * Processes the INTinclude-scripts and substitue in content.
+     * Processes the INTinclude-scripts and substitute in content.
      *
-     * @param array $INTiS_config $GLOBALS['TSFE']->config['INTincScript'] or part of it
+     * Takes $this->content, and splits the content by <!--INT_SCRIPT.12345 --> and then puts the content
+     * back together.
+     *
+     * @param array $nonCacheableData $GLOBALS['TSFE']->config['INTincScript'] or part of it
      * @see INTincScript()
      */
-    protected function INTincScript_process($INTiS_config)
+    protected function processNonCacheableContentPartsAndSubstituteContentMarkers(array $nonCacheableData)
     {
         $timeTracker = $this->getTimeTracker();
         $timeTracker->push('Split content');
         // Splits content with the key.
-        $INTiS_splitC = explode('<!--INT_SCRIPT.', $this->content);
+        $contentSplitByUncacheableMarkers = explode('<!--INT_SCRIPT.', $this->content);
         $this->content = '';
-        $timeTracker->setTSlogMessage('Parts: ' . count($INTiS_splitC));
+        $timeTracker->setTSlogMessage('Parts: ' . count($contentSplitByUncacheableMarkers));
         $timeTracker->pull();
-        foreach ($INTiS_splitC as $INTiS_c => $INTiS_cPart) {
+        foreach ($contentSplitByUncacheableMarkers as $counter => $contentPart) {
             // If the split had a comment-end after 32 characters it's probably a split-string
-            if (substr($INTiS_cPart, 32, 3) === '-->') {
-                $INTiS_key = 'INT_SCRIPT.' . substr($INTiS_cPart, 0, 32);
-                if (is_array($INTiS_config[$INTiS_key])) {
-                    $label = 'Include ' . $INTiS_config[$INTiS_key]['type'];
-                    $label = $label . isset($INTiS_config[$INTiS_key]['file']) ? ' ' . $INTiS_config[$INTiS_key]['file'] : '';
-                    $timeTracker->push($label, '');
-                    $incContent = '';
-                    $INTiS_cObj = unserialize($INTiS_config[$INTiS_key]['cObj']);
-                    /* @var $INTiS_cObj ContentObjectRenderer */
-                    switch ($INTiS_config[$INTiS_key]['type']) {
+            if (substr($contentPart, 32, 3) === '-->') {
+                $nonCacheableKey = 'INT_SCRIPT.' . substr($contentPart, 0, 32);
+                if (is_array($nonCacheableData[$nonCacheableKey])) {
+                    $label = 'Include ' . $nonCacheableData[$nonCacheableKey]['type'];
+                    $timeTracker->push($label);
+                    $nonCacheableContent = '';
+                    $contentObjectRendererForNonCacheable = unserialize($nonCacheableData[$nonCacheableKey]['cObj']);
+                    /* @var ContentObjectRenderer $contentObjectRendererForNonCacheable */
+                    switch ($nonCacheableData[$nonCacheableKey]['type']) {
                         case 'COA':
-                            $incContent = $INTiS_cObj->cObjGetSingle('COA', $INTiS_config[$INTiS_key]['conf']);
+                            $nonCacheableContent = $contentObjectRendererForNonCacheable->cObjGetSingle('COA', $nonCacheableData[$nonCacheableKey]['conf']);
                             break;
                         case 'FUNC':
-                            $incContent = $INTiS_cObj->cObjGetSingle('USER', $INTiS_config[$INTiS_key]['conf']);
+                            $nonCacheableContent = $contentObjectRendererForNonCacheable->cObjGetSingle('USER', $nonCacheableData[$nonCacheableKey]['conf']);
                             break;
                         case 'POSTUSERFUNC':
-                            $incContent = $INTiS_cObj->callUserFunction($INTiS_config[$INTiS_key]['postUserFunc'], $INTiS_config[$INTiS_key]['conf'], $INTiS_config[$INTiS_key]['content']);
+                            $nonCacheableContent = $contentObjectRendererForNonCacheable->callUserFunction($nonCacheableData[$nonCacheableKey]['postUserFunc'], $nonCacheableData[$nonCacheableKey]['conf'], $nonCacheableData[$nonCacheableKey]['content']);
                             break;
                     }
-                    $this->content .= $this->convOutputCharset($incContent);
-                    $this->content .= substr($INTiS_cPart, 35);
-                    $timeTracker->pull($incContent);
+                    $this->content .= $this->convOutputCharset($nonCacheableContent);
+                    $this->content .= substr($contentPart, 35);
+                    $timeTracker->pull($nonCacheableContent);
                 } else {
-                    $this->content .= substr($INTiS_cPart, 35);
+                    $this->content .= substr($contentPart, 35);
                 }
+            } elseif ($counter) {
+                // If it's not the first entry (which would be "0" of the array keys), then re-add the INT_SCRIPT part
+                $this->content .= '<!--INT_SCRIPT.' . $contentPart;
             } else {
-                $this->content .= ($INTiS_c ? '<!--INT_SCRIPT.' : '') . $INTiS_cPart;
+                $this->content .= $contentPart;
             }
         }
     }
 
     /**
-     * Loads the JavaScript code for INTincScript
+     * Loads the JavaScript/CSS code for INTincScript, if there are non-cacheable content objects
+     * it prepares the placeholders, otherwise populates options directly.
+     *
+     * @internal this method should be renamed as it does not only handle JS, but all additional header data
      */
     public function INTincScript_loadJSCode()
     {
-        // Add javascript
-        $jsCode = trim($this->JSCode);
-        $additionalJavaScript = is_array($this->additionalJavaScript)
-            ? implode(LF, $this->additionalJavaScript)
-            : $this->additionalJavaScript;
-        $additionalJavaScript = trim($additionalJavaScript);
-        if ($jsCode !== '' || $additionalJavaScript !== '') {
-            $this->additionalHeaderData['JSCode'] = '
-<script type="text/javascript">
-	/*<![CDATA[*/
-<!--
-' . $additionalJavaScript . '
-' . $jsCode . '
-// -->
-	/*]]>*/
-</script>';
-        }
-        // Add CSS
-        $additionalCss = is_array($this->additionalCSS) ? implode(LF, $this->additionalCSS) : $this->additionalCSS;
-        $additionalCss = trim($additionalCss);
-        if ($additionalCss !== '') {
-            $this->additionalHeaderData['_CSS'] = '
-<style type="text/css">
-' . $additionalCss . '
-</style>';
+        // Prepare code and placeholders for additional header and footer files (and make sure that this isn't called twice)
+        if ($this->isINTincScript() && !isset($this->config['INTincScript_ext'])) {
+            $substituteHash = $this->uniqueHash();
+            $this->config['INTincScript_ext']['divKey'] = $substituteHash;
+            // Storing the header-data array
+            $this->config['INTincScript_ext']['additionalHeaderData'] = $this->additionalHeaderData;
+            // Storing the footer-data array
+            $this->config['INTincScript_ext']['additionalFooterData'] = $this->additionalFooterData;
+            // Clearing the array
+            $this->additionalHeaderData = ['<!--HD_' . $substituteHash . '-->'];
+            // Clearing the array
+            $this->additionalFooterData = ['<!--FD_' . $substituteHash . '-->'];
         }
     }
 
     /**
-     * Determines if there are any INTincScripts to include.
+     * Determines if there are any INTincScripts to include = "non-cacheable" parts
      *
-     * @return bool Returns TRUE if scripts are found and no URL handler is active.
+     * @return bool Returns TRUE if scripts are found
      */
     public function isINTincScript()
     {
-        return is_array($this->config['INTincScript']) && empty($this->activeUrlHandlers);
-    }
-
-    /********************************************
-     *
-     * Finished off; outputting, storing session data, statistics...
-     *
-     *******************************************/
-    /**
-     * Determines if content should be outputted.
-     * Outputting content is done only if no URL handler is active and no hook disables the output.
-     *
-     * @return bool Returns TRUE if no redirect URL is set and no hook disables the output.
-     */
-    public function isOutputting()
-    {
-        // Initialize by status if there is a Redirect URL
-        $enableOutput = empty($this->activeUrlHandlers);
-        // Call hook for possible disabling of output:
-        if (isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['isOutputting']) && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['isOutputting'])) {
-            $_params = ['pObj' => &$this, 'enableOutput' => &$enableOutput];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['isOutputting'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
-        }
-        return $enableOutput;
+        return !empty($this->config['INTincScript']) && is_array($this->config['INTincScript']);
     }
 
     /**
-     * Process the output before it's actually outputted. Sends headers also.
+     * Add HTTP headers to the response object.
      *
-     * This includes substituting the "username" comment, sending additional headers
-     * (as defined in the TypoScript "config.additionalheaders" object), XHTML cleaning content (if configured)
-     * Works on $this->content.
+     * @param ResponseInterface $response
+     * @return ResponseInterface
      */
-    public function processOutput()
+    public function applyHttpHeadersToResponse(ResponseInterface $response): ResponseInterface
     {
         // Set header for charset-encoding unless disabled
         if (empty($this->config['config']['disableCharsetHeader'])) {
-            $headLine = 'Content-Type: ' . $this->contentType . '; charset=' . trim($this->metaCharset);
-            header($headLine);
+            $response = $response->withHeader('Content-Type', $this->contentType . '; charset=' . trim($this->metaCharset));
         }
         // Set header for content language unless disabled
-        if (empty($this->config['config']['disableLanguageHeader']) && !empty($this->sys_language_isocode)) {
-            $headLine = 'Content-Language: ' . trim($this->sys_language_isocode);
-            header($headLine);
+        $contentLanguage = $this->language->getTwoLetterIsoCode();
+        if (empty($this->config['config']['disableLanguageHeader']) && !empty($contentLanguage)) {
+            $response = $response->withHeader('Content-Language', trim($contentLanguage));
         }
         // Set cache related headers to client (used to enable proxy / client caching!)
         if (!empty($this->config['config']['sendCacheHeaders'])) {
-            $this->sendCacheHeaders();
-        }
-        // Set headers, if any
-        if (is_array($this->config['config']['additionalHeaders.'])) {
-            ksort($this->config['config']['additionalHeaders.']);
-            foreach ($this->config['config']['additionalHeaders.'] as $options) {
-                header(
-                    trim($options['header']),
-                    // "replace existing headers" is turned on by default, unless turned off
-                    ($options['replace'] !== '0'),
-                    ((int)$options['httpResponseCode'] ?: null)
-                );
+            $headers = $this->getCacheHeaders();
+            foreach ($headers as $header => $value) {
+                $response = $response->withHeader($header, $value);
             }
         }
-        // Send appropriate status code in case of temporary content
-        if ($this->tempContent) {
-            $this->addTempContentHttpHeaders();
-        }
-        // Make substitution of eg. username/uid in content only if cache-headers for client/proxy caching is NOT sent!
-        if (!$this->isClientCachable) {
-            $this->contentStrReplace();
-        }
-        // Hook for post-processing of page content before output:
-        if (isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['contentPostProc-output']) && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['contentPostProc-output'])) {
-            $_params = ['pObj' => &$this];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['contentPostProc-output'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
+        // Set additional headers if any have been configured via TypoScript
+        $additionalHeaders = $this->getAdditionalHeaders();
+        foreach ($additionalHeaders as $headerConfig) {
+            [$header, $value] = GeneralUtility::trimExplode(':', $headerConfig['header'], false, 2);
+            if ($headerConfig['statusCode']) {
+                $response = $response->withStatus((int)$headerConfig['statusCode']);
+            }
+            if ($headerConfig['replace']) {
+                $response = $response->withHeader($header, $value);
+            } else {
+                $response = $response->withAddedHeader($header, $value);
             }
         }
-        // Send content-length header.
-        // Notice that all HTML content outside the length of the content-length header will be cut off!
-        // Therefore content of unknown length from included PHP-scripts and if admin users are logged
-        // in (admin panel might show...) or if debug mode is turned on, we disable it!
-        if (
-            (!isset($this->config['config']['enableContentLengthHeader']) || $this->config['config']['enableContentLengthHeader'])
-            && !$this->beUserLogin && !$GLOBALS['TYPO3_CONF_VARS']['FE']['debug']
-            && !$this->config['config']['debug'] && !$this->doWorkspacePreview()
-        ) {
-            header('Content-Length: ' . strlen($this->content));
-        }
+        return $response;
     }
 
     /**
-     * Send cache headers good for client/reverse proxy caching
-     * This function should not be called if the page content is temporary (like for "Page is being generated..." message, but in that case it is ok because the config-variables are not yet available and so will not allow to send cache headers)
+     * Get cache headers good for client/reverse proxy caching.
      *
-     * @co-author Ole Tange, Forbrugernes Hus, Denmark
+     * @return array
      */
-    public function sendCacheHeaders()
+    protected function getCacheHeaders(): array
     {
         // Getting status whether we can send cache control headers for proxy caching:
         $doCache = $this->isStaticCacheble();
         // This variable will be TRUE unless cache headers are configured to be sent ONLY if a branch does not allow logins and logins turns out to be allowed anyway...
         $loginsDeniedCfg = empty($this->config['config']['sendCacheHeaders_onlyWhenLoginDeniedInBranch']) || empty($this->loginAllowedInBranch);
         // Finally, when backend users are logged in, do not send cache headers at all (Admin Panel might be displayed for instance).
-        if ($doCache && !$this->beUserLogin && !$this->doWorkspacePreview() && $loginsDeniedCfg) {
-            // Build headers:
+        $this->isClientCachable = $doCache && !$this->isBackendUserLoggedIn() && !$this->doWorkspacePreview() && $loginsDeniedCfg;
+        if ($this->isClientCachable) {
             $headers = [
-                'Expires: ' . gmdate('D, d M Y H:i:s T', $this->cacheExpires),
-                'ETag: "' . md5($this->content) . '"',
-                'Cache-Control: max-age=' . ($this->cacheExpires - $GLOBALS['EXEC_TIME']),
+                'Expires' => gmdate('D, d M Y H:i:s T', $this->cacheExpires),
+                'ETag' => '"' . md5($this->content) . '"',
+                'Cache-Control' => 'max-age=' . ($this->cacheExpires - $GLOBALS['EXEC_TIME']),
                 // no-cache
-                'Pragma: public'
+                'Pragma' => 'public'
             ];
-            $this->isClientCachable = true;
         } else {
-            // Build headers:
+            // "no-store" is used to ensure that the client HAS to ask the server every time, and is not allowed to store anything at all
             $headers = [
-                'Cache-Control: private'
+                'Cache-Control' => 'private, no-store'
             ];
-            $this->isClientCachable = false;
             // Now, if a backend user is logged in, tell him in the Admin Panel log what the caching status would have been:
-            if ($this->beUserLogin) {
+            if ($this->isBackendUserLoggedIn()) {
                 if ($doCache) {
                     $this->getTimeTracker()->setTSlogMessage('Cache-headers with max-age "' . ($this->cacheExpires - $GLOBALS['EXEC_TIME']) . '" would have been sent');
                 } else {
-                    $reasonMsg = '';
-                    $reasonMsg .= !$this->no_cache ? '' : 'Caching disabled (no_cache). ';
-                    $reasonMsg .= !$this->isINTincScript() ? '' : '*_INT object(s) on page. ';
-                    $reasonMsg .= !is_array($this->fe_user->user) ? '' : 'Frontend user logged in. ';
-                    $this->getTimeTracker()->setTSlogMessage('Cache-headers would disable proxy caching! Reason(s): "' . $reasonMsg . '"', 1);
+                    $reasonMsg = [];
+                    if ($this->no_cache) {
+                        $reasonMsg[] = 'Caching disabled (no_cache).';
+                    }
+                    if ($this->isINTincScript()) {
+                        $reasonMsg[] = '*_INT object(s) on page.';
+                    }
+                    if (is_array($this->fe_user->user)) {
+                        $reasonMsg[] = 'Frontend user logged in.';
+                    }
+                    $this->getTimeTracker()->setTSlogMessage('Cache-headers would disable proxy caching! Reason(s): "' . implode(' ', $reasonMsg) . '"', 1);
                 }
             }
         }
-        // Send headers:
-        foreach ($headers as $hL) {
-            header($hL);
-        }
+        return $headers;
     }
 
     /**
@@ -3579,102 +2921,7 @@ class TypoScriptFrontendController
      */
     public function isStaticCacheble()
     {
-        $doCache = !$this->no_cache && !$this->isINTincScript() && !$this->isUserOrGroupSet();
-        return $doCache;
-    }
-
-    /**
-     * Substitute various tokens in content. This should happen only if the content is not cached by proxies or client browsers.
-     */
-    public function contentStrReplace()
-    {
-        $search = [];
-        $replace = [];
-        // Substitutes username mark with the username
-        if (!empty($this->fe_user->user['uid'])) {
-            // User name:
-            $token = isset($this->config['config']['USERNAME_substToken']) ? trim($this->config['config']['USERNAME_substToken']) : '';
-            $search[] = $token ? $token : '<!--###USERNAME###-->';
-            $replace[] = $this->fe_user->user['username'];
-            // User uid (if configured):
-            $token = isset($this->config['config']['USERUID_substToken']) ? trim($this->config['config']['USERUID_substToken']) : '';
-            if ($token) {
-                $search[] = $token;
-                $replace[] = $this->fe_user->user['uid'];
-            }
-        }
-        // Substitutes get_URL_ID in case of GET-fallback
-        if ($this->getMethodUrlIdToken) {
-            $search[] = $this->getMethodUrlIdToken;
-            $replace[] = $this->fe_user->get_URL_ID;
-        }
-        // Hook for supplying custom search/replace data
-        if (isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['tslib_fe-contentStrReplace'])) {
-            $contentStrReplaceHooks = &$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['tslib_fe-contentStrReplace'];
-            if (is_array($contentStrReplaceHooks)) {
-                $_params = [
-                    'search' => &$search,
-                    'replace' => &$replace
-                ];
-                foreach ($contentStrReplaceHooks as $_funcRef) {
-                    GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-                }
-            }
-        }
-        if (!empty($search)) {
-            $this->content = str_replace($search, $replace, $this->content);
-        }
-    }
-
-    /**
-     * Stores session data for the front end user
-     */
-    public function storeSessionData()
-    {
-        $this->fe_user->storeSessionData();
-    }
-
-    /**
-     * Outputs preview info.
-     */
-    public function previewInfo()
-    {
-        if ($this->fePreview !== 0) {
-            $previewInfo = '';
-            if (isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_previewInfo']) && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_previewInfo'])) {
-                $_params = ['pObj' => &$this];
-                foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_previewInfo'] as $_funcRef) {
-                    $previewInfo .= GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-                }
-            }
-            $this->content = str_ireplace('</body>', $previewInfo . '</body>', $this->content);
-        }
-    }
-
-    /**
-     * End-Of-Frontend hook
-     */
-    public function hook_eofe()
-    {
-        // Call hook for end-of-frontend processing:
-        if (isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_eofe']) && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_eofe'])) {
-            $_params = ['pObj' => &$this];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['hook_eofe'] as $_funcRef) {
-                GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-            }
-        }
-    }
-
-    /**
-     * Sends HTTP headers for temporary content. These headers prevent search engines from caching temporary content and asks them to revisit this page again.
-     */
-    public function addTempContentHttpHeaders()
-    {
-        header('HTTP/1.0 503 Service unavailable');
-        header('Retry-after: 3600');
-        header('Pragma: no-cache');
-        header('Cache-control: no-cache');
-        header('Expire: 0');
+        return !$this->no_cache && !$this->isINTincScript() && !$this->isUserOrGroupSet();
     }
 
     /********************************************
@@ -3682,24 +2929,24 @@ class TypoScriptFrontendController
      * Various internal API functions
      *
      *******************************************/
-
     /**
      * Creates an instance of ContentObjectRenderer in $this->cObj
      * This instance is used to start the rendering of the TypoScript template structure
      *
-     * @see pagegen.php
+     * @see RequestHandler
      */
     public function newCObj()
     {
-        $this->cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class);
+        $this->cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class, $this);
         $this->cObj->start($this->page, 'pages');
     }
 
     /**
      * Converts relative paths in the HTML source to absolute paths for fileadmin/, typo3conf/ext/ and media/ folders.
      *
-     * @access private
-     * @see pagegen.php, INTincScript()
+     * @internal
+     * @see \TYPO3\CMS\Frontend\Http\RequestHandler
+     * @see INTincScript()
      */
     public function setAbsRefPrefix()
     {
@@ -3708,17 +2955,17 @@ class TypoScriptFrontendController
         }
         $search = [
             '"typo3temp/',
-            '"typo3conf/ext/',
-            '"' . TYPO3_mainDir . 'ext/',
-            '"' . TYPO3_mainDir . 'sysext/'
+            '"' . PathUtility::stripPathSitePrefix(Environment::getExtensionsPath()) . '/',
+            '"' . PathUtility::stripPathSitePrefix(Environment::getBackendPath()) . '/ext/',
+            '"' . PathUtility::stripPathSitePrefix(Environment::getFrameworkBasePath()) . '/',
         ];
         $replace = [
             '"' . $this->absRefPrefix . 'typo3temp/',
-            '"' . $this->absRefPrefix . 'typo3conf/ext/',
-            '"' . $this->absRefPrefix . TYPO3_mainDir . 'ext/',
-            '"' . $this->absRefPrefix . TYPO3_mainDir . 'sysext/'
+            '"' . $this->absRefPrefix . PathUtility::stripPathSitePrefix(Environment::getExtensionsPath()) . '/',
+            '"' . $this->absRefPrefix . PathUtility::stripPathSitePrefix(Environment::getBackendPath()) . '/ext/',
+            '"' . $this->absRefPrefix . PathUtility::stripPathSitePrefix(Environment::getFrameworkBasePath()) . '/',
         ];
-        /** @var $storageRepository StorageRepository */
+        /** @var StorageRepository $storageRepository */
         $storageRepository = GeneralUtility::makeInstance(StorageRepository::class);
         $storages = $storageRepository->findAll();
         foreach ($storages as $storage) {
@@ -3771,28 +3018,7 @@ class TypoScriptFrontendController
     {
         $explanationText = $explanation !== '' ? ' - ' . $explanation : '';
         $this->getTimeTracker()->setTSlogMessage($typoScriptProperty . ' is deprecated.' . $explanationText, 2);
-        GeneralUtility::deprecationLog('TypoScript ' . $typoScriptProperty . ' is deprecated' . $explanationText);
-    }
-
-    /**
-     * Updates the tstamp field of a cache_md5params record to the current time.
-     *
-     * @param string $hash The hash string identifying the cache_md5params record for which to update the "tstamp" field to the current time.
-     * @access private
-     */
-    public function updateMD5paramsRecord($hash)
-    {
-        $connection = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getConnectionForTable('cache_md5params');
-        $connection->update(
-            'cache_md5params',
-            [
-                'tstamp' => $GLOBALS['EXEC_TIME']
-            ],
-            [
-                'md5hash' => $hash
-            ]
-        );
+        trigger_error('TypoScript property ' . $typoScriptProperty . ' is deprecated' . $explanationText, E_USER_DEPRECATED);
     }
 
     /********************************************
@@ -3806,23 +3032,17 @@ class TypoScriptFrontendController
      */
     public function doWorkspacePreview()
     {
-        return $this->workspacePreview !== 0;
+        return $this->context->getPropertyFromAspect('workspace', 'isOffline', false);
     }
 
     /**
      * Returns the uid of the current workspace
      *
-     * @return int|NULL returns workspace integer for which workspace is being preview. NULL if none.
+     * @return int returns workspace integer for which workspace is being preview. 0 if none (= live workspace).
      */
-    public function whichWorkspace()
+    public function whichWorkspace(): int
     {
-        $ws = null;
-        if ($this->doWorkspacePreview()) {
-            $ws = (int)$this->workspacePreview;
-        } elseif ($this->beUserLogin) {
-            $ws = $this->getBackendUser()->workspace;
-        }
-        return $ws;
+        return $this->context->getPropertyFromAspect('workspace', 'id', 0);
     }
 
     /********************************************
@@ -3832,86 +3052,28 @@ class TypoScriptFrontendController
      *******************************************/
 
     /**
-     * Returns the pages TSconfig array based on the currect ->rootLine
+     * Returns the pages TSconfig array based on the current ->rootLine
      *
      * @return array
      */
     public function getPagesTSconfig()
     {
         if (!is_array($this->pagesTSconfig)) {
-            $TSdataArray = [];
-            foreach ($this->rootLine as $k => $v) {
-                $TSdataArray[] = $v['TSconfig'];
-            }
-            // Adding the default configuration:
-            $TSdataArray[] = $GLOBALS['TYPO3_CONF_VARS']['BE']['defaultPageTSconfig'];
-            // Bring everything in the right order. Default first, then the Rootline down to the current page
-            $TSdataArray = array_reverse($TSdataArray);
-            // Parsing the user TS (or getting from cache)
-            $TSdataArray = TypoScriptParser::checkIncludeLines_array($TSdataArray);
-            $userTS = implode(LF . '[GLOBAL]' . LF, $TSdataArray);
-            $identifier = md5('pageTS:' . $userTS);
-            $contentHashCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('cache_hash');
-            $this->pagesTSconfig = $contentHashCache->get($identifier);
-            if (!is_array($this->pagesTSconfig)) {
-                $parseObj = GeneralUtility::makeInstance(TypoScriptParser::class);
-                $parseObj->parse($userTS);
-                $this->pagesTSconfig = $parseObj->setup;
-                $contentHashCache->set($identifier, $this->pagesTSconfig, ['PAGES_TSconfig'], 0);
-            }
+            $contentHashCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('hash');
+            $loader = GeneralUtility::makeInstance(PageTsConfigLoader::class);
+            $tsConfigString = $loader->load(array_reverse($this->rootLine));
+            $parser = GeneralUtility::makeInstance(
+                PageTsConfigParser::class,
+                GeneralUtility::makeInstance(TypoScriptParser::class),
+                $contentHashCache
+            );
+            $this->pagesTSconfig = $parser->parse(
+                $tsConfigString,
+                GeneralUtility::makeInstance(ConditionMatcher::class, $this->context, $this->id, $this->rootLine),
+                $this->site
+            );
         }
         return $this->pagesTSconfig;
-    }
-
-    /**
-     * Sets JavaScript code in the additionalJavaScript array
-     *
-     * @param string $key is the key in the array, for num-key let the value be empty. Note reserved keys 'openPic' and 'mouseOver'
-     * @param string $content is the content if you want any
-     * @see \TYPO3\CMS\Frontend\ContentObject\Menu\GraphicalMenuContentObject::writeMenu(), ContentObjectRenderer::imageLinkWrap()
-     */
-    public function setJS($key, $content = '')
-    {
-        if ($key) {
-            switch ($key) {
-                case 'mouseOver':
-                    $this->additionalJavaScript[$key] = '		// JS function for mouse-over
-		function over(name, imgObj) {	//
-			if (document[name]) {document[name].src = eval(name+"_h.src");}
-			else if (document.getElementById && document.getElementById(name)) {document.getElementById(name).src = eval(name+"_h.src");}
-			else if (imgObj)	{imgObj.src = eval(name+"_h.src");}
-		}
-			// JS function for mouse-out
-		function out(name, imgObj) {	//
-			if (document[name]) {document[name].src = eval(name+"_n.src");}
-			else if (document.getElementById && document.getElementById(name)) {document.getElementById(name).src = eval(name+"_n.src");}
-			else if (imgObj)	{imgObj.src = eval(name+"_n.src");}
-		}';
-                    break;
-                case 'openPic':
-                    $this->additionalJavaScript[$key] = '	function openPic(url, winName, winParams) {	//
-			var theWindow = window.open(url, winName, winParams);
-			if (theWindow)	{theWindow.focus();}
-		}';
-                    break;
-                default:
-                    $this->additionalJavaScript[$key] = $content;
-            }
-        }
-    }
-
-    /**
-     * Sets CSS data in the additionalCSS array
-     *
-     * @param string $key Is the key in the array, for num-key let the value be empty
-     * @param string $content Is the content if you want any
-     * @see setJS()
-     */
-    public function setCSS($key, $content)
-    {
-        if ($key) {
-            $this->additionalCSS[$key] = $content;
-        }
     }
 
     /**
@@ -3929,41 +3091,39 @@ class TypoScriptFrontendController
     /**
      * Sets the cache-flag to 1. Could be called from user-included php-files in order to ensure that a page is not cached.
      *
-     * @param string $reason An optional reason to be written to the syslog.
+     * @param string $reason An optional reason to be written to the log.
      * @param bool $internal Whether the call is done from core itself (should only be used by core).
      */
     public function set_no_cache($reason = '', $internal = false)
     {
-        if ($internal && isset($GLOBALS['BE_USER'])) {
-            $severity = GeneralUtility::SYSLOG_SEVERITY_NOTICE;
-        } else {
-            $severity = GeneralUtility::SYSLOG_SEVERITY_WARNING;
-        }
-
         if ($reason !== '') {
             $warning = '$TSFE->set_no_cache() was triggered. Reason: ' . $reason . '.';
         } else {
             $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
             // This is a hack to work around ___FILE___ resolving symbolic links
-            $PATH_site_real = dirname(realpath(PATH_site . 'typo3')) . '/';
+            $realWebPath = PathUtility::dirname(realpath(Environment::getBackendPath())) . '/';
             $file = $trace[0]['file'];
-            if (strpos($file, $PATH_site_real) === 0) {
-                $file = str_replace($PATH_site_real, '', $file);
+            if (strpos($file, $realWebPath) === 0) {
+                $file = str_replace($realWebPath, '', $file);
             } else {
-                $file = str_replace(PATH_site, '', $file);
+                $file = str_replace(Environment::getPublicPath() . '/', '', $file);
             }
             $line = $trace[0]['line'];
             $trigger = $file . ' on line ' . $line;
             $warning = '$GLOBALS[\'TSFE\']->set_no_cache() was triggered by ' . $trigger . '.';
         }
-        if ($GLOBALS['TYPO3_CONF_VARS']['FE']['disableNoCacheParameter']) {
+        if (!$internal && $GLOBALS['TYPO3_CONF_VARS']['FE']['disableNoCacheParameter']) {
             $warning .= ' However, $TYPO3_CONF_VARS[\'FE\'][\'disableNoCacheParameter\'] is set, so it will be ignored!';
             $this->getTimeTracker()->setTSlogMessage($warning, 2);
         } else {
             $warning .= ' Caching is disabled!';
             $this->disableCache();
         }
-        GeneralUtility::sysLog($warning, 'cms', $severity);
+        if ($internal && $this->isBackendUserLoggedIn()) {
+            $this->logger->notice($warning);
+        } else {
+            $this->logger->warning($warning);
+        }
     }
 
     /**
@@ -3983,7 +3143,10 @@ class TypoScriptFrontendController
      */
     public function set_cache_timeout_default($seconds)
     {
-        $this->cacheTimeOutDefault = (int)$seconds;
+        $seconds = (int)$seconds;
+        if ($seconds > 0) {
+            $this->cacheTimeOutDefault = $seconds;
+        }
     }
 
     /**
@@ -3993,22 +3156,20 @@ class TypoScriptFrontendController
      */
     public function get_cache_timeout()
     {
-        /** @var $runtimeCache \TYPO3\CMS\Core\Cache\Frontend\AbstractFrontend */
-        $runtimeCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('cache_runtime');
+        /** @var \TYPO3\CMS\Core\Cache\Frontend\AbstractFrontend $runtimeCache */
+        $runtimeCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('runtime');
         $cachedCacheLifetimeIdentifier = 'core-tslib_fe-get_cache_timeout';
         $cachedCacheLifetime = $runtimeCache->get($cachedCacheLifetimeIdentifier);
         if ($cachedCacheLifetime === false) {
             if ($this->page['cache_timeout']) {
                 // Cache period was set for the page:
                 $cacheTimeout = $this->page['cache_timeout'];
-            } elseif ($this->cacheTimeOutDefault) {
-                // Cache period was set for the whole site:
-                $cacheTimeout = $this->cacheTimeOutDefault;
             } else {
-                // No cache period set at all, so we take one day (60*60*24 seconds = 86400 seconds):
-                $cacheTimeout = 86400;
+                // Cache period was set via TypoScript "config.cache_period",
+                // otherwise it's the default of 24 hours
+                $cacheTimeout = $this->cacheTimeOutDefault;
             }
-            if ($this->config['config']['cache_clearAtMidnight']) {
+            if (!empty($this->config['config']['cache_clearAtMidnight'])) {
                 $timeOutTime = $GLOBALS['EXEC_TIME'] + $cacheTimeout;
                 $midnightTime = mktime(0, 0, 0, date('m', $timeOutTime), date('d', $timeOutTime), date('Y', $timeOutTime));
                 // If the midnight time of the expire-day is greater than the current time,
@@ -4021,37 +3182,14 @@ class TypoScriptFrontendController
             // Calculate the timeout time for records on the page and adjust cache timeout if necessary
             $cacheTimeout = min($this->calculatePageCacheTimeout(), $cacheTimeout);
 
-            if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['get_cache_timeout'])) {
-                foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['get_cache_timeout'] as $_funcRef) {
-                    $params = ['cacheTimeout' => $cacheTimeout];
-                    $cacheTimeout = GeneralUtility::callUserFunction($_funcRef, $params, $this);
-                }
+            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_fe.php']['get_cache_timeout'] ?? [] as $_funcRef) {
+                $params = ['cacheTimeout' => $cacheTimeout];
+                $cacheTimeout = GeneralUtility::callUserFunction($_funcRef, $params, $this);
             }
             $runtimeCache->set($cachedCacheLifetimeIdentifier, $cacheTimeout);
             $cachedCacheLifetime = $cacheTimeout;
         }
         return $cachedCacheLifetime;
-    }
-
-    /**
-     * Returns a unique id to be used as a XML ID (in HTML / XHTML mode)
-     *
-     * @param string $desired The desired id. If already used it is suffixed with a number
-     * @return string The unique id
-     */
-    public function getUniqueId($desired = '')
-    {
-        if ($desired === '') {
-            // id has to start with a letter to reach XHTML compliance
-            $uniqueId = 'a' . $this->uniqueHash();
-        } else {
-            $uniqueId = $desired;
-            for ($i = 1; isset($this->usedUniqueIds[$uniqueId]); $i++) {
-                $uniqueId = $desired . '_' . $i;
-            }
-        }
-        $this->usedUniqueIds[$uniqueId] = true;
-        return $uniqueId;
     }
 
     /*********************************************
@@ -4067,113 +3205,18 @@ class TypoScriptFrontendController
      */
     public function sL($input)
     {
-        if (substr($input, 0, 4) !== 'LLL:') {
-            // Not a label, return the key as this
-            return $input;
-        }
-        // If cached label
-        if (!isset($this->LL_labels_cache[$this->lang][$input])) {
-            $restStr = trim(substr($input, 4));
-            $extPrfx = '';
-            if (strpos($restStr, 'EXT:') === 0) {
-                $restStr = trim(substr($restStr, 4));
-                $extPrfx = 'EXT:';
-            }
-            $parts = explode(':', $restStr);
-            $parts[0] = $extPrfx . $parts[0];
-            // Getting data if not cached
-            if (!isset($this->LL_files_cache[$parts[0]])) {
-                $this->LL_files_cache[$parts[0]] = $this->readLLfile($parts[0]);
-            }
-            $this->LL_labels_cache[$this->lang][$input] = $this->getLLL($parts[1], $this->LL_files_cache[$parts[0]]);
-        }
-        return $this->LL_labels_cache[$this->lang][$input];
+        return $this->languageService->sL($input);
     }
 
     /**
-     * Read locallang files - for frontend applications
-     *
-     * @param string $fileRef Reference to a relative filename to include.
-     * @return array Returns the $LOCAL_LANG array found in the file. If no array found, returns empty array.
+     * Sets all internal measures what language the page should be rendered.
+     * This is not for records, but rather the HTML / charset and the locallang labels
      */
-    public function readLLfile($fileRef)
+    protected function setOutputLanguage()
     {
-        /** @var $languageFactory LocalizationFactory */
-        $languageFactory = GeneralUtility::makeInstance(LocalizationFactory::class);
-
-        if ($this->lang !== 'default') {
-            $languages = array_reverse($this->languageDependencies);
-            // At least we need to have English
-            if (empty($languages)) {
-                $languages[] = 'default';
-            }
-        } else {
-            $languages = ['default'];
-        }
-
-        $localLanguage = [];
-        foreach ($languages as $language) {
-            $tempLL = $languageFactory->getParsedData($fileRef, $language);
-            $localLanguage['default'] = $tempLL['default'];
-            if (!isset($localLanguage[$this->lang])) {
-                $localLanguage[$this->lang] = $localLanguage['default'];
-            }
-            if ($this->lang !== 'default' && isset($tempLL[$language])) {
-                // Merge current language labels onto labels from previous language
-                // This way we have a label with fall back applied
-                ArrayUtility::mergeRecursiveWithOverrule($localLanguage[$this->lang], $tempLL[$language], true, false);
-            }
-        }
-
-        return $localLanguage;
-    }
-
-    /**
-     * Returns 'locallang' label - may need initializing by initLLvars
-     *
-     * @param string $index Local_lang key for which to return label (language is determined by $this->lang)
-     * @param array $LOCAL_LANG The locallang array in which to search
-     * @return string Label value of $index key.
-     */
-    public function getLLL($index, $LOCAL_LANG)
-    {
-        if (isset($LOCAL_LANG[$this->lang][$index][0]['target'])) {
-            return $LOCAL_LANG[$this->lang][$index][0]['target'];
-        } elseif (isset($LOCAL_LANG['default'][$index][0]['target'])) {
-            return $LOCAL_LANG['default'][$index][0]['target'];
-        }
-        return false;
-    }
-
-    /**
-     * Initializing the getLL variables needed.
-     */
-    public function initLLvars()
-    {
-        // Init languageDependencies list
-        $this->languageDependencies = [];
-        // Setting language key and split index:
-        $this->lang = $this->config['config']['language'] ?: 'default';
-        $this->pageRenderer->setLanguage($this->lang);
-
-        // Finding the requested language in this list based
-        // on the $lang key being inputted to this function.
-        /** @var $locales Locales */
-        $locales = GeneralUtility::makeInstance(Locales::class);
-        $locales->initialize();
-
-        // Language is found. Configure it:
-        if (in_array($this->lang, $locales->getLocales())) {
-            $this->languageDependencies[] = $this->lang;
-            foreach ($locales->getLocaleDependencies($this->lang) as $language) {
-                $this->languageDependencies[] = $language;
-            }
-        }
-
-        // Rendering charset of HTML page.
-        if ($this->config['config']['metaCharset']) {
-            $this->metaCharset = trim(strtolower($this->config['config']['metaCharset']));
-        }
+        $this->languageService = LanguageService::createFromSiteLanguage($this->language);
+        // Always disable debugging for TSFE
+        $this->languageService->debugKey = false;
     }
 
     /**
@@ -4181,43 +3224,20 @@ class TypoScriptFrontendController
      *
      * @param string $content Content to be converted.
      * @return string Converted content string.
+     * @throws \RuntimeException if an invalid charset was configured
      */
     public function convOutputCharset($content)
     {
         if ($this->metaCharset !== 'utf-8') {
             /** @var CharsetConverter $charsetConverter */
             $charsetConverter = GeneralUtility::makeInstance(CharsetConverter::class);
-            $content = $charsetConverter->conv($content, 'utf-8', $this->metaCharset, true);
-        }
-        return $content;
-    }
-
-    /**
-     * Converts the $_POST array from metaCharset (page HTML charset from input form) to utf-8 (internal processing) IF the two charsets are different.
-     */
-    public function convPOSTCharset()
-    {
-        if ($this->metaCharset !== 'utf-8' && is_array($_POST) && !empty($_POST)) {
-            $this->convertCharsetRecursivelyToUtf8($_POST, $this->metaCharset);
-            $GLOBALS['HTTP_POST_VARS'] = $_POST;
-        }
-    }
-
-    /**
-     * Small helper function to convert charsets for arrays to UTF-8
-     *
-     * @param mixed $data given by reference (string/array usually)
-     * @param string $fromCharset convert FROM this charset
-     */
-    protected function convertCharsetRecursivelyToUtf8(&$data, string $fromCharset)
-    {
-        foreach ($data as $key => $value) {
-            if (is_array($data[$key])) {
-                $this->convertCharsetRecursivelyToUtf8($data[$key], $fromCharset);
-            } elseif (is_string($data[$key])) {
-                $data[$key] = mb_convert_encoding($data[$key], 'utf-8', $fromCharset);
+            try {
+                $content = $charsetConverter->conv($content, 'utf-8', $this->metaCharset);
+            } catch (UnknownCharsetException $e) {
+                throw new \RuntimeException('Invalid config.metaCharset: ' . $e->getMessage(), 1508916185);
             }
         }
+        return $content;
     }
 
     /**
@@ -4251,6 +3271,9 @@ class TypoScriptFrontendController
      * The cache lifetime of all pages takes starttime and endtime of news records of page 14 into account:
      * config.cache.all = tt_news:14
      *
+     * The cache.lifetime of the current page allows to take records (e.g. fe_users) into account:
+     * config.cache.all = fe_users:current
+     *
      * The cache lifetime of page 42 takes starttime and endtime of news records of page 15 and addresses of page 16 into account:
      * config.cache.42 = tt_news:15,tt_address:16
      *
@@ -4261,10 +3284,10 @@ class TypoScriptFrontendController
     {
         $result = ['tt_content:' . $this->id];
         if (isset($this->config['config']['cache.'][$this->id])) {
-            $result = array_merge($result, GeneralUtility::trimExplode(',', $this->config['config']['cache.'][$this->id]));
+            $result = array_merge($result, GeneralUtility::trimExplode(',', str_replace(':current', ':' . $this->id, $this->config['config']['cache.'][$this->id])));
         }
         if (isset($this->config['config']['cache.']['all'])) {
-            $result = array_merge($result, GeneralUtility::trimExplode(',', $this->config['config']['cache.']['all']));
+            $result = array_merge($result, GeneralUtility::trimExplode(',', str_replace(':current', ':' . $this->id, $this->config['config']['cache.']['all'])));
         }
         return array_unique($result);
     }
@@ -4282,7 +3305,7 @@ class TypoScriptFrontendController
     {
         $now = (int)$now;
         $result = PHP_INT_MAX;
-        list($tableName, $pid) = GeneralUtility::trimExplode(':', $tableDef);
+        [$tableName, $pid] = GeneralUtility::trimExplode(':', $tableDef);
         if (empty($tableName) || empty($pid)) {
             throw new \InvalidArgumentException('Unexpected value for parameter $tableDef. Expected <tablename>:<pid>, got \'' . htmlspecialchars($tableDef) . '\'.', 1307190365);
         }
@@ -4349,121 +3372,7 @@ class TypoScriptFrontendController
     }
 
     /**
-     * Fetches/returns the cached contents of the sys_domain database table.
-     *
-     * @return array Domain data
-     */
-    protected function getSysDomainCache()
-    {
-        $entryIdentifier = 'core-database-sys_domain-complete';
-        /** @var $runtimeCache \TYPO3\CMS\Core\Cache\Frontend\AbstractFrontend */
-        $runtimeCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('cache_runtime');
-
-        $sysDomainData = [];
-        if ($runtimeCache->has($entryIdentifier)) {
-            $sysDomainData = $runtimeCache->get($entryIdentifier);
-        } else {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_domain');
-            $queryBuilder->setRestrictions(GeneralUtility::makeInstance(FrontendRestrictionContainer::class));
-            $result = $queryBuilder
-                ->select('uid', 'pid', 'domainName', 'forced')
-                ->from('sys_domain')
-                ->where(
-                    $queryBuilder->expr()->eq(
-                        'redirectTo',
-                        $queryBuilder->createNamedParameter('', \PDO::PARAM_STR)
-                    )
-                )
-                ->orderBy('sorting', 'ASC')
-                ->execute();
-
-            while ($row = $result->fetch()) {
-                // if there is already an entry for this pid, check if we should overwrite it
-                if (isset($sysDomainData[$row['pid']])) {
-                    // There is already a "forced" entry, which must not be overwritten
-                    if ($sysDomainData[$row['pid']]['forced']) {
-                        continue;
-                    }
-
-                    // The current domain record is also NOT-forced, keep the old unless the new one matches the current request
-                    if (!$row['forced'] && !$this->domainNameMatchesCurrentRequest($row['domainName'])) {
-                        continue;
-                    }
-                }
-
-                // as we passed all previous checks, we save this domain for the current pid
-                $sysDomainData[$row['pid']] = [
-                    'uid' => $row['uid'],
-                    'pid' => $row['pid'],
-                    'domainName' => rtrim($row['domainName'], '/'),
-                    'forced' => $row['forced'],
-                ];
-            }
-            $runtimeCache->set($entryIdentifier, $sysDomainData);
-        }
-        return $sysDomainData;
-    }
-
-    /**
-     * Whether the given domain name (potentially including a path segment) matches currently requested host or
-     * the host including the path segment
-     *
-     * @param string $domainName
-     * @return bool
-     */
-    public function domainNameMatchesCurrentRequest($domainName)
-    {
-        $currentDomain = GeneralUtility::getIndpEnv('HTTP_HOST');
-        $currentPathSegment = trim(preg_replace('|/[^/]*$|', '', GeneralUtility::getIndpEnv('SCRIPT_NAME')));
-        return $currentDomain === $domainName || $currentDomain . $currentPathSegment === $domainName;
-    }
-
-    /**
-     * Obtains domain data for the target pid. Domain data is an array with
-     * 'pid', 'domainName' and 'forced' members (see sys_domain table for
-     * meaning of these fields.
-     *
-     * @param int $targetPid Target page id
-     * @return mixed Return domain data or NULL
-    */
-    public function getDomainDataForPid($targetPid)
-    {
-        // Using array_key_exists() here, nice $result can be NULL
-        // (happens, if there's no domain records defined)
-        if (!array_key_exists($targetPid, $this->domainDataCache)) {
-            $result = null;
-            $sysDomainData = $this->getSysDomainCache();
-            $rootline = $this->sys_page->getRootLine($targetPid);
-            // walk the rootline downwards from the target page
-            // to the root page, until a domain record is found
-            foreach ($rootline as $pageInRootline) {
-                $pidInRootline = $pageInRootline['uid'];
-                if (isset($sysDomainData[$pidInRootline])) {
-                    $result = $sysDomainData[$pidInRootline];
-                    break;
-                }
-            }
-            $this->domainDataCache[$targetPid] = $result;
-        }
-
-        return $this->domainDataCache[$targetPid];
-    }
-
-    /**
-     * Obtains the domain name for the target pid. If there are several domains,
-     * the first is returned.
-     *
-     * @param int $targetPid Target page id
-     * @return mixed Return domain name or NULL if not found
-     */
-    public function getDomainNameForPid($targetPid)
-    {
-        $domainData = $this->getDomainDataForPid($targetPid);
-        return $domainData ? $domainData['domainName'] : null;
-    }
-
-    /**
-     * Fetches the originally requested id, fallsback to $this->id
+     * Fetches the originally requested id, falls back to $this->id
      *
      * @return int the originally requested page uid
      * @see fetch_the_id()
@@ -4475,6 +3384,31 @@ class TypoScriptFrontendController
 
     /**
      * Acquire a page specific lock
+     *
+     *
+     * The schematics here is:
+     * - First acquire an access lock. This is using the type of the requested lock as key.
+     *   Since the number of types is rather limited we can use the type as key as it will only
+     *   eat up a limited number of lock resources on the system (files, semaphores)
+     * - Second, we acquire the actual lock (named page lock). We can be sure we are the only process at this
+     *   very moment, hence we either get the lock for the given key or we get an error as we request a non-blocking mode.
+     *
+     * Interleaving two locks is extremely important, because the actual page lock uses a hash value as key (see callers
+     * of this function). If we would simply employ a normal blocking lock, we would get a potentially unlimited
+     * (number of pages at least) number of different locks. Depending on the available locking methods on the system
+     * we might run out of available resources. (e.g. maximum limit of semaphores is a system setting and applies
+     * to the whole system)
+     * We therefore must make sure that page locks are destroyed again if they are not used anymore, such that
+     * we never use more locking resources than parallel requests to different pages (hashes).
+     * In order to ensure this, we need to guarantee that no other process is waiting on a page lock when
+     * the process currently having the lock on the page lock is about to release the lock again.
+     * This can only be achieved by using a non-blocking mode, such that a process is never put into wait state
+     * by the kernel, but only checks the availability of the lock. The access lock is our guard to be sure
+     * that no two processes are at the same time releasing/destroying a page lock, whilst the other one tries to
+     * get a lock for this page lock.
+     * The only drawback of this implementation is that we basically have to poll the availability of the page lock.
+     *
+     * Note that the access lock resources are NEVER deleted/destroyed, otherwise the whole thing would be broken.
      *
      * @param string $type
      * @param string $key
@@ -4514,9 +3448,8 @@ class TypoScriptFrontendController
             $this->locks[$type]['accessLock']->release();
             if ($locked) {
                 break;
-            } else {
-                throw new \RuntimeException('Could not acquire page lock for ' . $key . '.', 1460975877);
             }
+            throw new \RuntimeException('Could not acquire page lock for ' . $key . '.', 1460975877);
         } while (true);
     }
 
@@ -4545,6 +3478,34 @@ class TypoScriptFrontendController
     }
 
     /**
+     * Send additional headers from config.additionalHeaders
+     */
+    protected function getAdditionalHeaders(): array
+    {
+        if (!isset($this->config['config']['additionalHeaders.'])) {
+            return [];
+        }
+        $additionalHeaders = [];
+        ksort($this->config['config']['additionalHeaders.']);
+        foreach ($this->config['config']['additionalHeaders.'] as $options) {
+            if (!is_array($options)) {
+                continue;
+            }
+            $header = trim($options['header'] ?? '');
+            if ($header === '') {
+                continue;
+            }
+            $additionalHeaders[] = [
+                'header' => $header,
+                // "replace existing headers" is turned on by default, unless turned off
+                'replace' => ($options['replace'] ?? '') !== '0',
+                'statusCode' => (int)($options['httpResponseCode'] ?? 0) ?: null
+            ];
+        }
+        return $additionalHeaders;
+    }
+
+    /**
      * Returns the current BE user.
      *
      * @return \TYPO3\CMS\Backend\FrontendBackendUserAuthentication
@@ -4560,5 +3521,51 @@ class TypoScriptFrontendController
     protected function getTimeTracker()
     {
         return GeneralUtility::makeInstance(TimeTracker::class);
+    }
+
+    /**
+     * Return the global instance of this class.
+     *
+     * Intended to be used as prototype factory for this class, see Services.yaml.
+     * This is required as long as TypoScriptFrontendController needs request
+     * dependent constructor parameters. Once that has been refactored this
+     * factory will be removed.
+     *
+     * @return TypoScriptFrontendController
+     * @internal
+     */
+    public static function getGlobalInstance(): ?self
+    {
+        if (($GLOBALS['TSFE'] ?? null) instanceof self) {
+            return $GLOBALS['TSFE'];
+        }
+
+        if (!(TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_FE)) {
+            // Return null for now (together with shared: false in Services.yaml) as TSFE might not be available in backend context
+            // That's not an error then
+            return null;
+        }
+
+        throw new \LogicException('TypoScriptFrontendController was tried to be injected before initial creation', 1538370377);
+    }
+
+    public function getLanguage(): SiteLanguage
+    {
+        return $this->language;
+    }
+
+    public function getSite(): Site
+    {
+        return $this->site;
+    }
+
+    public function getContext(): Context
+    {
+        return $this->context;
+    }
+
+    public function getPageArguments(): PageArguments
+    {
+        return $this->pageArguments;
     }
 }

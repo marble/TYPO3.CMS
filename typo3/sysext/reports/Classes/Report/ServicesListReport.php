@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Reports\Report;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Reports\Report;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Reports\Report;
 
 use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Utility\CommandUtility;
@@ -52,6 +53,7 @@ class ServicesListReport implements ReportInterface
     {
         // Rendering of the output via fluid
         $view = GeneralUtility::makeInstance(StandaloneView::class);
+        $view->getRequest()->setControllerExtensionName('Reports');
         $view->setTemplatePathAndFilename(GeneralUtility::getFileAbsFileName(
             'EXT:reports/Resources/Private/Templates/ServicesListReport.html'
         ));
@@ -116,14 +118,14 @@ class ServicesListReport implements ReportInterface
             'OperatingSystem' => $serviceInformation['os'] ?: $this->getLanguageService()->getLL('any'),
             'RequiredExecutables' => $serviceInformation['exec'] ?: '-',
             'AvailabilityClass' => 'danger',
-            'Available' => $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_common.xlf:no'),
+            'Available' => $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:no'),
         ];
 
         try {
             $serviceDetails = ExtensionManagementUtility::findServiceByKey($serviceKey);
             if ($serviceDetails['available']) {
                 $result['AvailabilityClass'] = 'success';
-                $result['Available'] = $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_common.xlf:yes');
+                $result['Available'] = $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:yes');
             }
         } catch (Exception $e) {
         }
@@ -145,7 +147,7 @@ class ServicesListReport implements ReportInterface
             $searchPathData = $this->getServicePathStatus($isValid);
             $result[] = [
                 'class' => $searchPathData['statusCSSClass'],
-                'accessible' => 'LLL:EXT:lang/Resources/Private/Language/locallang_common.xlf:' . $searchPathData['accessible'],
+                'accessible' => 'LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:' . $searchPathData['accessible'],
                 'path' => GeneralUtility::fixWindowsFilePath($path),
             ];
         }

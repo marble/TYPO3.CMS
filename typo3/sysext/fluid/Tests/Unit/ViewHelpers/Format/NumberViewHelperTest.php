@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Format\NumberViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 
@@ -27,14 +28,14 @@ class NumberViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new NumberViewHelper();
         $this->injectDependenciesIntoViewHelper($this->viewHelper);
         $this->viewHelper->setRenderChildrenClosure(
             function () {
-                return pi();
+                return M_PI;
             }
         );
     }
@@ -49,7 +50,7 @@ class NumberViewHelperTest extends ViewHelperBaseTestcase
             []
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('3.14', $actualResult);
+        self::assertEquals('3.14', $actualResult);
     }
 
     /**
@@ -64,7 +65,7 @@ class NumberViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('3,14', $actualResult);
+        self::assertEquals('3,14', $actualResult);
     }
 
     /**
@@ -79,7 +80,7 @@ class NumberViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('3.1416', $actualResult);
+        self::assertEquals('3.1416', $actualResult);
     }
 
     /**
@@ -88,7 +89,7 @@ class NumberViewHelperTest extends ViewHelperBaseTestcase
     public function formatNumberWithThousandsSeparator()
     {
         $this->viewHelper->setRenderChildrenClosure(function () {
-            return pi() * 1000;
+            return M_PI * 1000;
         });
         $this->setArgumentsUnderTest(
             $this->viewHelper,
@@ -97,6 +98,22 @@ class NumberViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('3,141.59', $actualResult);
+        self::assertEquals('3,141.59', $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function formatNumberWithEmptyInput()
+    {
+        $this->viewHelper->setRenderChildrenClosure(function () {
+            return '';
+        });
+        $this->setArgumentsUnderTest(
+            $this->viewHelper,
+            []
+        );
+        $actualResult = $this->viewHelper->initializeArgumentsAndRender();
+        self::assertEquals('0.00', $actualResult);
     }
 }

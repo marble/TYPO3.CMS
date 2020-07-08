@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Configuration\Loader;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,15 @@ namespace TYPO3\CMS\Core\Tests\Unit\Configuration\Loader;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Configuration\Loader;
+
 use TYPO3\CMS\Core\Configuration\Loader\YamlFileLoader;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Test case for the yaml file loader class
+ * Test case for the YAML file loader class
  */
-class YamlFileLoaderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class YamlFileLoaderTest extends UnitTestCase
 {
     /**
      * Generic method to check if the load method returns an array from a YAML file
@@ -45,10 +48,11 @@ betterthanbefore: 1
         ];
 
         // Accessible mock to $subject since getFileContents calls GeneralUtility methods
-        $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents']);
-        $subject->expects($this->once())->method('getFileContents')->with($fileName)->willReturn($fileContents);
+        $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents', 'getStreamlinedFileName']);
+        $subject->expects(self::once())->method('getStreamlinedFileName')->with($fileName)->willReturn($fileName);
+        $subject->expects(self::once())->method('getFileContents')->with($fileName)->willReturn($fileContents);
         $output = $subject->load($fileName);
-        $this->assertSame($expected, $output);
+        self::assertSame($expected, $output);
     }
 
     /**
@@ -85,18 +89,38 @@ betterthanbefore: 2
         ];
 
         // Accessible mock to $subject since getFileContents calls GeneralUtility methods
-        $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents']);
-        $subject->expects($this->at(0))->method('getFileContents')->with($fileName)->willReturn($fileContents);
-        $subject->expects($this->at(1))->method('getFileContents')->with($importFileName)->willReturn($importFileContents);
+        $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents', 'getStreamlinedFileName']);
+        $subject->expects(self::at(0))->method('getStreamlinedFileName')->with($fileName)->willReturn($fileName);
+        $subject->expects(self::at(1))->method('getFileContents')->with($fileName)->willReturn($fileContents);
+        $subject->expects(self::at(2))->method('getStreamlinedFileName')->with($importFileName, $fileName)->willReturn($importFileName);
+        $subject->expects(self::at(3))->method('getFileContents')->with($importFileName)->willReturn($importFileContents);
         $output = $subject->load($fileName);
-        $this->assertSame($expected, $output);
+        self::assertSame($expected, $output);
+    }
+
+    /**
+     * Method checking for imports that they have been processed properly
+     * @test
+     */
+    public function loadWithImportAndRelativePaths()
+    {
+        $subject = new YamlFileLoader();
+        $result = $subject->load(__DIR__ . '/Fixtures/Berta.yaml');
+        self::assertSame([
+            'enable' => [
+                'frontend' => false,
+                'json.api' => true,
+                'backend' => true,
+                'rest.api' => true,
+            ]
+        ], $result);
     }
 
     /**
      * Method checking for placeholders
      * @test
      */
-    public function loadWithPlacholders()
+    public function loadWithPlaceholders(): void
     {
         $fileName = 'Berta.yml';
         $fileContents = '
@@ -106,7 +130,45 @@ firstset:
 options:
     - option1
     - option2
-betterthanbefore: %firstset.myinitialversion%
+betterthanbefore: \'%firstset.myinitialversion%\'
+muchbetterthanbefore: \'some::%options.0%::option\'
+';
+
+        $expected = [
+            'firstset' => [
+                'myinitialversion' => 13
+            ],
+            'options' => [
+                'option1',
+                'option2'
+            ],
+            'betterthanbefore' => 13,
+            'muchbetterthanbefore' => 'some::option1::option'
+        ];
+
+        // Accessible mock to $subject since getFileContents calls GeneralUtility methods
+        $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents', 'getStreamlinedFileName']);
+        $subject->expects(self::once())->method('getStreamlinedFileName')->with($fileName)->willReturn($fileName);
+        $subject->expects(self::once())->method('getFileContents')->with($fileName)->willReturn($fileContents);
+        $output = $subject->load($fileName);
+        self::assertSame($expected, $output);
+    }
+
+    /**
+     * Method checking for nested placeholders
+     * @test
+     */
+    public function loadWithNestedPlaceholders(): void
+    {
+        $fileName = 'Berta.yml';
+        $fileContents = '
+
+firstset:
+  myinitialversion: 13
+options:
+    - option1
+    - option2
+betterthanbefore: \'%env(foo)%\'
 ';
 
         $expected = [
@@ -121,10 +183,164 @@ betterthanbefore: %firstset.myinitialversion%
         ];
 
         // Accessible mock to $subject since getFileContents calls GeneralUtility methods
-        $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents']);
-        $subject->expects($this->once())->method('getFileContents')->with($fileName)->willReturn($fileContents);
+        $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents', 'getStreamlinedFileName']);
+        $subject->expects(self::once())->method('getStreamlinedFileName')->with($fileName)->willReturn($fileName);
+        $subject->expects(self::once())->method('getFileContents')->with($fileName)->willReturn($fileContents);
+
+        putenv('foo=%firstset.myinitialversion%');
         $output = $subject->load($fileName);
-        $this->assertSame($expected, $output);
+        putenv('foo=');
+        self::assertSame($expected, $output);
+    }
+
+    /**
+     * Method checking for imports with env vars that they have been processed properly
+     * @test
+     */
+    public function loadWithImportAndEnvVars(): void
+    {
+        $loader = new YamlFileLoader();
+
+        putenv('foo=barbaz');
+        $output = $loader->load(__DIR__ . '/Fixtures/Env/Berta.yml');
+        putenv('foo=');
+
+        $expected = [
+            'loadedWithEnvVars' => 1,
+            'options' => [
+                'optionBefore',
+                'option1',
+                'option2',
+            ],
+        ];
+
+        self::assertSame($expected, $output);
+    }
+
+    public function loadWithEnvVarDataProvider(): array
+    {
+        return [
+            'plain' => [
+                ['foo=heinz'],
+                'carl: \'%env(foo)%\'',
+                ['carl' => 'heinz']
+            ],
+            'quoted var' => [
+                ['foo=heinz'],
+                "carl: '%env(''foo'')%'",
+                ['carl' => 'heinz']
+            ],
+            'double quoted var' => [
+                ['foo=heinz'],
+                "carl: '%env(\"foo\")%'",
+                ['carl' => 'heinz']
+            ],
+            'var in the middle' => [
+                ['foo=heinz'],
+                "carl: 'https://%env(foo)%/foo'",
+                ['carl' => 'https://heinz/foo']
+            ],
+            'quoted var in the middle' => [
+                ['foo=heinz'],
+                "carl: 'https://%env(''foo'')%/foo'",
+                ['carl' => 'https://heinz/foo']
+            ],
+            'double quoted var in the middle' => [
+                ['foo=heinz'],
+                "carl: 'https://%env(\"foo\")%/foo'",
+                ['carl' => 'https://heinz/foo']
+            ],
+            'two env vars' => [
+                ['foo=karl', 'bar=heinz'],
+                'carl: \'%env(foo)%::%env(bar)%\'',
+                ['carl' => 'karl::heinz']
+            ],
+            'three env vars' => [
+                ['foo=karl', 'bar=heinz', 'baz=bencer'],
+                'carl: \'%env(foo)%::%env(bar)%::%env(baz)%\'',
+                ['carl' => 'karl::heinz::bencer']
+            ],
+            'three env vars with baz being undefined' => [
+                ['foo=karl', 'bar=heinz'],
+                'carl: \'%env(foo)%::%env(bar)%::%env(baz)%\'',
+                ['carl' => 'karl::heinz::%env(baz)%']
+            ],
+            'three undefined env vars' => [
+                [],
+                'carl: \'%env(foo)%::%env(bar)%::%env(baz)%\'',
+                ['carl' => '%env(foo)%::%env(bar)%::%env(baz)%']
+            ],
+            'nested env variables' => [
+                ['foo=bar', 'bar=heinz'],
+                'carl: \'%env(%env(foo)%)%\'',
+                ['carl' => 'heinz']
+            ],
+        ];
+    }
+
+    /**
+     * Method checking for env placeholders
+     *
+     * @dataProvider loadWithEnvVarDataProvider
+     * @test
+     * @param array $envs
+     * @param string $yamlContent
+     * @param array $expected
+     */
+    public function loadWithEnvVarPlaceholders(array $envs, string $yamlContent, array $expected): void
+    {
+        foreach ($envs as $env) {
+            putenv($env);
+        }
+        $fileName = 'Berta.yml';
+        $fileContents = $yamlContent;
+
+        // Accessible mock to $subject since getFileContents calls GeneralUtility methods
+        $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents', 'getStreamlinedFileName']);
+        $subject->expects(self::once())->method('getStreamlinedFileName')->with($fileName)->willReturn($fileName);
+        $subject->expects(self::once())->method('getFileContents')->with($fileName)->willReturn($fileContents);
+        $output = $subject->load($fileName);
+        self::assertSame($expected, $output);
+        putenv('foo=');
+        putenv('bar=');
+        putenv('baz=');
+    }
+
+    /**
+     * Method checking for env placeholders
+     *
+     * @test
+     */
+    public function loadWithEnvVarPlaceholdersDoesNotReplaceWithNonExistingValues(): void
+    {
+        $fileName = 'Berta.yml';
+        $fileContents = '
+
+firstset:
+  myinitialversion: 13
+options:
+    - option1
+    - option2
+betterthanbefore: \'%env(mynonexistingenv)%\'
+';
+
+        $expected = [
+            'firstset' => [
+                'myinitialversion' => 13
+            ],
+            'options' => [
+                'option1',
+                'option2'
+            ],
+            'betterthanbefore' => '%env(mynonexistingenv)%'
+        ];
+
+        // Accessible mock to $subject since getFileContents calls GeneralUtility methods
+        $subject = $this->getAccessibleMock(YamlFileLoader::class, ['getFileContents', 'getStreamlinedFileName']);
+        $subject->expects(self::once())->method('getStreamlinedFileName')->with($fileName)->willReturn($fileName);
+        $subject->expects(self::once())->method('getFileContents')->with($fileName)->willReturn($fileContents);
+        $output = $subject->load($fileName);
+        self::assertSame($expected, $output);
     }
 
     /**
@@ -160,11 +376,11 @@ betterthanbefore: %firstset.myinitialversion%
             ],
             'invalid placeholder with two % but not at the end' => [
                 '%cool%again',
-                false
+                true
             ],
             'invalid placeholder with two % but not at the beginning nor end' => [
                 'did%you%know',
-                false
+                true
             ],
             'valid placeholder with just numbers' => [
                 '%13%',
@@ -184,10 +400,10 @@ betterthanbefore: %firstset.myinitialversion%
      * @param bool $expected
      * @skip
      */
-    public function isPlaceholderTest($placeholderValue, bool $expected)
+    public function containsPlaceholderTest($placeholderValue, bool $expected)
     {
         $subject = $this->getAccessibleMock(YamlFileLoader::class, ['dummy']);
-        $output = $subject->_call('isPlaceholder', $placeholderValue);
-        $this->assertSame($expected, $output);
+        $output = $subject->_call('containsPlaceholder', $placeholderValue);
+        self::assertSame($expected, $output);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Cache\Backend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,12 @@ namespace TYPO3\CMS\Core\Cache\Backend;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Cache\Backend;
+
 /**
  * A caching backend which forgets everything immediately
- *
- * This file is a backport from FLOW3
- * @api
  */
-class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implements \TYPO3\CMS\Core\Cache\Backend\PhpCapableBackendInterface, \TYPO3\CMS\Core\Cache\Backend\TaggableBackendInterface
+class NullBackend extends AbstractBackend implements PhpCapableBackendInterface, TaggableBackendInterface
 {
     /**
      * Acts as if it would save data
@@ -29,7 +27,6 @@ class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implemen
      * @param string $data ignored
      * @param array $tags ignored
      * @param int $lifetime ignored
-     * @api
      */
     public function set($entryIdentifier, $data, array $tags = [], $lifetime = null)
     {
@@ -49,7 +46,6 @@ class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implemen
      *
      * @param string $entryIdentifier ignored
      * @return bool FALSE
-     * @api
      */
     public function get($entryIdentifier)
     {
@@ -61,7 +57,6 @@ class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implemen
      *
      * @param string $entryIdentifier ignored
      * @return bool FALSE
-     * @api
      */
     public function has($entryIdentifier)
     {
@@ -73,7 +68,6 @@ class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implemen
      *
      * @param string $entryIdentifier ignored
      * @return bool FALSE
-     * @api
      */
     public function remove($entryIdentifier)
     {
@@ -85,7 +79,6 @@ class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implemen
      *
      * @param string $tag ignored
      * @return array An empty array
-     * @api
      */
     public function findIdentifiersByTag($tag)
     {
@@ -94,8 +87,6 @@ class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implemen
 
     /**
      * Does nothing
-     *
-     * @api
      */
     public function flush()
     {
@@ -105,7 +96,6 @@ class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implemen
      * Does nothing
      *
      * @param string $tag ignored
-     * @api
      */
     public function flushByTag($tag)
     {
@@ -113,8 +103,6 @@ class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implemen
 
     /**
      * Does nothing
-     *
-     * @api
      */
     public function collectGarbage()
     {
@@ -124,9 +112,21 @@ class NullBackend extends \TYPO3\CMS\Core\Cache\Backend\AbstractBackend implemen
      * Does nothing
      *
      * @param string $identifier An identifier which describes the cache entry to load
-     * @api
+     * @return bool
      */
     public function requireOnce($identifier)
     {
+        return false;
+    }
+
+    /**
+     * Does nothing
+     *
+     * @param string $identifier An identifier which describes the cache entry to load
+     * @return bool
+     */
+    public function require(string $identifier)
+    {
+        return false;
     }
 }

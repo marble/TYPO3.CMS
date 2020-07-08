@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Functional\Session\Backend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Tests\Functional\Session\Backend;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Functional\Session\Backend;
 
 use TYPO3\CMS\Core\Session\Backend\DatabaseSessionBackend;
 use TYPO3\CMS\Core\Session\Backend\Exception\SessionNotCreatedException;
@@ -43,7 +45,7 @@ class DatabaseSessionBackendTest extends FunctionalTestCase
     /**
      * Set configuration for DatabaseSessionBackend
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -72,8 +74,9 @@ class DatabaseSessionBackendTest extends FunctionalTestCase
 
         $expected = array_merge($this->testSessionRecord, ['ses_tstamp' => $GLOBALS['EXEC_TIME']]);
 
-        $this->assertEquals($record, $expected);
-        $this->assertArraySubset($expected, $this->subject->get('randomSessionId'));
+        self::assertEquals($record, $expected);
+        self::assertSame($expected['ses_data'], $this->subject->get('randomSessionId')['ses_data']);
+        self::assertSame($expected['ses_userid'], (int)$this->subject->get('randomSessionId')['ses_userid']);
     }
 
     /**
@@ -85,8 +88,9 @@ class DatabaseSessionBackendTest extends FunctionalTestCase
 
         $expected = array_merge($this->testSessionRecord, ['ses_anonymous' => 1, 'ses_tstamp' => $GLOBALS['EXEC_TIME']]);
 
-        $this->assertEquals($record, $expected);
-        $this->assertArraySubset($expected, $this->subject->get('randomSessionId'));
+        self::assertEquals($record, $expected);
+        self::assertSame($expected['ses_data'], $this->subject->get('randomSessionId')['ses_data']);
+        self::assertSame($expected['ses_userid'], (int)$this->subject->get('randomSessionId')['ses_userid']);
     }
 
     /**
@@ -115,7 +119,8 @@ class DatabaseSessionBackendTest extends FunctionalTestCase
         $expectedMergedData = array_merge($this->testSessionRecord, $updateData);
         $this->subject->update('randomSessionId', $updateData);
         $fetchedRecord = $this->subject->get('randomSessionId');
-        $this->assertArraySubset($expectedMergedData, $fetchedRecord);
+        self::assertSame($expectedMergedData['ses_data'], $fetchedRecord['ses_data']);
+        self::assertSame($expectedMergedData['ses_userid'], (int)$fetchedRecord['ses_userid']);
     }
 
     /**
@@ -166,7 +171,7 @@ class DatabaseSessionBackendTest extends FunctionalTestCase
         $this->subject->set('randomSessionId', $this->testSessionRecord);
 
         // Remove session
-        $this->assertTrue($this->subject->remove('randomSessionId'));
+        self::assertTrue($this->subject->remove('randomSessionId'));
 
         // Check if session was really removed
         $this->expectException(SessionNotFoundException::class);
@@ -184,7 +189,7 @@ class DatabaseSessionBackendTest extends FunctionalTestCase
         $this->subject->set('randomSessionId2', $this->testSessionRecord);
 
         // Check if session was really removed
-        $this->assertEquals(2, count($this->subject->getAll()));
+        self::assertEquals(2, count($this->subject->getAll()));
     }
 
     /**
@@ -200,15 +205,20 @@ class DatabaseSessionBackendTest extends FunctionalTestCase
         $this->subject->set('anonymousSession', $anonymousSession);
 
         // Assert that we set authenticated session correctly
-        $this->assertArraySubset(
-            $authenticatedSession,
-            $this->subject->get('authenticatedSession')
+        self::assertSame(
+            $authenticatedSession['ses_data'],
+            $this->subject->get('authenticatedSession')['ses_data']
+        );
+        self::assertSame(
+            $authenticatedSession['ses_userid'],
+            (int)$this->subject->get('authenticatedSession')['ses_userid']
         );
 
         // assert that we set anonymous session correctly
-        $this->assertArraySubset(
-            $anonymousSession,
-            $this->subject->get('anonymousSession'));
+        self::assertSame(
+            $anonymousSession['ses_data'],
+            $this->subject->get('anonymousSession')['ses_data']
+        );
 
         // Run the garbage collection
         $GLOBALS['EXEC_TIME'] = 200;
@@ -216,9 +226,14 @@ class DatabaseSessionBackendTest extends FunctionalTestCase
         $this->subject->collectGarbage(60, 10);
 
         // Authenticated session should still be there
-        $this->assertArraySubset(
-            $authenticatedSession,
-            $this->subject->get('authenticatedSession'));
+        self::assertSame(
+            $authenticatedSession['ses_data'],
+            $this->subject->get('authenticatedSession')['ses_data']
+        );
+        self::assertSame(
+            $authenticatedSession['ses_userid'],
+            (int)$this->subject->get('authenticatedSession')['ses_userid']
+        );
 
         // Non-authenticated session should be removed
         $this->expectException(SessionNotFoundException::class);
@@ -238,6 +253,6 @@ class DatabaseSessionBackendTest extends FunctionalTestCase
         $sessionId = 'randomSessionId';
         $this->subject->set($sessionId, $this->testSessionRecord);
         $this->subject->update($sessionId, []);
-        $this->assertArraySubset($updatedRecord, $this->subject->get($sessionId));
+        self::assertSame($updatedRecord['ses_data'], $this->subject->get($sessionId)['ses_data']);
     }
 }

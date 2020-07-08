@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Controller;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,22 +15,23 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
-use Psr\Http\Message\ResponseInterface;
+namespace TYPO3\CMS\Backend\Tests\Unit\Controller;
+
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Controller\FormInlineAjaxController;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FormInlineAjaxControllerTest extends UnitTestCase
 {
     /**
      * @test
      */
-    public function createActionThrowsExceptionIfContextIsEmpty()
+    public function createActionThrowsExceptionIfContextIsEmpty(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
             [
@@ -40,15 +42,14 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751361);
-        (new FormInlineAjaxController())->createAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormInlineAjaxController())->createAction($requestProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function createActionThrowsExceptionIfContextConfigSectionIsEmpty()
+    public function createActionThrowsExceptionIfContextConfigSectionIsEmpty(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
             [
@@ -59,24 +60,23 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751362);
-        (new FormInlineAjaxController())->createAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormInlineAjaxController())->createAction($requestProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function createActionThrowsExceptionIfContextConfigSectionDoesNotValidate()
+    public function createActionThrowsExceptionIfContextConfigSectionDoesNotValidate(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
             [
                 'ajax' => [
                     'context' => json_encode(
                         [
-                            'config' => [
+                            'config' => json_encode([
                                 'type' => 'inline',
-                            ],
+                            ]),
                             'hmac' => 'anInvalidHash',
                         ]
                     ),
@@ -85,15 +85,14 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751363);
-        (new FormInlineAjaxController())->createAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormInlineAjaxController())->createAction($requestProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function detailsActionThrowsExceptionIfContextIsEmpty()
+    public function detailsActionThrowsExceptionIfContextIsEmpty(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
             [
@@ -104,15 +103,14 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751361);
-        (new FormInlineAjaxController())->detailsAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormInlineAjaxController())->detailsAction($requestProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function detailsActionThrowsExceptionIfContextConfigSectionIsEmpty()
+    public function detailsActionThrowsExceptionIfContextConfigSectionIsEmpty(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
             [
@@ -123,24 +121,23 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751362);
-        (new FormInlineAjaxController())->detailsAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormInlineAjaxController())->detailsAction($requestProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function detailsActionThrowsExceptionIfContextConfigSectionDoesNotValidate()
+    public function detailsActionThrowsExceptionIfContextConfigSectionDoesNotValidate(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
             [
                 'ajax' => [
                     'context' => json_encode(
                         [
-                            'config' => [
+                            'config' => json_encode([
                                 'type' => 'inline',
-                            ],
+                            ]),
                             'hmac' => 'anInvalidHash',
                         ]
                     ),
@@ -149,15 +146,14 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751363);
-        (new FormInlineAjaxController())->detailsAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormInlineAjaxController())->detailsAction($requestProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function synchronizeLocalizeActionThrowsExceptionIfContextIsEmpty()
+    public function synchronizeLocalizeActionThrowsExceptionIfContextIsEmpty(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
             [
@@ -168,15 +164,14 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751361);
-        (new FormInlineAjaxController())->synchronizeLocalizeAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormInlineAjaxController())->synchronizeLocalizeAction($requestProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function synchronizeLocalizeActionThrowsExceptionIfContextConfigSectionIsEmpty()
+    public function synchronizeLocalizeActionThrowsExceptionIfContextConfigSectionIsEmpty(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
             [
@@ -187,24 +182,23 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751362);
-        (new FormInlineAjaxController())->synchronizeLocalizeAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormInlineAjaxController())->synchronizeLocalizeAction($requestProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function synchronizeLocalizeActionThrowsExceptionIfContextConfigSectionDoesNotValidate()
+    public function synchronizeLocalizeActionThrowsExceptionIfContextConfigSectionDoesNotValidate(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
         $requestProphecy = $this->prophesize(ServerRequestInterface::class);
         $requestProphecy->getParsedBody()->shouldBeCalled()->willReturn(
             [
                 'ajax' => [
                     'context' => json_encode(
                         [
-                            'config' => [
+                            'config' => json_encode([
                                 'type' => 'inline',
-                            ],
+                            ]),
                             'hmac' => 'anInvalidHash',
                         ]
                     ),
@@ -213,16 +207,16 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         );
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1489751363);
-        (new FormInlineAjaxController())->synchronizeLocalizeAction($requestProphecy->reveal(), $responseProphecy->reveal());
+        (new FormInlineAjaxController())->synchronizeLocalizeAction($requestProphecy->reveal());
     }
 
     /**
      * Fallback for IRRE items without inline view attribute
-     * @issue https://forge.typo3.org/issues/76561
+     * @see https://forge.typo3.org/issues/76561
      *
      * @test
      */
-    public function getInlineExpandCollapseStateArraySwitchesToFallbackIfTheBackendUserDoesNotHaveAnUCInlineViewProperty()
+    public function getInlineExpandCollapseStateArraySwitchesToFallbackIfTheBackendUserDoesNotHaveAnUCInlineViewProperty(): void
     {
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
         $backendUserProphecy->uc = [];
@@ -238,19 +232,19 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         $mockObject->method('getBackendUserAuthentication')->willReturn($backendUser);
         $result = $mockObject->_call('getInlineExpandCollapseStateArray');
 
-        $this->assertEmpty($result);
+        self::assertEmpty($result);
     }
 
     /**
      * Unserialize uc inline view string for IRRE item
-     * @issue https://forge.typo3.org/issues/76561
+     * @see https://forge.typo3.org/issues/76561
      *
      * @test
      */
-    public function getInlineExpandCollapseStateArrayWillUnserializeUCInlineViewPropertyAsAnArrayWithData()
+    public function getInlineExpandCollapseStateArrayWillUnserializeUCInlineViewPropertyAsAnArrayWithData(): void
     {
         $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
-        $backendUserProphecy->uc = ['inlineView' => serialize(['foo' => 'bar'])];
+        $backendUserProphecy->uc = ['inlineView' => json_encode(['foo' => 'bar'])];
         $backendUser = $backendUserProphecy->reveal();
 
         $mockObject = $this->getAccessibleMock(
@@ -263,6 +257,6 @@ class FormInlineAjaxControllerTest extends \TYPO3\TestingFramework\Core\Unit\Uni
         $mockObject->method('getBackendUserAuthentication')->willReturn($backendUser);
         $result = $mockObject->_call('getInlineExpandCollapseStateArray');
 
-        $this->assertNotEmpty($result);
+        self::assertNotEmpty($result);
     }
 }

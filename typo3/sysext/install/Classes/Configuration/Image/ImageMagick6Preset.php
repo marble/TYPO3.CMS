@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Configuration\Image;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,16 @@ namespace TYPO3\CMS\Install\Configuration\Image;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Install\Configuration;
+namespace TYPO3\CMS\Install\Configuration\Image;
+
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Utility\CommandUtility;
 
 /**
  * Preset for ImageMagick version 6 or higher
+ * @internal only to be used within EXT:install
  */
-class ImageMagick6Preset extends AbstractImagePreset implements Configuration\PresetInterface
+class ImageMagick6Preset extends AbstractImagePreset
 {
     /**
      * @var string Name of preset
@@ -40,7 +43,7 @@ class ImageMagick6Preset extends AbstractImagePreset implements Configuration\Pr
         'GFX/processor_path' => '',
         'GFX/processor_path_lzw' => '',
         'GFX/processor' => 'ImageMagick',
-        'GFX/processor_effects' => 1,
+        'GFX/processor_effects' => true,
         'GFX/processor_allowTemporaryMasksAsPng' => false,
         'GFX/processor_colorspace' => 'sRGB',
     ];
@@ -66,22 +69,26 @@ class ImageMagick6Preset extends AbstractImagePreset implements Configuration\Pr
     {
         $result = false;
         foreach ($searchPaths as $path) {
-            if (TYPO3_OS === 'WIN') {
+            if (Environment::isWindows()) {
                 $executable = 'identify.exe';
+
+                if (!@is_file($path . $executable)) {
+                    $executable = 'magick.exe';
+                }
             } else {
                 $executable = 'identify';
             }
             if (@is_file($path . $executable)) {
                 $command = escapeshellarg($path . $executable) . ' -version';
                 $executingResult = false;
-                \TYPO3\CMS\Core\Utility\CommandUtility::exec($command, $executingResult);
+                CommandUtility::exec($command, $executingResult);
                 // First line of exec command should contain string GraphicsMagick
                 $firstResultLine = array_shift($executingResult);
                 // Example: "Version: ImageMagick 6.6.0-4 2012-05-02 Q16 http://www.imagemagick.org"
                 if (strpos($firstResultLine, 'ImageMagick') !== false) {
-                    list(, $version) = explode('ImageMagick', $firstResultLine);
+                    [, $version] = explode('ImageMagick', $firstResultLine);
                     // Example: "6.6.0-4"
-                    list($version) = explode(' ', trim($version));
+                    [$version] = explode(' ', trim($version));
                     if (version_compare($version, '6.0.0') >= 0) {
                         $this->foundPath = $path;
                         $result = true;

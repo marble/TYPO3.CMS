@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Filelist\ContextMenu\ItemProviders;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,10 +15,11 @@ namespace TYPO3\CMS\Filelist\ContextMenu\ItemProviders;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Resource\File;
+namespace TYPO3\CMS\Filelist\ContextMenu\ItemProviders;
 
 /**
  * Provides click menu items for filemounts
+ * @internal this is a concrete TYPO3 hook implementation and solely used for EXT:filelist and not part of TYPO3's Core API.
  */
 class FilemountsProvider extends FileProvider
 {
@@ -27,12 +28,12 @@ class FilemountsProvider extends FileProvider
      */
     protected $itemsConfiguration = [
         'upload' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.upload',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.upload',
             'iconIdentifier' => 'actions-edit-upload',
             'callbackAction' => 'uploadFile'
         ],
         'new' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.new',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.new',
             'iconIdentifier' => 'actions-document-new',
             'callbackAction' => 'createFile'
         ],
@@ -40,7 +41,7 @@ class FilemountsProvider extends FileProvider
             'type' => 'divider'
         ],
         'pasteInto' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.pasteinto',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.pasteinto',
             'iconIdentifier' => 'actions-document-paste-into',
             'callbackAction' => 'pasteFileInto'
         ]

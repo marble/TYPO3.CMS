@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Database\Schema\EventListener;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +14,8 @@ namespace TYPO3\CMS\Core\Database\Schema\EventListener;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Database\Schema\EventListener;
 
 use Doctrine\DBAL\Event\SchemaIndexDefinitionEventArgs;
 use Doctrine\DBAL\Schema\Index;
@@ -47,7 +48,20 @@ class SchemaIndexDefinitionListener
             $event->getTable(),
             $event->getConnection()->getDatabase()
         );
-        $sql .= ' AND ' . $connection->quoteIdentifier('INDEX_NAME') . ' = ' . $connection->quote($indexName);
+
+        // check whether ORDER BY is available in SQL
+        // and place the part 'AND INDEX_NAME = "SOME_INDEX_NAME"' before that
+        if (strpos($sql, 'ORDER BY') !== false) {
+            $posOfOrderBy = strpos($sql, 'ORDER BY');
+            $tmpSql = substr($sql, 0, $posOfOrderBy);
+            $tmpSql .= ' AND ' . $connection->quoteIdentifier('INDEX_NAME') . ' = ' . $connection->quote($indexName);
+            $tmpSql .= ' ' . substr($sql, $posOfOrderBy);
+            $sql = $tmpSql;
+            unset($tmpSql);
+        } else {
+            $sql .= ' AND ' . $connection->quoteIdentifier('INDEX_NAME') . ' = ' . $connection->quote($indexName);
+        }
+
         $tableIndexes = $event->getConnection()->fetchAll($sql);
 
         $subPartColumns = array_filter(

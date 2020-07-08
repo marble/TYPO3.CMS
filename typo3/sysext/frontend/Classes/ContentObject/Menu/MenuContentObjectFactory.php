@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject\Menu;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,17 @@ namespace TYPO3\CMS\Frontend\ContentObject\Menu;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\ContentObject\Menu;
+
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Frontend\ContentObject\Menu\Exception\NoSuchMenuTypeException;
 
 /**
  * Factory for menu content objects. Allows overriding the default
- * types like 'GMENU' with an own implementation (only one possible)
+ * types like 'TMENU' with an own implementation (only one possible)
  * and new types can be registered.
+ * @internal this is only used for internal purposes and solely used for EXT:frontend and not part of TYPO3's Core API.
  */
 class MenuContentObjectFactory implements SingletonInterface
 {
@@ -30,10 +33,7 @@ class MenuContentObjectFactory implements SingletonInterface
      * @var array
      */
     protected $menuTypeToClassMapping = [
-        'GMENU' => GraphicalMenuContentObject::class,
         'TMENU' => TextMenuContentObject::class,
-        'IMGMENU' => ImageMenuContentObject::class,
-        'JSMENU' => JavaScriptMenuContentObject::class,
     ];
 
     /**
@@ -47,9 +47,10 @@ class MenuContentObjectFactory implements SingletonInterface
     {
         $upperCasedClassName = strtoupper($type);
         if (array_key_exists($upperCasedClassName, $this->menuTypeToClassMapping)) {
+            /** @var AbstractMenuContentObject $object */
             $object = GeneralUtility::makeInstance($this->menuTypeToClassMapping[$upperCasedClassName]);
         } else {
-            throw new Exception\NoSuchMenuTypeException(
+            throw new NoSuchMenuTypeException(
                 'Menu type ' . (string)$type . ' has no implementing class.',
                 1363278130
             );

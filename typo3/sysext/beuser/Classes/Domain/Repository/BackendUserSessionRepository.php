@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Beuser\Domain\Repository;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Beuser\Domain\Repository;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Beuser\Domain\Repository;
+
 use TYPO3\CMS\Beuser\Domain\Model\BackendUser;
 use TYPO3\CMS\Core\Authentication\AbstractUserAuthentication;
 use TYPO3\CMS\Core\Session\Backend\SessionBackendInterface;
@@ -23,6 +24,7 @@ use TYPO3\CMS\Extbase\Persistence\Repository;
 
 /**
  * Repository for \TYPO3\CMS\Extbase\Domain\Model\BackendUser
+ * @internal This class is a TYPO3 Backend implementation and is not considered part of the Public TYPO3 API.
  */
 class BackendUserSessionRepository extends Repository
 {

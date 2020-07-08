@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,29 +13,34 @@ namespace TYPO3\CMS\Core\Tests\Unit\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Http;
+
 use TYPO3\CMS\Core\Http\Stream;
 use TYPO3\CMS\Core\Http\UploadedFile;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Http\UploadedFile
  *
  * Adapted from https://github.com/phly/http/
  */
-class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class UploadedFileTest extends UnitTestCase
 {
     protected $tmpFile;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->tmpFile = null;
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         if (is_scalar($this->tmpFile) && file_exists($this->tmpFile)) {
             unlink($this->tmpFile);
         }
+        parent::tearDown();
     }
 
     /**
@@ -52,10 +56,10 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'float'  => [1.1],
             /* Have not figured out a valid way to test an invalid path yet; null byte injection
              * appears to get caught by fopen()
-            'invalid-path' => [ ('WIN' === strtoupper(substr(PHP_OS, 0, 3))) ? '[:]' : 'foo' . chr(0) ],
+            'invalid-path' => [ ('WIN' === strtoupper(substr(PHP_OS, 0, 3))) ? '[:]' : 'foo' . "\0" ],
              */
             'array'  => [['filename']],
-            'object' => [(object) ['filename']],
+            'object' => [(object)['filename']],
         ];
     }
 
@@ -81,7 +85,7 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'float'  => [1.1],
             'string' => ['1'],
             'array'  => [[1]],
-            'object' => [(object) [1]],
+            'object' => [(object)[1]],
         ];
     }
 
@@ -108,7 +112,7 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'float'    => [1.1],
             'string'   => ['1'],
             'array'    => [[1]],
-            'object'   => [(object) [1]],
+            'object'   => [(object)[1]],
             'negative' => [-1],
             'too-big'  => [9],
         ];
@@ -136,7 +140,7 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'int'    => [1],
             'float'  => [1.1],
             'array'  => [['string']],
-            'object' => [(object) ['string']],
+            'object' => [(object)['string']],
         ];
     }
 
@@ -169,7 +173,7 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $stream = new Stream('php://temp');
         $upload = new UploadedFile($stream, 0, UPLOAD_ERR_OK);
-        $this->assertSame($stream, $upload->getStream());
+        self::assertSame($stream, $upload->getStream());
     }
 
     /**
@@ -180,7 +184,7 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $stream = fopen('php://temp', 'wb+');
         $upload = new UploadedFile($stream, 0, UPLOAD_ERR_OK);
         $uploadStream = $upload->getStream()->detach();
-        $this->assertSame($stream, $uploadStream);
+        self::assertSame($stream, $uploadStream);
     }
 
     /**
@@ -193,7 +197,7 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $uploadStream = $upload->getStream();
         $r = new \ReflectionProperty($uploadStream, 'stream');
         $r->setAccessible(true);
-        $this->assertSame($stream, $r->getValue($uploadStream));
+        self::assertSame($stream, $r->getValue($uploadStream));
     }
 
     /**
@@ -207,9 +211,9 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $this->tmpFile = $to = GeneralUtility::tempnam('psr7');
         $upload->moveTo($to);
-        $this->assertTrue(file_exists($to));
+        self::assertTrue(file_exists($to));
         $contents = file_get_contents($to);
-        $this->assertEquals($stream->__toString(), $contents);
+        self::assertEquals($stream->__toString(), $contents);
     }
 
     /**
@@ -225,7 +229,7 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'float'  => [1.1],
             'empty'  => [''],
             'array'  => [['filename']],
-            'object' => [(object) ['filename']],
+            'object' => [(object)['filename']],
         ];
     }
 
@@ -256,7 +260,7 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $this->tmpFile = $to = GeneralUtility::tempnam('psr7');
         $upload->moveTo($to);
-        $this->assertTrue(file_exists($to));
+        self::assertTrue(file_exists($to));
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1436717308);
@@ -274,7 +278,7 @@ class UploadedFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $this->tmpFile = $to = GeneralUtility::tempnam('psr7');
         $upload->moveTo($to);
-        $this->assertTrue(file_exists($to));
+        self::assertTrue(file_exists($to));
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1436717306);

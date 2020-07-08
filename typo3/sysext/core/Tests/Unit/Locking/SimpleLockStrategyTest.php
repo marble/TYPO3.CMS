@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Locking;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,22 +13,28 @@ namespace TYPO3\CMS\Core\Tests\Unit\Locking;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Locking;
+
+use PHPUnit\Framework\SkippedTestError;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Locking\SemaphoreLockStrategy;
 use TYPO3\CMS\Core\Locking\SimpleLockStrategy;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Testcase for \TYPO3\CMS\Core\Locking\SimpleLockStrategy
+ * Test case
  */
-class SimpleLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class SimpleLockStrategyTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function constructorCreatesLockDirectoryIfNotExisting()
     {
-        GeneralUtility::rmdir(PATH_site . SimpleLockStrategy::FILE_LOCK_FOLDER, true);
+        GeneralUtility::rmdir(Environment::getVarPath() . '/' . SimpleLockStrategy::FILE_LOCK_FOLDER, true);
         new SimpleLockStrategy('999999999');
-        $this->assertTrue(is_dir(PATH_site . SimpleLockStrategy::FILE_LOCK_FOLDER));
+        self::assertTrue(is_dir(Environment::getVarPath() . '/' . SimpleLockStrategy::FILE_LOCK_FOLDER));
     }
 
     /**
@@ -38,7 +43,7 @@ class SimpleLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     public function constructorSetsResourceToPathWithIdIfUsingSimpleLocking()
     {
         $lock = $this->getAccessibleMock(SimpleLockStrategy::class, ['dummy'], ['999999999']);
-        $this->assertSame(PATH_site . SimpleLockStrategy::FILE_LOCK_FOLDER . 'simple_' . md5('999999999'), $lock->_get('filePath'));
+        self::assertSame(Environment::getVarPath() . '/' . SimpleLockStrategy::FILE_LOCK_FOLDER . 'simple_' . md5('999999999'), $lock->_get('filePath'));
     }
 
     /**
@@ -46,11 +51,11 @@ class SimpleLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
      */
     public function acquireFixesPermissionsOnLockFile()
     {
-        if (TYPO3_OS === 'WIN') {
-            $this->markTestSkipped('Test not available on Windows.');
+        if (Environment::isWindows()) {
+            self::markTestSkipped('Test not available on Windows.');
         }
         // Use a very high id to be unique
-        /** @var SimpleLockStrategy|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $lock */
+        /** @var SimpleLockStrategy|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $lock */
         $lock = $this->getAccessibleMock(SimpleLockStrategy::class, ['dummy'], ['999999999']);
 
         $pathOfLockFile = $lock->_get('filePath');
@@ -62,7 +67,7 @@ class SimpleLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         clearstatcache();
         $resultFilePermissions = substr(decoct(fileperms($pathOfLockFile)), 2);
         $lock->release();
-        $this->assertEquals($resultFilePermissions, '0777');
+        self::assertEquals($resultFilePermissions, '0777');
     }
 
     /**
@@ -70,7 +75,7 @@ class SimpleLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
      */
     public function releaseRemovesLockfileInTypo3TempLocks()
     {
-        /** @var SimpleLockStrategy|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $lock */
+        /** @var SimpleLockStrategy|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $lock */
         $lock = $this->getAccessibleMock(SimpleLockStrategy::class, ['dummy'], ['999999999']);
 
         $pathOfLockFile = $lock->_get('filePath');
@@ -78,7 +83,7 @@ class SimpleLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $lock->acquire();
         $lock->release();
 
-        $this->assertFalse(is_file($pathOfLockFile));
+        self::assertFalse(is_file($pathOfLockFile));
     }
 
     /**
@@ -87,10 +92,9 @@ class SimpleLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     public function invalidFileReferences()
     {
         return [
-            'not within PATH_site' => [tempnam(sys_get_temp_dir(), 'foo')],
-            'directory traversal' => [PATH_site . 'typo3temp/../typo3temp/var/locks/foo'],
-            'directory traversal 2' => [PATH_site . 'typo3temp/var/locks/../../var/locks/foo'],
-            'within uploads' => [PATH_site . 'uploads/TYPO3-Lock-Test']
+            'not within project path' => [tempnam(sys_get_temp_dir(), 'foo')],
+            'directory traversal' => [Environment::getVarPath() . '/../var/lock/foo'],
+            'directory traversal 2' => [Environment::getVarPath() . '/lock/../../var/lock/foo'],
         ];
     }
 
@@ -98,17 +102,17 @@ class SimpleLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
      * @test
      * @dataProvider invalidFileReferences
      * @param string $file
-     * @throws \PHPUnit_Framework_SkippedTestError
+     * @throws SkippedTestError
      */
     public function releaseDoesNotRemoveFilesNotWithinTypo3TempLocksDirectory($file)
     {
         // Create test file
-        touch($file);
+        @touch($file);
         if (!is_file($file)) {
-            $this->markTestIncomplete('releaseDoesNotRemoveFilesNotWithinTypo3TempLocksDirectory() skipped: Test file could not be created');
+            self::markTestIncomplete('releaseDoesNotRemoveFilesNotWithinTypo3TempLocksDirectory() skipped: Test file could not be created');
         }
         // Create instance, set lock file to invalid path
-        /** @var SimpleLockStrategy|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $lock */
+        /** @var SimpleLockStrategy|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $lock */
         $lock = $this->getAccessibleMock(SimpleLockStrategy::class, ['dummy'], ['999999999']);
         $lock->_set('filePath', $file);
         $lock->_set('isAcquired', true);
@@ -120,6 +124,25 @@ class SimpleLockStrategyTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         if (is_file($file)) {
             unlink($file);
         }
-        $this->assertTrue($fileExists);
+        self::assertTrue($fileExists);
+    }
+
+    /**
+     * @test
+     */
+    public function getPriorityReturnsDefaultPriority()
+    {
+        self::assertEquals(SemaphoreLockStrategy::getPriority(), SemaphoreLockStrategy::DEFAULT_PRIORITY);
+    }
+
+    /**
+     * @test
+     */
+    public function setPriority()
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['locking']['strategies'][SimpleLockStrategy::class]['priority'] = 10;
+
+        self::assertEquals(10, SimpleLockStrategy::getPriority());
+        unset($GLOBALS['TYPO3_CONF_VARS']['SYS']['locking']['strategies'][SimpleLockStrategy::class]['priority']);
     }
 }

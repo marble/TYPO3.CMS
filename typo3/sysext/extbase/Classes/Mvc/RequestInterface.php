@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Mvc;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,10 @@ namespace TYPO3\CMS\Extbase\Mvc;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Mvc;
+
 /**
  * Contract for a request.
- *
- * @api
  */
 interface RequestInterface
 {
@@ -25,7 +24,6 @@ interface RequestInterface
      * Sets the dispatched flag
      *
      * @param bool $flag If this request has been dispatched
-     * @api
      */
     public function setDispatched($flag);
 
@@ -36,8 +34,7 @@ interface RequestInterface
      * The dispatcher will try to dispatch the request again if it has not been
      * addressed yet.
      *
-     * @return bool TRUE if this request has been disptached successfully
-     * @api
+     * @return bool TRUE if this request has been dispatched successfully
      */
     public function isDispatched();
 
@@ -47,7 +44,6 @@ interface RequestInterface
      *
      * @return string The controller's Object Name
      * @throws \TYPO3\CMS\Extbase\Mvc\Exception\NoSuchControllerException if the controller does not exist
-     * @api
      */
     public function getControllerObjectName();
 
@@ -56,7 +52,6 @@ interface RequestInterface
      *
      * @param string $argumentName Name of the argument to set
      * @param mixed $value The new value
-     * @api
      */
     public function setArgument($argumentName, $value);
 
@@ -65,7 +60,6 @@ interface RequestInterface
      * which existed before.
      *
      * @param array $arguments An array of argument names and their values
-     * @api
      */
     public function setArguments(array $arguments);
 
@@ -75,7 +69,6 @@ interface RequestInterface
      * @param string $argumentName Name of the argument
      * @return string Value of the argument
      * @throws \TYPO3\CMS\Extbase\Mvc\Exception\NoSuchArgumentException if such an argument does not exist
-     * @api
      */
     public function getArgument($argumentName);
 
@@ -84,7 +77,6 @@ interface RequestInterface
      *
      * @param string $argumentName Name of the argument to check
      * @return bool TRUE if the argument is set, otherwise FALSE
-     * @api
      */
     public function hasArgument($argumentName);
 
@@ -92,7 +84,6 @@ interface RequestInterface
      * Returns an array of arguments and their values
      *
      * @return array Array of arguments and their values (which may be arguments and values as well)
-     * @api
      */
     public function getArguments();
 }

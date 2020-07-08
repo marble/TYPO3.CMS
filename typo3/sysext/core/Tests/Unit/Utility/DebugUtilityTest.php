@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,14 +13,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Utility;
+
 use TYPO3\CMS\Core\Utility\DebugUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for class \TYPO3\CMS\Core\Utility\DebugUtility
  */
-class DebugUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DebugUtilityTest extends UnitTestCase
 {
-    protected function tearDown()
+    protected function tearDown(): void
     {
         parent::tearDown();
         DebugUtility::usePlainTextOutput(true);
@@ -41,7 +43,7 @@ class DebugUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $output = ob_get_contents();
         ob_end_clean();
 
-        $this->assertContains(
+        self::assertStringContainsString(
             '<script>alert(\'Hello world!\')</script>',
             $output
         );
@@ -60,7 +62,7 @@ class DebugUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $output = ob_get_contents();
         ob_end_clean();
 
-        $this->assertContains(
+        self::assertStringContainsString(
             '&lt;script&gt;alert(\'Hello world!\')&lt;/script&gt;',
             $output
         );
@@ -112,6 +114,6 @@ class DebugUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function convertVariableToStringReturnsVariableContent($variable, $expected)
     {
-        $this->assertSame($expected, DebugUtility::convertVariableToString($variable));
+        self::assertSame($expected, DebugUtility::convertVariableToString($variable));
     }
 }

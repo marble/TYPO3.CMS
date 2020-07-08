@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,17 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic;
+
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\Service\EnvironmentService;
 
 /**
- * Query settings. This class is NOT part of the TYPO3.Flow API.
- * It reflects the settings unique to TYPO3 CMS.
- *
- * @api
+ * Query settings, reflects the settings unique to TYPO3 CMS.
  */
 class Typo3QuerySettings implements QuerySettingsInterface
 {
@@ -72,23 +75,29 @@ class Typo3QuerySettings implements QuerySettingsInterface
     /**
      * Representing sys_language_overlay only valid for current context
      *
-     * @var mixed
+     * @var bool
      */
     protected $languageOverlayMode = true;
 
     /**
-     * Representing sys_language_mode only valid for current context
-     *
-     * @var string
-     */
-    protected $languageMode = null;
-
-    /**
-     * Represensting sys_language_uid only valid for current context
+     * Representing sys_language_uid only valid for current context
      *
      * @var int
      */
     protected $languageUid = 0;
+
+    /**
+     * @var EnvironmentService
+     */
+    protected $environmentService;
+
+    /**
+     * @param EnvironmentService $environmentService
+     */
+    public function injectEnvironmentService(EnvironmentService $environmentService)
+    {
+        $this->environmentService = $environmentService;
+    }
 
     /**
      * As long as we use a feature flag ignoreAllEnableFieldsInBe to determine the default behavior, the
@@ -96,24 +105,21 @@ class Typo3QuerySettings implements QuerySettingsInterface
      */
     public function initializeObject()
     {
-        /** @var $objectManager \TYPO3\CMS\Extbase\Object\ObjectManager */
-        $objectManager = GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
-        /** @var $configurationManager \TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface */
-        $configurationManager = $objectManager->get(\TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface::class);
-        if (TYPO3_MODE === 'BE' && $configurationManager->isFeatureEnabled('ignoreAllEnableFieldsInBe')) {
+        /** @var ObjectManager $objectManager */
+        $objectManager = GeneralUtility::makeInstance(ObjectManager::class);
+        /** @var ConfigurationManagerInterface $configurationManager */
+        $configurationManager = $objectManager->get(ConfigurationManagerInterface::class);
+        if ($this->environmentService->isEnvironmentInBackendMode() && $configurationManager->isFeatureEnabled('ignoreAllEnableFieldsInBe')) {
             $this->setIgnoreEnableFields(true);
         }
-
-        // TYPO3 CMS language defaults
-        $this->setLanguageUid(0);
-        $this->setLanguageMode(null);
+        /** @var LanguageAspect $languageAspect */
+        $languageAspect = GeneralUtility::makeInstance(Context::class)->getAspect('language');
+        $this->setLanguageUid($languageAspect->getContentId());
         $this->setLanguageOverlayMode(false);
 
-        // Set correct language uid for frontend handling
-        if (isset($GLOBALS['TSFE']) && is_object($GLOBALS['TSFE'])) {
-            $this->setLanguageUid((int)$GLOBALS['TSFE']->sys_language_content);
-            $this->setLanguageOverlayMode($GLOBALS['TSFE']->sys_language_contentOL ?: false);
-            $this->setLanguageMode($GLOBALS['TSFE']->sys_language_mode ?: null);
+        if ($this->environmentService->isEnvironmentInFrontendMode()) {
+            $overlayMode = $languageAspect->getLegacyOverlayType() === 'hideNonTranslated' ? 'hideNonTranslated' : (bool)$languageAspect->getLegacyOverlayType();
+            $this->setLanguageOverlayMode($overlayMode);
         } elseif ((int)GeneralUtility::_GP('L')) {
             // Set language from 'L' parameter
             $this->setLanguageUid((int)GeneralUtility::_GP('L'));
@@ -125,7 +131,6 @@ class Typo3QuerySettings implements QuerySettingsInterface
      *
      * @param bool $respectStoragePage If TRUE the storage page ID will be determined and the statement will be extended accordingly.
      * @return QuerySettingsInterface
-     * @api
      */
     public function setRespectStoragePage($respectStoragePage)
     {
@@ -148,7 +153,6 @@ class Typo3QuerySettings implements QuerySettingsInterface
      *
      * @param array $storagePageIds If given the storage page IDs will be determined and the statement will be extended accordingly.
      * @return QuerySettingsInterface
-     * @api
      */
     public function setStoragePageIds(array $storagePageIds)
     {
@@ -169,7 +173,6 @@ class Typo3QuerySettings implements QuerySettingsInterface
     /**
      * @param bool $respectSysLanguage TRUE if TYPO3 language settings are to be applied
      * @return QuerySettingsInterface
-     * @api
      */
     public function setRespectSysLanguage($respectSysLanguage)
     {
@@ -188,7 +191,6 @@ class Typo3QuerySettings implements QuerySettingsInterface
     /**
      * @param mixed $languageOverlayMode TRUE, FALSE or "hideNonTranslated"
      * @return QuerySettingsInterface instance of $this to allow method chaining
-     * @api
      */
     public function setLanguageOverlayMode($languageOverlayMode = false)
     {
@@ -205,28 +207,29 @@ class Typo3QuerySettings implements QuerySettingsInterface
     }
 
     /**
-     * @param string $languageMode NULL, "content_fallback", "strict" or "ignore"
+     * Language Mode is NOT used anymore, so just avoid using it. Will be deprecated in the future.
+     *
+     * @param string $languageMode
      * @return QuerySettingsInterface instance of $this to allow method chaining
-     * @api
      */
     public function setLanguageMode($languageMode = '')
     {
-        $this->languageMode = $languageMode;
         return $this;
     }
 
     /**
+     * Language Mode is NOT used anymore, so just avoid using it. Will be deprecated in the future.
+     *
      * @return string NULL, "content_fallback", "strict" or "ignore"
      */
     public function getLanguageMode()
     {
-        return $this->languageMode;
+        return null;
     }
 
     /**
      * @param int $languageUid
      * @return QuerySettingsInterface instance of $this to allow method chaining
-     * @api
      */
     public function setLanguageUid($languageUid)
     {
@@ -250,7 +253,6 @@ class Typo3QuerySettings implements QuerySettingsInterface
      * @param bool $ignoreEnableFields
      * @return QuerySettingsInterface
      * @see setEnableFieldsToBeIgnored()
-     * @api
      */
     public function setIgnoreEnableFields($ignoreEnableFields)
     {
@@ -280,7 +282,6 @@ class Typo3QuerySettings implements QuerySettingsInterface
      * @param array $enableFieldsToBeIgnored
      * @return QuerySettingsInterface
      * @see setIgnoreEnableFields()
-     * @api
      */
     public function setEnableFieldsToBeIgnored($enableFieldsToBeIgnored)
     {
@@ -305,7 +306,6 @@ class Typo3QuerySettings implements QuerySettingsInterface
      *
      * @param bool $includeDeleted
      * @return QuerySettingsInterface
-     * @api
      */
     public function setIncludeDeleted($includeDeleted)
     {

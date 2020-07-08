@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Validation;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Validation;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Validation;
+
 use TYPO3\CMS\Form\Mvc\Validation\CountValidator;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class CountValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class CountValidatorTest extends UnitTestCase
 {
 
     /**
@@ -38,7 +40,7 @@ class CountValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'steve'
         ];
 
-        $this->assertFalse($validator->validate($input)->hasErrors());
+        self::assertFalse($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -57,7 +59,7 @@ class CountValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'steve'
         ];
 
-        $this->assertFalse($validator->validate($input)->hasErrors());
+        self::assertFalse($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -76,7 +78,7 @@ class CountValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'steve'
         ];
 
-        $this->assertFalse($validator->validate($input)->hasErrors());
+        self::assertFalse($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -96,7 +98,7 @@ class CountValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'francine'
         ];
 
-        $this->assertTrue($validator->validate($input)->hasErrors());
+        self::assertTrue($validator->validate($input)->hasErrors());
     }
 
     /**
@@ -114,6 +116,6 @@ class CountValidatorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'klaus',
         ];
 
-        $this->assertTrue($validator->validate($input)->hasErrors());
+        self::assertTrue($validator->validate($input)->hasErrors());
     }
 }

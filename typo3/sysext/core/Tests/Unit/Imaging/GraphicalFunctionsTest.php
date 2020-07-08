@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Imaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +13,14 @@ namespace TYPO3\CMS\Core\Tests\Unit\Imaging;
  * The TYPO3 project - inspiring people to share!
  */
 
-/**
- * Testcase for \TYPO3\CMS\Core\Imaging\GraphicalFunctions
- */
-class GraphicalFunctionsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
-{
-    /**
-     * @var \TYPO3\CMS\Core\Imaging\GraphicalFunctions
-     */
-    protected $subject = null;
+namespace TYPO3\CMS\Core\Tests\Unit\Imaging;
 
-    /**
-     * Set up
-     */
-    protected function setUp()
-    {
-        $this->subject = new \TYPO3\CMS\Core\Imaging\GraphicalFunctions();
-    }
+use TYPO3\CMS\Core\Imaging\GraphicalFunctions;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
+class GraphicalFunctionsTest extends UnitTestCase
+{
+    protected $resetSingletonInstances = true;
 
     /**
      * Dataprovider for getScaleForImage
@@ -54,7 +44,7 @@ class GraphicalFunctionsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
                     'origH' => 0,
                     'max' => 0,
                     0 => 150,
-                    1 => (float) 120
+                    1 => (float)120
                 ],
             ],
             'Get image scale with a maximum width of 100px' => [
@@ -73,7 +63,7 @@ class GraphicalFunctionsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
                     'origH' => 0,
                     'max' => 1,
                     0 => 100,
-                    1 => (float) 80
+                    1 => (float)80
                 ],
             ],
             'Get image scale with a minimum width of 200px' => [
@@ -92,7 +82,21 @@ class GraphicalFunctionsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
                     'origH' => 0,
                     'max' => 0,
                     0 => 200,
-                    1 => (float) 136
+                    1 => (float)136
+                ],
+            ],
+            'No PHP warning for zero in input dimensions when scaling' => [
+                [0, 0],
+                '50',
+                '',
+                [],
+                [
+                    'crs' => false,
+                    'origW' => 50,
+                    'origH' => 0,
+                    'max' => 0,
+                    0 => 0,
+                    1 => 0
                 ],
             ],
         ];
@@ -104,7 +108,49 @@ class GraphicalFunctionsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
      */
     public function getScaleForImage($info, $width, $height, $options, $expected)
     {
-        $result = $this->subject->getImageScale($info, $width, $height, $options);
-        $this->assertEquals($result, $expected);
+        $result = (new GraphicalFunctions())->getImageScale($info, $width, $height, $options);
+        self::assertEquals($result, $expected);
+    }
+
+    /**
+     * @test
+     */
+    public function imageMagickIdentifyReturnsFormattedValues()
+    {
+        $file = 'myImageFile.png';
+        $expected = [
+            '123',
+            '234',
+            'png',
+            'myImageFile.png',
+            'png'
+        ];
+
+        $subject = $this->getAccessibleMock(GraphicalFunctions::class, ['executeIdentifyCommandForImageFile'], [], '', false);
+        $subject->_set('processorEnabled', true);
+        $subject->expects(self::once())->method('executeIdentifyCommandForImageFile')->with($file)->willReturn('123 234 png PNG');
+        $result = $subject->imageMagickIdentify($file);
+        self::assertEquals($result, $expected);
+    }
+
+    /**
+     * @test
+     */
+    public function imageMagickIdentifyReturnsFormattedValuesWithOffset()
+    {
+        $file = 'myImageFile.png';
+        $expected = [
+            '200+0+0',
+            '400+0+0',
+            'png',
+            'myImageFile.png',
+            'png'
+        ];
+
+        $subject = $this->getAccessibleMock(GraphicalFunctions::class, ['executeIdentifyCommandForImageFile'], [], '', false);
+        $subject->_set('processorEnabled', true);
+        $subject->expects(self::once())->method('executeIdentifyCommandForImageFile')->with($file)->willReturn('200+0+0 400+0+0 png PNG');
+        $result = $subject->imageMagickIdentify($file);
+        self::assertEquals($result, $expected);
     }
 }

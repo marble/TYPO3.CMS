@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
+
 use TYPO3\CMS\Core\Database\Query\Restriction\RootLevelRestriction;
 
 class RootLevelRestrictionTest extends AbstractRestrictionTestCase
@@ -26,7 +28,7 @@ class RootLevelRestrictionTest extends AbstractRestrictionTestCase
     {
         $subject = new RootLevelRestriction();
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('"aTable"."pid" = 0', (string)$expression);
+        self::assertSame('"aTable"."pid" = 0', (string)$expression);
     }
 
     /**
@@ -36,7 +38,7 @@ class RootLevelRestrictionTest extends AbstractRestrictionTestCase
     {
         $subject = new RootLevelRestriction();
         $expression = $subject->buildExpression(['aTableAlias' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('"aTableAlias"."pid" = 0', (string)$expression);
+        self::assertSame('"aTableAlias"."pid" = 0', (string)$expression);
     }
 
     /**
@@ -46,7 +48,7 @@ class RootLevelRestrictionTest extends AbstractRestrictionTestCase
     {
         $subject = new RootLevelRestriction(['aTable']);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('"aTable"."pid" = 0', (string)$expression);
+        self::assertSame('"aTable"."pid" = 0', (string)$expression);
     }
 
     /**
@@ -56,7 +58,7 @@ class RootLevelRestrictionTest extends AbstractRestrictionTestCase
     {
         $subject = new RootLevelRestriction(['aTableAlias']);
         $expression = $subject->buildExpression(['aTableAlias' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('"aTableAlias"."pid" = 0', (string)$expression);
+        self::assertSame('"aTableAlias"."pid" = 0', (string)$expression);
     }
 
     /**
@@ -66,6 +68,6 @@ class RootLevelRestrictionTest extends AbstractRestrictionTestCase
     {
         $subject = new RootLevelRestriction(['aTable']);
         $expression = $subject->buildExpression(['anotherTable' => 'anotherTable'], $this->expressionBuilder);
-        $this->assertSame('', (string)$expression);
+        self::assertSame('', (string)$expression);
     }
 }

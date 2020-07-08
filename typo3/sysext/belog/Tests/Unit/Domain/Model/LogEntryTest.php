@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Belog\Tests\Unit\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,25 @@ namespace TYPO3\CMS\Belog\Tests\Unit\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Belog\Tests\Unit\Domain\Model;
+
+use TYPO3\CMS\Belog\Domain\Model\LogEntry;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class LogEntryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class LogEntryTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Belog\Domain\Model\LogEntry
      */
-    protected $subject = null;
+    protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = new \TYPO3\CMS\Belog\Domain\Model\LogEntry();
+        parent::setUp();
+        $this->subject = new LogEntry();
     }
 
     /**
@@ -34,7 +39,7 @@ class LogEntryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getLogDataInitiallyReturnsEmptyArray()
     {
-        $this->assertSame([], $this->subject->getLogData());
+        self::assertSame([], $this->subject->getLogData());
     }
 
     /**
@@ -43,7 +48,7 @@ class LogEntryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getLogDataForEmptyStringLogDataReturnsEmptyArray()
     {
         $this->subject->setLogData('');
-        $this->assertSame([], $this->subject->getLogData());
+        self::assertSame([], $this->subject->getLogData());
     }
 
     /**
@@ -52,7 +57,7 @@ class LogEntryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getLogDataForGarbageStringLogDataReturnsEmptyArray()
     {
         $this->subject->setLogData('foo bar');
-        $this->assertSame([], $this->subject->getLogData());
+        self::assertSame([], $this->subject->getLogData());
     }
 
     /**
@@ -62,7 +67,7 @@ class LogEntryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $logData = ['foo', 'bar'];
         $this->subject->setLogData(serialize($logData));
-        $this->assertSame($logData, $this->subject->getLogData());
+        self::assertSame($logData, $this->subject->getLogData());
     }
 
     /**
@@ -71,6 +76,6 @@ class LogEntryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getLogDataForSerializedObjectReturnsEmptyArray()
     {
         $this->subject->setLogData(new \stdClass());
-        $this->assertSame([], $this->subject->getLogData());
+        self::assertSame([], $this->subject->getLogData());
     }
 }

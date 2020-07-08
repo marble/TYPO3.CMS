@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Validation\Validator;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,12 @@ namespace TYPO3\CMS\Extbase\Validation\Validator;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Validation\Validator;
+
+use TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationOptionsException;
+
 /**
  * Validator for string length.
- *
- * @api
  */
 class StringLengthValidator extends AbstractValidator
 {
@@ -36,12 +37,11 @@ class StringLengthValidator extends AbstractValidator
      *
      * @param mixed $value The value that should be validated
      * @throws \TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationOptionsException
-     * @api
      */
     public function isValid($value)
     {
         if ($this->options['maximum'] < $this->options['minimum']) {
-            throw new \TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationOptionsException('The \'maximum\' is shorter than the \'minimum\' in the StringLengthValidator.', 1238107096);
+            throw new InvalidValidationOptionsException('The \'maximum\' is shorter than the \'minimum\' in the StringLengthValidator.', 1238107096);
         }
 
         if (is_object($value)) {
@@ -73,7 +73,10 @@ class StringLengthValidator extends AbstractValidator
                             $this->options['minimum'],
                             $this->options['maximum']
                         ]
-                    ), 1428504122, [$this->options['minimum'], $this->options['maximum']]);
+                    ),
+                    1428504122,
+                    [$this->options['minimum'], $this->options['maximum']]
+                );
             } elseif ($this->options['minimum'] > 0) {
                 $this->addError(
                     $this->translateErrorMessage(
@@ -82,7 +85,10 @@ class StringLengthValidator extends AbstractValidator
                         [
                             $this->options['minimum']
                         ]
-                    ), 1238108068, [$this->options['minimum']]);
+                    ),
+                    1238108068,
+                    [$this->options['minimum']]
+                );
             } else {
                 $this->addError(
                     $this->translateErrorMessage(
@@ -91,7 +97,10 @@ class StringLengthValidator extends AbstractValidator
                         [
                             $this->options['maximum']
                         ]
-                    ), 1238108069, [$this->options['maximum']]);
+                    ),
+                    1238108069,
+                    [$this->options['maximum']]
+                );
             }
         }
     }

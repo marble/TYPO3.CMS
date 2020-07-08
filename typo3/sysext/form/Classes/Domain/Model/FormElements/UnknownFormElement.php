@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Model\FormElements;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\Domain\Model\FormElements;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Model\FormElements;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Form\Domain\Exception\IdentifierNotValidException;
@@ -35,7 +39,6 @@ class UnknownFormElement extends AbstractRenderable implements FormElementInterf
      * @param string $identifier The FormElement's identifier
      * @param string $type The Form Element Type
      * @throws IdentifierNotValidException
-     * @api
      */
     public function __construct(string $identifier, string $type)
     {
@@ -47,21 +50,16 @@ class UnknownFormElement extends AbstractRenderable implements FormElementInterf
     }
 
     /**
-     * @api
+     * Sets up the form element
      */
     public function initializeFormElement()
     {
-        if (
-            isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['initializeFormElement'])
-            && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['initializeFormElement'])
-        ) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['initializeFormElement'] as $className) {
-                $hookObj = GeneralUtility::makeInstance($className);
-                if (method_exists($hookObj, 'initializeFormElement')) {
-                    $hookObj->initializeFormElement(
-                        $this
-                    );
-                }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['initializeFormElement'] ?? [] as $className) {
+            $hookObj = GeneralUtility::makeInstance($className);
+            if (method_exists($hookObj, 'initializeFormElement')) {
+                $hookObj->initializeFormElement(
+                    $this
+                );
             }
         }
     }
@@ -72,7 +70,6 @@ class UnknownFormElement extends AbstractRenderable implements FormElementInterf
      * this includes the identifier of the form itself, making it "globally" unique
      *
      * @return string the "globally" unique identifier of this element
-     * @api
      */
     public function getUniqueIdentifier(): string
     {
@@ -86,7 +83,6 @@ class UnknownFormElement extends AbstractRenderable implements FormElementInterf
      * Get the template name of the renderable
      *
      * @return string
-     * @api
      */
     public function getTemplateName(): string
     {

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller\Wizard;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,8 @@ namespace TYPO3\CMS\Backend\Controller\Wizard;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Module\AbstractModule;
-use TYPO3\CMS\Backend\Template\DocumentTemplate;
+namespace TYPO3\CMS\Backend\Controller\Wizard;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -23,8 +22,9 @@ use TYPO3\CMS\Core\Type\Bitmask\Permission;
 
 /**
  * Class AbstractWizardController
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
-class AbstractWizardController extends AbstractModule
+class AbstractWizardController
 {
     /**
      * Checks access for element
@@ -77,15 +77,5 @@ class AbstractWizardController extends AbstractModule
     protected function getLanguageService()
     {
         return $GLOBALS['LANG'];
-    }
-
-    /**
-     * Returns an instance of DocumentTemplate
-     *
-     * @return DocumentTemplate
-     */
-    protected function getDocumentTemplate()
-    {
-        return $GLOBALS['TBE_TEMPLATE'];
     }
 }

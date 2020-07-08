@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,12 @@ namespace TYPO3\CMS\Core\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Utility;
+
 /**
  * Several functions related to naming and conversions of names
  * such as translation between Repository and Model names or
  * exploding an objectControllerName into pieces
- *
- * @api
  */
 class ClassNamingUtility
 {
@@ -34,27 +33,10 @@ class ClassNamingUtility
     public static function translateModelNameToRepositoryName($modelName)
     {
         return str_replace(
-            ['\\Domain\\Model', '_Domain_Model_'],
-            ['\\Domain\\Repository', '_Domain_Repository_'],
+            '\\Domain\\Model',
+            '\\Domain\\Repository',
             $modelName
         ) . 'Repository';
-    }
-
-    /**
-     * Translates a model name to an appropriate validator name
-     * e.g. Tx_Extbase_Domain_Model_Foo to Tx_Extbase_Domain_Validator_FooValidator
-     * or \TYPO3\CMS\Extbase\Domain\Model\Foo to \TYPO3\CMS\Extbase\Domain\Validator\FooValidator
-     *
-     * @param string $modelName Name of the model to translate
-     * @return string Name of the repository
-     */
-    public static function translateModelNameToValidatorName($modelName)
-    {
-        return str_replace(
-            ['\\Domain\\Model\\', '_Domain_Model_'],
-            ['\\Domain\\Validator\\', '_Domain_Validator_'],
-            $modelName
-        ) . 'Validator';
     }
 
     /**
@@ -68,8 +50,8 @@ class ClassNamingUtility
     public static function translateRepositoryNameToModelName($repositoryName)
     {
         return preg_replace(
-            ['/\\\\Domain\\\\Repository/', '/_Domain_Repository_/', '/Repository$/'],
-            ['\\Domain\\Model', '_Domain_Model_', ''],
+            ['/\\\\Domain\\\\Repository/', '/Repository$/'],
+            ['\\Domain\\Model', ''],
             $repositoryName
         );
     }
@@ -85,26 +67,18 @@ class ClassNamingUtility
     {
         $matches = [];
 
-        if (strpos($controllerObjectName, '\\') !== false) {
-            if (substr($controllerObjectName, 0, 9) === 'TYPO3\\CMS') {
-                $extensionName = '^(?P<vendorName>[^\\\\]+\\\[^\\\\]+)\\\(?P<extensionName>[^\\\\]+)';
-            } else {
-                $extensionName = '^(?P<vendorName>[^\\\\]+)\\\\(?P<extensionName>[^\\\\]+)';
-            }
-
-            preg_match(
-                '/' . $extensionName . '\\\\(Controller|Command|(?P<subpackageKey>.+)\\\\Controller)\\\\(?P<controllerName>[a-z\\\\]+)Controller$/ix',
-                $controllerObjectName,
-                $matches
-            );
+        if (strpos($controllerObjectName, 'TYPO3\\CMS') === 0) {
+            $extensionName = '^(?P<vendorName>[^\\\\]+\\\[^\\\\]+)\\\(?P<extensionName>[^\\\\]+)';
         } else {
-            preg_match(
-                '/^Tx_(?P<extensionName>[^_]+)_(Controller|Command|(?P<subpackageKey>.+)_Controller)_(?P<controllerName>[a-z_]+)Controller$/ix',
-                $controllerObjectName,
-                $matches
-            );
+            $extensionName = '^(?P<vendorName>[^\\\\]+)\\\\(?P<extensionName>[^\\\\]+)';
         }
 
-        return $matches;
+        preg_match(
+            '/' . $extensionName . '\\\\(Controller|Command|(?P<subpackageKey>.+)\\\\Controller)\\\\(?P<controllerName>[a-z\\\\]+)Controller$/ix',
+            $controllerObjectName,
+            $matches
+        );
+
+        return array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
     }
 }

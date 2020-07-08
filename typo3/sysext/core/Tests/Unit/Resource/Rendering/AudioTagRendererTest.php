@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource\Rendering;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +15,25 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource\Rendering;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Resource\Rendering;
+
+use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\Rendering\AudioTagRenderer;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Class AudioTagRendererTest
  */
-class AudioTagRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AudioTagRendererTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function getPriorityReturnsCorrectValue()
     {
-        $audioTagRenderer = new \TYPO3\CMS\Core\Resource\Rendering\AudioTagRenderer();
+        $audioTagRenderer = new AudioTagRenderer();
 
-        $this->assertSame(1, $audioTagRenderer->getPriority());
+        self::assertSame(1, $audioTagRenderer->getPriority());
     }
 
     /**
@@ -34,18 +41,18 @@ class AudioTagRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function canRenderReturnsTrueOnCorrectFile()
     {
-        $audioTagRenderer = new \TYPO3\CMS\Core\Resource\Rendering\AudioTagRenderer();
+        $audioTagRenderer = new AudioTagRenderer();
 
-        $fileResourceMock1 = $this->createMock(\TYPO3\CMS\Core\Resource\File::class);
-        $fileResourceMock1->expects($this->any())->method('getMimeType')->will($this->returnValue('audio/mpeg'));
-        $fileResourceMock2 = $this->createMock(\TYPO3\CMS\Core\Resource\File::class);
-        $fileResourceMock2->expects($this->any())->method('getMimeType')->will($this->returnValue('audio/wav'));
-        $fileResourceMock3 = $this->createMock(\TYPO3\CMS\Core\Resource\File::class);
-        $fileResourceMock3->expects($this->any())->method('getMimeType')->will($this->returnValue('audio/ogg'));
+        $fileResourceMock1 = $this->createMock(File::class);
+        $fileResourceMock1->expects(self::any())->method('getMimeType')->willReturn('audio/mpeg');
+        $fileResourceMock2 = $this->createMock(File::class);
+        $fileResourceMock2->expects(self::any())->method('getMimeType')->willReturn('audio/wav');
+        $fileResourceMock3 = $this->createMock(File::class);
+        $fileResourceMock3->expects(self::any())->method('getMimeType')->willReturn('audio/ogg');
 
-        $this->assertTrue($audioTagRenderer->canRender($fileResourceMock1));
-        $this->assertTrue($audioTagRenderer->canRender($fileResourceMock2));
-        $this->assertTrue($audioTagRenderer->canRender($fileResourceMock3));
+        self::assertTrue($audioTagRenderer->canRender($fileResourceMock1));
+        self::assertTrue($audioTagRenderer->canRender($fileResourceMock2));
+        self::assertTrue($audioTagRenderer->canRender($fileResourceMock3));
     }
 
     /**
@@ -53,12 +60,12 @@ class AudioTagRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function canRenderReturnsFalseOnCorrectFile()
     {
-        $audioTagRenderer = new \TYPO3\CMS\Core\Resource\Rendering\AudioTagRenderer();
+        $audioTagRenderer = new AudioTagRenderer();
 
-        $fileResourceMock = $this->createMock(\TYPO3\CMS\Core\Resource\File::class);
-        $fileResourceMock->expects($this->any())->method('getMimeType')->will($this->returnValue('video/mp4'));
+        $fileResourceMock = $this->createMock(File::class);
+        $fileResourceMock->expects(self::any())->method('getMimeType')->willReturn('video/mp4');
 
-        $this->assertFalse($audioTagRenderer->canRender($fileResourceMock));
+        self::assertFalse($audioTagRenderer->canRender($fileResourceMock));
     }
 
     /**
@@ -91,6 +98,22 @@ class AudioTagRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
                 '//:path/myAudioFile',
                 ['controls' => 1, 'controlsList' => 'nodownload'],
                 '<audio controls controlsList="nodownload"><source src="//:path/myAudioFile" type="audio/mpeg"></audio>',
+            ],
+            [
+                '//:path/myAudioFile',
+                ['additionalAttributes' => ['muted' => 'muted', 'foo' => 'bar']],
+                '<audio muted="muted" foo="bar" controls><source src="//:path/myAudioFile" type="audio/mpeg"></audio>',
+            ],
+            [
+                '//:path/myAudioFile',
+                ['data' => ['js-required' => 'yes', 'custom-id' => 'audio-123']],
+                '<audio data-js-required="yes" data-custom-id="audio-123" controls><source src="//:path/myAudioFile" type="audio/mpeg"></audio>',
+            ]
+            ,
+            [
+                '//:path/myAudioFile',
+                ['data' => ['js-required' => 'yes', 'custom-id' => 'audio-123'], 'additionalAttributes' => ['muted' => 'muted', 'foo' => 'bar']],
+                '<audio muted="muted" foo="bar" data-js-required="yes" data-custom-id="audio-123" controls><source src="//:path/myAudioFile" type="audio/mpeg"></audio>',
             ]
         ];
     }
@@ -104,13 +127,13 @@ class AudioTagRendererTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function renderOutputIsCorrect($url, $arguments, $expected)
     {
-        $audioTagRenderer = new \TYPO3\CMS\Core\Resource\Rendering\AudioTagRenderer();
+        $audioTagRenderer = new AudioTagRenderer();
 
-        $fileResourceMock = $this->createMock(\TYPO3\CMS\Core\Resource\File::class);
-        $fileResourceMock->expects($this->any())->method('getMimeType')->will($this->returnValue('audio/mpeg'));
-        $fileResourceMock->expects($this->any())->method('getPublicUrl')->will($this->returnValue($url));
+        $fileResourceMock = $this->createMock(File::class);
+        $fileResourceMock->expects(self::any())->method('getMimeType')->willReturn('audio/mpeg');
+        $fileResourceMock->expects(self::any())->method('getPublicUrl')->willReturn($url);
 
-        $this->assertSame(
+        self::assertSame(
             $expected,
             $audioTagRenderer->render($fileResourceMock, '300m', '200', $arguments)
         );

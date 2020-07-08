@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Topbar;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,9 @@ namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Topbar;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
+namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Topbar;
+
+use TYPO3\CMS\Core\Tests\Acceptance\Support\BackendTester;
 
 /**
  * Acceptance test for the Navigation Component Tree
@@ -22,17 +25,17 @@ use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
 class NavigationComponentTreeCest
 {
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function _before(Admin $I)
+    public function _before(BackendTester $I)
     {
-        $I->useExistingSession();
+        $I->useExistingSession('admin');
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function checkTreeExpandsAndCollapseByPageModule(Admin $I)
+    public function checkTreeExpandsAndCollapseByPageModule(BackendTester $I)
     {
         $treeArea = '.scaffold-content-navigation-expanded';
         $I->wantTo('check Page Module for Expands And Collapse');
@@ -51,16 +54,16 @@ class NavigationComponentTreeCest
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function checkTreeExpandsAndCollapseByFileModule(Admin $I)
+    public function checkTreeExpandsAndCollapseByFileModule(BackendTester $I)
     {
         $I->wantTo('check File Module for Expands And Collapse');
         $I->click('Filelist');
         $I->switchToIFrame('nav_frame');
         $I->waitForElement('.t3js-module-body');
         $I->see('fileadmin', '.t3js-module-body');
-        $I->switchToIFrame();
+        $I->switchToMainFrame();
         $I->wantTo('check File Module for Collapse');
         $I->click('button.t3js-topbar-button-navigationcomponent');
         $I->waitForElementNotVisible('.scaffold-content-navigation-expanded');
@@ -69,6 +72,6 @@ class NavigationComponentTreeCest
         $I->switchToIFrame('nav_frame');
         $I->waitForElement('.t3js-module-body');
         $I->see('fileadmin', '.t3js-module-body');
-        $I->switchToIFrame();
+        $I->switchToMainFrame();
     }
 }

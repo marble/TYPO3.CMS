@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Domain\Repository;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,17 @@ namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Domain\Repository;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Domain\Repository;
+
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
+use TYPO3\CMS\Extensionmanager\Domain\Model\Repository;
+use TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class RepositoryRepositoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class RepositoryRepositoryTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Extbase\Object\ObjectManagerInterface
@@ -29,11 +35,12 @@ class RepositoryRepositoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->mockObjectManager = $this->getMockBuilder(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface::class)->getMock();
-        /** @var $subject \TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository|\PHPUnit_Framework_MockObject_MockObject */
-        $this->subject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository::class)
+        parent::setUp();
+        $this->mockObjectManager = $this->getMockBuilder(ObjectManagerInterface::class)->getMock();
+        /** @var $subject \TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository|\PHPUnit\Framework\MockObject\MockObject */
+        $this->subject = $this->getMockBuilder(RepositoryRepository::class)
             ->setMethods(['findAll'])
             ->setConstructorArgs([$this->mockObjectManager])
             ->getMock();
@@ -45,11 +52,11 @@ class RepositoryRepositoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     public function findOneTypo3OrgRepositoryReturnsNullIfNoRepositoryWithThisTitleExists()
     {
         $this->subject
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('findAll')
-            ->will($this->returnValue([]));
+            ->willReturn([]);
 
-        $this->assertNull($this->subject->findOneTypo3OrgRepository());
+        self::assertNull($this->subject->findOneTypo3OrgRepository());
     }
 
     /**
@@ -57,22 +64,22 @@ class RepositoryRepositoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function findOneTypo3OrgRepositoryReturnsRepositoryWithCorrectTitle()
     {
-        $mockModelOne = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Repository::class)->getMock();
+        $mockModelOne = $this->getMockBuilder(Repository::class)->getMock();
         $mockModelOne
-            ->expects(($this->once()))
+            ->expects(self::once())
             ->method('getTitle')
-            ->will($this->returnValue('foo'));
-        $mockModelTwo = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Repository::class)->getMock();
+            ->willReturn('foo');
+        $mockModelTwo = $this->getMockBuilder(Repository::class)->getMock();
         $mockModelTwo
-            ->expects(($this->once()))
+            ->expects(self::once())
             ->method('getTitle')
-            ->will($this->returnValue('TYPO3.org Main Repository'));
+            ->willReturn('TYPO3.org Main Repository');
 
         $this->subject
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('findAll')
-            ->will($this->returnValue([$mockModelOne, $mockModelTwo]));
+            ->willReturn([$mockModelOne, $mockModelTwo]);
 
-        $this->assertSame($mockModelTwo, $this->subject->findOneTypo3OrgRepository());
+        self::assertSame($mockModelTwo, $this->subject->findOneTypo3OrgRepository());
     }
 }

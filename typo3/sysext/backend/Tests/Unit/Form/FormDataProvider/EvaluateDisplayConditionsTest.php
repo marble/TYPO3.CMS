@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,15 +15,18 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Form\FormDataProvider\EvaluateDisplayConditions;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class EvaluateDisplayConditionsTest extends UnitTestCase
 {
     /**
      * @test
@@ -53,7 +56,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
     /**
      * @test
      */
-    public function addDataThrowsExceptionWithMultipleConditionsCombinedWithAndHavingOnlyOneSubCondition()
+    public function addDataThrowsExceptionIAConditionHasNoStringAsKey()
     {
         $input = [
             'databaseRow' => [],
@@ -61,16 +64,14 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                 'columns' => [
                     'field_1' => [
                         'displayCond' => [
-                            'AND' => [
-                                'condition1',
-                            ],
+                            ['condition1'],
                         ],
                     ],
                 ],
             ],
         ];
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionCode(1481464101);
+        $this->expectExceptionCode(1481380393);
         (new EvaluateDisplayConditions())->addData($input);
     }
 
@@ -518,21 +519,153 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
      * Callback method of addDataEvaluatesUserCondition. A USER condition
      * Throws an exception if data is correct!
      *
+     * @param array $parameter
      * @throws \RuntimeException if data is ok
      */
     public function addDataEvaluatesUserConditionCallback(array $parameter)
     {
         $expected = [
             'record' => [],
+            'flexContext' => [],
             'flexformValueKey' => 'vDEF',
             'conditionParameters' => [
                 0 => 'more',
                 1 => 'arguments',
-            ]
+            ],
         ];
         if ($expected === $parameter) {
             throw new \RuntimeException('testing', 1488130499);
         }
+    }
+
+    /**
+     * @test
+     */
+    public function addDataResolvesAllUserParameters()
+    {
+        $input = [
+            'databaseRow' => [],
+            'processedTca' => [
+                'columns' => [
+                    'field_1' => [
+                        'displayCond' => 'USER:' . self::class . '->addDataResolvesAllUserParametersCallback:some:more:info',
+                        'config' => [
+                            'type' => 'input',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $expected = $input;
+        unset($expected['processedTca']['columns']['field_1']['displayCond']);
+
+        self::assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
+    }
+
+    /**
+     * Callback method of addDataResolvesAllUserParameters. A USER condition
+     * receives all condition parameter!
+     *
+     * @param array $parameter
+     * @throws \RuntimeException if condition parameter not resolved correctly
+     * @return bool
+     */
+    public function addDataResolvesAllUserParametersCallback(array $parameter)
+    {
+        $expected = [
+            0 => 'some',
+            1 => 'more',
+            2 => 'info',
+        ];
+
+        if ($expected !== $parameter['conditionParameters']) {
+            throw new \RuntimeException('testing', 1538055997);
+        }
+
+        return true;
+    }
+
+    /**
+     * @test
+     */
+    public function addDataPassesFlexContextToUserCondition()
+    {
+        $input = [
+            'databaseRow' => [],
+            'processedTca' => [
+                'columns' => [
+                    'field_1' => [
+                        'config' => [
+                            'type' => 'flex',
+                            'ds' => [
+                                'sheets' => [
+                                    'sDEF' => [
+                                        'ROOT' => [
+                                            'type' => 'array',
+                                            'el' => [
+                                                'foo' => [
+                                                    'displayCond' => 'USER:' . self::class . '->addDataPassesFlexContextToUserConditionCallback:some:info',
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $expected = $input;
+        unset($expected['processedTca']['columns']['field_1']['config']['ds']['sheets']['sDEF']['ROOT']['el']['foo']['displayCond']);
+
+        self::assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
+    }
+
+    /**
+     * Callback method of addDataEvaluatesUserCondition. A USER condition
+     * Throws an exception if data is correct!
+     *
+     * @param array $parameter
+     * @throws \RuntimeException if FlexForm context is not as expected
+     * @return bool
+     */
+    public function addDataPassesFlexContextToUserConditionCallback(array $parameter)
+    {
+        $expected = [
+            'context' => 'flexField',
+            'sheetNameFieldNames' => [
+                'sDEF.foo' => [
+                    'sheetName' => 'sDEF',
+                    'fieldName' => 'foo',
+                ],
+            ],
+            'currentSheetName' => 'sDEF',
+            'currentFieldName' => 'foo',
+            'flexFormDataStructure' => [
+                'sheets' => [
+                    'sDEF' => [
+                        'ROOT' => [
+                            'type' => 'array',
+                            'el' => [
+                                'foo' => [
+                                    'displayCond' => 'USER:' . self::class . '->addDataPassesFlexContextToUserConditionCallback:some:info'
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            'flexFormRowData' => null,
+        ];
+
+        if ($expected !== $parameter['flexContext']) {
+            throw new \RuntimeException('testing', 1538057402);
+        }
+
+        return true;
     }
 
     /**
@@ -766,7 +899,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                         ],
                     ],
                 ],
-            ]
+            ],
         ];
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1481634649);
@@ -1196,8 +1329,8 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                                             'ROOT' => [
                                                 'el' => [
                                                     'flexField_1' => [],
-                                                ]
-                                            ]
+                                                ],
+                                            ],
                                         ],
                                         'sheet_2' => [
                                             'ROOT' => [
@@ -1244,8 +1377,8 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                                             'ROOT' => [
                                                 'el' => [
                                                     'flexField_1' => [],
-                                                ]
-                                            ]
+                                                ],
+                                            ],
                                         ],
                                         'sheet_2' => [
                                             'ROOT' => [
@@ -1292,8 +1425,8 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                                             'ROOT' => [
                                                 'el' => [
                                                     'flexField.1' => [],
-                                                ]
-                                            ]
+                                                ],
+                                            ],
                                         ],
                                         'sheet_2' => [
                                             'ROOT' => [
@@ -1340,8 +1473,8 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                                             'ROOT' => [
                                                 'el' => [
                                                     'flexField.1' => [],
-                                                ]
-                                            ]
+                                                ],
+                                            ],
                                         ],
                                         'sheet_2' => [
                                             'ROOT' => [
@@ -3386,7 +3519,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                                                         'FIELD:sheet_1.field_1:=:LIST',
                                                         'FIELD:sheet_1.field_1:!=:foo',
                                                     ],
-                                                ] ,
+                                                ],
                                             ],
                                         ],
                                     ],
@@ -3503,7 +3636,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
             'processedTca' => $processedTca,
         ];
         $expected = ArrayUtility::removeByPath($input, 'processedTca/' . $processedTcaFieldToBeRemovedPath);
-        $this->assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
+        self::assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
     }
 
     /**
@@ -3566,17 +3699,17 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
             'Field value comparison of 1 against multi-value field of 5 returns true' => [
                 'FIELD:content:BIT:1',
                 ['content' => '5'],
-                true
+                true,
             ],
             'Field value comparison of 2 against multi-value field of 5 returns false' => [
                 'FIELD:content:BIT:2',
                 ['content' => '5'],
-                false
+                false,
             ],
             'Field value of 5 negated comparison against multi-value field of 5 returns false' => [
                 'FIELD:content:!BIT:5',
                 ['content' => '5'],
-                false
+                false,
             ],
             'Field value comparison for required value is false for different value' => [
                 'FIELD:foo:REQ:FALSE',
@@ -3632,7 +3765,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                 'VERSION:IS:TRUE',
                 [
                     'uid' => 42,
-                    'pid' => -1
+                    't3ver_oid' => 12,
                 ],
                 true,
             ],
@@ -3640,7 +3773,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                 'VERSION:IS:FALSE',
                 [
                     'uid' => 42,
-                    'pid' => 1
+                    't3ver_oid' => 0,
                 ],
                 true,
             ],
@@ -3652,6 +3785,17 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                 ],
                 false,
             ],
+            'Single condition with AND compares to TRUE if the one is OK' => [
+                [
+                    'AND' => [
+                        'FIELD:testField:>:9',
+                    ],
+                ],
+                [
+                    'testField' => 10,
+                ],
+                true,
+            ],
             'Multiple conditions with AND compare to TRUE if all are OK' => [
                 [
                     'AND' => [
@@ -3660,7 +3804,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                     ],
                 ],
                 [
-                    'testField' => 10
+                    'testField' => 10,
                 ],
                 true,
             ],
@@ -3669,12 +3813,23 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                     'AND' => [
                         'FIELD:testField:>:9',
                         'FIELD:testField:<:11',
-                    ]
+                    ],
                 ],
                 [
-                    'testField' => 99
+                    'testField' => 99,
                 ],
                 false,
+            ],
+            'Single condition with OR compares to TRUE if the one is OK' => [
+                [
+                    'OR' => [
+                        'FIELD:testField:>:9',
+                    ],
+                ],
+                [
+                    'testField' => 10,
+                ],
+                true,
             ],
             'Multiple conditions with OR compare to TRUE if one is OK' => [
                 [
@@ -3684,7 +3839,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                     ],
                 ],
                 [
-                    'testField' => 10
+                    'testField' => 10,
                 ],
                 true,
             ],
@@ -3696,7 +3851,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                     ],
                 ],
                 [
-                    'testField' => 99
+                    'testField' => 99,
                 ],
                 false,
             ],
@@ -3711,7 +3866,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                     ],
                 ],
                 [
-                    'testField' => 10
+                    'testField' => 10,
                 ],
                 true,
             ],
@@ -3726,7 +3881,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                     ],
                 ],
                 [
-                    'testField' => -999
+                    'testField' => -999,
                 ],
                 false,
             ],
@@ -3750,11 +3905,14 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                         'displayCond' => $condition,
                         'config' => [
                             'type' => 'input',
-                        ]
+                        ],
                     ],
-                ]
-            ]
+                ],
+            ],
         ];
+
+        $backendUserAuthenticationProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserAuthenticationProphecy->reveal();
 
         $expected = $input;
         if ($expectedResult) {
@@ -3763,7 +3921,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
         } else {
             unset($expected['processedTca']['columns']['testField']);
         }
-        $this->assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
+        self::assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
     }
 
     /**
@@ -3787,7 +3945,18 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                 ],
             ],
         ];
-        $input['databaseRow'] = $record ?: ['testField' => ['key' => $record['testField']]];
+
+        $input['databaseRow'] = $record;
+        if (!empty($record['testField'])) {
+            $input['databaseRow'] = [
+                'testField' => [
+                    'key' => $record['testField'],
+                ],
+            ];
+        }
+
+        $backendUserAuthenticationProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserAuthenticationProphecy->reveal();
 
         $expected = $input;
         if ($expectedResult) {
@@ -3796,7 +3965,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
         } else {
             unset($expected['processedTca']['columns']['testField']);
         }
-        $this->assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
+        self::assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
     }
 
     /**
@@ -3812,10 +3981,10 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                         'displayCond' => 'HIDE_FOR_NON_ADMINS',
                         'config' => [
                             'type' => 'input',
-                        ]
+                        ],
                     ],
-                ]
-            ]
+                ],
+            ],
         ];
 
         /** @var BackendUserAuthentication|ObjectProphecy backendUserProphecy */
@@ -3826,7 +3995,7 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
         $expected = $input;
         unset($expected['processedTca']['columns']['aField']['displayCond']);
 
-        $this->assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
+        self::assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
     }
 
     /**
@@ -3842,10 +4011,10 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
                         'displayCond' => 'HIDE_FOR_NON_ADMINS',
                         'config' => [
                             'type' => 'input',
-                        ]
+                        ],
                     ],
-                ]
-            ]
+                ],
+            ],
         ];
 
         /** @var BackendUserAuthentication|ObjectProphecy backendUserProphecy */
@@ -3855,6 +4024,6 @@ class EvaluateDisplayConditionsTest extends \TYPO3\TestingFramework\Core\Unit\Un
 
         $expected = $input;
         unset($expected['processedTca']['columns']['aField']);
-        $this->assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
+        self::assertSame($expected, (new EvaluateDisplayConditions())->addData($input));
     }
 }

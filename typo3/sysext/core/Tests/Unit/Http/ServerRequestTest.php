@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +13,28 @@ namespace TYPO3\CMS\Core\Tests\Unit\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Http;
+
 use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Http\UploadedFile;
 use TYPO3\CMS\Core\Http\Uri;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Http\ServerRequest
  *
  * Adapted from https://github.com/phly/http/
  */
-class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ServerRequestTest extends UnitTestCase
 {
     /**
      * @var ServerRequest
      */
     protected $request;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->request = new ServerRequest();
     }
 
@@ -40,7 +43,7 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getServerParamsAreEmptyByDefault()
     {
-        $this->assertEmpty($this->request->getServerParams());
+        self::assertEmpty($this->request->getServerParams());
     }
 
     /**
@@ -48,7 +51,7 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getQueryParamsAreEmptyByDefault()
     {
-        $this->assertEmpty($this->request->getQueryParams());
+        self::assertEmpty($this->request->getQueryParams());
     }
 
     /**
@@ -58,8 +61,8 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $value = ['foo' => 'bar'];
         $request = $this->request->withQueryParams($value);
-        $this->assertNotSame($this->request, $request);
-        $this->assertEquals($value, $request->getQueryParams());
+        self::assertNotSame($this->request, $request);
+        self::assertEquals($value, $request->getQueryParams());
     }
 
     /**
@@ -67,7 +70,7 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getCookieParamsAreEmptyByDefault()
     {
-        $this->assertEmpty($this->request->getCookieParams());
+        self::assertEmpty($this->request->getCookieParams());
     }
 
     /**
@@ -77,8 +80,8 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $value = ['foo' => 'bar'];
         $request = $this->request->withCookieParams($value);
-        $this->assertNotSame($this->request, $request);
-        $this->assertEquals($value, $request->getCookieParams());
+        self::assertNotSame($this->request, $request);
+        self::assertEquals($value, $request->getCookieParams());
     }
 
     /**
@@ -86,7 +89,7 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getUploadedFilesAreEmptyByDefault()
     {
-        $this->assertEmpty($this->request->getUploadedFiles());
+        self::assertEmpty($this->request->getUploadedFiles());
     }
 
     /**
@@ -94,7 +97,7 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getParsedBodyIsEmptyByDefault()
     {
-        $this->assertEmpty($this->request->getParsedBody());
+        self::assertEmpty($this->request->getParsedBody());
     }
 
     /**
@@ -104,8 +107,8 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $value = ['foo' => 'bar'];
         $request = $this->request->withParsedBody($value);
-        $this->assertNotSame($this->request, $request);
-        $this->assertEquals($value, $request->getParsedBody());
+        self::assertNotSame($this->request, $request);
+        self::assertEquals($value, $request->getParsedBody());
     }
 
     /**
@@ -113,31 +116,30 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getAttributesAreEmptyByDefault()
     {
-        $this->assertEmpty($this->request->getAttributes());
+        self::assertEmpty($this->request->getAttributes());
     }
 
     /**
-     * @depends testAttributesAreEmptyByDefault
      * @test
      */
     public function withAttributeMutatorReturnsCloneWithChanges()
     {
         $request = $this->request->withAttribute('foo', 'bar');
-        $this->assertNotSame($this->request, $request);
-        $this->assertEquals('bar', $request->getAttribute('foo'));
+        self::assertNotSame($this->request, $request);
+        self::assertEquals('bar', $request->getAttribute('foo'));
 
         return $request;
     }
 
     /**
-     * @depends testAttributeMutatorReturnsCloneWithChanges
      * @test
      */
-    public function withoutAttributeReturnsCloneWithoutAttribute($request)
+    public function withoutAttributeReturnsCloneWithoutAttribute()
     {
+        $request = $this->request;
         $new = $request->withoutAttribute('foo');
-        $this->assertNotSame($request, $new);
-        $this->assertNull($new->getAttribute('foo', null));
+        self::assertNotSame($request, $new);
+        self::assertNull($new->getAttribute('foo', null));
     }
 
     /**
@@ -171,17 +173,17 @@ class ServerRequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             $files
         );
 
-        $this->assertEquals($server, $request->getServerParams());
-        $this->assertEquals($files, $request->getUploadedFiles());
+        self::assertEquals($server, $request->getServerParams());
+        self::assertEquals($files, $request->getUploadedFiles());
 
-        $this->assertSame($uri, $request->getUri());
-        $this->assertEquals($method, $request->getMethod());
-        $this->assertEquals($headers, $request->getHeaders());
+        self::assertSame($uri, $request->getUri());
+        self::assertEquals($method, $request->getMethod());
+        self::assertEquals($headers, $request->getHeaders());
 
         $body = $request->getBody();
         $r = new \ReflectionProperty($body, 'stream');
         $r->setAccessible(true);
         $stream = $r->getValue($body);
-        $this->assertEquals('php://memory', $stream);
+        self::assertEquals('php://memory', $stream);
     }
 }

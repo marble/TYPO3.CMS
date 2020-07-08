@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Functional\Database\Schema;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Functional\Database\Schema;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\Database\Schema;
+
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\BigIntType;
@@ -24,11 +25,12 @@ use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Schema\SchemaMigrator;
 use TYPO3\CMS\Core\Database\Schema\SqlReader;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
- * Test case for \TYPO3\CMS\Core\Database\Schema\SchemaMigratorTest
+ * Test case
  */
-class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class SchemaMigratorTest extends FunctionalTestCase
 {
     /**
      * @var SqlReader
@@ -58,7 +60,7 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
     /**
      * Sets up this test suite.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->subject = GeneralUtility::makeInstance(SchemaMigrator::class);
@@ -71,7 +73,7 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
     /**
      * Tears down this test suite.
      */
-    protected function tearDown()
+    protected function tearDown(): void
     {
         parent::tearDown();
 
@@ -103,7 +105,7 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['create_table']
         );
 
-        $this->assertCount(6, $this->getTableDetails()->getColumns());
+        self::assertCount(6, $this->getTableDetails()->getColumns());
     }
 
     /**
@@ -119,7 +121,7 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['create_table']
         );
 
-        $this->assertTrue($this->schemaManager->tablesExist(['another_test_table']));
+        self::assertTrue($this->schemaManager->tablesExist(['another_test_table']));
     }
 
     /**
@@ -135,9 +137,9 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['add']
         );
 
-        $this->assertCount(7, $this->getTableDetails()->getColumns());
-        $this->assertTrue($this->getTableDetails()->hasColumn('title'));
-        $this->assertTrue($this->getTableDetails()->hasColumn('description'));
+        self::assertCount(7, $this->getTableDetails()->getColumns());
+        self::assertTrue($this->getTableDetails()->hasColumn('title'));
+        self::assertTrue($this->getTableDetails()->hasColumn('description'));
     }
 
     /**
@@ -148,20 +150,26 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
         $statements = $this->readFixtureFile('changeExistingColumn');
         $updateSuggestions = $this->subject->getUpdateSuggestions($statements);
 
-        $this->assertEquals(50, $this->getTableDetails()->getColumn('title')->getLength());
-        $this->assertEmpty($this->getTableDetails()->getColumn('title')->getDefault());
+        self::assertEquals(50, $this->getTableDetails()->getColumn('title')->getLength());
+        self::assertEmpty($this->getTableDetails()->getColumn('title')->getDefault());
 
         $this->subject->migrate(
             $statements,
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change']
         );
 
-        $this->assertEquals(100, $this->getTableDetails()->getColumn('title')->getLength());
-        $this->assertEquals('Title', $this->getTableDetails()->getColumn('title')->getDefault());
+        self::assertEquals(100, $this->getTableDetails()->getColumn('title')->getLength());
+        self::assertEquals('Title', $this->getTableDetails()->getColumn('title')->getDefault());
     }
 
     /**
+     * Disabled on sqlite: It does not support adding a not null column to an existing
+     * table and throws "Cannot add a NOT NULL column with default value NULL". It's
+     * currently unclear if core should handle that by changing the alter table
+     * statement on the fly.
+     *
      * @test
+     * @group not-sqlite
      */
     public function notNullWithoutDefaultValue()
     {
@@ -173,9 +181,7 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['add']
         );
 
-        $updateSuggestions = $this->subject->getUpdateSuggestions($statements);
-        $this->assertEmpty($updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change']);
-        $this->assertTrue($this->getTableDetails()->getColumn('aTestField')->getNotnull());
+        self::assertTrue($this->getTableDetails()->getColumn('aTestField')->getNotnull());
     }
 
     /**
@@ -191,16 +197,15 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['add']
         );
 
-        $updateSuggestions = $this->subject->getUpdateSuggestions($statements);
-        $this->assertEmpty($updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change']);
-        $this->assertFalse($this->getTableDetails()->getColumn('aTestField')->getNotnull());
-        $this->assertNull($this->getTableDetails()->getColumn('aTestField')->getDefault());
+        self::assertFalse($this->getTableDetails()->getColumn('aTestField')->getNotnull());
+        self::assertNull($this->getTableDetails()->getColumn('aTestField')->getDefault());
     }
 
     /**
      * @test
      * @group not-postgres
      * @group not-mssql
+     * @group not-sqlite
      */
     public function renameUnusedField()
     {
@@ -212,8 +217,8 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change']
         );
 
-        $this->assertFalse($this->getTableDetails()->hasColumn('hidden'));
-        $this->assertTrue($this->getTableDetails()->hasColumn('zzz_deleted_hidden'));
+        self::assertFalse($this->getTableDetails()->hasColumn('hidden'));
+        self::assertTrue($this->getTableDetails()->hasColumn('zzz_deleted_hidden'));
     }
 
     /**
@@ -229,25 +234,29 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change_table']
         );
 
-        $this->assertNotContains($this->tableName, $this->schemaManager->listTableNames());
-        $this->assertContains('zzz_deleted_' . $this->tableName, $this->schemaManager->listTableNames());
+        self::assertNotContains($this->tableName, $this->schemaManager->listTableNames());
+        self::assertContains('zzz_deleted_' . $this->tableName, $this->schemaManager->listTableNames());
     }
 
     /**
+     * Disabled on sqlite: It seems the platform is unable to drop columns for
+     * currently unknown reasons.
+     *
      * @test
+     * @group not-sqlite
      */
     public function dropUnusedField()
     {
         $connection = $this->connectionPool->getConnectionForTable($this->tableName);
         $fromSchema = $this->schemaManager->createSchema();
         $toSchema = clone $fromSchema;
-        $toSchema->getTable($this->tableName)->addColumn('zzz_deleted_testfield', 'integer');
+        $toSchema->getTable($this->tableName)->addColumn('zzz_deleted_testfield', 'integer', ['notnull' => false]);
         $statements = $fromSchema->getMigrateToSql(
             $toSchema,
             $connection->getDatabasePlatform()
         );
         $connection->executeUpdate($statements[0]);
-        $this->assertTrue($this->getTableDetails()->hasColumn('zzz_deleted_testfield'));
+        self::assertTrue($this->getTableDetails()->hasColumn('zzz_deleted_testfield'));
 
         $statements = $this->readFixtureFile('newTable');
         $updateSuggestions = $this->subject->getUpdateSuggestions($statements, true);
@@ -256,7 +265,7 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['drop']
         );
 
-        $this->assertFalse($this->getTableDetails()->hasColumn('zzz_deleted_testfield'));
+        self::assertFalse($this->getTableDetails()->hasColumn('zzz_deleted_testfield'));
     }
 
     /**
@@ -265,8 +274,8 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
     public function dropUnusedTable()
     {
         $this->schemaManager->renameTable($this->tableName, 'zzz_deleted_' . $this->tableName);
-        $this->assertNotContains($this->tableName, $this->schemaManager->listTableNames());
-        $this->assertContains('zzz_deleted_' . $this->tableName, $this->schemaManager->listTableNames());
+        self::assertNotContains($this->tableName, $this->schemaManager->listTableNames());
+        self::assertContains('zzz_deleted_' . $this->tableName, $this->schemaManager->listTableNames());
 
         $statements = $this->readFixtureFile('newTable');
         $updateSuggestions = $this->subject->getUpdateSuggestions($statements, true);
@@ -275,27 +284,32 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['drop_table']
         );
 
-        $this->assertNotContains($this->tableName, $this->schemaManager->listTableNames());
-        $this->assertNotContains('zzz_deleted_' . $this->tableName, $this->schemaManager->listTableNames());
+        self::assertNotContains($this->tableName, $this->schemaManager->listTableNames());
+        self::assertNotContains('zzz_deleted_' . $this->tableName, $this->schemaManager->listTableNames());
     }
 
     /**
      * @test
      * @group not-postgres
+     * @group not-sqlite
      */
     public function installPerformsOnlyAddAndCreateOperations()
     {
         $statements = $this->readFixtureFile('addCreateChange');
         $this->subject->install($statements, true);
 
-        $this->assertContains('another_test_table', $this->schemaManager->listTableNames());
-        $this->assertTrue($this->getTableDetails()->hasColumn('title'));
-        $this->assertTrue($this->getTableDetails()->hasIndex('title'));
-        $this->assertTrue($this->getTableDetails()->getIndex('title')->isUnique());
-        $this->assertNotInstanceOf(BigIntType::class, $this->getTableDetails()->getColumn('pid')->getType());
+        self::assertContains('another_test_table', $this->schemaManager->listTableNames());
+        self::assertTrue($this->getTableDetails()->hasColumn('title'));
+        self::assertTrue($this->getTableDetails()->hasIndex('title'));
+        self::assertTrue($this->getTableDetails()->getIndex('title')->isUnique());
+        self::assertNotInstanceOf(BigIntType::class, $this->getTableDetails()->getColumn('pid')->getType());
     }
 
     /**
+     * Disabled on sqlite: The platform seems to have issues with indexes
+     * for currently unknown reasons. If that is sorted out, this test can
+     * probably be enabled.
+     *
      * @test
      */
     public function installDoesNotAddIndexOnChangedColumn()
@@ -303,31 +317,73 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
         $statements = $this->readFixtureFile('addIndexOnChangedColumn');
         $this->subject->install($statements, true);
 
-        $this->assertNotInstanceOf(TextType::class, $this->getTableDetails()->getColumn('title')->getType());
-        $this->assertFalse($this->getTableDetails()->hasIndex('title'));
+        self::assertNotInstanceOf(TextType::class, $this->getTableDetails()->getColumn('title')->getType());
+        self::assertFalse($this->getTableDetails()->hasIndex('title'));
+    }
+
+    /**
+     * @test
+     */
+    public function changeExistingIndex()
+    {
+        // recreate the table with the indexes applied
+        // this is needed for e.g. postgres
+        if ($this->schemaManager->tablesExist([$this->tableName])) {
+            $this->schemaManager->dropTable($this->tableName);
+        }
+        $this->prepareTestTable(false);
+
+        $statements = $this->readFixtureFile('changeExistingIndex');
+        $updateSuggestions = $this->subject->getUpdateSuggestions($statements);
+
+        $this->subject->migrate(
+            $statements,
+            $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change']
+        );
+
+        $indexesAfterChange = $this->schemaManager->listTableIndexes($this->tableName);
+
+        // indexes could be sorted differently thus we filter for index named "parent" only and
+        // use that as index to retrieve the modified columns of that index
+        $parentIndex = array_values(
+            array_filter(
+                array_keys($indexesAfterChange),
+                function ($key) {
+                    return strpos($key, 'parent') !== false;
+                }
+            )
+        );
+
+        $expectedColumnsOfChangedIndex = [
+            'pid',
+            'deleted'
+        ];
+        self::assertEquals($expectedColumnsOfChangedIndex, $indexesAfterChange[$parentIndex[0]]->getColumns());
     }
 
     /**
      * @test
      * @group not-postgres
      * @group not-mssql
+     * @group not-sqlite
      */
     public function installCanPerformChangeOperations()
     {
         $statements = $this->readFixtureFile('addCreateChange');
         $this->subject->install($statements);
 
-        $this->assertContains('another_test_table', $this->schemaManager->listTableNames());
-        $this->assertTrue($this->getTableDetails()->hasColumn('title'));
-        $this->assertTrue($this->getTableDetails()->hasIndex('title'));
-        $this->assertTrue($this->getTableDetails()->getIndex('title')->isUnique());
-        $this->assertInstanceOf(BigIntType::class, $this->getTableDetails()->getColumn('pid')->getType());
+        self::assertContains('another_test_table', $this->schemaManager->listTableNames());
+        self::assertTrue($this->getTableDetails()->hasColumn('title'));
+        self::assertTrue($this->getTableDetails()->hasIndex('title'));
+        self::assertTrue($this->getTableDetails()->getIndex('title')->isUnique());
+        self::assertInstanceOf(BigIntType::class, $this->getTableDetails()->getColumn('pid')->getType());
     }
 
     /**
      * @test
      * @group not-postgres
      * @group not-mssql
+     * @group not-sqlite
      */
     public function importStaticDataInsertsRecords()
     {
@@ -336,7 +392,7 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
         $statements = $this->sqlReader->getInsertStatementArray($sqlCode);
         $this->subject->importStaticData($statements);
 
-        $this->assertEquals(2, $connection->count('*', $this->tableName, []));
+        self::assertEquals(2, $connection->count('*', $this->tableName, []));
     }
 
     /**
@@ -348,13 +404,14 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
         $statements = $this->sqlReader->getStatementArray($sqlCode);
         $this->subject->importStaticData($statements);
 
-        $this->assertNotContains('another_test_table', $this->schemaManager->listTableNames());
+        self::assertNotContains('another_test_table', $this->schemaManager->listTableNames());
     }
 
     /**
      * @test
      * @group not-postgres
      * @group not-mssql
+     * @group not-sqlite
      */
     public function changeTableEngine()
     {
@@ -362,7 +419,7 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
         $updateSuggestions = $this->subject->getUpdateSuggestions($statements);
 
         $index = array_keys($updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change'])[0];
-        $this->assertStringEndsWith(
+        self::assertStringEndsWith(
             'ENGINE = MyISAM',
             $updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change'][$index]
         );
@@ -373,17 +430,19 @@ class SchemaMigratorTest extends \TYPO3\TestingFramework\Core\Functional\Functio
         );
 
         $updateSuggestions = $this->subject->getUpdateSuggestions($statements);
-        $this->assertEmpty($updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change']);
-        $this->assertEmpty($updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change']);
+        self::assertEmpty($updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change']);
+        self::assertEmpty($updateSuggestions[ConnectionPool::DEFAULT_CONNECTION_NAME]['change']);
     }
 
     /**
      * Create the base table for all migration tests
+     *
+     * @param bool $createOnly
      */
-    protected function prepareTestTable()
+    protected function prepareTestTable(bool $createOnly = true)
     {
         $statements = $this->readFixtureFile('newTable');
-        $this->subject->install($statements, true);
+        $this->subject->install($statements, $createOnly);
     }
 
     /**

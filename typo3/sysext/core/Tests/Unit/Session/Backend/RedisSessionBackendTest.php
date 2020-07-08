@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Session\Backend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Session\Backend;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Session\Backend;
+
 use TYPO3\CMS\Core\Session\Backend\RedisSessionBackend;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
@@ -23,11 +25,13 @@ use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
  */
 class RedisSessionBackendTest extends UnitTestCase
 {
-    protected function setUp()
+    protected function setUp(): void
     {
         if (!class_exists(\Redis::class)) {
-            $this->markTestSkipped('Redis class needs to be available to test RedisSessionBackend');
+            self::markTestSkipped('Redis class needs to be available to test RedisSessionBackend');
         }
+        parent::setUp();
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['encryptionKey'] = '12345';
     }
 
     /**

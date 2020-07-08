@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Session;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Session;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\Session;
 
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Session\Backend\DatabaseSessionBackend;
@@ -33,7 +35,7 @@ class SessionManagerTest extends UnitTestCase
     public function getSessionBackendUsesDefaultBackendFromConfiguration()
     {
         $subject = new SessionManager();
-        $this->assertInstanceOf(DatabaseSessionBackend::class, $subject->getSessionBackend('BE'));
+        self::assertInstanceOf(DatabaseSessionBackend::class, $subject->getSessionBackend('BE'));
     }
 
     /**
@@ -52,7 +54,7 @@ class SessionManagerTest extends UnitTestCase
         $backendProphecy->validateConfiguration(Argument::cetera())->shouldBeCalled();
         GeneralUtility::addInstance($backendClassName, $backendRevelation);
         $subject = new SessionManager();
-        $this->assertInstanceOf($backendClassName, $subject->getSessionBackend('myidentifier'));
+        self::assertInstanceOf($backendClassName, $subject->getSessionBackend('myidentifier'));
     }
 
     /**

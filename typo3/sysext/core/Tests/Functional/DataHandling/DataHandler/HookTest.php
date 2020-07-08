@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\DataHandler;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\DataHandler;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\DataHandler;
 
 use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase;
 use TYPO3\CMS\Core\Tests\Functional\DataHandling\DataHandler\Fixtures\HookFixture;
@@ -43,7 +45,7 @@ class HookTest extends AbstractDataHandlerActionTestCase
      */
     protected $scenarioDataSetDirectory = 'typo3/sysext/core/Tests/Functional/DataHandling/DataHandler/DataSet/';
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->importScenarioDataSet('LiveDefaultPages');
@@ -56,7 +58,7 @@ class HookTest extends AbstractDataHandlerActionTestCase
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['processCmdmapClass'][__CLASS__] = HookFixture::class;
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         parent::tearDown();
 
@@ -277,7 +279,7 @@ class HookTest extends AbstractDataHandlerActionTestCase
         $message = 'Unexpected invocations of method "%s"';
         foreach ($methodNames as $methodName) {
             $invocations = $this->hookFixture->findInvocationsByMethodName($methodName);
-            $this->assertCount(
+            self::assertCount(
                 $count,
                 $invocations,
                 sprintf($message, $methodName)
@@ -304,11 +306,11 @@ class HookTest extends AbstractDataHandlerActionTestCase
     {
         $message = 'Unexpected hook payload amount found for method "%s"';
         $invocations = $this->hookFixture->findInvocationsByMethodName($methodName);
-        $this->assertNotNull($invocations);
+        self::assertNotNull($invocations);
 
         foreach ($assertions as $assertion) {
             $indexes = $this->findAllArrayValuesInHaystack($invocations, $assertion);
-            $this->assertCount(
+            self::assertCount(
                 1,
                 $indexes,
                 sprintf($message, $methodName)
@@ -345,7 +347,8 @@ class HookTest extends AbstractDataHandlerActionTestCase
             $rightValue = $right[$key] ?? null;
             if (!is_array($leftValue) && (string)$leftValue !== (string)$rightValue) {
                 return false;
-            } elseif (is_array($leftValue)) {
+            }
+            if (is_array($leftValue)) {
                 if (!$this->equals($leftValue, $rightValue)) {
                     return false;
                 }

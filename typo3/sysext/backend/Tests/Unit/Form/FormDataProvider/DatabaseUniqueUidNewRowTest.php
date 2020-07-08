@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,24 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseUniqueUidNewRow;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabaseUniqueUidNewRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabaseUniqueUidNewRowTest extends UnitTestCase
 {
     /**
      * @var DatabaseUniqueUidNewRow
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = new DatabaseUniqueUidNewRow();
     }
 
@@ -42,7 +45,7 @@ class DatabaseUniqueUidNewRowTest extends \TYPO3\TestingFramework\Core\Unit\Unit
                 'uid' => 42,
             ],
         ];
-        $this->assertSame($input, $this->subject->addData($input));
+        self::assertSame($input, $this->subject->addData($input));
     }
 
     /**
@@ -57,7 +60,7 @@ class DatabaseUniqueUidNewRowTest extends \TYPO3\TestingFramework\Core\Unit\Unit
             ],
         ];
         $expected = $input;
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, $this->subject->addData($input));
     }
 
     /**
@@ -79,7 +82,7 @@ class DatabaseUniqueUidNewRowTest extends \TYPO3\TestingFramework\Core\Unit\Unit
     /**
      * @test
      */
-    public function addDataSetsUniqeId()
+    public function addDataSetsUniqueId()
     {
         $input = [
             'command' => 'new',
@@ -87,6 +90,6 @@ class DatabaseUniqueUidNewRowTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         ];
         $result = $this->subject->addData($input);
         $result = substr($result['databaseRow']['uid'], 0, 3);
-        $this->assertSame('NEW', $result);
+        self::assertSame('NEW', $result);
     }
 }

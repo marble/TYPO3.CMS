@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Template\Components;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Template\Components;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Template\Components;
 
 use TYPO3\CMS\Backend\Template\Components\Buttons\Action\HelpButton;
 use TYPO3\CMS\Backend\Template\Components\Buttons\Action\ShortcutButton;
@@ -166,13 +167,11 @@ class ButtonBar
             ksort($this->buttons[$position]);
         }
         // Hook for manipulating the docHeaderButtons
-        if (!empty($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['Backend\Template\Components\ButtonBar']['getButtonsHook'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['Backend\Template\Components\ButtonBar']['getButtonsHook'] as $funcRef) {
-                $params = [
-                    'buttons' => $this->buttons
-                ];
-                $this->buttons = GeneralUtility::callUserFunction($funcRef, $params, $this);
-            }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['Backend\Template\Components\ButtonBar']['getButtonsHook'] ?? [] as $funcRef) {
+            $params = [
+                'buttons' => $this->buttons
+            ];
+            $this->buttons = GeneralUtility::callUserFunction($funcRef, $params, $this);
         }
         return $this->buttons;
     }

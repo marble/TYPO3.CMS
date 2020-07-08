@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tree;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Backend\Tree;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tree;
+
+use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Tree Node
  */
-class TreeNode implements \TYPO3\CMS\Backend\Tree\ComparableNodeInterface, \Serializable
+class TreeNode implements ComparableNodeInterface, \Serializable
 {
     /**
      * Node Identifier
@@ -33,14 +35,14 @@ class TreeNode implements \TYPO3\CMS\Backend\Tree\ComparableNodeInterface, \Seri
      *
      * @var \TYPO3\CMS\Backend\Tree\TreeNode
      */
-    protected $parentNode = null;
+    protected $parentNode;
 
     /**
      * Child Nodes
      *
      * @var \TYPO3\CMS\Backend\Tree\TreeNodeCollection
      */
-    protected $childNodes = null;
+    protected $childNodes;
 
     /**
      * Constructor
@@ -62,7 +64,7 @@ class TreeNode implements \TYPO3\CMS\Backend\Tree\ComparableNodeInterface, \Seri
      *
      * @param \TYPO3\CMS\Backend\Tree\TreeNodeCollection $childNodes
      */
-    public function setChildNodes(\TYPO3\CMS\Backend\Tree\TreeNodeCollection $childNodes)
+    public function setChildNodes(TreeNodeCollection $childNodes)
     {
         $this->childNodes = $childNodes;
     }
@@ -124,7 +126,7 @@ class TreeNode implements \TYPO3\CMS\Backend\Tree\ComparableNodeInterface, \Seri
     /**
      * Sets the parent node
      *
-     * @param NULL|\TYPO3\CMS\Backend\Tree\TreeNode $parentNode
+     * @param \TYPO3\CMS\Backend\Tree\TreeNode|null $parentNode
      */
     public function setParentNode(\TYPO3\CMS\Backend\Tree\TreeNode $parentNode = null)
     {
@@ -180,7 +182,7 @@ class TreeNode implements \TYPO3\CMS\Backend\Tree\ComparableNodeInterface, \Seri
     public function toArray($addChildNodes = true)
     {
         $arrayRepresentation = [
-            'serializeClassName' => get_class($this),
+            'serializeClassName' => static::class,
             'id' => $this->id
         ];
         if ($this->parentNode !== null) {
@@ -231,8 +233,8 @@ class TreeNode implements \TYPO3\CMS\Backend\Tree\ComparableNodeInterface, \Seri
     public function unserialize($serializedString)
     {
         $arrayRepresentation = unserialize($serializedString);
-        if ($arrayRepresentation['serializeClassName'] !== get_class($this)) {
-            throw new \TYPO3\CMS\Core\Exception('Deserialized object type is not identical!', 1294586646);
+        if ($arrayRepresentation['serializeClassName'] !== static::class) {
+            throw new Exception('Deserialized object type is not identical!', 1294586646);
         }
         $this->dataFromArray($arrayRepresentation);
     }

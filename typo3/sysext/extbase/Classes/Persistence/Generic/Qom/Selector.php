@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
+
 /**
  * Selects a subset of the nodes in the repository based on node type.
  *
@@ -24,6 +25,7 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  * the node's primary node type is a subtype of nodeType, or
  * the node has a mixin node type that is nodeType, or
  * the node has a mixin node type that is a subtype of nodeType.
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class Selector implements SelectorInterface
 {

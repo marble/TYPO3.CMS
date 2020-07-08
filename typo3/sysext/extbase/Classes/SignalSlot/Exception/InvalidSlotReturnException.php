@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\SignalSlot\Exception;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +15,13 @@ namespace TYPO3\CMS\Extbase\SignalSlot\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\SignalSlot\Exception;
+
+use TYPO3\CMS\Extbase\Object\Exception;
+
 /**
  * "Invalid Slot Return" Exception
- *
- * @api
  */
-class InvalidSlotReturnException extends \TYPO3\CMS\Extbase\Object\Exception
+class InvalidSlotReturnException extends Exception
 {
 }

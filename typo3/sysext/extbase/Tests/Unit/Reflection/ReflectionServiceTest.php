@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Reflection;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,126 +15,99 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Reflection;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Unit\Reflection;
+
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\NullFrontend;
+use TYPO3\CMS\Extbase\Reflection\ClassSchema;
+use TYPO3\CMS\Extbase\Reflection\Exception\UnknownClassException;
 use TYPO3\CMS\Extbase\Reflection\ReflectionService;
+use TYPO3\CMS\Extbase\Tests\Unit\Reflection\Fixture\DummyClassWithInvalidTypeHint;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
- * @firsttest test for reflection
- * @anothertest second test for reflection
- * @anothertest second test for reflection with second value
+ * @see test for reflection
+ * @link second test for reflection
+ * @link second test for reflection with second value
  */
-class ReflectionServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ReflectionServiceTest extends UnitTestCase
 {
     /**
-     * @param array $foo The foo parameter
-     * @return string
+     * @test
      */
-    public function fixtureMethodForMethodTagsValues(array $foo)
+    public function getClassSchemaThrowsExceptionIfClassIsNotFound(): void
     {
-    }
-
-    /**
-     * @param bool $dummy
-     * @param int $foo
-     */
-    public function fixtureMethodForMethodTagsValuesWithShortTypes($dummy, $foo)
-    {
+        $this->expectException(UnknownClassException::class);
+        $this->expectExceptionCode(1278450972);
+        $this->expectExceptionMessage('Class Foo\Bar\Not\Existing does not exist. Reflection failed.');
+        $reflectionService = new ReflectionService();
+        $reflectionService->getClassSchema('Foo\Bar\Not\Existing');
     }
 
     /**
      * @test
      */
-    public function getClassTagsValues()
+    public function getClassSchemaThrowsExceptionIfTypeHintedClassWasNotFound(): void
     {
-        $service = new ReflectionService();
-        $classValues = $service->getClassTagsValues(get_class($this));
-        $this->assertEquals([
-            'firsttest' => ['test for reflection'],
-            'anothertest' => ['second test for reflection', 'second test for reflection with second value']
-        ], $classValues);
+        $this->expectException(UnknownClassException::class);
+        $this->expectExceptionCode(1278450972);
+        $this->expectExceptionMessage('Class Foo\Bar\Not\Found does not exist. Reflection failed.');
+        $reflectionService = new ReflectionService();
+        $reflectionService->getClassSchema(DummyClassWithInvalidTypeHint::class);
     }
 
     /**
      * @test
      */
-    public function getClassTagValues()
+    public function reflectionServiceCanBeSerializedAndUnserialized(): void
     {
-        $service = new ReflectionService();
-        $classValues = $service->getClassTagValues(get_class($this), 'firsttest');
-        $this->assertEquals([
-            'test for reflection',
-        ], $classValues);
+        $class = new class() {
+        };
+
+        $reflectionService = new ReflectionService();
+        $serialized = serialize($reflectionService);
+        unset($reflectionService);
+
+        $reflectionService = unserialize($serialized, ['allowed_classes' => [ReflectionService::class]]);
+
+        self::assertInstanceOf(ReflectionService::class, $reflectionService);
+        self::assertInstanceOf(ClassSchema::class, $reflectionService->getClassSchema($class));
     }
 
     /**
      * @test
      */
-    public function hasMethod()
+    public function reflectionServiceCanBeSerializedAndUnserializedWithCacheManager(): void
     {
-        $service = new ReflectionService();
-        $this->assertTrue($service->hasMethod(get_class($this), 'fixtureMethodForMethodTagsValues'));
-        $this->assertFalse($service->hasMethod(get_class($this), 'notExistentMethod'));
+        $cacheManager = $this->prophesize(CacheManager::class);
+        $cacheManager->getCache('extbase')->willReturn(new NullFrontend('extbase'));
+
+        $class = new class() {
+        };
+
+        $reflectionService = new ReflectionService($cacheManager->reveal());
+        $serialized = serialize($reflectionService);
+        unset($reflectionService);
+
+        $reflectionService = unserialize($serialized, ['allowed_classes' => [ReflectionService::class]]);
+
+        self::assertInstanceOf(ReflectionService::class, $reflectionService);
+        self::assertInstanceOf(ClassSchema::class, $reflectionService->getClassSchema($class));
     }
 
     /**
      * @test
      */
-    public function getMethodTagsValues()
+    public function reflectionServiceIsResetDuringWakeUp(): void
     {
-        $service = new ReflectionService();
-        $tagsValues = $service->getMethodTagsValues(get_class($this), 'fixtureMethodForMethodTagsValues');
-        $this->assertEquals([
-            'param' => ['array $foo The foo parameter'],
-            'return' => ['string']
-        ], $tagsValues);
-    }
+        $insecureString = file_get_contents(__DIR__ . '/Fixture/InsecureSerializedReflectionService.txt');
+        $reflectionService = unserialize($insecureString);
 
-    /**
-     * @test
-     */
-    public function getMethodParameters()
-    {
-        $service = new ReflectionService();
-        $parameters = $service->getMethodParameters(get_class($this), 'fixtureMethodForMethodTagsValues');
-        $this->assertSame([
-            'foo' => [
-                'position' => 0,
-                'byReference' => false,
-                'array' => true,
-                'optional' => false,
-                'allowsNull' => false,
-                'class' => null,
-                'type' => 'array'
-            ]
-        ], $parameters);
-    }
+        $reflectionClass = new \ReflectionClass($reflectionService);
+        $classSchemaProperty = $reflectionClass->getProperty('classSchemata');
+        $classSchemaProperty->setAccessible(true);
 
-    /**
-     * @test
-     */
-    public function getMethodParametersWithShortTypeNames()
-    {
-        $service = new ReflectionService();
-        $parameters = $service->getMethodParameters(get_class($this), 'fixtureMethodForMethodTagsValuesWithShortTypes');
-        $this->assertSame([
-            'dummy' => [
-                'position' => 0,
-                'byReference' => false,
-                'array' => false,
-                'optional' => false,
-                'allowsNull' => true,
-                'class' => null,
-                'type' => 'boolean'
-            ],
-            'foo' => [
-                'position' => 1,
-                'byReference' => false,
-                'array' => false,
-                'optional' => false,
-                'allowsNull' => true,
-                'class' => null,
-                'type' => 'integer'
-            ]
-        ], $parameters);
+        self::assertSame([], $classSchemaProperty->getValue($reflectionService));
     }
 }

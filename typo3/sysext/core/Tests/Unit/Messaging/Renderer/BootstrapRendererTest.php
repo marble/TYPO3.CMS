@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Messaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Messaging;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\Messaging\Renderer;
 
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\Renderer\BootstrapRenderer;
@@ -37,11 +38,11 @@ class BootstrapRendererTest extends UnitTestCase
             FlashMessage::NOTICE
         );
         $output = $rendererClass->render([$flashMessage]);
-        $this->assertContains('<div class="typo3-messages">', $output);
-        $this->assertContains('<div class="alert alert-notice">', $output);
-        $this->assertContains('<div class="media-body">', $output);
-        $this->assertContains('<h4 class="alert-title">messageTitle</h4>', $output);
-        $this->assertContains('<p class="alert-message">messageBody</p>', $output);
+        self::assertStringContainsString('<div class="typo3-messages">', $output);
+        self::assertStringContainsString('<div class="alert alert-notice">', $output);
+        self::assertStringContainsString('<div class="media-body">', $output);
+        self::assertStringContainsString('<h4 class="alert-title">messageTitle</h4>', $output);
+        self::assertStringContainsString('<p class="alert-message">messageBody</p>', $output);
     }
 
     /**
@@ -57,10 +58,10 @@ class BootstrapRendererTest extends UnitTestCase
             FlashMessage::NOTICE
         );
         $output = $rendererClass->render([$flashMessage]);
-        $this->assertContains('<div class="typo3-messages">', $output);
-        $this->assertContains('<div class="alert alert-notice">', $output);
-        $this->assertContains('<div class="media-body">', $output);
-        $this->assertContains('<p class="alert-message">messageBody</p>', $output);
-        $this->assertNotContains('<h4 class="alert-title">messageTitle</h4>', $output);
+        self::assertStringContainsString('<div class="typo3-messages">', $output);
+        self::assertStringContainsString('<div class="alert alert-notice">', $output);
+        self::assertStringContainsString('<div class="media-body">', $output);
+        self::assertStringContainsString('<p class="alert-message">messageBody</p>', $output);
+        self::assertStringNotContainsString('<h4 class="alert-title">messageTitle</h4>', $output);
     }
 }

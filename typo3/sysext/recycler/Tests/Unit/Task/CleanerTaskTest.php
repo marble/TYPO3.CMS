@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recycler\Tests\Unit\Task;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,10 @@ namespace TYPO3\CMS\Recycler\Tests\Unit\Task;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recycler\Tests\Unit\Task;
+
+use Doctrine\DBAL\DBALException;
+use Doctrine\DBAL\Driver\Statement;
 use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Core\Database\Connection;
@@ -24,22 +27,24 @@ use TYPO3\CMS\Core\Database\Query\Restriction\DefaultRestrictionContainer;
 use TYPO3\CMS\Core\Tests\Unit\Database\Mocks\MockPlatform;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Recycler\Task\CleanerTask;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase
  */
-class CleanerTaskTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class CleanerTaskTest extends UnitTestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject|CleanerTask
+     * @var \PHPUnit\Framework\MockObject\MockObject|CleanerTask
      */
-    protected $subject = null;
+    protected $subject;
 
     /**
      * sets up an instance of \TYPO3\CMS\Recycler\Task\CleanerTask
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = $this->getMockBuilder(CleanerTask::class)
             ->setMethods(['dummy'])
             ->disableOriginalConstructor()
@@ -54,7 +59,7 @@ class CleanerTaskTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $period = 14;
         $this->subject->setPeriod($period);
 
-        $this->assertEquals($period, $this->subject->getPeriod());
+        self::assertEquals($period, $this->subject->getPeriod());
     }
 
     /**
@@ -65,7 +70,7 @@ class CleanerTaskTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $tables = ['pages', 'tt_content'];
         $this->subject->setTcaTables($tables);
 
-        $this->assertEquals($tables, $this->subject->getTcaTables());
+        self::assertEquals($tables, $this->subject->getTcaTables());
     }
 
     /**
@@ -76,13 +81,13 @@ class CleanerTaskTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $GLOBALS['TCA']['pages']['ctrl']['delete'] = 'deleted';
         $GLOBALS['TCA']['pages']['ctrl']['tstamp'] = 'tstamp';
 
-        /** @var \PHPUnit_Framework_MockObject_MockObject|CleanerTask $subject */
+        /** @var \PHPUnit\Framework\MockObject\MockObject|CleanerTask $subject */
         $subject = $this->getMockBuilder(CleanerTask::class)
             ->setMethods(['getPeriodAsTimestamp'])
             ->disableOriginalConstructor()
             ->getMock();
         $subject->setTcaTables(['pages']);
-        $subject->expects($this->once())->method('getPeriodAsTimestamp')->willReturn(400);
+        $subject->expects(self::once())->method('getPeriodAsTimestamp')->willReturn(400);
 
         /** @var Connection|ObjectProphecy $connection */
         $connection = $this->prophesize(Connection::class);
@@ -93,7 +98,7 @@ class CleanerTaskTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         // TODO: This should rather be a functional test if we need a query builder
         // or we should clean up the code itself to not need to mock internal behavior here
 
-        $statementProphet = $this->prophesize(\Doctrine\DBAL\Driver\Statement::class);
+        $statementProphet = $this->prophesize(Statement::class);
 
         $restrictionProphet = $this->prophesize(DefaultRestrictionContainer::class);
         $restrictionProphet->removeAll()->willReturn($restrictionProphet->reveal());
@@ -112,7 +117,7 @@ class CleanerTaskTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $connectionPool->getQueryBuilderForTable('pages')->willReturn($queryBuilderProphet->reveal());
         GeneralUtility::addInstance(ConnectionPool::class, $connectionPool->reveal());
 
-        $this->assertTrue($subject->execute());
+        self::assertTrue($subject->execute());
     }
 
     /**
@@ -145,8 +150,8 @@ class CleanerTaskTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $connection->executeUpdate(Argument::cetera())
             ->shouldBeCalled()
-            ->willThrow(new \Doctrine\DBAL\DBALException('testing', 1476122315));
+            ->willThrow(new DBALException('testing', 1476122315));
 
-        $this->assertFalse($this->subject->execute());
+        self::assertFalse($this->subject->execute());
     }
 }

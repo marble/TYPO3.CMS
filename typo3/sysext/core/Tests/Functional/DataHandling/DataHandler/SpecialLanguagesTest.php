@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\DataHandler;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\DataHandler;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\DataHandler;
+
 use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase;
 
 /**
@@ -22,7 +24,7 @@ use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCa
  */
 class SpecialLanguagesTest extends AbstractDataHandlerActionTestCase
 {
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->backendUser->workspace = 0;
@@ -49,7 +51,7 @@ class SpecialLanguagesTest extends AbstractDataHandlerActionTestCase
             ->orderBy('uid', 'DESC')
             ->setMaxResults(1)
             ->execute();
-        $this->assertEquals($expected, $statement->fetchColumn(0));
+        self::assertEquals($expected, $statement->fetchColumn(0));
     }
 
     /**

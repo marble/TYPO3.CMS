@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Template\Components\Buttons;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,18 @@ namespace TYPO3\CMS\Backend\Tests\Template\Components\Buttons;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Template\Components\Button;
+
 use TYPO3\CMS\Backend\Template\Components\Buttons\FullyRenderedButton;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case for FullyRenderedButton
  */
-class FullyRenderedButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FullyRenderedButtonTest extends UnitTestCase
 {
     /**
-     * Try to valide an empty button
+     * Try to validate an empty button
      *
      * @test
      */
@@ -30,7 +32,7 @@ class FullyRenderedButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTest
     {
         $button = new FullyRenderedButton();
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -43,6 +45,6 @@ class FullyRenderedButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTest
         $button = new FullyRenderedButton();
         $button->setHtmlSource('<span>Husel</span>');
         $isValid = $button->isValid();
-        $this->assertTrue($isValid);
+        self::assertTrue($isValid);
     }
 }

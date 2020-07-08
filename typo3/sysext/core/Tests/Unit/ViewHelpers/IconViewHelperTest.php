@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\ViewHelpers;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +14,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\ViewHelpers;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\ViewHelpers;
 
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -32,7 +35,7 @@ class IconViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = $this->getAccessibleMock(IconViewHelper::class, ['renderChildren']);
@@ -54,10 +57,13 @@ class IconViewHelperTest extends ViewHelperBaseTestcase
 
         $this->viewHelper->setArguments([
             'identifier' => 'myIdentifier',
-            'size' => Icon::SIZE_SMALL
+            'size' => Icon::SIZE_SMALL,
+            'overlay' => null,
+            'state' => IconState::cast(IconState::STATE_DEFAULT),
+            'alternativeMarkupIdentifier' => null
         ]);
 
-        $this->assertSame('htmlFoo', $this->viewHelper->render());
+        self::assertSame('htmlFoo', $this->viewHelper->render());
     }
 
     /**
@@ -74,10 +80,13 @@ class IconViewHelperTest extends ViewHelperBaseTestcase
 
         $this->viewHelper->setArguments([
             'identifier' => 'myIdentifier',
-            'size' => Icon::SIZE_LARGE
+            'size' => Icon::SIZE_LARGE,
+            'overlay' => null,
+            'state' => IconState::cast(IconState::STATE_DEFAULT),
+            'alternativeMarkupIdentifier' => null
         ]);
 
-        $this->assertSame('htmlFoo', $this->viewHelper->render());
+        self::assertSame('htmlFoo', $this->viewHelper->render());
     }
 
     /**
@@ -96,10 +105,11 @@ class IconViewHelperTest extends ViewHelperBaseTestcase
             'identifier' => 'myIdentifier',
             'size' => Icon::SIZE_SMALL,
             'overlay' => null,
-            'state' => IconState::cast(IconState::STATE_DISABLED)
+            'state' => IconState::cast(IconState::STATE_DISABLED),
+            'alternativeMarkupIdentifier' => null
         ]);
 
-        $this->assertSame('htmlFoo', $this->viewHelper->render());
+        self::assertSame('htmlFoo', $this->viewHelper->render());
     }
 
     /**
@@ -117,8 +127,10 @@ class IconViewHelperTest extends ViewHelperBaseTestcase
         $this->viewHelper->setArguments([
             'identifier' => 'myIdentifier',
             'size' => Icon::SIZE_LARGE,
-            'overlay' => 'overlayString'
+            'overlay' => 'overlayString',
+            'state' => IconState::cast(IconState::STATE_DEFAULT),
+            'alternativeMarkupIdentifier' => null
         ]);
-        $this->assertSame('htmlFoo', $this->viewHelper->render());
+        self::assertSame('htmlFoo', $this->viewHelper->render());
     }
 }

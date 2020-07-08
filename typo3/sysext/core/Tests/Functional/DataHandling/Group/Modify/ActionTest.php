@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Modify;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Modify;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Modify;
+
+use TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\AbstractActionTestCase;
+
 /**
  * Functional test for the DataHandler
  */
-class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\AbstractActionTestCase
+class ActionTest extends AbstractActionTestCase
 {
     /**
      * @var string
@@ -30,7 +33,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
 
     /**
      * @test
-     * @see DataSet/addElementRelation.csv
+     * See DataSet/addElementRelation.csv
      */
     public function addElementRelation()
     {
@@ -38,14 +41,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('addElementRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1', 'Element #2', 'Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteElementRelation.csv
+     * See DataSet/deleteElementRelation.csv
      */
     public function deleteElementRelation()
     {
@@ -53,17 +56,17 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('deleteElementRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #2', 'Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/changeElementSorting.csv
+     * See DataSet/changeElementSorting.csv
      */
     public function changeElementSorting()
     {
@@ -71,14 +74,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('changeElementSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1', 'Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/changeElementRelationSorting.csv
+     * See DataSet/changeElementRelationSorting.csv
      */
     public function changeElementRelationSorting()
     {
@@ -86,14 +89,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('changeElementRelationSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1', 'Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/createContentNAddRelation.csv
+     * See DataSet/createContentNAddRelation.csv
      */
     public function createContentAndAddElementRelation()
     {
@@ -101,16 +104,16 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('createContentNAddRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentId'])->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1'));
     }
 
     /**
      * @test
-     * @see DataSet/createContentNCreateRelation.csv
+     * See DataSet/createContentNCreateRelation.csv
      */
     public function createContentAndCreateElementRelation()
     {
@@ -118,16 +121,16 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('createContentNCreateRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentId'])->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyElementOfRelation.csv
+     * See DataSet/modifyElementOfRelation.csv
      */
     public function modifyElementOfRelation()
     {
@@ -135,14 +138,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('modifyElementOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Testing #1', 'Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyContentOfRelation.csv
+     * See DataSet/modifyContentOfRelation.csv
      */
     public function modifyContentOfRelation()
     {
@@ -150,13 +153,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('modifyContentOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyBothSidesOfRelation.csv
+     * See DataSet/modifyBothSidesOfRelation.csv
      */
     public function modifyBothSidesOfRelation()
     {
@@ -164,16 +167,16 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('modifyBothSidesOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Testing #1', 'Element #2'));
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteContentOfRelation.csv
+     * See DataSet/deleteContentOfRelation.csv
      */
     public function deleteContentOfRelation()
     {
@@ -181,13 +184,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('deleteContentOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteElementOfRelation.csv
+     * See DataSet/deleteElementOfRelation.csv
      */
     public function deleteElementOfRelation()
     {
@@ -195,14 +198,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('deleteElementOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentOfRelation.csv
+     * See DataSet/copyContentOfRelation.csv
      */
     public function copyContentOfRelation()
     {
@@ -211,14 +214,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
         // Referenced elements are not copied with the "parent", which is expected and correct
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['copiedContentId'])->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #2', 'Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/copyElementOfRelation.csv
+     * See DataSet/copyElementOfRelation.csv
      */
     public function copyElementOfRelation()
     {
@@ -226,37 +229,40 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('copyElementOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1'));
         // Referenced elements are not updated at the "parent", which is expected and correct
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1 (copy 1)'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentToLanguageOfRelation.csv
+     * See DataSet/copyContentToLanguageOfRelation.csv
      */
     public function copyContentToLanguageOfRelation()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage('pages', self::VALUE_PageId, self::VALUE_LanguageId);
         parent::copyContentToLanguageOfRelation();
         $this->assertAssertionDataSet('copyContentToLanguageOfRelation');
 
-        $this->setUpFrontendRootPage(1, [
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts',
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRendererNoOverlay.ts'
-        ]);
+        // Set up "dk" to not have overlays
+        $languageConfiguration = $this->siteLanguageConfiguration;
+        $languageConfiguration[self::VALUE_LanguageId]['fallbackType'] = 'free';
+        $this->setUpFrontendSite(1, $languageConfiguration);
+
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['localizedContentId'])->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #2', 'Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/copyElementToLanguageOfRelation.csv
+     * See DataSet/copyElementToLanguageOfRelation.csv
      */
     public function copyElementToLanguageOfRelation()
     {
@@ -266,14 +272,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         //in this case the translated element is orphaned (no CE with relation to it, and it has no l10n_parent)
         //so on frontend there is no change.
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1', 'Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentOfRelation.csv
+     * See DataSet/localizeContentOfRelation.csv
      */
     public function localizeContentOfRelation()
     {
@@ -281,14 +287,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('localizeContentOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #2', 'Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentOfRelationWSynchronization.csv
+     * See DataSet/localizeContentOfRelationWSynchronization.csv
      */
     public function localizeContentOfRelationWithLanguageSynchronization()
     {
@@ -296,14 +302,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('localizeContentOfRelationWSynchronization');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1', 'Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentChainOfRelationWSynchronizationSource.csv
+     * See DataSet/localizeContentChainOfRelationWSynchronizationSource.csv
      */
     public function localizeContentChainOfRelationWithLanguageSynchronizationSource()
     {
@@ -311,29 +317,31 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('localizeContentChainOfRelationWSynchronizationSource');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #1', 'Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeElementOfRelation.csv
+     * See DataSet/localizeElementOfRelation.csv
      */
     public function localizeElementOfRelation()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage('pages', self::VALUE_PageId, self::VALUE_LanguageId);
         parent::localizeElementOfRelation();
         $this->assertAssertionDataSet('localizeElementOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('[Translate to Dansk:] Element #1', 'Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/moveContentOfRelationToDifferentPage.csv
+     * See DataSet/moveContentOfRelationToDifferentPage.csv
      */
     public function moveContentOfRelationToDifferentPage()
     {
@@ -341,7 +349,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Group\Abs
         $this->assertAssertionDataSet('moveContentOfRelationToDifferentPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageIdTarget)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField(self::FIELD_ContentElement)
             ->setTable(self::TABLE_Element)->setField('title')->setValues('Element #2', 'Element #3'));
     }

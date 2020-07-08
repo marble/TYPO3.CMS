@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,29 +13,32 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Configuration\TranslationConfigurationProvider;
 use TYPO3\CMS\Backend\Form\Exception\DatabaseDefaultLanguageException;
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseLanguageRows;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabaseLanguageRowsTest extends UnitTestCase
 {
     /**
-     * @var DatabaseLanguageRows|\PHPUnit_Framework_MockObject_MockObject
+     * @var DatabaseLanguageRows|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $subject;
 
     /**
-     * @var BackendUserAuthentication | ObjectProphecy
+     * @var BackendUserAuthentication|ObjectProphecy
      */
     protected $beUserProphecy;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->beUserProphecy = $this->prophesize(BackendUserAuthentication::class);
         $GLOBALS['BE_USER'] = $this->beUserProphecy;
@@ -62,7 +64,7 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                 'columns' => [],
             ],
         ];
-        $this->assertEquals($input, $this->subject->addData($input));
+        self::assertEquals($input, $this->subject->addData($input));
     }
 
     /**
@@ -86,7 +88,7 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             ],
         ];
 
-        $this->subject->expects($this->once())->method('getRecordWorkspaceOverlay')->willReturn([]);
+        $this->subject->expects(self::once())->method('getRecordWorkspaceOverlay')->willReturn([]);
 
         $this->expectException(DatabaseDefaultLanguageException::class);
         $this->expectExceptionCode(1438249426);
@@ -122,12 +124,12 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             'sys_language_uid' => 0,
         ];
 
-        $this->subject->expects($this->once())->method('getRecordWorkspaceOverlay')->willReturn($defaultLanguageRow);
+        $this->subject->expects(self::once())->method('getRecordWorkspaceOverlay')->willReturn($defaultLanguageRow);
 
         $expected = $input;
         $expected['defaultLanguageRow'] = $defaultLanguageRow;
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, $this->subject->addData($input));
     }
 
     /**
@@ -166,13 +168,13 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             'sys_language_uid' => 0,
         ];
 
-        $this->subject->expects($this->once())->method('getRecordWorkspaceOverlay')->willReturn($defaultLanguageRow);
+        $this->subject->expects(self::once())->method('getRecordWorkspaceOverlay')->willReturn($defaultLanguageRow);
 
         $expected = $input;
         $expected['defaultLanguageRow'] = $defaultLanguageRow;
         $expected['defaultLanguageDiffRow']['tt_content:42'] = $diffSource;
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, $this->subject->addData($input));
     }
 
     /**
@@ -237,7 +239,7 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             'text' => 'default language text',
             'sys_language_uid' => 0,
         ];
-        $this->subject->expects($this->at(0))
+        $this->subject->expects(self::at(0))
             ->method('getRecordWorkspaceOverlay')
             ->with('tt_content', 23)
             ->willReturn($defaultLanguageRow);
@@ -248,7 +250,7 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $translationProphecy->translationInfo('tt_content', 23, 3)->shouldBeCalled()->willReturn($translationResult);
 
         // This is the real check: The "additional overlay" should be fetched
-        $this->subject->expects($this->at(1))
+        $this->subject->expects(self::at(1))
             ->method('getRecordWorkspaceOverlay')
             ->with('tt_content', 43)
             ->willReturn($recordWsolResult);
@@ -263,7 +265,7 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             ],
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, $this->subject->addData($input));
     }
 
     /**
@@ -332,7 +334,7 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             'text' => 'default language text',
             'sys_language_uid' => 0,
         ];
-        $this->subject->expects($this->at(0))
+        $this->subject->expects(self::at(0))
             ->method('getRecordWorkspaceOverlay')
             ->with('tt_content', 23)
             ->willReturn($defaultLanguageRow);
@@ -344,7 +346,7 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $translationProphecy->translationInfo('tt_content', 23, 2)->shouldNotBeCalled();
 
         // This is the real check: The "additional overlay" should be fetched
-        $this->subject->expects($this->at(1))
+        $this->subject->expects(self::at(1))
             ->method('getRecordWorkspaceOverlay')
             ->with('tt_content', 43)
             ->willReturn($recordWsolResult);
@@ -359,7 +361,7 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             ],
         ];
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, $this->subject->addData($input));
     }
 
     /**
@@ -419,11 +421,11 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             'text' => 'default language text',
             'sys_language_uid' => 0,
         ];
-        $this->subject->expects($this->at(0))
+        $this->subject->expects(self::at(0))
             ->method('getRecordWorkspaceOverlay')
             ->with('tt_content', 23)
             ->willReturn($defaultLanguageRow);
-        $this->subject->expects($this->at(1))
+        $this->subject->expects(self::at(1))
             ->method('getRecordWorkspaceOverlay')
             ->with('tt_content', 24)
             ->willReturn($sourceLanguageRow);
@@ -432,6 +434,6 @@ class DatabaseLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $expected['defaultLanguageRow'] = $defaultLanguageRow;
         $expected['sourceLanguageRow'] = $sourceLanguageRow;
 
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, $this->subject->addData($input));
     }
 }

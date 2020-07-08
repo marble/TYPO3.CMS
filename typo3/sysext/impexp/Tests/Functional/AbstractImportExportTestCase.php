@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp\Tests\Functional;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Impexp\Tests\Functional;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Impexp\Tests\Functional;
 
 use TYPO3\CMS\Backend\Tree\View\PageTreeView;
 use TYPO3\CMS\Core\Core\Bootstrap;
@@ -44,35 +45,22 @@ abstract class AbstractImportExportTestCase extends FunctionalTestCase
     protected $testFilesToDelete = [];
 
     /**
-     * Different DBMS export different field types, the result XML is thus slightly different.
-     * This var is used to select a suitable XML export fixture to compare with.
-     *
-     * @var string
-     */
-    protected $databasePlatform;
-
-    /**
      * Set up for set up the backend user, initialize the language object
      * and creating the Export instance
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
-        $this->databasePlatform = $this->getConnectionPool()
-            ->getConnectionByName(ConnectionPool::DEFAULT_CONNECTION_NAME)
-            ->getDatabasePlatform()
-            ->getName();
-
         $backendUser = $this->setUpBackendUserFromFixture(1);
         $backendUser->workspace = 0;
-        Bootstrap::getInstance()->initializeLanguageObject();
+        Bootstrap::initializeLanguageObject();
     }
 
     /**
      * Tear down for remove of the test files
      */
-    protected function tearDown()
+    protected function tearDown(): void
     {
         foreach ($this->testFilesToDelete as $absoluteFileName) {
             if (@is_file($absoluteFileName)) {
@@ -104,6 +92,7 @@ abstract class AbstractImportExportTestCase extends FunctionalTestCase
             $tree->getTree($pidToStart, $depth, '');
         }
 
+        $idH = [];
         $idH[$pidToStart]['uid'] = $pidToStart;
         if (!empty($tree->buffer_idH)) {
             $idH[$pidToStart]['subrow'] = $tree->buffer_idH;
@@ -146,17 +135,34 @@ abstract class AbstractImportExportTestCase extends FunctionalTestCase
                         );
 
                     foreach (QueryHelper::parseOrderBy((string)$orderBy) as $orderPair) {
-                        list($fieldName, $order) = $orderPair;
+                        [$fieldName, $order] = $orderPair;
                         $queryBuilder->addOrderBy($fieldName, $order);
                     }
+                    $queryBuilder->addOrderBy('uid', 'ASC');
 
                     $result = $queryBuilder->execute();
                     while ($row = $result->fetch()) {
-                        $export->export_addRecord($table, $row);
+                        $export->export_addRecord($table, $this->forceStringsOnRowValues($row));
                     }
                 }
             }
         }
+    }
+
+    /**
+     * All not null values are forced to be strings to align
+     * db driver differences
+     *
+     * @param array $row
+     * @return array
+     */
+    protected function forceStringsOnRowValues(array $row): array
+    {
+        foreach ($row as $fieldName => $value) {
+            // Keep null but force everything else to string
+            $row[$fieldName] = $value === null ? $value : (string)$value;
+        }
+        return $row;
     }
 
     /**

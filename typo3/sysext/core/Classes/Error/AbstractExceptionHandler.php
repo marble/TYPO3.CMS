@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Error;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,27 @@ namespace TYPO3\CMS\Core\Error;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Error;
+
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\SysLog\Action as SystemLogGenericAction;
+use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
+use TYPO3\CMS\Core\SysLog\Type as SystemLogType;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
 
 /**
  * An abstract exception handler
  *
  * This file is a backport from TYPO3 Flow
  */
-abstract class AbstractExceptionHandler implements ExceptionHandlerInterface, \TYPO3\CMS\Core\SingletonInterface
+abstract class AbstractExceptionHandler implements ExceptionHandlerInterface, SingletonInterface, LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     const CONTEXT_WEB = 'WEB';
     const CONTEXT_CLI = 'CLI';
 
@@ -50,7 +60,6 @@ abstract class AbstractExceptionHandler implements ExceptionHandlerInterface, \T
      *
      * @param \Throwable $exception The throwable object.
      * @param string $context The context where the exception was thrown, WEB or CLI
-     * @see \TYPO3\CMS\Core\Utility\GeneralUtility::sysLog(), \TYPO3\CMS\Core\Utility\GeneralUtility::devLog()
      */
     protected function writeLogEntries(\Throwable $exception, $context)
     {
@@ -64,20 +73,18 @@ abstract class AbstractExceptionHandler implements ExceptionHandlerInterface, \T
         $logMessage = 'Uncaught TYPO3 Exception: ' . $exceptionCodeNumber . $exception->getMessage() . ' | '
             . get_class($exception) . ' thrown in file ' . $filePathAndName . ' in line ' . $exception->getLine();
         if ($context === 'WEB') {
-            $logMessage .= '. Requested URL: ' . GeneralUtility::getIndpEnv('TYPO3_REQUEST_URL');
+            $logMessage .= '. Requested URL: ' . $this->anonymizeToken(GeneralUtility::getIndpEnv('TYPO3_REQUEST_URL'));
         }
-        $backtrace = $exception->getTrace();
-        // Write error message to the configured syslogs
-        GeneralUtility::sysLog($logMessage, $logTitle, GeneralUtility::SYSLOG_SEVERITY_FATAL);
         // When database credentials are wrong, the exception is probably
         // caused by this. Therefor we cannot do any database operation,
         // otherwise this will lead into recurring exceptions.
         try {
-            // Write error message to devlog
-            GeneralUtility::devLog($logMessage, $logTitle, 3, [
-                'TYPO3_MODE' => TYPO3_MODE,
-                'backtrace' => $backtrace
-            ]);
+            if ($this->logger) {
+                $this->logger->critical($logTitle . ': ' . $logMessage, [
+                    'TYPO3_MODE' => TYPO3_MODE,
+                    'exception' => $exception
+                ]);
+            }
             // Write error message to sys_log table
             $this->writeLog($logTitle . ': ' . $logMessage);
         } catch (\Exception $exception) {
@@ -117,9 +124,9 @@ abstract class AbstractExceptionHandler implements ExceptionHandlerInterface, \T
             'sys_log',
             [
                 'userid' => $userId,
-                'type' => 5,
-                'action' => 0,
-                'error' => 2,
+                'type' => SystemLogType::ERROR,
+                'action' => SystemLogGenericAction::UNDEFINED,
+                'error' => SystemLogErrorClassification::SYSTEM_ERROR,
                 'details_nr' => 0,
                 'details' => str_replace('%', '%%', $logMessage),
                 'log_data' => empty($data) ? '' : serialize($data),
@@ -141,7 +148,7 @@ abstract class AbstractExceptionHandler implements ExceptionHandlerInterface, \T
         if (method_exists($exception, 'getStatusHeaders')) {
             $headers = $exception->getStatusHeaders();
         } else {
-            $headers = [\TYPO3\CMS\Core\Utility\HttpUtility::HTTP_STATUS_500];
+            $headers = [HttpUtility::HTTP_STATUS_500];
         }
         if (!headers_sent()) {
             foreach ($headers as $header) {
@@ -156,5 +163,17 @@ abstract class AbstractExceptionHandler implements ExceptionHandlerInterface, \T
     protected function getBackendUser()
     {
         return $GLOBALS['BE_USER'];
+    }
+
+    /**
+     * Replaces the generated token with a generic equivalent
+     *
+     * @param string $requestedUrl
+     * @return string
+     */
+    protected function anonymizeToken(string $requestedUrl): string
+    {
+        $pattern = '/(?<=[tT]oken=)[0-9a-fA-F]{40}/';
+        return preg_replace($pattern, '--AnonymizedToken--', $requestedUrl);
     }
 }

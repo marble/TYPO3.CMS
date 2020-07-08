@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Wizard;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,17 +13,21 @@ namespace TYPO3\CMS\Backend\Form\Wizard;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\Wizard;
+
+use TYPO3\CMS\Backend\Tree\View\PageTreeView;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
-use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
-use TYPO3\CMS\Core\Database\Query\Restriction\BackendWorkspaceRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
  * Default implementation of a handler class for an ajax record selector.
@@ -100,26 +103,27 @@ class SuggestWizardDefaultReceiver
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
             // if table is versionized, only get the records from the Live Workspace
             // the overlay itself of WS-records is done below
-            ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class, 0));
+            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, 0));
         $this->table = $table;
         $this->config = $config;
         // get a list of all the pages that should be looked on
         if (isset($config['pidList'])) {
-            $allowedPages = ($pageIds = GeneralUtility::trimExplode(',', $config['pidList']));
-            $depth = (int)$config['pidDepth'];
+            $pageIds = GeneralUtility::intExplode(',', $config['pidList'], true);
+            $depth = (int)($config['pidDepth'] ?? 0);
+            $availablePageIds = [];
             foreach ($pageIds as $pageId) {
-                if ($pageId > 0) {
-                    \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($allowedPages, $this->getAllSubpagesOfPage($pageId, $depth));
-                }
+                $availablePageIds[] = $this->getAvailablePageIds($pageId, $depth);
             }
-            $this->allowedPages = array_unique($allowedPages);
+            $this->allowedPages = array_unique(array_merge($this->allowedPages, ...$availablePageIds));
         }
         if (isset($config['maxItemsInResultList'])) {
             $this->maxItems = $config['maxItemsInResultList'];
         }
+        $GLOBALS['BE_USER']->initializeWebmountsForElementBrowser();
         if ($this->table === 'pages') {
             $this->queryBuilder->andWhere(
-                QueryHelper::stripLogicalOperatorPrefix($GLOBALS['BE_USER']->getPagePermsClause(1))
+                QueryHelper::stripLogicalOperatorPrefix($GLOBALS['BE_USER']->getPagePermsClause(Permission::PAGE_SHOW)),
+                $this->queryBuilder->expr()->eq('sys_language_uid', 0)
             );
         }
         if (isset($config['addWhere'])) {
@@ -143,17 +147,22 @@ class SuggestWizardDefaultReceiver
      */
     public function queryTable(&$params, $recursionCounter = 0)
     {
+        $maxQueryResults = 50;
         $rows = [];
         $this->params = &$params;
-        $start = $recursionCounter * 50;
+        $start = $recursionCounter * $maxQueryResults;
         $this->prepareSelectStatement();
         $this->prepareOrderByStatement();
         $result = $this->queryBuilder->select('*')
             ->from($this->table)
             ->setFirstResult($start)
-            ->setMaxResults(50)
+            ->setMaxResults($maxQueryResults)
             ->execute();
-        $allRowsCount = $result->rowCount();
+        $allRowsCount = $this->queryBuilder
+            ->count('uid')
+            ->resetQueryPart('orderBy')
+            ->execute()
+            ->fetchColumn(0);
         if ($allRowsCount) {
             while ($row = $result->fetch()) {
                 // check if we already have collected the maximum number of records
@@ -184,19 +193,19 @@ class SuggestWizardDefaultReceiver
                 $entry = [
                     'text' => '<span class="suggest-label">' . $label . '</span><span class="suggest-uid">[' . $uid . ']</span><br />
 								<span class="suggest-path">' . $croppedPath . '</span>',
-                    'table' => $this->mmForeignTable ? $this->mmForeignTable : $this->table,
-                    'label' => $label,
+                    'table' => $this->mmForeignTable ?: $this->table,
+                    'label' => strip_tags($label),
                     'path' => $path,
                     'uid' => $uid,
                     'style' => '',
-                    'class' => isset($this->config['cssClass']) ? $this->config['cssClass'] : '',
+                    'class' => $this->config['cssClass'] ?? '',
                     'sprite' => $spriteIcon
                 ];
                 $rows[$this->table . '_' . $uid] = $this->renderRecord($row, $entry);
             }
 
             // if there are less records than we need, call this function again to get more records
-            if (count($rows) < $this->maxItems && $allRowsCount >= 50 && $recursionCounter < $this->maxItems) {
+            if (count($rows) < $this->maxItems && $allRowsCount >= $maxQueryResults && $recursionCounter < $this->maxItems) {
                 $tmp = self::queryTable($params, ++$recursionCounter);
                 $rows = array_merge($tmp, $rows);
             }
@@ -211,26 +220,16 @@ class SuggestWizardDefaultReceiver
     protected function prepareSelectStatement()
     {
         $expressionBuilder = $this->queryBuilder->expr();
-        $searchWholePhrase = !isset($this->config['searchWholePhrase']) || $this->config['searchWholePhrase'];
         $searchString = $this->params['value'];
-        $searchUid = (int)$searchString;
         if ($searchString !== '') {
-            $likeCondition = ($searchWholePhrase ? '%' : '') . $searchString . '%';
-            // Search in all fields given by label or label_alt
-            $selectFieldsList = $GLOBALS['TCA'][$this->table]['ctrl']['label'] . ',' . $GLOBALS['TCA'][$this->table]['ctrl']['label_alt'] . ',' . $this->config['additionalSearchFields'];
-            $selectFields = GeneralUtility::trimExplode(',', $selectFieldsList, true);
-            $selectFields = array_unique($selectFields);
-            $selectParts = $expressionBuilder->orX();
-            foreach ($selectFields as $field) {
-                $selectParts->add($expressionBuilder->like($field, $this->queryBuilder->createPositionalParameter($likeCondition)));
+            $splitStrings = $this->splitSearchString($searchString);
+            $constraints = [];
+            foreach ($splitStrings as $splitString) {
+                $constraints[] = $this->buildConstraintBlock($splitString);
             }
-
-            $searchClause = $expressionBuilder->orX($selectParts);
-            if ($searchUid > 0 && $searchUid == $searchString) {
-                $searchClause->add($expressionBuilder->eq('uid', $searchUid));
+            foreach ($constraints as $constraint) {
+                $this->queryBuilder->andWhere($expressionBuilder->andX($constraint));
             }
-
-            $this->queryBuilder->andWhere($expressionBuilder->orX($searchClause));
         }
         if (!empty($this->allowedPages)) {
             $pidList = array_map('intval', $this->allowedPages);
@@ -247,42 +246,63 @@ class SuggestWizardDefaultReceiver
     }
 
     /**
-     * Selects all subpages of one page, optionally only up to a certain level
+     * Creates OR constraints for each split searchWord.
      *
-     * @param int $uid The uid of the page
-     * @param int $depth The depth to select up to. Defaults to 99
-     * @return array of page IDs
+     * @param string $searchString
+     * @return string|\TYPO3\CMS\Core\Database\Query\Expression\CompositeExpression
      */
-    protected function getAllSubpagesOfPage($uid, $depth = 99)
+    protected function buildConstraintBlock(string $searchString)
     {
-        $pageIds = [$uid];
-        $level = 0;
-        $pages = [$uid];
-        $queryBuilder = $this->getQueryBuilderForTable('pages');
-        $queryBuilder->select('uid')
-            ->from('pages');
-        // fetch all
-        while ($depth - $level > 0 && !empty($pageIds)) {
-            ++$level;
-            $rows = $queryBuilder
-                ->where(
-                    $queryBuilder->expr()->in(
-                        'pid',
-                        $queryBuilder->createNamedParameter($pageIds, Connection::PARAM_INT_ARRAY)
-                    )
-                )
-                ->execute()
-                ->fetchAll();
-
-            $rows = array_column(($rows ?: []), 'uid', 'uid');
-            if (!count($rows)) {
-                $pageIds = array_keys($rows);
-                $pages = array_merge($pages, $pageIds);
-            } else {
-                break;
-            }
+        $expressionBuilder = $this->queryBuilder->expr();
+        $selectParts = $expressionBuilder->orX();
+        if (MathUtility::canBeInterpretedAsInteger($searchString) && (int)$searchString > 0) {
+            $selectParts->add($expressionBuilder->eq('uid', (int)$searchString));
         }
-        return $pages;
+        $searchWholePhrase = !isset($this->config['searchWholePhrase']) || $this->config['searchWholePhrase'];
+        $likeCondition = ($searchWholePhrase ? '%' : '') . $this->queryBuilder->escapeLikeWildcards($searchString) . '%';
+        // Search in all fields given by label or label_alt
+        $selectFieldsList = ($GLOBALS['TCA'][$this->table]['ctrl']['label'] ?? '') . ',' . ($GLOBALS['TCA'][$this->table]['ctrl']['label_alt'] ?? '') . ',' . $this->config['additionalSearchFields'];
+        $selectFields = GeneralUtility::trimExplode(',', $selectFieldsList, true);
+        $selectFields = array_unique($selectFields);
+        foreach ($selectFields as $field) {
+            $selectParts->add($expressionBuilder->like($field, $this->queryBuilder->createPositionalParameter($likeCondition)));
+        }
+
+        return $selectParts;
+    }
+
+    /**
+     * Splits the search string by space
+     * This allows searching for 'elements basic' and will find results like "elements rte basic"
+     * To search for whole phrases enclose by double-quotes: '"elements basic"', results in empty result
+     *
+     * @param string $searchString
+     * @return array
+     */
+    protected function splitSearchString(string $searchString): array
+    {
+        return str_getcsv($searchString, ' ');
+    }
+
+    /**
+     * Get array of page ids from given page id and depth
+     *
+     * @param int $id Page id.
+     * @param int $depth Depth to go down.
+     * @return array of all page ids
+     */
+    protected function getAvailablePageIds(int $id, int $depth = 0): array
+    {
+        if ($depth === 0) {
+            return [$id];
+        }
+        $tree = GeneralUtility::makeInstance(PageTreeView::class);
+        $tree->init();
+        $tree->getTree($id, $depth);
+        $tree->makeHTML = 0;
+        $tree->fieldArray = ['uid'];
+        $tree->ids[] = $id;
+        return $tree->ids;
     }
 
     /**
@@ -295,7 +315,7 @@ class SuggestWizardDefaultReceiver
             $this->queryBuilder->addOrderBy($GLOBALS['TCA'][$this->table]['ctrl']['label']);
         } else {
             foreach (QueryHelper::parseOrderBy($this->config['orderBy']) as $orderPair) {
-                list($fieldName, $order) = $orderPair;
+                [$fieldName, $order] = $orderPair;
                 $this->queryBuilder->addOrderBy($fieldName, $order);
             }
         }
@@ -322,13 +342,13 @@ class SuggestWizardDefaultReceiver
         $retValue = true;
         $table = $this->mmForeignTable ?: $this->table;
         if ($table === 'pages') {
-            if (!BackendUtility::readPageAccess($uid, $GLOBALS['BE_USER']->getPagePermsClause(1))) {
+            if (!BackendUtility::readPageAccess($uid, $GLOBALS['BE_USER']->getPagePermsClause(Permission::PAGE_SHOW))) {
                 $retValue = false;
             }
         } elseif (isset($GLOBALS['TCA'][$table]['ctrl']['is_static']) && (bool)$GLOBALS['TCA'][$table]['ctrl']['is_static']) {
             $retValue = true;
         } else {
-            if (!is_array(BackendUtility::readPageAccess($row['pid'], $GLOBALS['BE_USER']->getPagePermsClause(1)))) {
+            if (!is_array(BackendUtility::readPageAccess($row['pid'], $GLOBALS['BE_USER']->getPagePermsClause(Permission::PAGE_SHOW)))) {
                 $retValue = false;
             }
         }
@@ -343,8 +363,8 @@ class SuggestWizardDefaultReceiver
     protected function makeWorkspaceOverlay(&$row)
     {
         // Check for workspace-versions
-        if ($GLOBALS['BE_USER']->workspace != 0 && $GLOBALS['TCA'][$this->table]['ctrl']['versioningWS'] == true) {
-            BackendUtility::workspaceOL($this->mmForeignTable ? $this->mmForeignTable : $this->table, $row);
+        if ($GLOBALS['BE_USER']->workspace != 0 && BackendUtility::isTableWorkspaceEnabled($this->table)) {
+            BackendUtility::workspaceOL($this->mmForeignTable ?: $this->table, $row);
         }
     }
 
@@ -355,13 +375,13 @@ class SuggestWizardDefaultReceiver
      * The path is returned uncut, cutting has to be done by calling function.
      *
      * @param array $row The row
-     * @param array $record The record
+     * @param int $uid UID of the record
      * @return string The record-path
      */
     protected function getRecordPath(&$row, $uid)
     {
         $titleLimit = max($this->config['maxPathTitleLength'], 0);
-        if (($this->mmForeignTable ? $this->mmForeignTable : $this->table) === 'pages') {
+        if (($this->mmForeignTable ?: $this->table) === 'pages') {
             $path = BackendUtility::getRecordPath($uid, '', $titleLimit);
             // For pages we only want the first (n-1) parts of the path,
             // because the n-th part is the page itself
@@ -380,7 +400,7 @@ class SuggestWizardDefaultReceiver
      */
     protected function getLabel($row)
     {
-        return BackendUtility::getRecordTitle($this->mmForeignTable ? $this->mmForeignTable : $this->table, $row, true);
+        return BackendUtility::getRecordTitle($this->mmForeignTable ?: $this->table, $row, true);
     }
 
     /**

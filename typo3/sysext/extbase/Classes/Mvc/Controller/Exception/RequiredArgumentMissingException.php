@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Mvc\Controller\Exception;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +15,13 @@ namespace TYPO3\CMS\Extbase\Mvc\Controller\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Mvc\Controller\Exception;
+
+use TYPO3\CMS\Extbase\Mvc\Exception;
+
 /**
  * An "Invalid Argument Name" exception
  */
-class RequiredArgumentMissingException extends \TYPO3\CMS\Extbase\Mvc\Exception
+class RequiredArgumentMissingException extends Exception
 {
 }

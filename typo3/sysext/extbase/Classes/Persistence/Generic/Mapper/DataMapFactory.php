@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +15,30 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
+
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Database\Query\QueryHelper;
+use TYPO3\CMS\Core\DataHandling\TableColumnSubType;
+use TYPO3\CMS\Core\DataHandling\TableColumnType;
+use TYPO3\CMS\Core\Information\Typo3Version;
+use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
+use TYPO3\CMS\Extbase\Persistence\ClassesConfiguration;
+use TYPO3\CMS\Extbase\Persistence\ClassesConfigurationFactory;
+use TYPO3\CMS\Extbase\Persistence\Generic\Exception\InvalidClassException;
+use TYPO3\CMS\Extbase\Persistence\Generic\Exception\UnsupportedRelationException;
+use TYPO3\CMS\Extbase\Reflection\ClassSchema\Exception\NoSuchPropertyException;
+use TYPO3\CMS\Extbase\Reflection\ReflectionService;
+
 /**
  * A factory for a data map to map a single table configured in $TCA on a domain object.
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
-class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
+class DataMapFactory implements SingletonInterface
 {
     /**
      * @var \TYPO3\CMS\Extbase\Reflection\ReflectionService
@@ -40,48 +61,42 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
     protected $cacheManager;
 
     /**
-     * @var \TYPO3\CMS\Core\Cache\Frontend\VariableFrontend
+     * @var \TYPO3\CMS\Core\Cache\Frontend\FrontendInterface
      */
     protected $dataMapCache;
 
     /**
+     * Runtime cache for data maps, to reduce number of calls to cache backend.
+     *
+     * @var array
+     */
+    protected $dataMaps = [];
+
+    /**
+     * @var ClassesConfiguration
+     */
+    private $classesConfiguration;
+
+    /**
      * @param \TYPO3\CMS\Extbase\Reflection\ReflectionService $reflectionService
-     */
-    public function injectReflectionService(\TYPO3\CMS\Extbase\Reflection\ReflectionService $reflectionService)
-    {
-        $this->reflectionService = $reflectionService;
-    }
-
-    /**
      * @param \TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface $configurationManager
-     */
-    public function injectConfigurationManager(\TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface $configurationManager)
-    {
-        $this->configurationManager = $configurationManager;
-    }
-
-    /**
      * @param \TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager
-     */
-    public function injectObjectManager(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager)
-    {
-        $this->objectManager = $objectManager;
-    }
-
-    /**
      * @param \TYPO3\CMS\Core\Cache\CacheManager $cacheManager
      */
-    public function injectCacheManager(\TYPO3\CMS\Core\Cache\CacheManager $cacheManager)
-    {
+    public function __construct(
+        ReflectionService $reflectionService,
+        ConfigurationManagerInterface $configurationManager,
+        ObjectManagerInterface $objectManager,
+        CacheManager $cacheManager,
+        ClassesConfigurationFactory $classesConfigurationFactory
+    ) {
+        $this->reflectionService = $reflectionService;
+        $this->configurationManager = $configurationManager;
+        $this->objectManager = $objectManager;
         $this->cacheManager = $cacheManager;
-    }
 
-    /**
-     * Lifecycle method
-     */
-    public function initializeObject()
-    {
-        $this->dataMapCache = $this->cacheManager->getCache('extbase_datamapfactory_datamap');
+        $this->dataMapCache = $this->cacheManager->getCache('extbase');
+        $this->classesConfiguration = $classesConfigurationFactory->createClassesConfiguration();
     }
 
     /**
@@ -92,13 +107,20 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $className The class name you want to fetch the Data Map for
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap The data map
      */
-    public function buildDataMap($className)
+    public function buildDataMap(string $className): DataMap
     {
-        $dataMap = $this->dataMapCache->get(str_replace('\\', '%', $className));
+        $className = ltrim($className, '\\');
+        if (isset($this->dataMaps[$className])) {
+            return $this->dataMaps[$className];
+        }
+        $cacheIdentifierClassName = str_replace('\\', '', $className);
+        $cacheIdentifier = 'DataMap_' . $cacheIdentifierClassName . '_' . sha1((string)(new Typo3Version()) . Environment::getProjectPath());
+        $dataMap = $this->dataMapCache->get($cacheIdentifier);
         if ($dataMap === false) {
             $dataMap = $this->buildDataMapInternal($className);
-            $this->dataMapCache->set(str_replace('\\', '%', $className), $dataMap);
+            $this->dataMapCache->set($cacheIdentifier, $dataMap);
         }
+        $this->dataMaps[$className] = $dataMap;
         return $dataMap;
     }
 
@@ -111,10 +133,10 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * @throws \TYPO3\CMS\Extbase\Persistence\Generic\Exception\InvalidClassException
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap The data map
      */
-    protected function buildDataMapInternal($className)
+    protected function buildDataMapInternal(string $className): DataMap
     {
         if (!class_exists($className)) {
-            throw new \TYPO3\CMS\Extbase\Persistence\Generic\Exception\InvalidClassException(
+            throw new InvalidClassException(
                 'Could not find class definition for name "' . $className . '". This could be caused by a mis-spelling of the class name in the class definition.',
                 1476045117
             );
@@ -122,52 +144,39 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
         $recordType = null;
         $subclasses = [];
         $tableName = $this->resolveTableName($className);
-        $columnMapping = [];
-        $frameworkConfiguration = $this->configurationManager->getConfiguration(\TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface::CONFIGURATION_TYPE_FRAMEWORK);
-        $classSettings = $frameworkConfiguration['persistence']['classes'][$className];
-        if ($classSettings !== null) {
-            if (isset($classSettings['subclasses']) && is_array($classSettings['subclasses'])) {
-                $subclasses = $this->resolveSubclassesRecursive($frameworkConfiguration['persistence']['classes'], $classSettings['subclasses']);
+        $fieldNameToPropertyNameMapping = [];
+        if ($this->classesConfiguration->hasClass($className)) {
+            $classSettings = $this->classesConfiguration->getConfigurationFor($className);
+            $subclasses = $this->classesConfiguration->getSubClasses($className);
+            if (isset($classSettings['recordType']) && $classSettings['recordType'] !== '') {
+                $recordType = $classSettings['recordType'];
             }
-            if (isset($classSettings['mapping']['recordType']) && $classSettings['mapping']['recordType'] !== '') {
-                $recordType = $classSettings['mapping']['recordType'];
+            if (isset($classSettings['tableName']) && $classSettings['tableName'] !== '') {
+                $tableName = $classSettings['tableName'];
             }
-            if (isset($classSettings['mapping']['tableName']) && $classSettings['mapping']['tableName'] !== '') {
-                $tableName = $classSettings['mapping']['tableName'];
-            }
-            $classHierarchy = array_merge([$className], class_parents($className));
-            foreach ($classHierarchy as $currentClassName) {
-                if (in_array($currentClassName, [\TYPO3\CMS\Extbase\DomainObject\AbstractEntity::class, \TYPO3\CMS\Extbase\DomainObject\AbstractValueObject::class])) {
-                    break;
-                }
-                $currentClassSettings = $frameworkConfiguration['persistence']['classes'][$currentClassName];
-                if ($currentClassSettings !== null) {
-                    if (isset($currentClassSettings['mapping']['columns']) && is_array($currentClassSettings['mapping']['columns'])) {
-                        \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($columnMapping, $currentClassSettings['mapping']['columns'], true, false);
-                    }
-                }
+            foreach ($classSettings['properties'] ?? [] as $propertyName => $propertyDefinition) {
+                $fieldNameToPropertyNameMapping[$propertyDefinition['fieldName']] = $propertyName;
             }
         }
-        /** @var $dataMap \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap */
-        $dataMap = $this->objectManager->get(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap::class, $className, $tableName, $recordType, $subclasses);
+        /** @var \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap $dataMap */
+        $dataMap = $this->objectManager->get(DataMap::class, $className, $tableName, $recordType, $subclasses);
         $dataMap = $this->addMetaDataColumnNames($dataMap, $tableName);
-        // $classPropertyNames = $this->reflectionService->getClassPropertyNames($className);
-        $tcaColumnsDefinition = $this->getColumnsDefinition($tableName);
-        \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($tcaColumnsDefinition, $columnMapping);
-        // @todo Is this is too powerful?
 
-        foreach ($tcaColumnsDefinition as $columnName => $columnDefinition) {
-            if (isset($columnDefinition['mapOnProperty'])) {
-                $propertyName = $columnDefinition['mapOnProperty'];
-            } else {
-                $propertyName = \TYPO3\CMS\Core\Utility\GeneralUtility::underscoredToLowerCamelCase($columnName);
-            }
-            // if (in_array($propertyName, $classPropertyNames)) {
-            // @todo Enable check for property existence
+        foreach ($this->getColumnsDefinition($tableName) as $columnName => $columnDefinition) {
+            $propertyName = $fieldNameToPropertyNameMapping[$columnName]
+                ?? GeneralUtility::underscoredToLowerCamelCase($columnName);
+
+            // @todo: shall we really create column maps for non existing properties?
+            // @todo: check why this could happen in the first place. TCA definitions for non existing model properties?
             $columnMap = $this->createColumnMap($columnName, $propertyName);
-            $propertyMetaData = $this->reflectionService->getClassSchema($className)->getProperty($propertyName);
+            try {
+                $property = $this->reflectionService->getClassSchema($className)->getProperty($propertyName);
+                [$type, $elementType] = [$property->getType(), $property->getElementType()];
+            } catch (NoSuchPropertyException $e) {
+                [$type, $elementType] = [null, null];
+            }
             $columnMap = $this->setType($columnMap, $columnDefinition['config']);
-            $columnMap = $this->setRelations($columnMap, $columnDefinition['config'], $propertyMetaData);
+            $columnMap = $this->setRelations($columnMap, $columnDefinition['config'], $type, $elementType);
             $columnMap = $this->setFieldEvaluations($columnMap, $columnDefinition['config']);
             $dataMap->addColumnMap($columnMap);
         }
@@ -180,54 +189,32 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $className
      * @return string The table name
      */
-    protected function resolveTableName($className)
+    protected function resolveTableName(string $className): string
     {
         $className = ltrim($className, '\\');
-        if (strpos($className, '\\') !== false) {
-            $classNameParts = explode('\\', $className);
-            // Skip vendor and product name for core classes
-            if (strpos($className, 'TYPO3\\CMS\\') === 0) {
-                $classPartsToSkip = 2;
-            } else {
-                $classPartsToSkip = 1;
-            }
-            $tableName = 'tx_' . strtolower(implode('_', array_slice($classNameParts, $classPartsToSkip)));
+        $classNameParts = explode('\\', $className);
+        // Skip vendor and product name for core classes
+        if (strpos($className, 'TYPO3\\CMS\\') === 0) {
+            $classPartsToSkip = 2;
         } else {
-            $tableName = strtolower($className);
+            $classPartsToSkip = 1;
         }
-        return $tableName;
-    }
+        $tableName = 'tx_' . strtolower(implode('_', array_slice($classNameParts, $classPartsToSkip)));
 
-    /**
-     * Resolves all subclasses for the given set of (sub-)classes.
-     * The whole classes configuration is used to determine all subclasses recursively.
-     *
-     * @param array $classesConfiguration The framework configuration part [persistence][classes].
-     * @param array $subclasses An array of subclasses defined via TypoScript
-     * @return array An numeric array that contains all available subclasses-strings as values.
-     */
-    protected function resolveSubclassesRecursive(array $classesConfiguration, array $subclasses)
-    {
-        $allSubclasses = [];
-        foreach ($subclasses as $subclass) {
-            $allSubclasses[] = $subclass;
-            if (isset($classesConfiguration[$subclass]['subclasses']) && is_array($classesConfiguration[$subclass]['subclasses'])) {
-                $childSubclasses = $this->resolveSubclassesRecursive($classesConfiguration, $classesConfiguration[$subclass]['subclasses']);
-                $allSubclasses = array_merge($allSubclasses, $childSubclasses);
-            }
-        }
-        return $allSubclasses;
+        return $tableName;
     }
 
     /**
      * Returns the TCA ctrl section of the specified table; or NULL if not set
      *
      * @param string $tableName An optional table name to fetch the columns definition from
-     * @return array The TCA columns definition
+     * @return array|null The TCA columns definition
      */
-    protected function getControlSection($tableName)
+    protected function getControlSection(string $tableName): ?array
     {
-        return is_array($GLOBALS['TCA'][$tableName]['ctrl']) ? $GLOBALS['TCA'][$tableName]['ctrl'] : null;
+        return (isset($GLOBALS['TCA'][$tableName]['ctrl']) && is_array($GLOBALS['TCA'][$tableName]['ctrl']))
+            ? $GLOBALS['TCA'][$tableName]['ctrl']
+            : null;
     }
 
     /**
@@ -236,7 +223,7 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $tableName An optional table name to fetch the columns definition from
      * @return array The TCA columns definition
      */
-    protected function getColumnsDefinition($tableName)
+    protected function getColumnsDefinition(string $tableName): array
     {
         return is_array($GLOBALS['TCA'][$tableName]['columns']) ? $GLOBALS['TCA'][$tableName]['columns'] : [];
     }
@@ -246,7 +233,7 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $tableName
      * @return DataMap
      */
-    protected function addMetaDataColumnNames(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap $dataMap, $tableName)
+    protected function addMetaDataColumnNames(DataMap $dataMap, string $tableName): DataMap
     {
         $controlSection = $GLOBALS['TCA'][$tableName]['ctrl'];
         $dataMap->setPageIdColumnName('pid');
@@ -302,12 +289,15 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * @param array $columnConfiguration
      * @return ColumnMap
      */
-    protected function setType(ColumnMap $columnMap, $columnConfiguration)
+    protected function setType(ColumnMap $columnMap, array $columnConfiguration): ColumnMap
     {
-        $tableColumnType = (isset($columnConfiguration['type'])) ? $columnConfiguration['type'] : null;
-        $columnMap->setType(\TYPO3\CMS\Core\DataHandling\TableColumnType::cast($tableColumnType));
-        $tableColumnSubType = (isset($columnConfiguration['internal_type'])) ? $columnConfiguration['internal_type'] : null;
-        $columnMap->setInternalType(\TYPO3\CMS\Core\DataHandling\TableColumnSubType::cast($tableColumnSubType));
+        // todo: this method should only be called with proper arguments which means that the TCA integrity check should
+        // todo: take place outside this method.
+
+        $tableColumnType = $columnConfiguration['type'] ?? null;
+        $columnMap->setType(TableColumnType::cast($tableColumnType));
+        $tableColumnSubType = $columnConfiguration['internal_type'] ?? null;
+        $columnMap->setInternalType(TableColumnSubType::cast($tableColumnSubType));
 
         return $columnMap;
     }
@@ -317,20 +307,34 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * the $TCA column configuration
      *
      * @param ColumnMap $columnMap The column map
-     * @param NULL|array $columnConfiguration The column configuration from $TCA
-     * @param array $propertyMetaData The property metadata as delivered by the reflection service
+     * @param array|null $columnConfiguration The column configuration from $TCA
+     * @param string|null $type
+     * @param string|null $elementType
      * @return ColumnMap
      */
-    protected function setRelations(ColumnMap $columnMap, $columnConfiguration, $propertyMetaData)
+    protected function setRelations(ColumnMap $columnMap, ?array $columnConfiguration, ?string $type, ?string $elementType): ColumnMap
     {
         if (isset($columnConfiguration)) {
             if (isset($columnConfiguration['MM'])) {
                 $columnMap = $this->setManyToManyRelation($columnMap, $columnConfiguration);
-            } elseif (isset($propertyMetaData['elementType'])) {
+            } elseif ($elementType !== null) {
                 $columnMap = $this->setOneToManyRelation($columnMap, $columnConfiguration);
-            } elseif (isset($propertyMetaData['type']) && strpbrk($propertyMetaData['type'], '_\\') !== false) {
+            } elseif ($type !== null && strpbrk($type, '_\\') !== false) {
+                // @todo: check the strpbrk function call. Seems to be a check for Tx_Foo_Bar style class names
                 $columnMap = $this->setOneToOneRelation($columnMap, $columnConfiguration);
-            } elseif (isset($columnConfiguration['type']) && $columnConfiguration['type'] === 'select') {
+            } elseif (
+                isset($columnConfiguration['type'], $columnConfiguration['renderType'])
+                && $columnConfiguration['type'] === 'select'
+                && (
+                    $columnConfiguration['renderType'] !== 'selectSingle'
+                    || (isset($columnConfiguration['maxitems']) && $columnConfiguration['maxitems'] > 1)
+                )
+            ) {
+                $columnMap->setTypeOfRelation(ColumnMap::RELATION_HAS_MANY);
+            } elseif (
+                isset($columnConfiguration['type']) && $columnConfiguration['type'] === 'group'
+                && (!isset($columnConfiguration['maxitems']) || $columnConfiguration['maxitems'] > 1)
+            ) {
                 $columnMap->setTypeOfRelation(ColumnMap::RELATION_HAS_MANY);
             } else {
                 $columnMap->setTypeOfRelation(ColumnMap::RELATION_NONE);
@@ -345,16 +349,19 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * Sets field evaluations based on $TCA column configuration.
      *
      * @param ColumnMap $columnMap The column map
-     * @param NULL|array $columnConfiguration The column configuration from $TCA
+     * @param array|null $columnConfiguration The column configuration from $TCA
      * @return ColumnMap
      */
-    protected function setFieldEvaluations(ColumnMap $columnMap, array $columnConfiguration = null)
+    protected function setFieldEvaluations(ColumnMap $columnMap, array $columnConfiguration = null): ColumnMap
     {
-        if (!empty($columnConfiguration['eval'])) {
-            $fieldEvaluations = \TYPO3\CMS\Core\Utility\GeneralUtility::trimExplode(',', $columnConfiguration['eval'], true);
-            $dateTimeEvaluations = ['date', 'datetime'];
+        // todo: this method should only be called with proper arguments which means that the TCA integrity check should
+        // todo: take place outside this method.
 
-            if (!empty(array_intersect($dateTimeEvaluations, $fieldEvaluations)) && !empty($columnConfiguration['dbType'])) {
+        if (!empty($columnConfiguration['eval'])) {
+            $fieldEvaluations = GeneralUtility::trimExplode(',', $columnConfiguration['eval'], true);
+            $dateTimeTypes = QueryHelper::getDateTimeTypes();
+
+            if (!empty(array_intersect($dateTimeTypes, $fieldEvaluations)) && !empty($columnConfiguration['dbType'])) {
                 $columnMap->setDateTimeStorageFormat($columnConfiguration['dbType']);
             }
         }
@@ -367,17 +374,20 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * the $TCA column configuration
      *
      * @param ColumnMap $columnMap The column map
-     * @param NULL|array $columnConfiguration The column configuration from $TCA
+     * @param array|null $columnConfiguration The column configuration from $TCA
      * @return ColumnMap
      */
-    protected function setOneToOneRelation(ColumnMap $columnMap, array $columnConfiguration = null)
+    protected function setOneToOneRelation(ColumnMap $columnMap, array $columnConfiguration = null): ColumnMap
     {
+        // todo: this method should only be called with proper arguments which means that the TCA integrity check should
+        // todo: take place outside this method.
+
         $columnMap->setTypeOfRelation(ColumnMap::RELATION_HAS_ONE);
         $columnMap->setChildTableName($columnConfiguration['foreign_table']);
-        $columnMap->setChildTableWhereStatement($columnConfiguration['foreign_table_where']);
-        $columnMap->setChildSortByFieldName($columnConfiguration['foreign_sortby']);
-        $columnMap->setParentKeyFieldName($columnConfiguration['foreign_field']);
-        $columnMap->setParentTableFieldName($columnConfiguration['foreign_table_field']);
+        // todo: don't update column map if value(s) isn't/aren't set.
+        $columnMap->setChildSortByFieldName($columnConfiguration['foreign_sortby'] ?? null);
+        $columnMap->setParentKeyFieldName($columnConfiguration['foreign_field'] ?? null);
+        $columnMap->setParentTableFieldName($columnConfiguration['foreign_table_field'] ?? null);
         if (is_array($columnConfiguration['foreign_match_fields'])) {
             $columnMap->setRelationTableMatchFields($columnConfiguration['foreign_match_fields']);
         }
@@ -389,18 +399,21 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * the $TCA column configuration
      *
      * @param ColumnMap $columnMap The column map
-     * @param NULL|array $columnConfiguration The column configuration from $TCA
+     * @param array|null $columnConfiguration The column configuration from $TCA
      * @return ColumnMap
      */
-    protected function setOneToManyRelation(ColumnMap $columnMap, array $columnConfiguration = null)
+    protected function setOneToManyRelation(ColumnMap $columnMap, array $columnConfiguration = null): ColumnMap
     {
+        // todo: this method should only be called with proper arguments which means that the TCA integrity check should
+        // todo: take place outside this method.
+
         $columnMap->setTypeOfRelation(ColumnMap::RELATION_HAS_MANY);
         $columnMap->setChildTableName($columnConfiguration['foreign_table']);
-        $columnMap->setChildTableWhereStatement($columnConfiguration['foreign_table_where']);
-        $columnMap->setChildSortByFieldName($columnConfiguration['foreign_sortby']);
-        $columnMap->setParentKeyFieldName($columnConfiguration['foreign_field']);
-        $columnMap->setParentTableFieldName($columnConfiguration['foreign_table_field']);
-        if (is_array($columnConfiguration['foreign_match_fields'])) {
+        // todo: don't update column map if value(s) isn't/aren't set.
+        $columnMap->setChildSortByFieldName($columnConfiguration['foreign_sortby'] ?? null);
+        $columnMap->setParentKeyFieldName($columnConfiguration['foreign_field'] ?? null);
+        $columnMap->setParentTableFieldName($columnConfiguration['foreign_table_field'] ?? null);
+        if (is_array($columnConfiguration['foreign_match_fields'] ?? null)) {
             $columnMap->setRelationTableMatchFields($columnConfiguration['foreign_match_fields']);
         }
         return $columnMap;
@@ -411,24 +424,27 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      * the $TCA column configuration
      *
      * @param ColumnMap $columnMap The column map
-     * @param NULL|array $columnConfiguration The column configuration from $TCA
+     * @param array|null $columnConfiguration The column configuration from $TCA
      * @throws \TYPO3\CMS\Extbase\Persistence\Generic\Exception\UnsupportedRelationException
      * @return ColumnMap
      */
-    protected function setManyToManyRelation(ColumnMap $columnMap, array $columnConfiguration = null)
+    protected function setManyToManyRelation(ColumnMap $columnMap, array $columnConfiguration = null): ColumnMap
     {
+        // todo: this method should only be called with proper arguments which means that the TCA integrity check should
+        // todo: take place outside this method.
+
         if (isset($columnConfiguration['MM'])) {
             $columnMap->setTypeOfRelation(ColumnMap::RELATION_HAS_AND_BELONGS_TO_MANY);
             $columnMap->setChildTableName($columnConfiguration['foreign_table']);
-            $columnMap->setChildTableWhereStatement($columnConfiguration['foreign_table_where']);
+            // todo: don't update column map if value(s) isn't/aren't set.
             $columnMap->setRelationTableName($columnConfiguration['MM']);
-            if (is_array($columnConfiguration['MM_match_fields'])) {
+            if (isset($columnConfiguration['MM_match_fields']) && is_array($columnConfiguration['MM_match_fields'])) {
                 $columnMap->setRelationTableMatchFields($columnConfiguration['MM_match_fields']);
             }
-            if (is_array($columnConfiguration['MM_insert_fields'])) {
+            if (isset($columnConfiguration['MM_insert_fields']) && is_array($columnConfiguration['MM_insert_fields'])) {
                 $columnMap->setRelationTableInsertFields($columnConfiguration['MM_insert_fields']);
             }
-            $columnMap->setRelationTableWhereStatement($columnConfiguration['MM_table_where']);
+            // todo: don't update column map if value(s) isn't/aren't set.
             if (!empty($columnConfiguration['MM_opposite_field'])) {
                 $columnMap->setParentKeyFieldName('uid_foreign');
                 $columnMap->setChildKeyFieldName('uid_local');
@@ -439,9 +455,13 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
                 $columnMap->setChildSortByFieldName('sorting');
             }
         } else {
-            throw new \TYPO3\CMS\Extbase\Persistence\Generic\Exception\UnsupportedRelationException('The given information to build a many-to-many-relation was not sufficient. Check your TCA definitions. mm-relations with IRRE must have at least a defined "MM" or "foreign_selector".', 1268817963);
+            // todo: this else part is actually superfluous because \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapFactory::setRelations
+            // todo: only calls this method if $columnConfiguration['MM'] is set.
+
+            throw new UnsupportedRelationException('The given information to build a many-to-many-relation was not sufficient. Check your TCA definitions. mm-relations with IRRE must have at least a defined "MM" or "foreign_selector".', 1268817963);
         }
-        if ($this->getControlSection($columnMap->getRelationTableName()) !== null) {
+        $relationTableName = $columnMap->getRelationTableName();
+        if ($relationTableName !== null && $this->getControlSection($relationTableName) !== null) {
             $columnMap->setRelationTablePageIdColumnName('pid');
         }
         return $columnMap;
@@ -455,8 +475,8 @@ class DataMapFactory implements \TYPO3\CMS\Core\SingletonInterface
      *
      * @return ColumnMap
      */
-    protected function createColumnMap($columnName, $propertyName)
+    protected function createColumnMap(string $columnName, string $propertyName): ColumnMap
     {
-        return $this->objectManager->get(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\ColumnMap::class, $columnName, $propertyName);
+        return $this->objectManager->get(ColumnMap::class, $columnName, $propertyName);
     }
 }

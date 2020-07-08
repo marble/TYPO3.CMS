@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\FAL;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\FAL;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\FAL;
+
+use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase;
+
 /**
  * Functional test for the DataHandler
  */
-abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase
+abstract class AbstractActionTestCase extends AbstractDataHandlerActionTestCase
 {
     const VALUE_PageId = 89;
     const VALUE_PageIdTarget = 90;
@@ -47,15 +50,15 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
     protected $scenarioDataSetDirectory = 'typo3/sysext/core/Tests/Functional/DataHandling/FAL/DataSet/';
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->importScenarioDataSet('LiveDefaultPages');
         $this->importScenarioDataSet('LiveDefaultElements');
         $this->importDataSet('PACKAGE:typo3/testing-framework/Resources/Core/Functional/Fixtures/sys_file_storage.xml');
 
-        $this->setUpFrontendRootPage(1, ['typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts']);
-        $this->backendUser->workspace = 0;
+        $this->setUpFrontendSite(1, $this->siteLanguageConfiguration);
+        $this->setUpFrontendRootPage(1, ['typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.typoscript']);
     }
 
     /**
@@ -63,7 +66,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
 
     /**
-     * @see Modify/DataSet/modifyContent.csv
+     * See Modify/DataSet/modifyContent.csv
      */
     public function modifyContent()
     {
@@ -71,7 +74,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/deleteContent.csv
+     * See Modify/DataSet/deleteContent.csv
      */
     public function deleteContent()
     {
@@ -79,7 +82,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/copyContent.csv
+     * See Modify/DataSet/copyContent.csv
      */
     public function copyContent()
     {
@@ -88,7 +91,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/copyContentToLanguage.csv
+     * See Modify/DataSet/copyContentToLanguage.csv
      */
     public function copyContentToLanguage()
     {
@@ -97,7 +100,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/localizeContent.csv
+     * See Modify/DataSet/localizeContent.csv
      */
     public function localizeContent()
     {
@@ -106,7 +109,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/changeContentSorting.csv
+     * See Modify/DataSet/changeContentSorting.csv
      */
     public function changeContentSorting()
     {
@@ -114,7 +117,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/moveContentToDifferentPage.csv
+     * See Modify/DataSet/moveContentToDifferentPage.csv
      */
     public function moveContentToDifferentPage()
     {
@@ -122,7 +125,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/moveContentToDifferentPageNChangeSorting.csv
+     * See Modify/DataSet/moveContentToDifferentPageNChangeSorting.csv
      */
     public function moveContentToDifferentPageAndChangeSorting()
     {
@@ -135,7 +138,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
 
     /**
-     * @see Modify/DataSet/createContentWFileReference.csv
+     * See Modify/DataSet/createContentWFileReference.csv
      */
     public function createContentWithFileReference()
     {
@@ -150,7 +153,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/modifyContentWFileReference.csv
+     * See Modify/DataSet/modifyContentWFileReference.csv
      */
     public function modifyContentWithFileReference()
     {
@@ -164,7 +167,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/modifyContentNAddFileReference.csv
+     * See Modify/DataSet/modifyContentNAddFileReference.csv
      */
     public function modifyContentAndAddFileReference()
     {
@@ -178,7 +181,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/modifyContentNDeleteFileReference.csv
+     * See Modify/DataSet/modifyContentNDeleteFileReference.csv
      */
     public function modifyContentAndDeleteFileReference()
     {
@@ -191,7 +194,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see Modify/DataSet/modifyContentNDeleteAllFileReference.csv
+     * See Modify/DataSet/modifyContentNDeleteAllFileReference.csv
      */
     public function modifyContentAndDeleteAllFileReference()
     {

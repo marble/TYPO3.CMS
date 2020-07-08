@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Extensionmanager;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,9 @@ namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Extensionmanager;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
+namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\Extensionmanager;
+
+use TYPO3\CMS\Core\Tests\Acceptance\Support\BackendTester;
 
 /**
  * Tests for the "Install list view" of the extension manager
@@ -22,89 +25,78 @@ use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
 class InstalledExtensionsCest
 {
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function _before(Admin $I)
+    public function _before(BackendTester $I)
     {
-        $I->useExistingSession();
-        // Ensure main content frame is fully loaded, otherwise there are load-race-conditions
-        $I->switchToIFrame('list_frame');
-        $I->waitForText('Web Content Management System');
-        $I->switchToIFrame();
+        $I->useExistingSession('admin');
 
-        $I->click('Extensions', '#menu');
-        $I->switchToIFrame('list_frame');
+        $I->click('Extensions', '#modulemenu');
+        $I->switchToContentFrame();
         $I->waitForElementVisible('#typo3-extension-list');
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function checkSearchFiltersList(Admin $I)
+    public function checkSearchFiltersList(BackendTester $I)
     {
-        $I->canSeeNumberOfElements('#typo3-extension-list tbody tr[role="row"]', [10, 100]);
+        $I->seeNumberOfElements('#typo3-extension-list tbody tr[role="row"]', [10, 100]);
 
         // Fill extension search field
-        $I->fillField('Tx_Extensionmanager_extensionkey', 'cshmanual');
+        $I->fillField('Tx_Extensionmanager_extensionkey', 'backend');
+        $I->waitForElementNotVisible('tr#core');
 
         // see 2 rows. 1 for the header and one for the result
-        $I->canSeeNumberOfElements('#typo3-extension-list tbody tr[role="row"]', 1);
+        $I->seeNumberOfElements('#typo3-extension-list tbody tr[role="row"]', 3);
 
         // Look for extension key
-        $I->canSee('cshmanual', '#typo3-extension-list tbody tr[role="row"] td');
+        $I->see('backend', '#typo3-extension-list tbody tr[role="row"] td');
 
         // unset the filter
-        $I->waitForElementVisible('#Tx_Extensionmanager_extensionkey ~button.close', 1);
+        $I->waitForElementVisible('#Tx_Extensionmanager_extensionkey ~button.close', 10);
         $I->click('#Tx_Extensionmanager_extensionkey ~button.close');
-
-        $I->canSeeNumberOfElements('#typo3-extension-list tbody tr[role="row"]', [10, 100]);
+        $I->wait(1);
+        $I->seeNumberOfElements('#typo3-extension-list tbody tr[role="row"]', [10, 100]);
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function checkIfUploadFormAppears(Admin $I)
+    public function checkIfUploadFormAppears(BackendTester $I)
     {
-        $I->cantSeeElement('.module-body .uploadForm');
+        $I->cantSeeElement('.module-body .extension-upload-form');
         $I->click('a[title="Upload Extension .t3x/.zip"]', '.module-docheader');
-        $I->seeElement('.module-body .uploadForm');
+        $I->seeElement('.module-body .extension-upload-form');
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function checkUninstallingAndInstallingAnExtension(Admin $I)
+    public function checkUninstallingAndInstallingAnExtension(BackendTester $I)
     {
         $I->wantTo('Check if uninstalling and installing an extension with backend module removes and adds the module from the module menu.');
         $I->amGoingTo('uninstall extension belog');
-        $I->switchToIFrame();
-        $I->canSeeElement('#system_BelogLog');
+        $I->switchToMainFrame();
+        $I->seeElement('#system_BelogLog');
 
-        $I->switchToIFrame('list_frame');
-        $I->fillField('Tx_Extensionmanager_extensionkey', 'belog');
+        $I->switchToContentFrame();
         $I->waitForElementVisible('//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
         $I->click('a[data-original-title="Deactivate"]', '//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
 
-        $I->waitForElementVisible('#Tx_Extensionmanager_extensionkey ~button.close', 1);
-        $I->click('#Tx_Extensionmanager_extensionkey ~button.close');
-
-        $I->switchToIFrame();
+        $I->switchToMainFrame();
         $I->cantSeeElement('#system_BelogLog');
 
         $I->amGoingTo('install extension belog');
-        $I->switchToIFrame();
-        $I->canSeeElement('.modulemenu-item-link');
+        $I->switchToMainFrame();
+        $I->seeElement('.modulemenu-action');
         $I->cantSeeElement('#system_BelogLog');
 
-        $I->switchToIFrame('list_frame');
-        $I->fillField('Tx_Extensionmanager_extensionkey', 'belog');
+        $I->switchToContentFrame();
         $I->waitForElementVisible('//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
         $I->click('a[data-original-title="Activate"]', '//*[@id="typo3-extension-list"]/tbody/tr[@id="belog"]');
 
-        $I->waitForElementVisible('#Tx_Extensionmanager_extensionkey ~button.close', 1);
-        $I->click('#Tx_Extensionmanager_extensionkey ~button.close');
-
-        $I->switchToIFrame();
-        $I->canSeeElement('#system_BelogLog');
+        $I->switchToMainFrame();
+        $I->seeElement('#system_BelogLog');
     }
 }

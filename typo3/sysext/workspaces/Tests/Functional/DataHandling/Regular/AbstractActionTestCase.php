@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Regular;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Regular;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\Regular;
 
 /**
  * Functional test for the DataHandler
@@ -33,7 +34,6 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
     protected $coreExtensionsToLoad = [
         'fluid',
-        'version',
         'workspaces',
     ];
 
@@ -42,13 +42,13 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
     protected $scenarioDataSetDirectory = 'typo3/sysext/workspaces/Tests/Functional/DataHandling/Regular/DataSet/';
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->importScenarioDataSet('LivePageFreeModeElements');
         $this->importScenarioDataSet('VersionDefaultElements');
         $this->importScenarioDataSet('ReferenceIndex');
-        $this->backendUser->workspace = self::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 
     /**
@@ -56,7 +56,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
 
     /**
-     * @see DataSet/createContentRecordAndDiscardCreatedContentRecord.csv
+     * See DataSet/createContentRecordAndDiscardCreatedContentRecord.csv
      */
     public function createContentAndDiscardCreatedContent()
     {
@@ -67,7 +67,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/createAndCopyContentRecordAndDiscardCopiedContentRecord.csv
+     * See DataSet/createAndCopyContentRecordAndDiscardCopiedContentRecord.csv
      */
     public function createAndCopyContentAndDiscardCopiedContent()
     {
@@ -80,7 +80,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/changeContentSortingNDeleteMovedRecord.csv
+     * See DataSet/changeContentSortingNDeleteMovedRecord.csv
      */
     public function changeContentSortingAndDeleteMovedRecord()
     {
@@ -89,16 +89,16 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/changeContentSortingNDeleteLiveRecord.csv
+     * See DataSet/changeContentSortingNDeleteLiveRecord.csv
      */
     public function changeContentSortingAndDeleteLiveRecord()
     {
         $this->actionService->moveRecord(self::TABLE_Content, self::VALUE_ContentIdFirst, -self::VALUE_ContentIdSecond);
         // Switch to live workspace
-        $this->backendUser->workspace = 0;
+        $this->setWorkspaceId(0);
         $this->actionService->deleteRecord(self::TABLE_Content, self::VALUE_ContentIdFirst);
         // Switch back to draft workspace
-        $this->backendUser->workspace = static::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 
     /**
@@ -106,7 +106,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
 
     /**
-     * @see DataSet/deleteContentAndPage.csv
+     * See DataSet/deleteContentAndPage.csv
      */
     public function deleteContentAndPage()
     {
@@ -115,7 +115,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/copyPageFreeMode.csv
+     * See DataSet/copyPageFreeMode.csv
      */
     public function copyPageFreeMode()
     {
@@ -127,9 +127,9 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/movePageRecordToDifferentPageAndCreatePageRecordAfterMovedPageRecord.csv
-     * @see http://forge.typo3.org/issues/33104
-     * @see http://forge.typo3.org/issues/55573
+     * See DataSet/movePageRecordToDifferentPageAndCreatePageRecordAfterMovedPageRecord.csv
+     * @see https://forge.typo3.org/issues/33104
+     * @see https://forge.typo3.org/issues/55573
      */
     public function movePageToDifferentPageAndCreatePageAfterMovedPage()
     {
@@ -158,13 +158,13 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $this->recordIds['newContentId'] = $newTableIds[self::TABLE_Content][0];
 
         // Switch to live workspace
-        $this->backendUser->workspace = 0;
+        $this->setWorkspaceId(0);
 
         $newTableIds = $this->actionService->copyRecord(self::TABLE_Page, self::VALUE_PageId, self::VALUE_PageIdTarget);
         $this->recordIds['copiedPageId'] = $newTableIds[self::TABLE_Page][self::VALUE_PageId];
 
         // Switch back to draft workspace
-        $this->backendUser->workspace = static::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 
     /**
@@ -190,13 +190,13 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $this->recordIds['newPageId'] = $newTableIds[static::TABLE_Page][0];
 
         // Switch to live workspace
-        $this->backendUser->workspace = 0;
+        $this->setWorkspaceId(0);
 
         $newTableIds = $this->actionService->copyRecord(static::TABLE_Page, static::VALUE_PageId, static::VALUE_PageIdTarget);
         $this->recordIds['copiedPageId'] = $newTableIds[static::TABLE_Page][static::VALUE_PageId];
 
         // Switch back to draft workspace
-        $this->backendUser->workspace = static::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 
     /**
@@ -229,7 +229,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $this->recordIds['newPageIdSecond'] = $newTableIds[static::TABLE_Page][0];
 
         // Switch to live workspace
-        $this->backendUser->workspace = 0;
+        $this->setWorkspaceId(0);
 
         $newTableIds = $this->actionService->copyRecord(static::TABLE_Page, static::VALUE_PageId, static::VALUE_PageIdTarget);
         $this->recordIds['copiedPageId'] = $newTableIds[static::TABLE_Page][static::VALUE_PageId];
@@ -237,7 +237,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $this->recordIds['copiedPageIdSecond'] = $newTableIds[static::TABLE_Page][$this->recordIds['newPageIdSecond']];
 
         // Switch back to draft workspace
-        $this->backendUser->workspace = static::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 
     /**
@@ -258,13 +258,13 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $this->actionService->deleteRecord(self::TABLE_Content, self::VALUE_ContentIdSecond);
 
         // Switch to live workspace
-        $this->backendUser->workspace = 0;
+        $this->setWorkspaceId(0);
 
         $newTableIds = $this->actionService->copyRecord(self::TABLE_Page, self::VALUE_PageId, self::VALUE_PageIdTarget);
         $this->recordIds['copiedPageId'] = $newTableIds[self::TABLE_Page][self::VALUE_PageId];
 
         // Switch back to draft workspace
-        $this->backendUser->workspace = static::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 
     /**
@@ -285,13 +285,13 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $this->actionService->moveRecord(self::TABLE_Content, self::VALUE_ContentIdFirst, -self::VALUE_ContentIdSecond);
 
         // Switch to live workspace
-        $this->backendUser->workspace = 0;
+        $this->setWorkspaceId(0);
 
         $newTableIds = $this->actionService->copyRecord(self::TABLE_Page, self::VALUE_PageId, self::VALUE_PageIdTarget);
         $this->recordIds['copiedPageId'] = $newTableIds[self::TABLE_Page][self::VALUE_PageId];
 
         // Switch back to draft workspace
-        $this->backendUser->workspace = static::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 
     /**
@@ -314,13 +314,13 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $this->actionService->moveRecord(self::TABLE_Content, self::VALUE_ContentIdZero, self::VALUE_PageId);
 
         // Switch to live workspace
-        $this->backendUser->workspace = 0;
+        $this->setWorkspaceId(0);
 
         $newTableIds = $this->actionService->copyRecord(self::TABLE_Page, self::VALUE_PageId, self::VALUE_PageIdTarget);
         $this->recordIds['copiedPageId'] = $newTableIds[self::TABLE_Page][self::VALUE_PageId];
 
         // Switch back to draft workspace
-        $this->backendUser->workspace = static::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 
     /**
@@ -347,11 +347,11 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $this->actionService->createNewRecord(self::TABLE_Page, self::VALUE_ParentPageId, ['title' => 'Testing #1']);
 
         // Switch to live workspace
-        $this->backendUser->workspace = 0;
+        $this->setWorkspaceId(0);
 
         $this->actionService->deleteRecord(self::TABLE_Page, self::VALUE_ParentPageId);
 
         // Switch back to draft workspace
-        $this->backendUser->workspace = static::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 }

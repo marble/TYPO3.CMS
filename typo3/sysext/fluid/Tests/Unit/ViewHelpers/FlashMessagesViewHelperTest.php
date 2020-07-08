@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers;
 
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
@@ -37,11 +38,11 @@ class FlashMessagesViewHelperTest extends ViewHelperBaseTestcase
     /**
      * Sets up this test case
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->flashMessageQueue = $this->prophesize(FlashMessageQueue::class);
-        $this->controllerContext->expects($this->any())->method('getFlashMessageQueue')->will($this->returnValue($this->flashMessageQueue->reveal()));
+        $this->controllerContext->expects(self::any())->method('getFlashMessageQueue')->willReturn($this->flashMessageQueue->reveal());
 
         $this->viewHelper = new FlashMessagesViewHelper();
         $this->injectDependenciesIntoViewHelper($this->viewHelper);
@@ -52,8 +53,14 @@ class FlashMessagesViewHelperTest extends ViewHelperBaseTestcase
      */
     public function renderReturnsEmptyStringIfNoFlashMessagesAreInQueue()
     {
+        $this->setArgumentsUnderTest(
+            $this->viewHelper,
+            [
+                'as' => null
+            ]
+        );
         $this->flashMessageQueue->getAllMessagesAndFlush()->willReturn();
-        $this->assertEmpty($this->viewHelper->initializeArgumentsAndRender());
+        self::assertEmpty($this->viewHelper->initializeArgumentsAndRender());
     }
 
     /**
@@ -64,7 +71,7 @@ class FlashMessagesViewHelperTest extends ViewHelperBaseTestcase
         $queueIdentifier = 'myQueue';
 
         $this->flashMessageQueue->getAllMessagesAndFlush()->willReturn();
-        $this->controllerContext->expects($this->once())->method('getFlashMessageQueue')->with($queueIdentifier)->will($this->returnValue($this->flashMessageQueue->reveal()));
+        $this->controllerContext->expects(self::once())->method('getFlashMessageQueue')->with($queueIdentifier)->willReturn($this->flashMessageQueue->reveal());
 
         $this->setArgumentsUnderTest(
             $this->viewHelper,
@@ -73,7 +80,7 @@ class FlashMessagesViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
 
-        $this->assertEmpty($this->viewHelper->initializeArgumentsAndRender());
+        self::assertEmpty($this->viewHelper->initializeArgumentsAndRender());
     }
 
     /**
@@ -96,6 +103,6 @@ class FlashMessagesViewHelperTest extends ViewHelperBaseTestcase
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
 
-        $this->assertEquals('a simple String', $actualResult);
+        self::assertEquals('a simple String', $actualResult);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Index;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Resource\Index;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource\Index;
 
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -33,7 +34,7 @@ class ExtractorRegistry implements SingletonInterface
      *
      * @var ExtractorInterface[]
      */
-    protected $instances = null;
+    protected $instances;
 
     /**
      * Returns an instance of this class
@@ -55,11 +56,11 @@ class ExtractorRegistry implements SingletonInterface
     {
         if (!class_exists($className)) {
             throw new \InvalidArgumentException('The class "' . $className . '" you are registering is not available', 1422705270);
-        } elseif (!in_array(ExtractorInterface::class, class_implements($className))) {
-            throw new \InvalidArgumentException('The extractor needs to implement the ExtractorInterface', 1422705271);
-        } else {
-            $this->extractors[] = $className;
         }
+        if (!in_array(ExtractorInterface::class, class_implements($className))) {
+            throw new \InvalidArgumentException('The extractor needs to implement the ExtractorInterface', 1422705271);
+        }
+        $this->extractors[] = $className;
     }
 
     /**
@@ -98,10 +99,9 @@ class ExtractorRegistry implements SingletonInterface
 
         $filteredExtractors = [];
         foreach ($allExtractors as $priority => $extractorObject) {
-            if (empty($extractorObject->getDriverRestrictions())) {
-                $filteredExtractors[$priority] = $extractorObject;
-            } elseif (in_array($driverType, $extractorObject->getDriverRestrictions())) {
-                $filteredExtractors[$priority] = $extractorObject;
+            if (empty($extractorObject->getDriverRestrictions()) ||
+                in_array($driverType, $extractorObject->getDriverRestrictions(), true)) {
+                $filteredExtractors[$extractorObject->getPriority()][] = $extractorObject;
             }
         }
         return $filteredExtractors;

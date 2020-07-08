@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Scheduler\Task;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,17 +13,22 @@ namespace TYPO3\CMS\Scheduler\Task;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Scheduler\Task;
+
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Scheduler\AdditionalFieldProviderInterface;
+use TYPO3\CMS\Scheduler\AbstractAdditionalFieldProvider;
 use TYPO3\CMS\Scheduler\Controller\SchedulerModuleController;
+use TYPO3\CMS\Scheduler\Task\Enumeration\Action;
 
 /**
  * Additional BE fields for optimize database table task.
+ * @internal This class is a specific scheduler task implementation is not considered part of the Public TYPO3 API.
  */
-class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldProviderInterface
+class OptimizeDatabaseTableAdditionalFieldProvider extends AbstractAdditionalFieldProvider
 {
     /**
      * @var string
@@ -35,19 +39,21 @@ class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldPro
      * Add a multi select box with all available database tables.
      *
      * @param array $taskInfo Reference to the array containing the info used in the add/edit form
-     * @param AbstractTask|NULL $task When editing, reference to the current task. NULL when adding.
-     * @param SchedulerModuleController $parentObject Reference to the calling object (Scheduler's BE module)
+     * @param OptimizeDatabaseTableTask|null $task When editing, reference to the current task. NULL when adding.
+     * @param SchedulerModuleController $schedulerModule Reference to the calling object (Scheduler's BE module)
      * @return array Array containing all the information pertaining to the additional fields
      */
-    public function getAdditionalFields(array &$taskInfo, $task, SchedulerModuleController $parentObject)
+    public function getAdditionalFields(array &$taskInfo, $task, SchedulerModuleController $schedulerModule)
     {
+        $currentSchedulerModuleAction = $schedulerModule->getCurrentAction();
+
         // Initialize selected fields
         if (empty($taskInfo['scheduler_optimizeDatabaseTables_selectedTables'])) {
             $taskInfo['scheduler_optimizeDatabaseTables_selectedTables'] = [];
-            if ($parentObject->CMD === 'add') {
+            if ($currentSchedulerModuleAction->equals(Action::ADD)) {
                 // In case of new task, select no tables by default
                 $taskInfo['scheduler_optimizeDatabaseTables_selectedTables'] = [];
-            } elseif ($parentObject->CMD === 'edit') {
+            } elseif ($currentSchedulerModuleAction->equals(Action::EDIT)) {
                 // In case of editing the task, set to currently selected value
                 $taskInfo['scheduler_optimizeDatabaseTables_selectedTables'] = $task->selectedTables;
             }
@@ -60,6 +66,7 @@ class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldPro
             . '" class="from-control" size="10" multiple="multiple">'
             . $fieldOptions
             . '</select>';
+        $additionalFields = [];
         $additionalFields[$fieldId] = [
             'code' => $fieldHtml,
             'label' => $this->languageFile . ':label.optimizeDatabaseTables.selectTables',
@@ -74,10 +81,10 @@ class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldPro
      * Checks that all selected backends exist in available backend list
      *
      * @param array $submittedData Reference to the array containing the data submitted by the user
-     * @param SchedulerModuleController $parentObject Reference to the calling object (Scheduler's BE module)
+     * @param SchedulerModuleController $schedulerModule Reference to the calling object (Scheduler's BE module)
      * @return bool TRUE if validation was ok (or selected class is not relevant), FALSE otherwise
      */
-    public function validateAdditionalFields(array &$submittedData, SchedulerModuleController $parentObject)
+    public function validateAdditionalFields(array &$submittedData, SchedulerModuleController $schedulerModule)
     {
         $validData = true;
         $availableTables = $this->getOptimizableTables();
@@ -87,15 +94,15 @@ class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldPro
                 $availableTables
             );
             if (!empty($invalidTables)) {
-                $parentObject->addMessage(
-                    $GLOBALS['LANG']->sL($this->languageFile . ':msg.selectionOfNonExistingDatabaseTables'),
+                $this->addMessage(
+                    $this->getLanguageService()->sL($this->languageFile . ':msg.selectionOfNonExistingDatabaseTables'),
                     FlashMessage::ERROR
                 );
                 $validData = false;
             }
         } else {
-            $parentObject->addMessage(
-                $GLOBALS['LANG']->sL($this->languageFile . ':msg.noDatabaseTablesSelected'),
+            $this->addMessage(
+                $this->getLanguageService()->sL($this->languageFile . ':msg.noDatabaseTablesSelected'),
                 FlashMessage::ERROR
             );
             $validData = false;
@@ -108,7 +115,7 @@ class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldPro
      * Save selected backends in task object
      *
      * @param array $submittedData Contains data submitted by the user
-     * @param AbstractTask $task Reference to the current task object
+     * @param OptimizeDatabaseTableTask $task Reference to the current task object
      */
     public function saveAdditionalFields(array $submittedData, AbstractTask $task)
     {
@@ -147,10 +154,8 @@ class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldPro
         $optimizableTables = $this->getOptimizableTablesForConnection($defaultConnection);
 
         // Retrieve additional optimizable tables that have been remapped to a different connection
-        if (isset($GLOBALS['TYPO3_CONF_VARS']['DB']['TableMapping'])
-            && is_array($GLOBALS['TYPO3_CONF_VARS']['DB']['TableMapping'])
-        ) {
-            $tableMap = $GLOBALS['TYPO3_CONF_VARS']['DB']['TableMapping'];
+        $tableMap = $GLOBALS['TYPO3_CONF_VARS']['DB']['TableMapping'] ?? [];
+        if ($tableMap) {
             // Remove all remapped tables from the list of optimizable tables
             // These tables will be rechecked and possibly re-added to the list
             // of optimizable tables. This ensures that no orphaned table from
@@ -182,7 +187,7 @@ class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldPro
      * Retrieve all optimizable tables for a connection, optionally restricted to the subset
      * of table names in the $tableNames array.
      *
-     * @param \TYPO3\CMS\Core\Database\Connection $connection
+     * @param Connection $connection
      * @param array $tableNames
      * @return array
      */
@@ -193,7 +198,7 @@ class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldPro
             return [];
         }
 
-        // Retrieve all tables from the MySQL informaation schema that have an engine type
+        // Retrieve all tables from the MySQL information schema that have an engine type
         // that supports the OPTIMIZE TABLE command.
         $queryBuilder = $connection->createQueryBuilder();
         $queryBuilder->select('TABLE_NAME AS Table', 'ENGINE AS Engine')
@@ -225,5 +230,13 @@ class OptimizeDatabaseTableAdditionalFieldProvider implements AdditionalFieldPro
         $tables = $queryBuilder->execute()->fetchAll();
 
         return array_column($tables, 'Table');
+    }
+
+    /**
+     * @return LanguageService|null
+     */
+    protected function getLanguageService(): ?LanguageService
+    {
+        return $GLOBALS['LANG'] ?? null;
     }
 }

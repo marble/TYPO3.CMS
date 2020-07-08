@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 use TYPO3\CMS\Backend\Form\FormDataCompiler;
 use TYPO3\CMS\Backend\Form\FormDataGroup\FlexFormSegment;
@@ -139,7 +140,7 @@ class TcaFlexProcess implements FormDataProviderInterface
                             }
                         }
                     }
-                } elseif (isset($dataStructureFieldDefinition['type']) || isset($dataStructureFieldDefinition['section'])) {
+                } elseif (isset($dataStructureFieldDefinition['type']) xor isset($dataStructureFieldDefinition['section'])) {
                     // type without section is not ok
                     throw new \UnexpectedValueException(
                         'Broken data structure on field name ' . $fieldName . '. section without type or vice versa is not allowed',
@@ -434,6 +435,7 @@ class TcaFlexProcess implements FormDataProviderInterface
                                         ],
                                         'selectTreeCompileItems' => $result['selectTreeCompileItems'],
                                         'flexParentDatabaseRow' => $result['databaseRow'],
+                                        'effectivePid' => $result['effectivePid'],
                                     ];
 
                                     if (!empty($newColumns)) {
@@ -481,9 +483,8 @@ class TcaFlexProcess implements FormDataProviderInterface
                             ['sheets'][$dataStructureSheetName]['ROOT']['el']
                             [$dataStructureFieldName]['children'] = [];
                     }
-
-                // A "normal" TCA flex form element, no section
                 } else {
+                    // A "normal" TCA flex form element, no section
                     if (isset($dataValues['data'][$dataStructureSheetName]['lDEF'][$dataStructureFieldName])
                         && array_key_exists('vDEF', $dataValues['data'][$dataStructureSheetName]['lDEF'][$dataStructureFieldName])
                     ) {
@@ -508,6 +509,7 @@ class TcaFlexProcess implements FormDataProviderInterface
                 'flexParentDatabaseRow' => $result['databaseRow'],
                 // Whether to compile TCA tree items - inherit from parent
                 'selectTreeCompileItems' => $result['selectTreeCompileItems'],
+                'effectivePid' => $result['effectivePid'],
             ];
 
             if (!empty($tcaNewColumns)) {
@@ -588,6 +590,7 @@ class TcaFlexProcess implements FormDataProviderInterface
                 ],
                 'selectTreeCompileItems' => $result['selectTreeCompileItems'],
                 'flexParentDatabaseRow' => $result['databaseRow'],
+                'effectivePid' => $result['effectivePid'],
             ];
             $flexSegmentResult = $formDataCompiler->compile($inputToFlexFormSegment);
 

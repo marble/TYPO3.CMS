@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Template\Components\Buttons;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,16 @@ namespace TYPO3\CMS\Backend\Tests\Template\Components\Buttons;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Template\Components\Button;
+
 use TYPO3\CMS\Backend\Template\Components\Buttons\LinkButton;
 use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case for LinkButton
  */
-class LinkButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class LinkButtonTest extends UnitTestCase
 {
     /**
      * Try validating an empty button
@@ -31,7 +33,7 @@ class LinkButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $button = new LinkButton();
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -44,7 +46,7 @@ class LinkButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $button = new LinkButton();
         $button->setHref('#')->setTitle('huhu');
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -58,7 +60,7 @@ class LinkButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $icon = new Icon();
         $button->setHref('husel')->setIcon($icon);
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -72,7 +74,7 @@ class LinkButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $icon = new Icon();
         $button->setTitle('husel')->setIcon($icon);
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -86,6 +88,6 @@ class LinkButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $icon = new Icon();
         $button->setTitle('husel')->setHref('husel')->setIcon($icon);
         $isValid = $button->isValid();
-        $this->assertTrue($isValid);
+        self::assertTrue($isValid);
     }
 }

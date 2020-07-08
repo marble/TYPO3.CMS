@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recordlist\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,21 @@ namespace TYPO3\CMS\Recordlist\View;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Utility\BackendUtility;
+namespace TYPO3\CMS\Recordlist\View;
+
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\OnlineMedia\Helpers\OnlineMediaHelperRegistry;
+use TYPO3\CMS\Core\Resource\Security\FileNameValidator;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Recordlist\Tree\View\LinkParameterProviderInterface;
 
 /**
  * Renders utility forms used in the views for files/folders of Element and Link Browser
+ * @internal
  */
 class FolderUtilityRenderer
 {
@@ -50,47 +54,47 @@ class FolderUtilityRenderer
      */
     public function createFolder(Folder $folderObject)
     {
-        if (!$folderObject->checkActionPermission('write')) {
-            return '';
-        }
         $backendUser = $this->getBackendUser();
-        if (!$backendUser->isAdmin() && !$backendUser->getTSConfigVal('options.createFoldersInEB')) {
-            return '';
-        }
-        // Don't show Folder-create form if it's denied
-        if ($backendUser->getTSConfigVal('options.folderTree.hideCreateFolder')) {
-            return '';
-        }
+        $userTsConfig = $backendUser->getTSConfig();
         $lang = $this->getLanguageService();
 
-        $formAction = BackendUtility::getModuleUrl('tce_file');
+        if (!$folderObject->checkActionPermission('write')
+            || !$backendUser->isAdmin() && !($userTsConfig['options.']['createFoldersInEB'] ?? false)
+            || $userTsConfig['options.']['folderTree.']['hideCreateFolder'] ?? false
+        ) {
+            // Do not show create folder form if it is denied
+            return '';
+        }
+
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        $formAction = (string)$uriBuilder->buildUriFromRoute('tce_file');
         $markup = [];
         $markup[] = '<form action="' . htmlspecialchars($formAction)
             . '" method="post" name="editform" enctype="multipart/form-data">';
-        $markup[] = '<h3>' . htmlspecialchars($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:create_folder.title')) . ':</h3>';
+        $markup[] = '<h3>' . htmlspecialchars($lang->sL('LLL:EXT:recordlist/Resources/Private/Language/locallang.xlf:create_folder.title')) . ':</h3>';
         $markup[] = '<p><strong>' . htmlspecialchars($lang->getLL('path')) . ':</strong>'
             . htmlspecialchars($folderObject->getIdentifier()) . '</p>';
 
         $a = 1;
         $markup[] = '<div class="form-group">';
         $markup[] = '<div class="input-group">';
-        $markup[] = '<input class="form-control" type="text" name="file[newfolder][' . $a . '][data]" />';
+        $markup[] = '<input class="form-control" type="text" name="data[newfolder][' . $a . '][data]" />';
         $markup[] = '<span class="input-group-btn">';
         $markup[] = '<input class="btn btn-default" type="submit" name="submit" value="'
-            . htmlspecialchars($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:create_folder.submit')) . '" />';
+            . htmlspecialchars($lang->sL('LLL:EXT:recordlist/Resources/Private/Language/locallang.xlf:create_folder.submit')) . '" />';
         $markup[] = '</span>';
         $markup[] = '</div>';
-        $markup[] = '<input type="hidden" name="file[newfolder][' . $a . '][target]" value="'
+        $markup[] = '<input type="hidden" name="data[newfolder][' . $a . '][target]" value="'
             . htmlspecialchars($folderObject->getCombinedIdentifier()) . '" />';
 
         // Make footer of upload form, including the submit button:
-        $redirectValue = $this->parameterProvider->getScriptUrl() . GeneralUtility::implodeArrayForUrl(
-            '',
+        $redirectValue = $this->parameterProvider->getScriptUrl() . HttpUtility::buildQueryString(
             $this->parameterProvider->getUrlParameters(
                 ['identifier' => $folderObject->getCombinedIdentifier()]
-            )
+            ),
+            '&'
         );
-        $markup[] = '<input type="hidden" name="redirect" value="' . htmlspecialchars($redirectValue) . '" />';
+        $markup[] = '<input type="hidden" name="data[newfolder][' . $a . '][redirect]" value="' . htmlspecialchars($redirectValue) . '" />';
 
         $markup[] = '</div></form>';
 
@@ -112,30 +116,31 @@ class FolderUtilityRenderer
             return '';
         }
         // Read configuration of upload field count
-        $userSetting = $this->getBackendUser()->getTSConfigVal('options.folderTree.uploadFieldsInLinkBrowser');
-        $count = isset($userSetting) ? (int)$userSetting : 1;
+        $count = (int)($this->getBackendUser()->getTSConfig()['options.']['folderTree.']['uploadFieldsInLinkBrowser'] ?? 1);
         if ($count === 0) {
             return '';
         }
 
-        $count = (int)$count === 0 ? 1 : (int)$count;
         // Create header, showing upload path:
         $header = $folderObject->getIdentifier();
         $lang = $this->getLanguageService();
         // Create a list of allowed file extensions with the readable format "youtube, vimeo" etc.
         $fileExtList = [];
+        $fileNameVerifier = GeneralUtility::makeInstance(FileNameValidator::class);
         foreach ($allowedExtensions as $fileExt) {
-            if (GeneralUtility::verifyFilenameAgainstDenyPattern('.' . $fileExt)) {
+            if ($fileNameVerifier->isValid('.' . $fileExt)) {
                 $fileExtList[] = '<span class="label label-success">'
                     . strtoupper(htmlspecialchars($fileExt)) . '</span>';
             }
         }
-        $formAction = BackendUtility::getModuleUrl('tce_file');
+        /** @var UriBuilder $uriBuilder */
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        $formAction = (string)$uriBuilder->buildUriFromRoute('tce_file');
         $combinedIdentifier = $folderObject->getCombinedIdentifier();
         $markup = [];
         $markup[] = '<form action="' . htmlspecialchars($formAction)
             . '" method="post" name="editform" enctype="multipart/form-data">';
-        $markup[] = '   <h3>' . htmlspecialchars($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:file_upload.php.pagetitle')) . ':</h3>';
+        $markup[] = '   <h3>' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:file_upload.php.pagetitle')) . ':</h3>';
         $markup[] = '   <p><strong>' . htmlspecialchars($lang->getLL('path')) . ':</strong>' . htmlspecialchars($header) . '</p>';
         // Traverse the number of upload fields:
         for ($a = 1; $a <= $count; $a++) {
@@ -148,16 +153,16 @@ class FolderUtilityRenderer
                 . htmlspecialchars($combinedIdentifier) . '" />';
             $markup[] = '<input type="hidden" name="data[upload][' . $a . '][data]" value="' . $a . '" />';
         }
-        $redirectValue = $this->parameterProvider->getScriptUrl() . GeneralUtility::implodeArrayForUrl(
-            '',
-            $this->parameterProvider->getUrlParameters(['identifier' => $combinedIdentifier])
+        $redirectValue = $this->parameterProvider->getScriptUrl() . HttpUtility::buildQueryString(
+            $this->parameterProvider->getUrlParameters(['identifier' => $combinedIdentifier]),
+            '&'
         );
-        $markup[] = '<input type="hidden" name="redirect" value="' . htmlspecialchars($redirectValue) . '" />';
+        $markup[] = '<input type="hidden" name="data[upload][1][redirect]" value="' . htmlspecialchars($redirectValue) . '" />';
 
         if (!empty($fileExtList)) {
             $markup[] = '<div class="form-group">';
             $markup[] = '    <label>';
-            $markup[] = htmlspecialchars($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.allowedFileExtensions')) . '<br/>';
+            $markup[] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.allowedFileExtensions')) . '<br/>';
             $markup[] = '    </label>';
             $markup[] = '    <div>';
             $markup[] = implode(' ', $fileExtList);
@@ -168,11 +173,11 @@ class FolderUtilityRenderer
         $markup[] = '<div class="checkbox">';
         $markup[] = '    <label>';
         $markup[] = '    <input type="checkbox" name="overwriteExistingFiles" id="overwriteExistingFiles" value="replace" />';
-        $markup[] = htmlspecialchars($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_misc.xlf:overwriteExistingFiles'));
+        $markup[] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_misc.xlf:overwriteExistingFiles'));
         $markup[] = '    </label>';
         $markup[] = '</div>';
         $markup[] = '<input class="btn btn-default" type="submit" name="submit" value="'
-            . htmlspecialchars($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:file_upload.php.submit')) . '" />';
+            . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:file_upload.php.submit')) . '" />';
 
         $markup[] = '</form>';
 
@@ -183,7 +188,7 @@ class FolderUtilityRenderer
         $fileExtList = [];
         $onlineMediaFileExt = OnlineMediaHelperRegistry::getInstance()->getSupportedFileExtensions();
         foreach ($onlineMediaFileExt as $fileExt) {
-            if (GeneralUtility::verifyFilenameAgainstDenyPattern('.' . $fileExt)
+            if ($fileNameVerifier->isValid('.' . $fileExt)
                 && (empty($allowedExtensions) || in_array($fileExt, $allowedExtensions, true))
             ) {
                 $fileExtList[] = '<span class="label label-success">'
@@ -191,29 +196,29 @@ class FolderUtilityRenderer
             }
         }
         if (!empty($fileExtList)) {
-            $formAction = BackendUtility::getModuleUrl('online_media');
+            $formAction = (string)$uriBuilder->buildUriFromRoute('online_media');
 
             $markup = [];
             $markup[] = '<form action="' . htmlspecialchars($formAction)
                 . '" method="post" name="editform1" id="typo3-addMediaForm" enctype="multipart/form-data">';
-            $markup[] = '<h3>' . htmlspecialchars($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:online_media.new_media')) . ':</h3>';
+            $markup[] = '<h3>' . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:online_media.new_media')) . ':</h3>';
             $markup[] = '<p><strong>' . htmlspecialchars($lang->getLL('path')) . ':</strong>' . htmlspecialchars($header) . '</p>';
             $markup[] = '<div class="form-group">';
-            $markup[] = '<input type="hidden" name="file[newMedia][0][target]" value="'
+            $markup[] = '<input type="hidden" name="data[newMedia][0][target]" value="'
                 . htmlspecialchars($folderObject->getCombinedIdentifier()) . '" />';
-            $markup[] = '<input type="hidden" name="file[newMedia][0][allowed]" value="'
+            $markup[] = '<input type="hidden" name="data[newMedia][0][allowed]" value="'
                 . htmlspecialchars(implode(',', $allowedExtensions)) . '" />';
             $markup[] = '<div class="input-group">';
-            $markup[] = '<input type="text" name="file[newMedia][0][url]" class="form-control" placeholder="'
-                . htmlspecialchars($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:online_media.new_media.placeholder')) . '" />';
+            $markup[] = '<input type="text" name="data[newMedia][0][url]" class="form-control" placeholder="'
+                . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:online_media.new_media.placeholder')) . '" />';
             $markup[] = '<div class="input-group-btn">';
             $markup[] = '<button class="btn btn-default">'
-                . htmlspecialchars($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:online_media.new_media.submit')) . '</button>';
+                . htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:online_media.new_media.submit')) . '</button>';
             $markup[] = '</div>';
             $markup[] = '</div>';
             $markup[] = '<div class="form-group">';
             $markup[] = '<label>';
-            $markup[] = $lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:online_media.new_media.allowedProviders') . '<br/>';
+            $markup[] = $lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:online_media.new_media.allowedProviders') . '<br/>';
             $markup[] = '</label>';
             $markup[] = '<div>';
             $markup[] = implode(' ', $fileExtList);
@@ -237,7 +242,7 @@ class FolderUtilityRenderer
     public function getFileSearchField($searchWord)
     {
         $action = $this->parameterProvider->getScriptUrl()
-            . GeneralUtility::implodeArrayForUrl('', $this->parameterProvider->getUrlParameters([]));
+            . HttpUtility::buildQueryString($this->parameterProvider->getUrlParameters([]), '&');
 
         $markup = [];
         $markup[] = '<form method="post" action="' . htmlspecialchars($action) . '" style="padding-bottom: 15px;">';
@@ -247,7 +252,7 @@ class FolderUtilityRenderer
         $markup[] = '       <span class="input-group-btn">';
         $markup[] = '           <button class="btn btn-default" type="submit">'
             . htmlspecialchars(
-                $this->getLanguageService()->sL('LLL:EXT:filelist/Resources/Private/Language/locallang.xlf:search')
+                $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:search')
             )
             . '</button>';
         $markup[] = '       </span>';

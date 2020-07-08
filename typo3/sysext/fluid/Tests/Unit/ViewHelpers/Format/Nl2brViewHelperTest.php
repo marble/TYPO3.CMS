@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Format\Nl2brViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 
@@ -27,7 +28,7 @@ class Nl2brViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new Nl2brViewHelper();
@@ -50,7 +51,7 @@ class Nl2brViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('<p class="bodytext">Some Text without line breaks</p>', $actualResult);
+        self::assertEquals('<p class="bodytext">Some Text without line breaks</p>', $actualResult);
     }
 
     /**
@@ -69,7 +70,7 @@ class Nl2brViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Line 1<br />' . chr(10) . 'Line 2', $actualResult);
+        self::assertEquals('Line 1<br />' . chr(10) . 'Line 2', $actualResult);
     }
 
     /**
@@ -88,6 +89,6 @@ class Nl2brViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Line 1<br />' . chr(13) . chr(10) . 'Line 2', $actualResult);
+        self::assertEquals('Line 1<br />' . chr(13) . chr(10) . 'Line 2', $actualResult);
     }
 }

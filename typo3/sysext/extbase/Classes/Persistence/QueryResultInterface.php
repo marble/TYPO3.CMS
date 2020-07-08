@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Extbase\Persistence;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence;
+
 /**
  * A lazy result list that is returned by Query::execute()
  */
@@ -23,7 +24,6 @@ interface QueryResultInterface extends \Countable, \Iterator, \ArrayAccess
      * Returns a clone of the query object
      *
      * @return \TYPO3\CMS\Extbase\Persistence\QueryInterface
-     * @api
      */
     public function getQuery();
 
@@ -31,7 +31,6 @@ interface QueryResultInterface extends \Countable, \Iterator, \ArrayAccess
      * Returns the first object in the result set
      *
      * @return object
-     * @api
      */
     public function getFirst();
 
@@ -39,7 +38,6 @@ interface QueryResultInterface extends \Countable, \Iterator, \ArrayAccess
      * Returns an array with the objects in the result set
      *
      * @return array
-     * @api
      */
     public function toArray();
 }

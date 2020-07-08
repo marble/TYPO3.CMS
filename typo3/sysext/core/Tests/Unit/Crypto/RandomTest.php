@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Crypto;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,15 @@ namespace TYPO3\CMS\Core\Tests\Unit\Crypto;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Crypto;
+
 use TYPO3\CMS\Core\Crypto\Random;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class RandomTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class RandomTest extends UnitTestCase
 {
     /**
      * @test
@@ -28,7 +31,7 @@ class RandomTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function generateRandomBytesReturnsExpectedAmountOfBytes()
     {
         $subject = new Random();
-        $this->assertEquals(4, strlen($subject->generateRandomBytes(4)));
+        self::assertEquals(4, strlen($subject->generateRandomBytes(4)));
     }
 
     /**
@@ -65,6 +68,6 @@ class RandomTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function generateRandomHexStringReturnsExpectedAmountOfChars($numberOfChars)
     {
         $subject = new Random();
-        $this->assertEquals($numberOfChars, strlen($subject->generateRandomHexString($numberOfChars)));
+        self::assertEquals($numberOfChars, strlen($subject->generateRandomHexString($numberOfChars)));
     }
 }

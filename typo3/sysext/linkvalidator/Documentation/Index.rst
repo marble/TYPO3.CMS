@@ -1,4 +1,4 @@
-﻿.. ==================================================
+.. ==================================================
 .. FOR YOUR INFORMATION
 .. --------------------------------------------------
 .. -*- coding: utf-8 -*- with BOM.
@@ -32,7 +32,7 @@ Linkvalidator
       link validation, linkvalidator
 
 :Copyright:
-      2000-2017
+      2000-2020
 
 :Author:
       TYPO3 CMS Core Development Team
@@ -64,5 +64,6 @@ a GNU/GPL CMS/Framework available from `www.typo3.org
    Configuration/Index
    LargeSites/Index
    NextSteps/Index
+   Development/Index
    Targets
 

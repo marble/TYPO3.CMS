@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,24 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\InitializeProcessedTca;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class InitializeProcessedTcaTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class InitializeProcessedTcaTest extends UnitTestCase
 {
     /**
      * @var InitializeProcessedTca
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = new InitializeProcessedTca();
     }
 
@@ -44,7 +47,7 @@ class InitializeProcessedTcaTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
         ];
         $GLOBALS['TCA'][$input['tableName']] = $expected;
         $result = $this->subject->addData($input);
-        $this->assertEquals($expected, $result['processedTca']);
+        self::assertEquals($expected, $result['processedTca']);
     }
 
     /**
@@ -61,7 +64,7 @@ class InitializeProcessedTcaTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ],
         ];
         $expected = $input;
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, $this->subject->addData($input));
     }
 
     /**

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Rendering;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,16 @@ namespace TYPO3\CMS\Core\Resource\Rendering;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Rendering;
+
 use TYPO3\CMS\Core\Resource\FileInterface;
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Class RendererRegistry
  */
-class RendererRegistry implements \TYPO3\CMS\Core\SingletonInterface
+class RendererRegistry implements SingletonInterface
 {
     /**
      * Registered class names
@@ -34,7 +36,7 @@ class RendererRegistry implements \TYPO3\CMS\Core\SingletonInterface
      *
      * @var FileRendererInterface[]
      */
-    protected $instances = null;
+    protected $instances;
 
     /**
      * Returns an instance of this class
@@ -56,11 +58,11 @@ class RendererRegistry implements \TYPO3\CMS\Core\SingletonInterface
     {
         if (!class_exists($className)) {
             throw new \InvalidArgumentException('The class "' . $className . '" you are trying to register is not available', 1411840171);
-        } elseif (!in_array(FileRendererInterface::class, class_implements($className), true)) {
-            throw new \InvalidArgumentException('The renderer needs to implement the FileRendererInterface', 1411840172);
-        } else {
-            $this->classNames[] = $className;
         }
+        if (!in_array(FileRendererInterface::class, class_implements($className), true)) {
+            throw new \InvalidArgumentException('The renderer needs to implement the FileRendererInterface', 1411840172);
+        }
+        $this->classNames[] = $className;
     }
 
     /**
@@ -120,7 +122,7 @@ class RendererRegistry implements \TYPO3\CMS\Core\SingletonInterface
      * Get matching renderer with highest priority
      *
      * @param FileInterface $file
-     * @return NULL|FileRendererInterface
+     * @return FileRendererInterface|null
      */
     public function getRenderer(FileInterface $file)
     {

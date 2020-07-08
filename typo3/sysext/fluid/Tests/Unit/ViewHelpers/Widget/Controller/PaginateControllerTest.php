@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Widget\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,12 +12,25 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Widget\Controller;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Widget\Controller;
+
+use TYPO3\CMS\Extbase\Mvc\View\ViewInterface;
+use TYPO3\CMS\Extbase\Persistence\Generic\BackendInterface;
+use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper;
+use TYPO3\CMS\Extbase\Persistence\Generic\Query;
+use TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface;
 use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+use TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface;
+use TYPO3\CMS\Extbase\Persistence\QueryInterface;
+use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
+use TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\PaginateController;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class PaginateControllerTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Extbase\Persistence\Generic\Query
@@ -26,7 +38,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     protected $query;
 
     /**
-     * @var \TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\PaginateController|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var \TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\PaginateController|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $controller;
 
@@ -53,19 +65,25 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     /**
      * Sets up this test case
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->query = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Persistence\Generic\Query::class, ['dummy'], ['someType']);
-        $this->querySettings = $this->createMock(\TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface::class);
+        parent::setUp();
+        $this->query = $this->getAccessibleMock(Query::class, ['dummy'], ['someType']);
+        $this->querySettings = $this->createMock(QuerySettingsInterface::class);
         $this->query->_set('querySettings', $this->querySettings);
-        $this->persistenceManager = $this->createMock(\TYPO3\CMS\Extbase\Persistence\PersistenceManagerInterface::class);
-        $this->backend = $this->createMock(\TYPO3\CMS\Extbase\Persistence\Generic\BackendInterface::class);
+        $this->persistenceManager = $this->createMock(PersistenceManagerInterface::class);
+        $this->backend = $this->createMock(BackendInterface::class);
         $this->query->_set('persistenceManager', $this->persistenceManager);
-        $this->dataMapper = $this->createMock(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper::class);
+        $this->dataMapper = $this->createMock(DataMapper::class);
         $this->query->_set('dataMapper', $this->dataMapper);
-        $this->controller = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\PaginateController::class,
-            ['dummy'], [], '', false);
-        $this->controller->_set('view', $this->createMock(\TYPO3\CMS\Extbase\Mvc\View\ViewInterface::class));
+        $this->controller = $this->getAccessibleMock(
+            PaginateController::class,
+            ['dummy'],
+            [],
+            '',
+            false
+        );
+        $this->controller->_set('view', $this->createMock(ViewInterface::class));
     }
 
     /**
@@ -77,8 +95,8 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $this->controller->_set('numberOfPages', 100);
         $this->controller->_set('currentPage', 50);
         $this->controller->_call('calculateDisplayRange');
-        $this->assertSame(46, $this->controller->_get('displayRangeStart'));
-        $this->assertSame(53, $this->controller->_get('displayRangeEnd'));
+        self::assertSame(46, $this->controller->_get('displayRangeStart'));
+        self::assertSame(53, $this->controller->_get('displayRangeEnd'));
     }
 
     /**
@@ -90,8 +108,8 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $this->controller->_set('numberOfPages', 100);
         $this->controller->_set('currentPage', 50);
         $this->controller->_call('calculateDisplayRange');
-        $this->assertSame(47, $this->controller->_get('displayRangeStart'));
-        $this->assertSame(53, $this->controller->_get('displayRangeEnd'));
+        self::assertSame(47, $this->controller->_get('displayRangeStart'));
+        self::assertSame(53, $this->controller->_get('displayRangeEnd'));
     }
 
     /**
@@ -103,8 +121,8 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $this->controller->_set('numberOfPages', 100);
         $this->controller->_set('currentPage', 1);
         $this->controller->_call('calculateDisplayRange');
-        $this->assertSame(1, $this->controller->_get('displayRangeStart'));
-        $this->assertSame(8, $this->controller->_get('displayRangeEnd'));
+        self::assertSame(1, $this->controller->_get('displayRangeStart'));
+        self::assertSame(8, $this->controller->_get('displayRangeEnd'));
     }
 
     /**
@@ -116,8 +134,8 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $this->controller->_set('numberOfPages', 100);
         $this->controller->_set('currentPage', 1);
         $this->controller->_call('calculateDisplayRange');
-        $this->assertSame(1, $this->controller->_get('displayRangeStart'));
-        $this->assertSame(7, $this->controller->_get('displayRangeEnd'));
+        self::assertSame(1, $this->controller->_get('displayRangeStart'));
+        self::assertSame(7, $this->controller->_get('displayRangeEnd'));
     }
 
     /**
@@ -129,8 +147,8 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $this->controller->_set('numberOfPages', 100);
         $this->controller->_set('currentPage', 100);
         $this->controller->_call('calculateDisplayRange');
-        $this->assertSame(93, $this->controller->_get('displayRangeStart'));
-        $this->assertSame(100, $this->controller->_get('displayRangeEnd'));
+        self::assertSame(93, $this->controller->_get('displayRangeStart'));
+        self::assertSame(100, $this->controller->_get('displayRangeEnd'));
     }
 
     /**
@@ -142,8 +160,8 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $this->controller->_set('numberOfPages', 100);
         $this->controller->_set('currentPage', 100);
         $this->controller->_call('calculateDisplayRange');
-        $this->assertSame(94, $this->controller->_get('displayRangeStart'));
-        $this->assertSame(100, $this->controller->_get('displayRangeEnd'));
+        self::assertSame(94, $this->controller->_get('displayRangeStart'));
+        self::assertSame(100, $this->controller->_get('displayRangeEnd'));
     }
 
     /**
@@ -151,12 +169,13 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
      */
     public function acceptQueryResultInterfaceAsObjects()
     {
-        $mockQueryResult = $this->createMock(\TYPO3\CMS\Extbase\Persistence\QueryResultInterface::class);
-        $mockQuery = $this->createMock(\TYPO3\CMS\Extbase\Persistence\QueryInterface::class);
-        $mockQueryResult->expects($this->any())->method('getQuery')->will($this->returnValue($mockQuery));
+        $mockQueryResult = $this->createMock(QueryResultInterface::class);
+        $mockQuery = $this->createMock(QueryInterface::class);
+        $mockQueryResult->expects(self::any())->method('getQuery')->willReturn($mockQuery);
         $this->controller->_set('objects', $mockQueryResult);
+        $this->controller->_set('widgetConfiguration', ['as' => 'paginatedObjects']);
         $this->controller->indexAction();
-        $this->assertSame($mockQueryResult, $this->controller->_get('objects'));
+        self::assertSame($mockQueryResult, $this->controller->_get('objects'));
     }
 
     /**
@@ -166,8 +185,9 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     {
         $objects = [];
         $this->controller->_set('objects', $objects);
+        $this->controller->_set('widgetConfiguration', ['as' => 'paginatedObjects']);
         $this->controller->indexAction();
-        $this->assertSame($objects, $this->controller->_get('objects'));
+        self::assertSame($objects, $this->controller->_get('objects'));
     }
 
     /**
@@ -177,8 +197,9 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     {
         $objects = new ObjectStorage();
         $this->controller->_set('objects', $objects);
+        $this->controller->_set('widgetConfiguration', ['as' => 'paginatedObjects']);
         $this->controller->indexAction();
-        $this->assertSame($objects, $this->controller->_get('objects'));
+        self::assertSame($objects, $this->controller->_get('objects'));
     }
 
     /**
@@ -188,7 +209,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     {
         $objects = new ObjectStorage();
         for ($i = 0; $i <= 25; $i++) {
-            $item = new \stdClass;
+            $item = new \stdClass();
             $objects->attach($item);
         }
         $this->controller->_set('objects', $objects);
@@ -196,7 +217,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         for ($j = 0; $j <= 9; $j++) {
             $expectedPortion[] = $objects->toArray()[$j];
         }
-        $this->assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 0));
+        self::assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 0));
     }
 
     /**
@@ -207,7 +228,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $this->controller->_set('currentPage', 2);
         $objects = new ObjectStorage();
         for ($i = 0; $i <= 55; $i++) {
-            $item = new \stdClass;
+            $item = new \stdClass();
             $objects->attach($item);
         }
         $this->controller->_set('objects', $objects);
@@ -215,7 +236,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         for ($j = 10; $j <= 19; $j++) {
             $expectedPortion[] = $objects->toArray()[$j];
         }
-        $this->assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 10));
+        self::assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 10));
     }
 
     /**
@@ -226,7 +247,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $this->controller->_set('currentPage', 3);
         $objects = new ObjectStorage();
         for ($i = 0; $i <= 25; $i++) {
-            $item = new \stdClass;
+            $item = new \stdClass();
             $objects->attach($item);
         }
         $this->controller->_set('objects', $objects);
@@ -234,7 +255,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         for ($j = 20; $j <= 25; $j++) {
             $expectedPortion[] = $objects->toArray()[$j];
         }
-        $this->assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 20));
+        self::assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 20));
     }
 
     /**
@@ -244,7 +265,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     {
         $objects = [];
         for ($i = 0; $i <= 25; $i++) {
-            $item = new \stdClass;
+            $item = new \stdClass();
             $objects[] = $item;
         }
         $this->controller->_set('objects', $objects);
@@ -252,7 +273,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         for ($j = 0; $j <= 9; $j++) {
             $expectedPortion = array_slice($objects, 0, 10);
         }
-        $this->assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 0));
+        self::assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 0));
     }
 
     /**
@@ -263,7 +284,7 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         $this->controller->_set('currentPage', 2);
         $objects = [];
         for ($i = 0; $i <= 55; $i++) {
-            $item = new \stdClass;
+            $item = new \stdClass();
             $objects[] = $item;
         }
         $this->controller->_set('objects', $objects);
@@ -271,6 +292,6 @@ class PaginateControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         for ($j = 10; $j <= 19; $j++) {
             $expectedPortion = array_slice($objects, 10, 10);
         }
-        $this->assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 10));
+        self::assertSame($expectedPortion, $this->controller->_call('prepareObjectsSlice', 10, 10));
     }
 }

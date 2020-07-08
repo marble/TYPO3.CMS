@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Belog\ViewHelpers\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,13 @@ namespace TYPO3\CMS\Belog\ViewHelpers\Form;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Belog\ViewHelpers\Form;
+
+use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
+use TYPO3\CMS\Fluid\ViewHelpers\Form\SelectViewHelper;
+
 /**
- * Extends the usual select view helper, but additionally translates
+ * Extends the usual select ViewHelper, but additionally translates
  * the select option labels
  *
  * Example:
@@ -24,12 +28,10 @@ namespace TYPO3\CMS\Belog\ViewHelpers\Form;
  * Will lookup number.200 (or whatever optionValue is given) in locallang database
  * @internal
  */
-class TranslateLabelSelectViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\SelectViewHelper
+class TranslateLabelSelectViewHelper extends SelectViewHelper
 {
     /**
      * Initialize arguments.
-     *
-     * @api
      */
     public function initializeArguments()
     {
@@ -66,7 +68,7 @@ class TranslateLabelSelectViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\S
             return '';
         }
         $labelKey = $this->hasArgument('optionLabelPrefix') ? $this->arguments['optionLabelPrefix'] . $label : $label;
-        $translatedLabel = \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate($labelKey, $this->renderingContext->getControllerContext()->getRequest()->getControllerExtensionName());
+        $translatedLabel = LocalizationUtility::translate($labelKey, $this->renderingContext->getControllerContext()->getRequest()->getControllerExtensionName());
         return $translatedLabel ?: $label;
     }
 }

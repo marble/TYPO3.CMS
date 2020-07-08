@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Template\Components\Menu;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Template\Components\Menu;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Template\Components\Menu;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -113,6 +114,18 @@ class Menu
     public function getIdentifier()
     {
         return $this->identifier;
+    }
+
+    /**
+     * Get identifier for data attribute
+     *
+     * @return string
+     */
+    public function getDataIdentifier(): string
+    {
+        $dataMenuIdentifier = GeneralUtility::camelCaseToLowerCaseUnderscored($this->identifier);
+        $dataMenuIdentifier = str_replace('_', '-', $dataMenuIdentifier);
+        return $dataMenuIdentifier;
     }
 
     /**

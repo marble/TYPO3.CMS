@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Controller\File;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,65 +13,75 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Controller\File;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Controller\File;
+
+use Prophecy\Argument;
+use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Controller\File\FileController;
 use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Http\ServerRequest;
+use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\Folder;
+use TYPO3\CMS\Core\Utility\File\ExtendedFileUtility;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for \TYPO3\CMS\Backend\Tests\Unit\Controller\File\FileController
  */
-class FileControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FileControllerTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Backend\Controller\File\FileController|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
-     */
-    protected $fileController;
-
-    /**
-     * @var \TYPO3\CMS\Core\Resource\File|\PHPUnit_Framework_MockObject_MockObject
+     * @var \TYPO3\CMS\Core\Resource\File|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $fileResourceMock;
 
     /**
-     * @var \TYPO3\CMS\Core\Resource\Folder|\PHPUnit_Framework_MockObject_MockObject
+     * @var \TYPO3\CMS\Core\Resource\Folder|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $folderResourceMock;
 
     /**
-     * @var \TYPO3\CMS\Core\Utility\File\ExtendedFileUtility|\PHPUnit_Framework_MockObject_MockObject
+     * @var \TYPO3\CMS\Core\Utility\File\ExtendedFileUtility|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $mockFileProcessor;
 
     /**
-     * @var ServerRequest|\PHPUnit_Framework_MockObject_MockObject
+     * @var ServerRequest|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $request;
 
     /**
-     * @var Response|\PHPUnit_Framework_MockObject_MockObject
+     * @var Response|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $response;
 
     /**
      * Sets up this test case.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->fileResourceMock = $this->getMockBuilder(\TYPO3\CMS\Core\Resource\File::class)
+        $this->fileResourceMock = $this->getMockBuilder(File::class)
             ->setMethods(['toArray', 'getModificationTime', 'getExtension'])
             ->disableOriginalConstructor()
             ->getMock();
-        $this->folderResourceMock = $this->getMockBuilder(\TYPO3\CMS\Core\Resource\Folder::class)
+        $this->folderResourceMock = $this->getMockBuilder(Folder::class)
             ->setMethods(['getIdentifier'])
             ->disableOriginalConstructor()
             ->getMock();
-        $this->mockFileProcessor = $this->getMockBuilder(\TYPO3\CMS\Core\Utility\File\ExtendedFileUtility::class)
+        $this->mockFileProcessor = $this->getMockBuilder(ExtendedFileUtility::class)
             ->setMethods(['getErrorMessages'])
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->fileResourceMock->expects($this->any())->method('toArray')->will($this->returnValue(['id' => 'foo']));
-        $this->fileResourceMock->expects($this->any())->method('getModificationTime')->will($this->returnValue(123456789));
-        $this->fileResourceMock->expects($this->any())->method('getExtension')->will($this->returnValue('html'));
+        $this->fileResourceMock->expects(self::any())->method('toArray')->willReturn(['id' => 'foo']);
+        $this->fileResourceMock->expects(self::any())->method('getModificationTime')->willReturn(123456789);
+        $this->fileResourceMock->expects(self::any())->method('getExtension')->willReturn('html');
+
+        $serverRequest = $this->prophesize(ServerRequestInterface::class);
+        $GLOBALS['TYPO3_REQUEST'] = $serverRequest->reveal();
 
         $this->request = new ServerRequest();
         $this->response = new Response();
@@ -81,31 +90,35 @@ class FileControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function flattenResultDataValueFlattensFileAndFolderResourcesButReturnsAnythingElseAsIs()
+    public function flattenResultDataValueReturnsAnythingElseAsIs()
     {
-        $this->fileController = $this->getAccessibleMock(\TYPO3\CMS\Backend\Controller\File\FileController::class, ['dummy']);
+        $subject = $this->getAccessibleMock(FileController::class, ['dummy']);
+        self::assertTrue($subject->_call('flattenResultDataValue', true));
+        self::assertSame([], $subject->_call('flattenResultDataValue', []));
+    }
 
-        $this->folderResourceMock->expects($this->once())->method('getIdentifier')->will($this->returnValue('bar'));
+    /**
+     * @test
+     */
+    public function flattenResultDataValueFlattensFile()
+    {
+        $subject = $this->getAccessibleMock(FileController::class, ['dummy']);
 
-        $this->mockFileProcessor->expects($this->any())->method('getErrorMessages')->will($this->returnValue([]));
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+        $iconProphecy = $this->prophesize(Icon::class);
+        $iconProphecy->render()->shouldBeCalled()->willReturn('');
+        $iconFactoryProphecy->getIconForFileExtension(Argument::cetera())->willReturn($iconProphecy->reveal());
 
-        $this->assertTrue($this->fileController->_call('flattenResultDataValue', true));
-        $this->assertSame([], $this->fileController->_call('flattenResultDataValue', []));
-        $result = $this->fileController->_call('flattenResultDataValue', $this->fileResourceMock);
-        $this->assertContains('<span class="t3js-icon icon icon-size-small icon-state-default icon-mimetypes-text-html" data-identifier="mimetypes-text-html">', $result['icon']);
-        unset($result['icon']);
-        $this->assertSame(
+        $result = $subject->_call('flattenResultDataValue', $this->fileResourceMock);
+        self::assertSame(
             [
                 'id' => 'foo',
                 'date' => '29-11-73',
+                'icon' => '',
                 'thumbUrl' => '',
             ],
             $result
-        );
-
-        $this->assertSame(
-            'bar',
-            $this->fileController->_call('flattenResultDataValue', $this->folderResourceMock)
         );
     }
 
@@ -114,16 +127,16 @@ class FileControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function processAjaxRequestDeleteProcessActuallyDoesNotChangeFileData()
     {
-        $this->fileController = $this->getAccessibleMock(\TYPO3\CMS\Backend\Controller\File\FileController::class, ['init', 'main']);
+        $subject = $this->getAccessibleMock(FileController::class, ['init', 'main']);
 
         $fileData = ['delete' => [true]];
-        $this->fileController->_set('fileProcessor', $this->mockFileProcessor);
-        $this->fileController->_set('fileData', $fileData);
-        $this->fileController->_set('redirect', false);
+        $subject->_set('fileProcessor', $this->mockFileProcessor);
+        $subject->_set('fileData', $fileData);
+        $subject->_set('redirect', false);
 
-        $this->fileController->expects($this->once())->method('main');
+        $subject->expects(self::once())->method('main');
 
-        $this->fileController->processAjaxRequest($this->request, $this->response);
+        $subject->processAjaxRequest($this->request, $this->response);
     }
 
     /**
@@ -131,32 +144,32 @@ class FileControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function processAjaxRequestEditFileProcessActuallyDoesNotChangeFileData()
     {
-        $this->fileController = $this->getAccessibleMock(\TYPO3\CMS\Backend\Controller\File\FileController::class, ['init', 'main']);
+        $subject = $this->getAccessibleMock(FileController::class, ['init', 'main']);
 
         $fileData = ['editfile' => [true]];
-        $this->fileController->_set('fileProcessor', $this->mockFileProcessor);
-        $this->fileController->_set('fileData', $fileData);
-        $this->fileController->_set('redirect', false);
+        $subject->_set('fileProcessor', $this->mockFileProcessor);
+        $subject->_set('fileData', $fileData);
+        $subject->_set('redirect', false);
 
-        $this->fileController->expects($this->once())->method('main');
+        $subject->expects(self::once())->method('main');
 
-        $this->fileController->processAjaxRequest($this->request, $this->response);
+        $subject->processAjaxRequest($this->request, $this->response);
     }
 
     /**
      * @test
      */
-    public function processAjaxRequestReturnsStatus200IfNoErrorOccures()
+    public function processAjaxRequestReturnsStatus200IfNoErrorOccurs()
     {
-        $this->fileController = $this->getAccessibleMock(\TYPO3\CMS\Backend\Controller\File\FileController::class, ['init', 'main']);
+        $subject = $this->getAccessibleMock(FileController::class, ['init', 'main']);
 
         $fileData = ['editfile' => [true]];
-        $this->fileController->_set('fileProcessor', $this->mockFileProcessor);
-        $this->fileController->_set('fileData', $fileData);
-        $this->fileController->_set('redirect', false);
+        $subject->_set('fileProcessor', $this->mockFileProcessor);
+        $subject->_set('fileData', $fileData);
+        $subject->_set('redirect', false);
 
-        $result = $this->fileController->processAjaxRequest($this->request, $this->response);
-        $this->assertEquals(200, $result->getStatusCode());
+        $result = $subject->processAjaxRequest($this->request, $this->response);
+        self::assertEquals(200, $result->getStatusCode());
     }
 
     /**
@@ -164,10 +177,10 @@ class FileControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function processAjaxRequestReturnsStatus500IfErrorOccurs()
     {
-        $this->fileController = $this->getAccessibleMock(\TYPO3\CMS\Backend\Controller\File\FileController::class, ['init', 'main']);
-        $this->mockFileProcessor->expects($this->any())->method('getErrorMessages')->will($this->returnValue(['error occured']));
-        $this->fileController->_set('fileProcessor', $this->mockFileProcessor);
-        $result = $this->fileController->processAjaxRequest($this->request, $this->response);
-        $this->assertEquals(500, $result->getStatusCode());
+        $subject = $this->getAccessibleMock(FileController::class, ['init', 'main']);
+        $this->mockFileProcessor->expects(self::any())->method('getErrorMessages')->willReturn(['error occurred']);
+        $subject->_set('fileProcessor', $this->mockFileProcessor);
+        $result = $subject->processAjaxRequest($this->request, $this->response);
+        self::assertEquals(500, $result->getStatusCode());
     }
 }

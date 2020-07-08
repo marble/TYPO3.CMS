@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Messaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,14 @@ namespace TYPO3\CMS\Core\Messaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Messaging;
+
 use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
  * A class used for any kind of messages.
  */
-abstract class AbstractMessage
+abstract class AbstractMessage implements \JsonSerializable
 {
     const NOTICE = -2;
     const INFO = -1;
@@ -54,7 +56,7 @@ abstract class AbstractMessage
      *
      * @return string The message's title.
      */
-    public function getTitle() : string
+    public function getTitle(): string
     {
         return $this->title;
     }
@@ -74,7 +76,7 @@ abstract class AbstractMessage
      *
      * @return string The message.
      */
-    public function getMessage() : string
+    public function getMessage(): string
     {
         return $this->message;
     }
@@ -92,9 +94,9 @@ abstract class AbstractMessage
     /**
      * Gets the message' severity.
      *
-     * @return int The message' severity, must be one of AbstractMessage::INFO or similar contstants
+     * @return int The message' severity, must be one of AbstractMessage::INFO or similar constants
      */
-    public function getSeverity() : int
+    public function getSeverity(): int
     {
         return $this->severity;
     }
@@ -129,5 +131,17 @@ abstract class AbstractMessage
             $title = ' - ' . $this->title;
         }
         return $severities[$this->severity] . $title . ': ' . $this->message;
+    }
+
+    /**
+     * @return array Data which can be serialized by json_encode()
+     */
+    public function jsonSerialize(): array
+    {
+        return [
+            'severity' => $this->getSeverity(),
+            'title' => $this->getTitle(),
+            'message' => $this->getMessage(),
+        ];
     }
 }

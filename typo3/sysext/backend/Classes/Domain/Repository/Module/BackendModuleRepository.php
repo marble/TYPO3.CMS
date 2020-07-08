@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Domain\Repository\Module;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +13,24 @@ namespace TYPO3\CMS\Backend\Domain\Repository\Module;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Domain\Repository\Module;
+
+use TYPO3\CMS\Backend\Domain\Model\Module\BackendModule;
 use TYPO3\CMS\Backend\Module\ModuleLoader;
-use TYPO3\CMS\Backend\Utility\BackendUtility;
-use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Backend\Module\ModuleStorage;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Imaging\IconRegistry;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Repository for backend module menu
  * compiles all data from $GLOBALS[TBE_MODULES]
  */
-class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
+class BackendModuleRepository implements SingletonInterface
 {
     /**
      * @var \TYPO3\CMS\Backend\Module\ModuleStorage
@@ -37,7 +42,7 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
      */
     public function __construct()
     {
-        $this->moduleStorage = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Module\ModuleStorage::class);
+        $this->moduleStorage = GeneralUtility::makeInstance(ModuleStorage::class);
 
         $rawData = $this->getRawModuleMenuData();
 
@@ -60,7 +65,7 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
         $modules = new \SplObjectStorage();
         foreach ($this->moduleStorage->getEntries() as $moduleGroup) {
             if (!in_array($moduleGroup->getName(), $excludeGroupNames, true)) {
-                if ($moduleGroup->getChildren()->count() > 0) {
+                if ($moduleGroup->getChildren()->count() > 0 || $moduleGroup->isStandalone()) {
                     $modules->attach($moduleGroup);
                 }
             }
@@ -71,7 +76,7 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
 
     /**
      * @param string $groupName
-     * @return \SplObjectStorage|FALSE
+     * @return \SplObjectStorage|false
      **/
     public function findByGroupName($groupName = '')
     {
@@ -148,8 +153,8 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function createEntryFromRawData(array $module)
     {
-        /** @var $entry \TYPO3\CMS\Backend\Domain\Model\Module\BackendModule */
-        $entry = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Domain\Model\Module\BackendModule::class);
+        /** @var \TYPO3\CMS\Backend\Domain\Model\Module\BackendModule $entry */
+        $entry = GeneralUtility::makeInstance(BackendModule::class);
         if (!empty($module['name']) && is_string($module['name'])) {
             $entry->setName($module['name']);
         }
@@ -181,6 +186,11 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
         if (!empty($module['navigationFrameScriptParam']) && is_string($module['navigationFrameScriptParam'])) {
             $entry->setNavigationFrameScriptParameters($module['navigationFrameScriptParam']);
         }
+        if (!empty($module['standalone'])) {
+            $entry->setStandalone((bool)$module['standalone']);
+        }
+        $moduleMenuState = json_decode($this->getBackendUser()->uc['modulemenu'] ?? '{}', true);
+        $entry->setCollapsed(isset($moduleMenuState[$module['name']]));
         return $entry;
     }
 
@@ -190,8 +200,8 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function createMenuEntriesForTbeModulesExt()
     {
-        foreach ($GLOBALS['TBE_MODULES_EXT'] as $mainModule => $tbeModuleExt) {
-            list($main) = explode('_', $mainModule);
+        foreach ($GLOBALS['TBE_MODULES_EXT'] ?? [] as $mainModule => $tbeModuleExt) {
+            [$main] = explode('_', $mainModule);
             $mainEntry = $this->findByModuleName($main);
             if ($mainEntry === false) {
                 continue;
@@ -214,16 +224,6 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Return language service instance
-     *
-     * @return \TYPO3\CMS\Core\Localization\LanguageService
-     */
-    protected function getLanguageService()
-    {
-        return $GLOBALS['LANG'];
-    }
-
-    /**
      * loads the module menu from the moduleloader based on $GLOBALS['TBE_MODULES']
      * and compiles an array with all the data needed for menu etc.
      *
@@ -242,7 +242,8 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
 
         // Unset modules that are meant to be hidden from the menu.
         $loadedModules = $this->removeHiddenModules($loadedModules);
-        $dummyScript = BackendUtility::getModuleUrl('dummy');
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        $dummyScript = (string)$uriBuilder->buildUriFromRoute('dummy');
         foreach ($loadedModules as $moduleName => $moduleData) {
             $moduleLink = '';
             if (!is_array($moduleData['sub'])) {
@@ -257,9 +258,10 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
                 'onclick' => 'top.goToModule(' . GeneralUtility::quoteJSvalue($moduleName) . ');',
                 'icon' => $this->getModuleIcon($moduleKey, $moduleData),
                 'link' => $moduleLink,
-                'description' => $moduleLabels['shortdescription']
+                'description' => $moduleLabels['shortdescription'],
+                'standalone' => (bool)$moduleData['standalone']
             ];
-            if (!is_array($moduleData['sub']) && $moduleData['script'] !== $dummyScript) {
+            if ((($moduleData['standalone'] ?? false) === false) && !is_array($moduleData['sub']) && $moduleData['script'] !== $dummyScript) {
                 // Work around for modules with own main entry, but being self the only submodule
                 $modules[$moduleKey]['subitems'][$moduleKey] = [
                     'name' => $moduleName,
@@ -278,7 +280,7 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
                     if (isset($submoduleData['script'])) {
                         $submoduleLink = GeneralUtility::resolveBackPath($submoduleData['script']);
                     } else {
-                        $submoduleLink = BackendUtility::getModuleUrl($submoduleData['name']);
+                        $submoduleLink = (string)$uriBuilder->buildUriFromRoute($submoduleData['name']);
                     }
                     $submoduleKey = $moduleName . '_' . $submoduleName;
                     $submoduleLabels = $moduleLoader->getLabelsForModule($submoduleKey);
@@ -308,6 +310,18 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
         return $modules;
     }
 
+    public function modulesHaveNavigationComponent(): bool
+    {
+        /** @var BackendModule $module */
+        foreach ($this->moduleStorage->getEntries() as $module) {
+            if ($module->getNavigationComponentId() !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Reads User configuration from options.hideModules and removes
      * modules accordingly.
@@ -317,22 +331,21 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function removeHiddenModules($loadedModules)
     {
-        $hiddenModules = $GLOBALS['BE_USER']->getTSConfig('options.hideModules');
+        $userTsConfig = $this->getBackendUser()->getTSConfig();
 
         // Hide modules if set in userTS.
-        if (!empty($hiddenModules['value'])) {
-            $hiddenMainModules = explode(',', $hiddenModules['value']);
-            foreach ($hiddenMainModules as $hiddenMainModule) {
-                unset($loadedModules[trim($hiddenMainModule)]);
-            }
+        $hiddenMainModules = GeneralUtility::trimExplode(',', $userTsConfig['options.']['hideModules'] ?? '', true);
+        foreach ($hiddenMainModules as $hiddenMainModule) {
+            unset($loadedModules[$hiddenMainModule]);
         }
 
         // Hide sub-modules if set in userTS.
-        if (!empty($hiddenModules['properties']) && is_array($hiddenModules['properties'])) {
-            foreach ($hiddenModules['properties'] as $mainModuleName => $subModules) {
-                $hiddenSubModules = explode(',', $subModules);
+        $hiddenModules = $userTsConfig['options.']['hideModules.'] ?? [];
+        if (is_array($hiddenModules)) {
+            foreach ($hiddenModules as $mainModuleName => $subModules) {
+                $hiddenSubModules = GeneralUtility::trimExplode(',', $subModules, true);
                 foreach ($hiddenSubModules as $hiddenSubModule) {
-                    unset($loadedModules[$mainModuleName]['sub'][trim($hiddenSubModule)]);
+                    unset($loadedModules[$mainModuleName]['sub'][$hiddenSubModule]);
                 }
             }
         }
@@ -349,15 +362,32 @@ class BackendModuleRepository implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function getModuleIcon($moduleKey, $moduleData)
     {
-        $iconIdentifier = !(empty($moduleData['iconIdentifier']))
+        $iconIdentifier = !empty($moduleData['iconIdentifier'])
             ? $moduleData['iconIdentifier']
             : 'module-icon-' . $moduleKey;
         $iconRegistry = GeneralUtility::makeInstance(IconRegistry::class);
         if ($iconRegistry->isRegistered($iconIdentifier)) {
             $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-            return $iconFactory->getIcon($iconIdentifier)->render();
-        } else {
-            return '';
+            return $iconFactory->getIcon($iconIdentifier)->render('inline');
         }
+        return '';
+    }
+
+    /**
+     * Return language service instance
+     *
+     * @return LanguageService
+     */
+    protected function getLanguageService()
+    {
+        return $GLOBALS['LANG'];
+    }
+
+    /**
+     * @return BackendUserAuthentication
+     */
+    protected function getBackendUser(): BackendUserAuthentication
+    {
+        return $GLOBALS['BE_USER'];
     }
 }

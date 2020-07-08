@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Frontend\Tests\Unit\Typolink;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +15,15 @@ namespace TYPO3\CMS\Frontend\Tests\Unit\Typolink;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Tests\Unit\Typolink;
+
 use Psr\Log\LoggerInterface;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Log\LogManager;
-use TYPO3\CMS\Core\TypoScript\TemplateService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
-use TYPO3\CMS\Frontend\Page\PageRepository;
 use TYPO3\CMS\Frontend\Typolink\AbstractTypolinkBuilder;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
@@ -30,62 +33,36 @@ use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 class AbstractTypolinkBuilderTest extends UnitTestCase
 {
     /**
-     * @var array A backup of registered singleton instances
+     * @var bool Reset singletons created by subject
      */
-    protected $singletonInstances = [];
+    protected $resetSingletonInstances = true;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject|TypoScriptFrontendController|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var bool Restore Environment after tests
      */
-    protected $frontendControllerMock = null;
+    protected $backupEnvironment = true;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject|TemplateService
+     * @var \PHPUnit\Framework\MockObject\MockObject|TypoScriptFrontendController|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
-    protected $templateServiceMock = null;
+    protected $frontendControllerMock;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        GeneralUtility::flushInternalRuntimeCaches();
-
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
+        parent::setUp();
         $this->createMockedLoggerAndLogManager();
-
-        $this->templateServiceMock =
-            $this->getMockBuilder(TemplateService::class)
-            ->setMethods(['getFileName', 'linkData'])->getMock();
-        $pageRepositoryMock =
-            $this->getAccessibleMock(PageRepository::class, ['getRawRecord', 'getMountPointInfo']);
-        $this->frontendControllerMock =
-            $this->getAccessibleMock(TypoScriptFrontendController::class,
-            ['dummy'], [], '', false);
-        $this->frontendControllerMock->tmpl = $this->templateServiceMock;
-        $this->frontendControllerMock->config = [];
-        $this->frontendControllerMock->page =  [];
-        $this->frontendControllerMock->sys_page = $pageRepositoryMock;
-        $GLOBALS['TSFE'] = $this->frontendControllerMock;
-    }
-
-    protected function tearDown()
-    {
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
+        $this->frontendControllerMock = $this
+            ->getMockBuilder(TypoScriptFrontendController::class)
+            ->disableOriginalConstructor()
+            ->getMock();
     }
 
     //////////////////////
     // Utility functions
     //////////////////////
-
-    /**
-     * @return TypoScriptFrontendController
-     */
-    protected function getFrontendController()
-    {
-        return $GLOBALS['TSFE'];
-    }
 
     /**
      * Avoid logging to the file system (file writer is currently the only configured writer)
@@ -94,7 +71,7 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
     {
         $logManagerMock = $this->getMockBuilder(LogManager::class)->getMock();
         $loggerMock = $this->getMockBuilder(LoggerInterface::class)->getMock();
-        $logManagerMock->expects($this->any())
+        $logManagerMock->expects(self::any())
             ->method('getLogger')
             ->willReturn($loggerMock);
         GeneralUtility::setSingletonInstance(LogManager::class, $logManagerMock);
@@ -195,19 +172,28 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
      */
     public function forceAbsoluteUrlReturnsCorrectAbsoluteUrl($expected, $url, array $configuration)
     {
+        Environment::initialize(
+            Environment::getContext(),
+            true,
+            false,
+            Environment::getProjectPath(),
+            Environment::getPublicPath(),
+            Environment::getVarPath(),
+            Environment::getConfigPath(),
+            Environment::getBackendPath() . '/index.php',
+            Environment::isWindows() ? 'WINDOWS' : 'UNIX'
+        );
+        $this->frontendControllerMock->absRefPrefix = '';
         $contentObjectRendererProphecy = $this->prophesize(ContentObjectRenderer::class);
-        $subject = $this->getAccessibleMock(AbstractTypolinkBuilder::class,
+        $subject = $this->getAccessibleMock(
+            AbstractTypolinkBuilder::class,
             ['build'],
-            [$contentObjectRendererProphecy->reveal()],
-            '',
-            false
+            [$contentObjectRendererProphecy->reveal(), $this->frontendControllerMock]
         );
         // Force hostname
         $_SERVER['HTTP_HOST'] = 'localhost';
         $_SERVER['SCRIPT_NAME'] = '/typo3/index.php';
-        $GLOBALS['TSFE']->absRefPrefix = '';
-
-        $this->assertEquals($expected, $subject->_call('forceAbsoluteUrl', $url, $configuration));
+        self::assertEquals($expected, $subject->_call('forceAbsoluteUrl', $url, $configuration));
     }
 
     /**
@@ -215,12 +201,22 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
      */
     public function forceAbsoluteUrlReturnsCorrectAbsoluteUrlWithSubfolder()
     {
+        Environment::initialize(
+            Environment::getContext(),
+            true,
+            false,
+            Environment::getProjectPath(),
+            Environment::getPublicPath(),
+            Environment::getVarPath(),
+            Environment::getConfigPath(),
+            Environment::getBackendPath() . '/index.php',
+            Environment::isWindows() ? 'WINDOWS' : 'UNIX'
+        );
         $contentObjectRendererProphecy = $this->prophesize(ContentObjectRenderer::class);
-        $subject = $this->getAccessibleMock(AbstractTypolinkBuilder::class,
+        $subject = $this->getAccessibleMock(
+            AbstractTypolinkBuilder::class,
             ['build'],
-            [$contentObjectRendererProphecy->reveal()],
-            '',
-            false
+            [$contentObjectRendererProphecy->reveal(), $this->frontendControllerMock]
         );
         // Force hostname
         $_SERVER['HTTP_HOST'] = 'localhost';
@@ -232,7 +228,7 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
             'forceAbsoluteUrl' => '1'
         ];
 
-        $this->assertEquals($expected, $subject->_call('forceAbsoluteUrl', $url, $configuration));
+        self::assertEquals($expected, $subject->_call('forceAbsoluteUrl', $url, $configuration));
     }
 
     /**
@@ -240,11 +236,11 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
      *
      * @return array [[$expected, $conf, $name, $respectFrameSetOption, $fallbackTarget],]
      */
-    public function resolveTargetAttributeDataProvider() : array
+    public function resolveTargetAttributeDataProvider(): array
     {
-        $targetName = $this->getUniqueId('name_');
-        $target = $this->getUniqueId('target_');
-        $fallback = $this->getUniqueId('fallback_');
+        $targetName = StringUtility::getUniqueId('name_');
+        $target = StringUtility::getUniqueId('target_');
+        $fallback = StringUtility::getUniqueId('fallback_');
         return [
             'Take target from $conf, if $conf[$targetName] is set.' =>
                 [
@@ -258,7 +254,7 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
             'Else from fallback, if not $respectFrameSetOption ...' =>
                 [
                     $fallback,
-                    [],
+                    ['directImageLink' => false],
                     $targetName,
                     false, // $respectFrameSetOption false
                     $fallback,
@@ -267,7 +263,7 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
             ' ... or no doctype ... ' =>
                 [
                     $fallback,
-                    [],
+                    ['directImageLink' => false],
                     $targetName,
                     true,
                     $fallback,
@@ -276,7 +272,7 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
             ' ... or doctype xhtml_trans... ' =>
                 [
                     $fallback,
-                    [],
+                    ['directImageLink' => false],
                     $targetName,
                     true,
                     $fallback,
@@ -285,7 +281,7 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
             ' ... or doctype xhtml_basic... ' =>
                 [
                     $fallback,
-                    [],
+                    ['directImageLink' => false],
                     $targetName,
                     true,
                     $fallback,
@@ -294,7 +290,7 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
             ' ... or doctype html5... ' =>
                 [
                     $fallback,
-                    [],
+                    ['directImageLink' => false],
                     $targetName,
                     true,
                     $fallback,
@@ -344,14 +340,14 @@ class AbstractTypolinkBuilderTest extends UnitTestCase
         $this->frontendControllerMock->config =
             ['config' => [ 'doctype' => $doctype]];
         $renderer = GeneralUtility::makeInstance(ContentObjectRenderer::class);
-        $subject = $this->getMockBuilder(AbstractTypolinkBuilder::class)
-            ->setConstructorArgs([$renderer])
-            ->setMethods(['build'])
-            ->getMock();
-        $actual = $this->callInaccessibleMethod(
-            $subject, 'resolveTargetAttribute',
-            $conf, $name, $respectFrameSetOption, $fallbackTarget
+        $subject = $this->getAccessibleMockForAbstractClass(AbstractTypolinkBuilder::class, [$renderer, $this->frontendControllerMock]);
+        $actual = $subject->_call(
+            'resolveTargetAttribute',
+            $conf,
+            $name,
+            $respectFrameSetOption,
+            $fallbackTarget
         );
-        $this->assertEquals($expected, $actual);
+        self::assertEquals($expected, $actual);
     }
 }

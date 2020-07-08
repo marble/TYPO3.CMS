@@ -13,12 +13,15 @@
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Utility;
+
 use TYPO3\CMS\Core\Utility\CsvUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test cases of CsvUtility
  */
-class CsvUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class CsvUtilityTest extends UnitTestCase
 {
     /**
      * @return array
@@ -89,6 +92,6 @@ class CsvUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function csvToArraySplitsAsExpected($input, $fieldDelimiter, $fieldEnclosure, $maximumColumns, $expectedResult)
     {
-        $this->assertEquals($expectedResult, CsvUtility::csvToArray($input, $fieldDelimiter, $fieldEnclosure, $maximumColumns));
+        self::assertEquals($expectedResult, CsvUtility::csvToArray($input, $fieldDelimiter, $fieldEnclosure, $maximumColumns));
     }
 }

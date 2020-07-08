@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +15,38 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form;
+
+use Prophecy\Argument;
 use TYPO3\CMS\Backend\Form\InlineStackProcessor;
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class InlineStackProcessorTest extends UnitTestCase
 {
+    /**
+     * @var bool Reset singletons created by subject
+     */
+    protected $resetSingletonInstances = true;
+
+    /**
+     * Set up
+     */
+    public function setUp(): void
+    {
+        parent::setUp();
+        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
+        $cacheProphecy = $this->prophesize(FrontendInterface::class);
+        $cacheManagerProphecy->getCache('runtime')->willReturn($cacheProphecy->reveal());
+        $cacheProphecy->get(Argument::cetera())->willReturn(false);
+        $cacheProphecy->set(Argument::cetera())->willReturn(false);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+    }
 
     /**
      * @return array
@@ -35,7 +61,10 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                         'table' => 'childTable',
                     ],
                 ],
-                []
+                [
+                    'form' => '',
+                    'object' => '',
+                ]
             ],
             'simple 1-level table-uid structure' => [
                 'data-pageId-childTable-childUid',
@@ -45,7 +74,10 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                         'uid' => 'childUid',
                     ],
                 ],
-                []
+                [
+                    'form' => '',
+                    'object' => '',
+                ]
             ],
             'simple 1-level table-uid-field structure' => [
                 'data-pageId-childTable-childUid-childField',
@@ -56,7 +88,10 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                         'field' => 'childField',
                     ],
                 ],
-                [],
+                [
+                    'form' => '',
+                    'object' => '',
+                ],
             ],
             'simple 2-level table structure' => [
                 'data-pageId-parentTable-parentUid-parentField-childTable',
@@ -66,8 +101,7 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                             'table' => 'parentTable',
                             'uid' => 'parentUid',
                             'field' => 'parentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                     ],
                     'unstable' => [
@@ -87,8 +121,7 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                             'table' => 'parentTable',
                             'uid' => 'parentUid',
                             'field' => 'parentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                     ],
                     'unstable' => [
@@ -109,8 +142,7 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                             'table' => 'parentTable',
                             'uid' => 'parentUid',
                             'field' => 'parentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                     ],
                     'unstable' => [
@@ -132,15 +164,13 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                             'table' => 'grandParentTable',
                             'uid' => 'grandParentUid',
                             'field' => 'grandParentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                         [
                             'table' => 'parentTable',
                             'uid' => 'parentUid',
                             'field' => 'parentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                     ],
                     'unstable' => [
@@ -160,15 +190,13 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                             'table' => 'grandParentTable',
                             'uid' => 'grandParentUid',
                             'field' => 'grandParentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                         [
                             'table' => 'parentTable',
                             'uid' => 'parentUid',
                             'field' => 'parentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                     ],
                     'unstable' => [
@@ -189,15 +217,13 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                             'table' => 'grandParentTable',
                             'uid' => 'grandParentUid',
                             'field' => 'grandParentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                         [
                             'table' => 'parentTable',
                             'uid' => 'parentUid',
                             'field' => 'parentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                     ],
                     'unstable' => [
@@ -222,15 +248,13 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                             'flexform' => [
                                 'data', 'sDEF', 'lDEF', 'grandParentFlexForm', 'vDEF',
                             ],
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                         [
                             'table' => 'parentTable',
                             'uid' => 'parentUid',
                             'field' => 'parentField',
-                            'config' => null,
-                            'localizationMode' => false,
+                            'config' => [],
                         ],
                     ],
                     'unstable' => [
@@ -252,34 +276,34 @@ class InlineStackProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function initializeByParsingDomObjectIdStringParsesStructureString($string, array $expectedInlineStructure, array $_)
     {
-        /** @var InlineStackProcessor|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        /** @var InlineStackProcessor|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
         $subject = $this->getAccessibleMock(InlineStackProcessor::class, ['dummy']);
         $subject->initializeByParsingDomObjectIdString($string);
         $structure = $subject->_get('inlineStructure');
-        $this->assertEquals($expectedInlineStructure, $structure);
+        self::assertEquals($expectedInlineStructure, $structure);
     }
 
     /**
      * @dataProvider structureStringIsParsedDataProvider
      * @test
      */
-    public function getCurrentStructureFormPrefixReturnsExceptedStringAfterInitializationByStructureString($string, array $_, array $expectedFormName)
+    public function getCurrentStructureFormPrefixReturnsExpectedStringAfterInitializationByStructureString($string, array $_, array $expectedFormName)
     {
-        /** @var InlineStackProcessor|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = new InlineStackProcessor;
+        /** @var InlineStackProcessor|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = new InlineStackProcessor();
         $subject->initializeByParsingDomObjectIdString($string);
-        $this->assertEquals($expectedFormName['form'], $subject->getCurrentStructureFormPrefix());
+        self::assertEquals($expectedFormName['form'], $subject->getCurrentStructureFormPrefix());
     }
 
     /**
      * @dataProvider structureStringIsParsedDataProvider
      * @test
      */
-    public function getCurrentStructureDomObjectIdPrefixReturnsExceptedStringAfterInitializationByStructureString($string, array $_, array $expectedFormName)
+    public function getCurrentStructureDomObjectIdPrefixReturnsExpectedStringAfterInitializationByStructureString($string, array $_, array $expectedFormName)
     {
-        /** @var InlineStackProcessor|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
-        $subject = new InlineStackProcessor;
+        /** @var InlineStackProcessor|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $subject */
+        $subject = new InlineStackProcessor();
         $subject->initializeByParsingDomObjectIdString($string);
-        $this->assertEquals($expectedFormName['object'], $subject->getCurrentStructureDomObjectIdPrefix('pageId'));
+        self::assertEquals($expectedFormName['object'], $subject->getCurrentStructureDomObjectIdPrefix('pageId'));
     }
 }

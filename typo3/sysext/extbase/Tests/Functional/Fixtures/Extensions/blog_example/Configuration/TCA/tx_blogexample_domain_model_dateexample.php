@@ -1,7 +1,8 @@
 <?php
+
 return [
     'ctrl' => [
-        'title' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xml:tx_blogexample_domain_model_dateexample',
+        'title' => 'LLL:EXT:blog_example/Resources/Private/Language/locallang_db.xlf:tx_blogexample_domain_model_dateexample',
         'label' => 'title',
         'tstamp' => 'tstamp',
         'crdate' => 'crdate',
@@ -12,15 +13,13 @@ return [
         ],
         'iconfile' => 'EXT:blog_example/Resources/Public/Icons/icon_tx_blogexample_domain_model_dateexample.gif'
     ],
-    'interface' => [
-        'showRecordFieldList' => 'title, posts, administrator'
-    ],
     'columns' => [
         'datetime_text' => [
             'exclude' => 1,
             'label' => 'eval=datetime, db=text',
             'config' => [
                 'type' => 'input',
+                'renderType' => 'inputDateTime',
                 'eval' => 'datetime',
             ]
         ],
@@ -29,6 +28,7 @@ return [
             'label' => 'eval=datetime, db=int',
             'config' => [
                 'type' => 'input',
+                'renderType' => 'inputDateTime',
                 'eval' => 'datetime',
             ]
         ],
@@ -38,6 +38,7 @@ return [
             'config' => [
                 'dbType' => 'datetime',
                 'type' => 'input',
+                'renderType' => 'inputDateTime',
                 'eval' => 'datetime',
             ]
         ]

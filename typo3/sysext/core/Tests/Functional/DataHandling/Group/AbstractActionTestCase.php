@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Group;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Group;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Group;
+
+use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase;
+
 /**
  * Functional test for the DataHandler
  */
-abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase
+abstract class AbstractActionTestCase extends AbstractDataHandlerActionTestCase
 {
     const VALUE_PageId = 89;
     const VALUE_PageIdTarget = 90;
@@ -39,7 +42,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
     protected $scenarioDataSetDirectory = 'typo3/sysext/core/Tests/Functional/DataHandling/Group/DataSet/';
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->testExtensionsToLoad[] = 'typo3/sysext/core/Tests/Functional/Fixtures/Extensions/test_datahandler';
 
@@ -48,7 +51,8 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $this->importScenarioDataSet('LiveDefaultElements');
         $this->importScenarioDataSet('ReferenceIndex');
 
-        $this->setUpFrontendRootPage(1, ['typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts']);
+        $this->setUpFrontendSite(1, $this->siteLanguageConfiguration);
+        $this->setUpFrontendRootPage(1, ['typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.typoscript']);
     }
 
     /**
@@ -56,30 +60,33 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
 
     /**
-     * @test
-     * @see DataSet/addElementRelation.csv
+     * See DataSet/addElementRelation.csv
      */
     public function addElementRelation()
     {
         $this->actionService->modifyReferences(
-            self::TABLE_Content, self::VALUE_ContentIdFirst, self::FIELD_ContentElement, [self::VALUE_ElementIdFirst, self::VALUE_ElementIdSecond, self::VALUE_ElementIdThird]
+            self::TABLE_Content,
+            self::VALUE_ContentIdFirst,
+            self::FIELD_ContentElement,
+            [self::VALUE_ElementIdFirst, self::VALUE_ElementIdSecond, self::VALUE_ElementIdThird]
         );
     }
 
     /**
-     * @test
-     * @see DataSet/deleteElementRelation.csv
+     * See DataSet/deleteElementRelation.csv
      */
     public function deleteElementRelation()
     {
         $this->actionService->modifyReferences(
-            self::TABLE_Content, self::VALUE_ContentIdFirst, self::FIELD_ContentElement, [self::VALUE_ElementIdFirst]
+            self::TABLE_Content,
+            self::VALUE_ContentIdFirst,
+            self::FIELD_ContentElement,
+            [self::VALUE_ElementIdFirst]
         );
     }
 
     /**
-     * @test
-     * @see DataSet/changeElementSorting.csv
+     * See DataSet/changeElementSorting.csv
      */
     public function changeElementSorting()
     {
@@ -87,31 +94,33 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/changeElementRelationSorting.csv
+     * See DataSet/changeElementRelationSorting.csv
      */
     public function changeElementRelationSorting()
     {
         $this->actionService->modifyReferences(
-            self::TABLE_Content, self::VALUE_ContentIdFirst, self::FIELD_ContentElement, [self::VALUE_ElementIdSecond, self::VALUE_ElementIdFirst]
+            self::TABLE_Content,
+            self::VALUE_ContentIdFirst,
+            self::FIELD_ContentElement,
+            [self::VALUE_ElementIdSecond, self::VALUE_ElementIdFirst]
         );
     }
 
     /**
-     * @test
-     * @see DataSet/createContentNAddRelation.csv
+     * See DataSet/createContentNAddRelation.csv
      */
     public function createContentAndAddElementRelation()
     {
         $newTableIds = $this->actionService->createNewRecord(
-            self::TABLE_Content, self::VALUE_PageId, ['header' => 'Testing #1', self::FIELD_ContentElement => self::VALUE_ElementIdFirst]
+            self::TABLE_Content,
+            self::VALUE_PageId,
+            ['header' => 'Testing #1', self::FIELD_ContentElement => self::VALUE_ElementIdFirst]
         );
         $this->recordIds['newContentId'] = $newTableIds[self::TABLE_Content][0];
     }
 
     /**
-     * @test
-     * @see DataSet/createContentNCreateRelation.csv
+     * See DataSet/createContentNCreateRelation.csv
      */
     public function createContentAndCreateElementRelation()
     {
@@ -123,8 +132,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/modifyElementOfRelation.csv
+     * See DataSet/modifyElementOfRelation.csv
      */
     public function modifyElementOfRelation()
     {
@@ -132,8 +140,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/modifyContentOfRelation.csv
+     * See DataSet/modifyContentOfRelation.csv
      */
     public function modifyContentOfRelation()
     {
@@ -141,8 +148,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/modifyBothSidesOfRelation.csv
+     * See DataSet/modifyBothSidesOfRelation.csv
      */
     public function modifyBothSidesOfRelation()
     {
@@ -151,8 +157,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/deleteContentOfRelation.csv
+     * See DataSet/deleteContentOfRelation.csv
      */
     public function deleteContentOfRelation()
     {
@@ -160,8 +165,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/deleteElementOfRelation.csv
+     * See DataSet/deleteElementOfRelation.csv
      */
     public function deleteElementOfRelation()
     {
@@ -169,8 +173,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/copyContentOfRelation.csv
+     * See DataSet/copyContentOfRelation.csv
      */
     public function copyContentOfRelation()
     {
@@ -179,8 +182,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/copyElementOfRelation.csv
+     * See DataSet/copyElementOfRelation.csv
      */
     public function copyElementOfRelation()
     {
@@ -189,8 +191,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/copyContentToLanguageOfRelation.csv
+     * See DataSet/copyContentToLanguageOfRelation.csv
      */
     public function copyContentToLanguageOfRelation()
     {
@@ -199,8 +200,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/copyElementToLanguageOfRelation.csv
+     * See DataSet/copyElementToLanguageOfRelation.csv
      */
     public function copyElementToLanguageOfRelation()
     {
@@ -209,8 +209,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/localizeContentOfRelation.csv
+     * See DataSet/localizeContentOfRelation.csv
      */
     public function localizeContentOfRelation()
     {
@@ -224,7 +223,10 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $newTableIds = $this->actionService->localizeRecord(self::TABLE_Content, self::VALUE_ContentIdLast, self::VALUE_LanguageId);
         $this->recordIds['localizedContentId'] = $newTableIds[self::TABLE_Content][self::VALUE_ContentIdLast];
         $this->actionService->modifyReferences(
-            self::TABLE_Content, self::VALUE_ContentIdLast, self::FIELD_ContentElement, [self::VALUE_ElementIdFirst, self::VALUE_ElementIdSecond]
+            self::TABLE_Content,
+            self::VALUE_ContentIdLast,
+            self::FIELD_ContentElement,
+            [self::VALUE_ElementIdFirst, self::VALUE_ElementIdSecond]
         );
     }
 
@@ -241,13 +243,15 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
             ['l10n_state' => [self::FIELD_ContentElement => 'source']]
         );
         $this->actionService->modifyReferences(
-            self::TABLE_Content, self::VALUE_ContentIdLast, self::FIELD_ContentElement, [self::VALUE_ElementIdFirst, self::VALUE_ElementIdSecond]
+            self::TABLE_Content,
+            self::VALUE_ContentIdLast,
+            self::FIELD_ContentElement,
+            [self::VALUE_ElementIdFirst, self::VALUE_ElementIdSecond]
         );
     }
 
     /**
-     * @test
-     * @see DataSet/localizeElementOfRelation.csv
+     * See DataSet/localizeElementOfRelation.csv
      */
     public function localizeElementOfRelation()
     {
@@ -256,8 +260,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/moveContentOfRelationToDifferentPage.csv
+     * See DataSet/moveContentOfRelationToDifferentPage.csv
      */
     public function moveContentOfRelationToDifferentPage()
     {

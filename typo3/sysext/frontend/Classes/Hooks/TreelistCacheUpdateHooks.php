@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Hooks;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Frontend\Hooks;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Hooks;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -23,6 +24,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 /**
  * Class that hooks into DataHandler and listens for updates to pages to update the
  * treelist cache
+ * @internal this is a concrete TYPO3 hook implementation and solely used for EXT:frontend and not part of TYPO3's Core API.
  */
 class TreelistCacheUpdateHooks
 {
@@ -224,7 +226,7 @@ class TreelistCacheUpdateHooks
         }
         // From time to time clean the cache from expired entries
         // (theoretically every 1000 calls)
-        $randomNumber = rand(1, 1000);
+        $randomNumber = random_int(1, 1000);
         if ($randomNumber === 500) {
             $this->removeExpiredCacheEntries();
         }
@@ -322,9 +324,9 @@ class TreelistCacheUpdateHooks
      *
      * @param string $status DataHandler operation status, either 'new' or 'update'
      * @param array $updatedFields Array of updated fields
-     * @return string List of actions that happened to the page record
+     * @return array List of actions that happened to the page record
      */
-    protected function determineClearCacheActions($status, $updatedFields)
+    protected function determineClearCacheActions($status, $updatedFields): array
     {
         $actions = [];
         if ($status === 'new') {

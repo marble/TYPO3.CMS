@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +13,16 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaColumnsProcessRecordTitle;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaColumnsProcessRecordTitleTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaColumnsProcessRecordTitleTest extends UnitTestCase
 {
-    /**
-     * @var TcaColumnsProcessRecordTitle
-     */
-    protected $subject;
-
-    protected function setUp()
-    {
-        $this->subject = new TcaColumnsProcessRecordTitle();
-    }
-
     /**
      * @test
      */
@@ -38,6 +30,7 @@ class TcaColumnsProcessRecordTitleTest extends \TYPO3\TestingFramework\Core\Unit
     {
         $input = [
             'columnsToProcess' => [],
+            'isInlineChild' => false,
             'processedTca' => [
                 'ctrl' => [
                     'label' => 'uid'
@@ -48,16 +41,17 @@ class TcaColumnsProcessRecordTitleTest extends \TYPO3\TestingFramework\Core\Unit
 
         $expected = $input;
         $expected['columnsToProcess'] = ['uid'];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaColumnsProcessRecordTitle())->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataRegistersAlternativeLabelColumnn()
+    public function addDataRegistersAlternativeLabelColumn()
     {
         $input = [
             'columnsToProcess' => [],
+            'isInlineChild' => false,
             'processedTca' => [
                 'ctrl' => [
                     'label' => 'uid',
@@ -69,7 +63,7 @@ class TcaColumnsProcessRecordTitleTest extends \TYPO3\TestingFramework\Core\Unit
 
         $expected = $input;
         $expected['columnsToProcess'] = ['uid', 'aField', 'anotherField'];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaColumnsProcessRecordTitle())->addData($input));
     }
 
     /**
@@ -87,7 +81,7 @@ class TcaColumnsProcessRecordTitleTest extends \TYPO3\TestingFramework\Core\Unit
 
         $expected = $input;
         $expected['columnsToProcess'] = [ 'aForeignLabelField' ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaColumnsProcessRecordTitle())->addData($input));
     }
 
     /**
@@ -105,6 +99,6 @@ class TcaColumnsProcessRecordTitleTest extends \TYPO3\TestingFramework\Core\Unit
 
         $expected = $input;
         $expected['columnsToProcess'] = [ 'aSymmetricLabelField' ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaColumnsProcessRecordTitle())->addData($input));
     }
 }

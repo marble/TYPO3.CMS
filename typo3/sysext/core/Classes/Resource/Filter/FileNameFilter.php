@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Filter;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Resource\Filter;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource\Filter;
 
 use TYPO3\CMS\Core\Resource\Driver\DriverInterface;
 
@@ -46,9 +47,8 @@ class FileNameFilter
         // Only apply the filter if you want to hide the hidden files
         if (self::$showHiddenFilesAndFolders === false && strpos($itemIdentifier, '/.') !== false) {
             return -1;
-        } else {
-            return true;
         }
+        return true;
     }
 
     /**

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,22 @@ namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
+
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
+use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
+use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
+use TYPO3\CMS\Fluid\ViewHelpers\Link\ActionViewHelper;
 
 /**
- * view helper for displaying a remove extension link
+ * ViewHelper for displaying a remove extension link
  * @internal
  */
-class RemoveExtensionViewHelper extends Link\ActionViewHelper
+class RemoveExtensionViewHelper extends ActionViewHelper
 {
     /**
      * Initialize arguments
@@ -44,16 +50,17 @@ class RemoveExtensionViewHelper extends Link\ActionViewHelper
     {
         $extension = $this->arguments['extension'];
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-        if (\TYPO3\CMS\Core\Utility\ExtensionManagementUtility::isLoaded($extension['key'])) {
+        if (ExtensionManagementUtility::isLoaded($extension['key'])) {
             return '<span class="btn btn-default disabled">' . $iconFactory->getIcon('empty-empty', Icon::SIZE_SMALL)->render() . '</span>';
         }
         if (
-            !in_array($extension['type'], \TYPO3\CMS\Extensionmanager\Domain\Model\Extension::returnAllowedInstallTypes()) ||
+            !in_array($extension['type'], Extension::returnAllowedInstallTypes()) ||
             $extension['type'] === 'System'
         ) {
             return '<span class="btn btn-default disabled">' . $iconFactory->getIcon('empty-empty', Icon::SIZE_SMALL)->render() . '</span>';
         }
-        $uriBuilder = $this->controllerContext->getUriBuilder();
+        /** @var UriBuilder $uriBuilder */
+        $uriBuilder = $this->renderingContext->getControllerContext()->getUriBuilder();
         $action = 'removeExtension';
         $uriBuilder->reset();
         $uriBuilder->setFormat('json');
@@ -63,7 +70,7 @@ class RemoveExtensionViewHelper extends Link\ActionViewHelper
         $this->tag->addAttribute('href', $uri);
         $cssClass = 'removeExtension btn btn-default';
         $this->tag->addAttribute('class', $cssClass);
-        $this->tag->addAttribute('title', \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate('extensionList.remove', 'extensionmanager'));
+        $this->tag->addAttribute('title', LocalizationUtility::translate('extensionList.remove', 'extensionmanager'));
         $this->tag->setContent($iconFactory->getIcon('actions-edit-delete', Icon::SIZE_SMALL)->render());
         return $this->tag->render();
     }

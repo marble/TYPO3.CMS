@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Belog\Tests\Unit\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,25 @@ namespace TYPO3\CMS\Belog\Tests\Unit\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Belog\Tests\Unit\Domain\Model;
+
+use TYPO3\CMS\Belog\Domain\Model\Constraint;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class ConstraintTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ConstraintTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Belog\Domain\Model\Constraint
      */
-    protected $subject = null;
+    protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = new \TYPO3\CMS\Belog\Domain\Model\Constraint();
+        parent::setUp();
+        $this->subject = new Constraint();
     }
 
     /**
@@ -36,8 +41,7 @@ class ConstraintTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $date = new \DateTime();
         $this->subject->setManualDateStart($date);
-
-        $this->assertAttributeEquals($date, 'manualDateStart', $this->subject);
+        self::assertEquals($date, $this->subject->getManualDateStart());
     }
 
     /**
@@ -46,8 +50,7 @@ class ConstraintTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setManualDateStartForNoArgumentSetsManualDateStart()
     {
         $this->subject->setManualDateStart();
-
-        $this->assertAttributeEquals(null, 'manualDateStart', $this->subject);
+        self::assertNull($this->subject->getManualDateStart());
     }
 
     /**
@@ -57,8 +60,7 @@ class ConstraintTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $date = new \DateTime();
         $this->subject->setManualDateStop($date);
-
-        $this->assertAttributeEquals($date, 'manualDateStop', $this->subject);
+        self::assertEquals($date, $this->subject->getManualDateStop());
     }
 
     /**
@@ -67,7 +69,6 @@ class ConstraintTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setManualDateStopForNoArgumentSetsManualDateStop()
     {
         $this->subject->setManualDateStop();
-
-        $this->assertAttributeEquals(null, 'manualDateStop', $this->subject);
+        self::assertNull($this->subject->getManualDateStop());
     }
 }

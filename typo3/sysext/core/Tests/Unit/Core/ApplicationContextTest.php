@@ -1,22 +1,28 @@
 <?php
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Core\Tests\Unit\Core;
 
-/*                                                                        *
- * This script belongs to the TYPO3 Flow framework.                       *
- *                                                                        *
- * It is free software; you can redistribute it and/or modify it under    *
- * the terms of the GNU Lesser General Public License, either version 3   *
- * of the License, or (at your option) any later version.                 *
- *                                                                        *
- * The TYPO3 project - inspiring people to share!                         *
- *                                                                        */
-
 use TYPO3\CMS\Core\Core\ApplicationContext;
+use TYPO3\CMS\Core\Exception;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for the ApplicationContext class
  */
-class ApplicationContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ApplicationContextTest extends UnitTestCase
 {
     /**
      * Data provider with allowed contexts.
@@ -43,7 +49,7 @@ class ApplicationContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     public function contextStringCanBeSetInConstructorAndReadByCallingToString($allowedContext)
     {
         $context = new ApplicationContext($allowedContext);
-        $this->assertSame($allowedContext, (string)$context);
+        self::assertSame($allowedContext, (string)$context);
     }
 
     /**
@@ -54,7 +60,7 @@ class ApplicationContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     public function forbiddenContexts()
     {
         return [
-            ['MySpecialContexz'],
+            ['MySpecialContext'],
             ['Testing123'],
             ['DevelopmentStuff'],
             ['DevelopmentStuff/FooBar'],
@@ -67,7 +73,7 @@ class ApplicationContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
      */
     public function constructorThrowsExceptionIfMainContextIsForbidden($forbiddenContext)
     {
-        $this->expectException(\TYPO3\CMS\Core\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1335436551);
 
         new ApplicationContext($forbiddenContext);
@@ -135,10 +141,10 @@ class ApplicationContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     public function contextMethodsReturnTheCorrectValues($contextName, $isDevelopment, $isProduction, $isTesting, $parentContext)
     {
         $context = new ApplicationContext($contextName);
-        $this->assertSame($isDevelopment, $context->isDevelopment());
-        $this->assertSame($isProduction, $context->isProduction());
-        $this->assertSame($isTesting, $context->isTesting());
-        $this->assertSame((string)$parentContext, (string)$context->getParent());
+        self::assertSame($isDevelopment, $context->isDevelopment());
+        self::assertSame($isProduction, $context->isProduction());
+        self::assertSame($isTesting, $context->isTesting());
+        self::assertSame((string)$parentContext, (string)$context->getParent());
     }
 
     /**
@@ -148,9 +154,9 @@ class ApplicationContextTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     {
         $context = new ApplicationContext('Production/Foo/Bar');
         $parentContext = $context->getParent();
-        $this->assertSame('Production/Foo', (string)$parentContext);
+        self::assertSame('Production/Foo', (string)$parentContext);
 
         $rootContext = $parentContext->getParent();
-        $this->assertSame('Production', (string)$rootContext);
+        self::assertSame('Production', (string)$rootContext);
     }
 }

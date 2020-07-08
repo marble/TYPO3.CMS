@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
@@ -30,13 +31,15 @@ class DatabaseRowDateTimeFields implements FormDataProviderInterface
      */
     public function addData(array $result)
     {
+        $dateTimeTypes = QueryHelper::getDateTimeTypes();
         $dateTimeFormats = QueryHelper::getDateTimeFormats();
+
         foreach ($result['processedTca']['columns'] as $column => $columnConfig) {
             if (isset($columnConfig['config']['dbType'])
-                && ($columnConfig['config']['dbType'] === 'date' || $columnConfig['config']['dbType'] === 'datetime')
+                && in_array($columnConfig['config']['dbType'], $dateTimeTypes, true)
             ) {
                 if (!empty($result['databaseRow'][$column])
-                    &&  $result['databaseRow'][$column] !== $dateTimeFormats[$columnConfig['config']['dbType']]['empty']
+                    && $result['databaseRow'][$column] !== $dateTimeFormats[$columnConfig['config']['dbType']]['empty']
                 ) {
                     // Create an ISO-8601 date from current field data; the database always contains UTC
                     // The field value is something like "2016-01-01" or "2016-01-01 10:11:12", so appending "UTC"
@@ -45,10 +48,9 @@ class DatabaseRowDateTimeFields implements FormDataProviderInterface
                 } else {
                     $result['databaseRow'][$column] = null;
                 }
-            } else {
-                // its a UNIX timestamp! We do not modify this here, as it will only be treated as a datetime because
-                // of eval being set to "date" or "datetime". This is handled in InputTextElement then.
             }
+            // its a UNIX timestamp! We do not modify this here, as it will only be treated as a datetime because
+                // of eval being set to "date" or "datetime". This is handled in InputTextElement then.
         }
         return $result;
     }

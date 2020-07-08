@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Log\Writer;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,10 @@ namespace TYPO3\CMS\Core\Log\Writer;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Log\Writer;
+
+use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Log\LogRecord;
 
 /**
@@ -68,7 +71,7 @@ class SyslogWriter extends AbstractWriter
             $this->facilities['local7'] = LOG_LOCAL7;
         }
         parent::__construct($options);
-        if (!openlog('TYPO3', (LOG_ODELAY | LOG_PID), $this->facility)) {
+        if (!openlog('TYPO3', LOG_ODELAY | LOG_PID, $this->facility)) {
             $facilityName = array_search($this->facility, $this->facilities);
             throw new \RuntimeException('Could not open syslog for facility ' . $facilityName, 1321722682);
         }
@@ -131,7 +134,7 @@ class SyslogWriter extends AbstractWriter
      */
     public function writeLog(LogRecord $record)
     {
-        if (false === syslog($record->getLevel(), $this->getMessageForSyslog($record))) {
+        if (false === syslog(LogLevel::normalizeLevel($record->getLevel()), $this->getMessageForSyslog($record))) {
             throw new \RuntimeException('Could not write log record to syslog', 1345036337);
         }
         return $this;

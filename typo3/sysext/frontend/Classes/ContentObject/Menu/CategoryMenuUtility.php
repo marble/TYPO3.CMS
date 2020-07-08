@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject\Menu;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Frontend\ContentObject\Menu;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\ContentObject\Menu;
+
 use TYPO3\CMS\Core\Collection\AbstractRecordCollection;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Frontend\Category\Collection\CategoryCollection;
@@ -22,6 +23,7 @@ use TYPO3\CMS\Frontend\Category\Collection\CategoryCollection;
  * Utility class for menus based on category collections of pages.
  *
  * Returns all the relevant pages for rendering with a menu content object.
+ * @internal this is only used for internal purposes and solely used for EXT:frontend and not part of TYPO3's Core API.
  */
 class CategoryMenuUtility
 {
@@ -36,7 +38,7 @@ class CategoryMenuUtility
      * @param string $selectedCategories Comma-separated list of system categories primary keys
      * @param array $configuration TypoScript configuration for the "special." keyword
      * @param \TYPO3\CMS\Frontend\ContentObject\Menu\AbstractMenuContentObject $parentObject Back-reference to the calling object
-     * @return string List of selected pages
+     * @return array List of selected pages
      */
     public function collectPages($selectedCategories, $configuration, $parentObject)
     {

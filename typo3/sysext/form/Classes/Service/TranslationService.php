@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,18 +15,22 @@ namespace TYPO3\CMS\Form\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Service;
+
+use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Localization\LocalizationFactory;
 use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Form\Domain\Model\FormElements\FormElementInterface;
 use TYPO3\CMS\Form\Domain\Model\Renderable\RootRenderableInterface;
 use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
-use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 /**
  * Advanced translations
@@ -61,7 +65,7 @@ class TranslationService implements SingletonInterface
      *
      * @var string
      */
-    protected $languageKey = null;
+    protected $languageKey;
 
     /**
      * Pointer to alternative fall-back language to use
@@ -73,7 +77,7 @@ class TranslationService implements SingletonInterface
     /**
      * @var \TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface
      */
-    protected $configurationManager = null;
+    protected $configurationManager;
 
     /**
      * Return TranslationService as singleton
@@ -173,37 +177,61 @@ class TranslationService implements SingletonInterface
      * Recursively translate values.
      *
      * @param array $array
-     * @param array|string|null $translationFile
+     * @param array $translationFiles
      * @return array the modified array
      * @internal
      */
-    public function translateValuesRecursive(array $array, $translationFile = null): array
+    public function translateValuesRecursive(array $array, array $translationFiles = []): array
     {
         $result = $array;
         foreach ($result as $key => $value) {
             if (is_array($value)) {
-                $result[$key] = $this->translateValuesRecursive($value, $translationFile);
+                $result[$key] = $this->translateValuesRecursive($value, $translationFiles);
             } else {
-                $translationFiles = null;
-                if (is_string($translationFile)) {
-                    $translationFiles = [$translationFile];
-                } elseif (is_array($translationFile)) {
-                    $translationFiles = $this->sortArrayWithIntegerKeysDescending($translationFile);
-                }
+                $this->sortArrayWithIntegerKeysDescending($translationFiles);
 
-                if ($translationFiles) {
-                    foreach ($translationFiles as $_translationFile) {
-                        $translatedValue = $this->translate($value, null, $_translationFile, null);
+                if (!empty($translationFiles)) {
+                    foreach ($translationFiles as $translationFile) {
+                        $translatedValue = $this->translate($value, null, $translationFile, null);
                         if (!empty($translatedValue)) {
                             $result[$key] = $translatedValue;
                             break;
                         }
                     }
                 } else {
-                    $result[$key] = $this->translate($value, null, $translationFile, null, $value);
+                    $result[$key] = $this->translate($value, null, null, null, $value);
                 }
             }
         }
+        return $result;
+    }
+
+    /**
+     * @param string $key
+     * @param array $arguments
+     * @param array $translationFiles
+     * @return array the modified array
+     * @internal
+     */
+    public function translateToAllBackendLanguages(
+        string $key,
+        array $arguments = null,
+        array $translationFiles = []
+    ): array {
+        $result = [];
+        $translationFiles = $this->sortArrayWithIntegerKeysDescending($translationFiles);
+
+        foreach ($this->getAllTypo3BackendLanguages() as $language) {
+            $result[$language] = $key;
+            foreach ($translationFiles as $translationFile) {
+                $translatedValue = $this->translate($key, $arguments, $translationFile, $language, $key);
+                if ($translatedValue !== $key) {
+                    $result[$language] = $translatedValue;
+                    break;
+                }
+            }
+        }
+
         return $result;
     }
 
@@ -215,7 +243,6 @@ class TranslationService implements SingletonInterface
      * @param array $renderingOptions
      * @return string
      * @throws \InvalidArgumentException
-     * @api
      */
     public function translateFinisherOption(
         FormRuntime $formRuntime,
@@ -232,16 +259,12 @@ class TranslationService implements SingletonInterface
         }
 
         $finisherIdentifier = preg_replace('/Finisher$/', '', $finisherIdentifier);
-        $translationFile = $renderingOptions['translationFile'];
-        if (empty($translationFile)) {
-            $translationFile = $formRuntime->getRenderingOptions()['translation']['translationFile'];
+        $translationFiles = $renderingOptions['translationFiles'] ?? [];
+        if (empty($translationFiles)) {
+            $translationFiles = $formRuntime->getRenderingOptions()['translation']['translationFiles'];
         }
 
-        if (is_string($translationFile)) {
-            $translationFiles = [$translationFile];
-        } else {
-            $translationFiles = $this->sortArrayWithIntegerKeysDescending($translationFile);
-        }
+        $translationFiles = $this->sortArrayWithIntegerKeysDescending($translationFiles);
 
         if (isset($renderingOptions['translatePropertyValueIfEmpty'])) {
             $translatePropertyValueIfEmpty = (bool)$renderingOptions['translatePropertyValueIfEmpty'];
@@ -258,21 +281,35 @@ class TranslationService implements SingletonInterface
             $language = $renderingOptions['language'];
         }
 
+        try {
+            $arguments = ArrayUtility::getValueByPath($renderingOptions['arguments'] ?? [], $optionKey, '.');
+        } catch (MissingArrayPathException $e) {
+            $arguments = [];
+        }
+
+        $originalFormIdentifier = null;
+        if (isset($formRuntime->getRenderingOptions()['_originalIdentifier'])) {
+            $originalFormIdentifier = $formRuntime->getRenderingOptions()['_originalIdentifier'];
+        }
+
         $translationKeyChain = [];
         foreach ($translationFiles as $translationFile) {
+            if (!empty($originalFormIdentifier)) {
+                $translationKeyChain[] = sprintf('%s:%s.finisher.%s.%s', $translationFile, $originalFormIdentifier, $finisherIdentifier, $optionKey);
+            }
             $translationKeyChain[] = sprintf('%s:%s.finisher.%s.%s', $translationFile, $formRuntime->getIdentifier(), $finisherIdentifier, $optionKey);
             $translationKeyChain[] = sprintf('%s:finisher.%s.%s', $translationFile, $finisherIdentifier, $optionKey);
         }
 
-        $translatedValue = $this->processTranslationChain($translationKeyChain, $language);
-        $translatedValue = (empty($translatedValue)) ? $optionValue : $translatedValue;
+        $translatedValue = $this->processTranslationChain($translationKeyChain, $language, $arguments);
+        $translatedValue = empty($translatedValue) ? $optionValue : $translatedValue;
 
         return $translatedValue;
     }
 
     /**
      * @param RootRenderableInterface $element
-     * @param string $property
+     * @param array $propertyParts
      * @param FormRuntime $formRuntime
      * @return string|array
      * @throws \InvalidArgumentException
@@ -280,14 +317,15 @@ class TranslationService implements SingletonInterface
      */
     public function translateFormElementValue(
         RootRenderableInterface $element,
-        string $property,
+        array $propertyParts,
         FormRuntime $formRuntime
     ) {
-        if (empty($property)) {
-            throw new \InvalidArgumentException('The argument "property" is empty', 1476216007);
+        if (empty($propertyParts)) {
+            throw new \InvalidArgumentException('The argument "propertyParts" is empty', 1476216007);
         }
 
         $propertyType = 'properties';
+        $property = implode('.', $propertyParts);
         $renderingOptions = $element->getRenderingOptions();
 
         if ($property === 'label') {
@@ -295,15 +333,15 @@ class TranslationService implements SingletonInterface
         } else {
             if ($element instanceof FormElementInterface) {
                 try {
-                    $defaultValue = ArrayUtility::getValueByPath($element->getProperties(), $property, '.');
-                } catch (\RuntimeException $exception) {
+                    $defaultValue = ArrayUtility::getValueByPath($element->getProperties(), $propertyParts, '.');
+                } catch (MissingArrayPathException $exception) {
                     $defaultValue = null;
                 }
             } else {
                 $propertyType = 'renderingOptions';
                 try {
-                    $defaultValue = ArrayUtility::getValueByPath($renderingOptions, $property, '.');
-                } catch (\RuntimeException $exception) {
+                    $defaultValue = ArrayUtility::getValueByPath($renderingOptions, $propertyParts, '.');
+                } catch (MissingArrayPathException $exception) {
                     $defaultValue = null;
                 }
             }
@@ -320,57 +358,89 @@ class TranslationService implements SingletonInterface
         }
 
         $defaultValue = empty($defaultValue) ? '' : $defaultValue;
-        $translationFile = $renderingOptions['translation']['translationFile'];
-        if (empty($translationFile)) {
-            $translationFile = $formRuntime->getRenderingOptions()['translation']['translationFile'];
+        $translationFiles = $renderingOptions['translation']['translationFiles'] ?? [];
+        if (empty($translationFiles)) {
+            $translationFiles = $formRuntime->getRenderingOptions()['translation']['translationFiles'];
         }
 
-        if (is_string($translationFile)) {
-            $translationFiles = [$translationFile];
-        } else {
-            $translationFiles = $this->sortArrayWithIntegerKeysDescending($translationFile);
-        }
+        $translationFiles = $this->sortArrayWithIntegerKeysDescending($translationFiles);
 
         $language = null;
         if (isset($renderingOptions['translation']['language'])) {
             $language = $renderingOptions['translation']['language'];
         }
 
+        try {
+            $arguments = ArrayUtility::getValueByPath($renderingOptions['translation']['arguments'] ?? [], $propertyParts, '.');
+        } catch (MissingArrayPathException $e) {
+            $arguments = [];
+        }
+
+        $originalFormIdentifier = null;
+        if (isset($formRuntime->getRenderingOptions()['_originalIdentifier'])) {
+            $originalFormIdentifier = $formRuntime->getRenderingOptions()['_originalIdentifier'];
+        }
+
         if ($property === 'options' && is_array($defaultValue)) {
             foreach ($defaultValue as $optionValue => &$optionLabel) {
                 $translationKeyChain = [];
                 foreach ($translationFiles as $translationFile) {
+                    if (!empty($originalFormIdentifier)) {
+                        if ($element instanceof FormRuntime) {
+                            $translationKeyChain[] = sprintf('%s:%s.element.%s.%s.%s.%s', $translationFile, $originalFormIdentifier, $originalFormIdentifier, $propertyType, $property, $optionValue);
+                            $translationKeyChain[] = sprintf('%s:element.%s.%s.%s.%s', $translationFile, $originalFormIdentifier, $propertyType, $property, $optionValue);
+                        } else {
+                            $translationKeyChain[] = sprintf('%s:%s.element.%s.%s.%s.%s', $translationFile, $originalFormIdentifier, $element->getIdentifier(), $propertyType, $property, $optionValue);
+                        }
+                    }
                     $translationKeyChain[] = sprintf('%s:%s.element.%s.%s.%s.%s', $translationFile, $formRuntime->getIdentifier(), $element->getIdentifier(), $propertyType, $property, $optionValue);
                     $translationKeyChain[] = sprintf('%s:element.%s.%s.%s.%s', $translationFile, $element->getIdentifier(), $propertyType, $property, $optionValue);
+                    $translationKeyChain[] = sprintf('%s:element.%s.%s.%s.%s', $translationFile, $element->getType(), $propertyType, $property, $optionValue);
                 }
 
-                $translatedValue = $this->processTranslationChain($translationKeyChain, $language);
-                $optionLabel = (empty($translatedValue)) ? $optionLabel : $translatedValue;
+                $translatedValue = $this->processTranslationChain($translationKeyChain, $language, $arguments);
+                $optionLabel = empty($translatedValue) ? $optionLabel : $translatedValue;
             }
             $translatedValue = $defaultValue;
         } elseif ($property === 'fluidAdditionalAttributes' && is_array($defaultValue)) {
             foreach ($defaultValue as $propertyName => &$propertyValue) {
                 $translationKeyChain = [];
                 foreach ($translationFiles as $translationFile) {
+                    if (!empty($originalFormIdentifier)) {
+                        if ($element instanceof FormRuntime) {
+                            $translationKeyChain[] = sprintf('%s:%s.element.%s.%s.%s', $translationFile, $originalFormIdentifier, $originalFormIdentifier, $propertyType, $propertyName);
+                            $translationKeyChain[] = sprintf('%s:element.%s.%s.%s', $translationFile, $originalFormIdentifier, $propertyType, $propertyName);
+                        } else {
+                            $translationKeyChain[] = sprintf('%s:%s.element.%s.%s.%s', $translationFile, $originalFormIdentifier, $element->getIdentifier(), $propertyType, $propertyName);
+                        }
+                    }
                     $translationKeyChain[] = sprintf('%s:%s.element.%s.%s.%s', $translationFile, $formRuntime->getIdentifier(), $element->getIdentifier(), $propertyType, $propertyName);
                     $translationKeyChain[] = sprintf('%s:element.%s.%s.%s', $translationFile, $element->getIdentifier(), $propertyType, $propertyName);
                     $translationKeyChain[] = sprintf('%s:element.%s.%s.%s', $translationFile, $element->getType(), $propertyType, $propertyName);
                 }
 
-                $translatedValue = $this->processTranslationChain($translationKeyChain, $language);
-                $propertyValue = (empty($translatedValue)) ? $propertyValue : $translatedValue;
+                $translatedValue = $this->processTranslationChain($translationKeyChain, $language, $arguments);
+                $propertyValue = empty($translatedValue) ? $propertyValue : $translatedValue;
             }
             $translatedValue = $defaultValue;
         } else {
             $translationKeyChain = [];
             foreach ($translationFiles as $translationFile) {
+                if (!empty($originalFormIdentifier)) {
+                    if ($element instanceof FormRuntime) {
+                        $translationKeyChain[] = sprintf('%s:%s.element.%s.%s.%s', $translationFile, $originalFormIdentifier, $originalFormIdentifier, $propertyType, $property);
+                        $translationKeyChain[] = sprintf('%s:element.%s.%s.%s', $translationFile, $originalFormIdentifier, $propertyType, $property);
+                    } else {
+                        $translationKeyChain[] = sprintf('%s:%s.element.%s.%s.%s', $translationFile, $originalFormIdentifier, $element->getIdentifier(), $propertyType, $property);
+                    }
+                }
                 $translationKeyChain[] = sprintf('%s:%s.element.%s.%s.%s', $translationFile, $formRuntime->getIdentifier(), $element->getIdentifier(), $propertyType, $property);
                 $translationKeyChain[] = sprintf('%s:element.%s.%s.%s', $translationFile, $element->getIdentifier(), $propertyType, $property);
                 $translationKeyChain[] = sprintf('%s:element.%s.%s.%s', $translationFile, $element->getType(), $propertyType, $property);
             }
 
-            $translatedValue = $this->processTranslationChain($translationKeyChain, $language);
-            $translatedValue = (empty($translatedValue)) ? $defaultValue : $translatedValue;
+            $translatedValue = $this->processTranslationChain($translationKeyChain, $language, $arguments);
+            $translatedValue = empty($translatedValue) ? $defaultValue : $translatedValue;
         }
 
         return $translatedValue;
@@ -397,7 +467,7 @@ class TranslationService implements SingletonInterface
             throw new \InvalidArgumentException('The argument "code" is empty', 1489272978);
         }
 
-        $validationErrors = $element->getProperties()['validationErrorMessages'];
+        $validationErrors = $element->getProperties()['validationErrorMessages'] ?? null;
         if (is_array($validationErrors)) {
             foreach ($validationErrors as $validationError) {
                 if ((int)$validationError['code'] === $code) {
@@ -407,31 +477,42 @@ class TranslationService implements SingletonInterface
         }
 
         $renderingOptions = $element->getRenderingOptions();
-        $translationFile = $renderingOptions['translation']['translationFile'];
-        if (empty($translationFile)) {
-            $translationFile = $formRuntime->getRenderingOptions()['translation']['translationFile'];
+        $translationFiles = $renderingOptions['translation']['translationFiles'] ?? [];
+        if (empty($translationFiles)) {
+            $translationFiles = $formRuntime->getRenderingOptions()['translation']['translationFiles'];
         }
 
-        if (is_string($translationFile)) {
-            $translationFiles = [$translationFile];
-        } else {
-            $translationFiles = $this->sortArrayWithIntegerKeysDescending($translationFile);
-        }
+        $translationFiles = $this->sortArrayWithIntegerKeysDescending($translationFiles);
 
         $language = null;
         if (isset($renderingOptions['language'])) {
             $language = $renderingOptions['language'];
         }
 
+        $originalFormIdentifier = null;
+        if (isset($formRuntime->getRenderingOptions()['_originalIdentifier'])) {
+            $originalFormIdentifier = $formRuntime->getRenderingOptions()['_originalIdentifier'];
+        }
+
         $translationKeyChain = [];
         foreach ($translationFiles as $translationFile) {
+            if (!empty($originalFormIdentifier)) {
+                if ($element instanceof FormRuntime) {
+                    $translationKeyChain[] = sprintf('%s:%s.validation.error.%s.%s', $translationFile, $originalFormIdentifier, $originalFormIdentifier, $code);
+                    $translationKeyChain[] = sprintf('%s:validation.error.%s.%s', $translationFile, $originalFormIdentifier, $code);
+                } else {
+                    $translationKeyChain[] = sprintf('%s:%s.validation.error.%s.%s', $translationFile, $originalFormIdentifier, $element->getIdentifier(), $code);
+                }
+                $translationKeyChain[] = sprintf('%s:%s.validation.error.%s', $translationFile, $originalFormIdentifier, $code);
+            }
             $translationKeyChain[] = sprintf('%s:%s.validation.error.%s.%s', $translationFile, $formRuntime->getIdentifier(), $element->getIdentifier(), $code);
             $translationKeyChain[] = sprintf('%s:%s.validation.error.%s', $translationFile, $formRuntime->getIdentifier(), $code);
+            $translationKeyChain[] = sprintf('%s:validation.error.%s.%s', $translationFile, $element->getIdentifier(), $code);
             $translationKeyChain[] = sprintf('%s:validation.error.%s', $translationFile, $code);
         }
 
         $translatedValue = $this->processTranslationChain($translationKeyChain, $language, $arguments);
-        $translatedValue = (empty($translatedValue)) ? $defaultValue : $translatedValue;
+        $translatedValue = empty($translatedValue) ? $defaultValue : $translatedValue;
         return $translatedValue;
     }
 
@@ -484,7 +565,7 @@ class TranslationService implements SingletonInterface
         }
 
         if (!empty($locallangPathAndFilename)) {
-            /** @var $languageFactory LocalizationFactory */
+            /** @var LocalizationFactory $languageFactory */
             $languageFactory = GeneralUtility::makeInstance(LocalizationFactory::class);
             $this->LOCAL_LANG = $languageFactory->getParsedData($locallangPathAndFilename, $this->languageKey);
 
@@ -499,8 +580,7 @@ class TranslationService implements SingletonInterface
     }
 
     /**
-     * Sets the currently active language/language_alt keys.
-     * Default values are "default" for language key and "" for language_alt key.
+     * Sets the currently active language keys.
      */
     protected function setLanguageKeys()
     {
@@ -508,17 +588,14 @@ class TranslationService implements SingletonInterface
 
         $this->alternativeLanguageKeys = [];
         if (TYPO3_MODE === 'FE') {
-            if (isset($this->getTypoScriptFrontendController()->config['config']['language'])) {
-                $this->languageKey = $this->getTypoScriptFrontendController()->config['config']['language'];
-                if (isset($this->getTypoScriptFrontendController()->config['config']['language_alt'])) {
-                    $this->alternativeLanguageKeys[] = $this->getTypoScriptFrontendController()->config['config']['language_alt'];
-                } else {
-                    /** @var $locales \TYPO3\CMS\Core\Localization\Locales */
-                    $locales = GeneralUtility::makeInstance(Locales::class);
-                    if (in_array($this->languageKey, $locales->getLocales(), true)) {
-                        foreach ($locales->getLocaleDependencies($this->languageKey) as $language) {
-                            $this->alternativeLanguageKeys[] = $language;
-                        }
+            $this->languageKey = $this->getCurrentSiteLanguage()->getTypo3Language();
+
+            if ($this->languageKey !== 'default') {
+                /** @var \TYPO3\CMS\Core\Localization\Locales $locales */
+                $locales = GeneralUtility::makeInstance(Locales::class);
+                if (in_array($this->languageKey, $locales->getLocales(), true)) {
+                    foreach ($locales->getLocaleDependencies($this->languageKey) as $language) {
+                        $this->alternativeLanguageKeys[] = $language;
                     }
                 }
             }
@@ -539,7 +616,7 @@ class TranslationService implements SingletonInterface
         $frameworkConfiguration = $this->getConfigurationManager()
             ->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FRAMEWORK, 'form');
 
-        if (!is_array($frameworkConfiguration['_LOCAL_LANG'])) {
+        if (!is_array($frameworkConfiguration['_LOCAL_LANG'] ?? null)) {
             return;
         }
         $this->LOCAL_LANG_UNSET = [];
@@ -625,18 +702,36 @@ class TranslationService implements SingletonInterface
     }
 
     /**
+     * Returns the currently configured "site language" if a site is configured (= resolved) in the current request.
+     *
+     * @return SiteLanguage|null
+     */
+    protected function getCurrentSiteLanguage(): ?SiteLanguage
+    {
+        if ($GLOBALS['TYPO3_REQUEST'] instanceof ServerRequestInterface) {
+            return $GLOBALS['TYPO3_REQUEST']->getAttribute('language', null);
+        }
+        return null;
+    }
+
+    /**
+     * @return array
+     */
+    protected function getAllTypo3BackendLanguages(): array
+    {
+        $languages = array_merge(
+            ['default'],
+            array_values($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['lang']['availableLanguages'] ?? [])
+        );
+
+        return $languages;
+    }
+
+    /**
      * @return LanguageService
      */
     protected function getLanguageService(): LanguageService
     {
         return $GLOBALS['LANG'];
-    }
-
-    /**
-     * @return TypoScriptFrontendController
-     */
-    protected function getTypoScriptFrontendController(): TypoScriptFrontendController
-    {
-        return $GLOBALS['TSFE'];
     }
 }

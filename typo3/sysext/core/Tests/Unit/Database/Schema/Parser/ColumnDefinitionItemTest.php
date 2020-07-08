@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,14 +15,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\CreateColumnDefinitionItem;
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\CreateTableStatement;
 use TYPO3\CMS\Core\Database\Schema\Parser\Parser;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for CreateColumnDefinitionItem
  */
-class ColumnDefinitionItemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ColumnDefinitionItemTest extends UnitTestCase
 {
     /**
      * @test
@@ -32,8 +34,8 @@ class ColumnDefinitionItemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $subject = $this->createSubject('CREATE TABLE `aTable`(checksum VARCHAR(64));');
 
-        $this->assertInstanceOf(CreateColumnDefinitionItem::class, $subject);
-        $this->assertSame($subject->columnName->schemaObjectName, 'checksum');
+        self::assertInstanceOf(CreateColumnDefinitionItem::class, $subject);
+        self::assertSame($subject->columnName->schemaObjectName, 'checksum');
     }
 
     /**
@@ -47,7 +49,7 @@ class ColumnDefinitionItemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $subject = $this->createSubject('CREATE TABLE `aTable`(aField VARCHAR(64), );');
 
-        $this->assertInstanceOf(CreateColumnDefinitionItem::class, $subject);
+        self::assertInstanceOf(CreateColumnDefinitionItem::class, $subject);
     }
 
     /**

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +13,27 @@ namespace TYPO3\CMS\Core\Tests\Unit\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Http;
+
 use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Http\Stream;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Http\Response
  *
  * Adapted from https://github.com/phly/http/
  */
-class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ResponseTest extends UnitTestCase
 {
     /**
      * @var Response
      */
     protected $response;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->response = new Response();
     }
 
@@ -39,7 +42,7 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function testStatusCodeIs200ByDefault()
     {
-        $this->assertEquals(200, $this->response->getStatusCode());
+        self::assertEquals(200, $this->response->getStatusCode());
     }
 
     /**
@@ -48,8 +51,8 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function testStatusCodeMutatorReturnsCloneWithChanges()
     {
         $response = $this->response->withStatus(400);
-        $this->assertNotSame($this->response, $response);
-        $this->assertEquals(400, $response->getStatusCode());
+        self::assertNotSame($this->response, $response);
+        self::assertEquals(400, $response->getStatusCode());
     }
 
     /**
@@ -64,7 +67,7 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'bool'     => [true],
             'string'   => ['foo'],
             'array'    => [[200]],
-            'object'   => [(object) [200]],
+            'object'   => [(object)[200]],
         ];
     }
 
@@ -84,7 +87,7 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function testReasonPhraseDefaultsToStandards()
     {
         $response = $this->response->withStatus(422);
-        $this->assertEquals('Unprocessable Entity', $response->getReasonPhrase());
+        self::assertEquals('Unprocessable Entity', $response->getReasonPhrase());
     }
 
     /**
@@ -93,7 +96,7 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function testCanSetCustomReasonPhrase()
     {
         $response = $this->response->withStatus(422, 'Foo Bar!');
-        $this->assertEquals('Foo Bar!', $response->getReasonPhrase());
+        self::assertEquals('Foo Bar!', $response->getReasonPhrase());
     }
 
     /**
@@ -117,9 +120,9 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
 
         $response = new Response($body, $status, $headers);
-        $this->assertSame($body, $response->getBody());
-        $this->assertEquals(302, $response->getStatusCode());
-        $this->assertEquals($headers, $response->getHeaders());
+        self::assertSame($body, $response->getBody());
+        self::assertEquals(302, $response->getStatusCode());
+        self::assertEquals($headers, $response->getHeaders());
     }
 
     /**
@@ -133,7 +136,7 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'float'      => [100.1],
             'bad-string' => ['Two hundred'],
             'array'      => [[200]],
-            'object'     => [(object) ['statusCode' => 200]],
+            'object'     => [(object)['statusCode' => 200]],
             'too-small'  => [1],
             'too-big'    => [600],
         ];
@@ -161,7 +164,7 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'int'      => [1],
             'float'    => [1.1],
             'array'    => [['BODY']],
-            'stdClass' => [(object) ['body' => 'BODY']],
+            'stdClass' => [(object)['body' => 'BODY']],
         ];
     }
 
@@ -179,7 +182,7 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function constructorIgonoresInvalidHeaders()
+    public function constructorIgnoresInvalidHeaders()
     {
         $headers = [
             ['INVALID'],
@@ -187,7 +190,7 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'x-invalid-true'   => true,
             'x-invalid-false'  => false,
             'x-invalid-int'    => 1,
-            'x-invalid-object' => (object) ['INVALID'],
+            'x-invalid-object' => (object)['INVALID'],
             'x-valid-string'   => 'VALID',
             'x-valid-array'    => ['VALID'],
         ];
@@ -196,7 +199,7 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'x-valid-array'  => ['VALID'],
         ];
         $response = new Response('php://memory', 200, $headers);
-        $this->assertEquals($expected, $response->getHeaders());
+        self::assertEquals($expected, $response->getHeaders());
     }
 
     /**
@@ -224,9 +227,21 @@ class ResponseTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * @test
      * @dataProvider headersWithInjectionVectorsDataProvider
      */
-    public function cnstructorRaisesExceptionForHeadersWithCRLFVectors($name, $value)
+    public function constructorRaisesExceptionForHeadersWithCRLFVectors($name, $value)
     {
         $this->expectException(\InvalidArgumentException::class);
         new Response('php://memory', 200, [$name => $value]);
+    }
+
+    /**
+     * @test
+     */
+    public function getHeaderReturnsHeaderSetByConstructorArgument()
+    {
+        $subject = new Response('php://memory', 200, ['location' => 'foo']);
+        $expected = [
+            0 => 'foo',
+        ];
+        self::assertSame($expected, $subject->getHeader('location'));
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataGroup;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataGroup;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataGroup;
 
 use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
@@ -32,7 +33,7 @@ class TcaSelectTreeAjaxFieldDataTest extends UnitTestCase
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->subject = new TcaSelectTreeAjaxFieldData();
     }
@@ -51,7 +52,7 @@ class TcaSelectTreeAjaxFieldDataTest extends UnitTestCase
 
         $input = ['foo'];
 
-        $this->assertEquals($input, $this->subject->compile($input));
+        self::assertEquals($input, $this->subject->compile($input));
     }
 
     /**
@@ -73,7 +74,7 @@ class TcaSelectTreeAjaxFieldDataTest extends UnitTestCase
         $providerResult = ['foo'];
         $formDataProviderProphecy->addData(Argument::cetera())->shouldBeCalled()->willReturn($providerResult);
 
-        $this->assertEquals($providerResult, $this->subject->compile([]));
+        self::assertEquals($providerResult, $this->subject->compile([]));
     }
 
     /**

@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
 use TYPO3\CMS\Core\Configuration\Richtext;
@@ -48,20 +50,16 @@ class TcaText implements FormDataProviderInterface
                     (string)$result['recordTypeValue'],
                     $fieldConfig['config']
                 );
+                // remember RTE preset name
+                $result['processedTca']['columns'][$fieldName]['config']['richtextConfigurationName'] = $fieldConfig['config']['richtextConfiguration'] ?? '';
                 // Add final resolved configuration to TCA array
                 $result['processedTca']['columns'][$fieldName]['config']['richtextConfiguration'] = $richtextConfiguration;
 
                 // If eval=null is set for field, value might be null ... don't transform anything in this case.
                 if ($result['databaseRow'][$fieldName] !== null) {
                     // Process "from-db-to-rte" on current value
-                    $parseHTML = GeneralUtility::makeInstance(RteHtmlParser::class);
-                    $parseHTML->init($result['tableName'] . ':' . $fieldName, $result['effectivePid']);
-                    $result['databaseRow'][$fieldName] = $parseHTML->RTE_transform(
-                        $result['databaseRow'][$fieldName],
-                        [],
-                        'rte',
-                        $richtextConfiguration
-                    );
+                    $richTextParser = GeneralUtility::makeInstance(RteHtmlParser::class);
+                    $result['databaseRow'][$fieldName] = $richTextParser->transformTextForRichTextEditor($result['databaseRow'][$fieldName], $richtextConfiguration['proc.'] ?? []);
                 }
             }
         }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Cache\Backend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Core\Cache\Backend;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Cache\Backend;
+
 /**
  * A contract for a cache backends which store variables in volatile
  * memory and as such support receiving any variable type to store.
@@ -27,8 +28,6 @@ namespace TYPO3\CMS\Core\Cache\Backend;
  * has this interface, in which case it allows the backend to store
  * the value directly without serializing it to a string, and does
  * not attempt to unserialize the string on every get() request.
- *
- * @api
  */
 interface TransientBackendInterface extends BackendInterface
 {

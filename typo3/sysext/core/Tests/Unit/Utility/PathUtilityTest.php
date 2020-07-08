@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Utility;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,13 +14,24 @@ namespace TYPO3\CMS\Core\Tests\Unit\Utility;
  *
  * The TYPO3 project - inspiring people to share!
  */
-use TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures\WindowsPathUtilityFixture;
+
+namespace TYPO3\CMS\Core\Tests\Unit\Utility;
+
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Utility\PathUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Testcase for class \TYPO3\CMS\Core\Utility\PathUtility
+ * Test case
  */
-class PathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class PathUtilityTest extends UnitTestCase
 {
+    /**
+     * Restore Environment after the test
+     * @var bool
+     */
+    protected $backupEnvironment = true;
+
     /**
      * @param array $paths
      * @param string $expected
@@ -28,8 +40,8 @@ class PathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isCommonPrefixResolvedCorrectly(array $paths, $expected)
     {
-        $commonPrefix = \TYPO3\CMS\Core\Utility\PathUtility::getCommonPrefix($paths);
-        $this->assertEquals($expected, $commonPrefix);
+        $commonPrefix = PathUtility::getCommonPrefix($paths);
+        self::assertEquals($expected, $commonPrefix);
     }
 
     /**
@@ -122,8 +134,8 @@ class PathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isRelativePathResolvedCorrectly($source, $target, $expected)
     {
-        $relativePath = \TYPO3\CMS\Core\Utility\PathUtility::getRelativePath($source, $target);
-        $this->assertEquals($expected, $relativePath);
+        $relativePath = PathUtility::getRelativePath($source, $target);
+        self::assertEquals($expected, $relativePath);
     }
 
     /**
@@ -134,32 +146,32 @@ class PathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         return [
             [
                 '/',
-                PATH_site . 'directory',
+                Environment::getPublicPath() . '/directory',
                 null
             ],
             [
-                PATH_site . 't3lib/',
-                PATH_site . 't3lib/',
+                Environment::getPublicPath() . '/t3lib/',
+                Environment::getPublicPath() . '/t3lib/',
                 ''
             ],
             [
-                PATH_site . 'typo3/',
-                PATH_site . 't3lib/',
+                Environment::getPublicPath() . '/typo3/',
+                Environment::getPublicPath() . '/t3lib/',
                 '../t3lib/'
             ],
             [
-                PATH_site,
-                PATH_site . 't3lib/',
+                Environment::getPublicPath() . '/',
+                Environment::getPublicPath() . '/t3lib/',
                 't3lib/'
             ],
             [
-                PATH_site . 't3lib/',
-                PATH_site . 't3lib/stddb/',
+                Environment::getPublicPath() . '/t3lib/',
+                Environment::getPublicPath() . '/t3lib/stddb/',
                 'stddb/'
             ],
             [
-                PATH_site . 'typo3/sysext/frontend/',
-                PATH_site . 't3lib/utility/',
+                Environment::getPublicPath() . '/typo3/sysext/frontend/',
+                Environment::getPublicPath() . '/t3lib/utility/',
                 '../../../t3lib/utility/'
             ],
         ];
@@ -174,8 +186,8 @@ class PathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isTrailingSeparatorSanitizedCorrectly($path, $separator, $expected)
     {
-        $sanitizedPath = \TYPO3\CMS\Core\Utility\PathUtility::sanitizeTrailingSeparator($path, $separator);
-        $this->assertEquals($expected, $sanitizedPath);
+        $sanitizedPath = PathUtility::sanitizeTrailingSeparator($path, $separator);
+        self::assertEquals($expected, $sanitizedPath);
     }
 
     /**
@@ -240,16 +252,16 @@ class PathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getAbsolutePathOfRelativeReferencedFileOrPathResolvesFileCorrectly($baseFileName, $includeFileName, $expectedFileName)
     {
-        $resolvedFilename = \TYPO3\CMS\Core\Utility\PathUtility::getAbsolutePathOfRelativeReferencedFileOrPath($baseFileName, $includeFileName);
-        $this->assertEquals($expectedFileName, $resolvedFilename);
+        $resolvedFilename = PathUtility::getAbsolutePathOfRelativeReferencedFileOrPath($baseFileName, $includeFileName);
+        self::assertEquals($expectedFileName, $resolvedFilename);
     }
 
     /**
      * Data provider for getCanonicalPathCorrectlyCleansPath
      *
-     * @return array
+     * @return string[][]
      */
-    public function getCanonicalPathCorrectlyCleansPathDataProvider()
+    public function getCanonicalPathCorrectlyCleansPathDataProvider(): array
     {
         return [
             'removes single-dot-elements' => [
@@ -324,7 +336,7 @@ class PathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '/def/../text.txt',
                 '/text.txt'
             ],
-            'absolute windwos path' => [
+            'absolute windows path' => [
                 'C:\def\..\..\test.txt',
                 'C:/test.txt'
             ],
@@ -340,14 +352,188 @@ class PathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     }
 
     /**
+     * @param string $inputName
+     * @param string $expectedResult
      * @test
      * @dataProvider getCanonicalPathCorrectlyCleansPathDataProvider
      */
-    public function getCanonicalPathCorrectlyCleansPath($inputName, $expectedResult)
+    public function getCanonicalPathCorrectlyCleansPath(string $inputName, string $expectedResult): void
     {
-        $this->assertEquals(
-            $expectedResult,
-            WindowsPathUtilityFixture::getCanonicalPath($inputName)
+        // Ensure Environment runs as Windows test
+        Environment::initialize(
+            Environment::getContext(),
+            true,
+            false,
+            Environment::getProjectPath(),
+            Environment::getPublicPath(),
+            Environment::getVarPath(),
+            Environment::getConfigPath(),
+            Environment::getCurrentScript(),
+            'WINDOWS'
         );
+        self::assertSame(
+            $expectedResult,
+            PathUtility::getCanonicalPath($inputName)
+        );
+    }
+
+    /**
+     * Data provider for dirnameDuringBootstrapCorrectlyFetchesParent
+     *
+     * @return string[][]
+     */
+    public function dirnameDuringBootstrapCorrectlyFetchesParentDataProvider(): array
+    {
+        return [
+            'relative path' => [
+                'abc/def/ghi',
+                'abc/def'
+            ],
+            'absolute path 1' => [
+                '/var/www/html/index.php',
+                '/var/www/html'
+            ],
+            'absolute path 2' => [
+                '/var/www/html/typo3/index.php',
+                '/var/www/html/typo3'
+            ],
+            'windows path' => [
+                'C:\\inetpub\\index.php',
+                'C:\\inetpub'
+            ],
+        ];
+    }
+
+    /**
+     * @param string $inputPath
+     * @param string $expectedResult
+     * @test
+     * @dataProvider dirnameDuringBootstrapCorrectlyFetchesParentDataProvider
+     */
+    public function dirnameDuringBootstrapCorrectlyFetchesParent(string $inputPath, string $expectedResult): void
+    {
+        self::assertSame(
+            $expectedResult,
+            PathUtility::dirnameDuringBootstrap($inputPath)
+        );
+    }
+
+    /**
+     * Data provider for basenameDuringBootstrapCorrectlyFetchesBasename
+     *
+     * @return array
+     */
+    public function basenameDuringBootstrapCorrectlyFetchesBasenameDataProvider()
+    {
+        return [
+            'relative path' => [
+                'abc/def/ghi',
+                'ghi'
+            ],
+            'absolute path 1' => [
+                '/var/www/html/index.php',
+                'index.php'
+            ],
+            'absolute path 2' => [
+                '/var/www/html/typo3/index.php',
+                'index.php'
+            ],
+            'windows path' => [
+                'C:\\inetpub\\index.php',
+                'index.php'
+            ],
+        ];
+    }
+
+    /**
+     * @param string $inputPath
+     * @param string $expectedResult
+     * @test
+     * @dataProvider basenameDuringBootstrapCorrectlyFetchesBasenameDataProvider
+     */
+    public function basenameDuringBootstrapCorrectlyFetchesBasename(string $inputPath, string $expectedResult): void
+    {
+        self::assertSame(
+            $expectedResult,
+            PathUtility::basenameDuringBootstrap($inputPath)
+        );
+    }
+
+    /**
+     * Data provider for isAbsolutePathRespectsAllOperatingSystems
+     *
+     * @return array[]
+     */
+    public function isAbsolutePathRespectsAllOperatingSystemsPathDataProvider(): array
+    {
+        return [
+            'starting slash' => [
+                '/path',
+                false,
+                true
+            ],
+            'starting slash on windows' => [
+                '/path',
+                true,
+                true
+            ],
+            'no match' => [
+                'path',
+                false,
+                false
+            ],
+            'no match on windows' => [
+                'path',
+                true,
+                false
+            ],
+            'path starts with C:/' => [
+                'C:/folder',
+                false,
+                false
+            ],
+            'path starts with C:/ on windows' => [
+                'C:/folder',
+                true,
+                true
+            ],
+            'path starts with C:\\' => [
+                'C:\\folder',
+                false,
+                false
+            ],
+            'path starts with C:\\ on windows' => [
+                'C:\\folder',
+                true,
+                true
+            ],
+        ];
+    }
+
+    /**
+     * @param string $inputPath
+     * @param bool $isWindows
+     * @param bool $expectedResult
+     * @test
+     * @dataProvider isAbsolutePathRespectsAllOperatingSystemsPathDataProvider
+     */
+    public function isAbsolutePathRespectsAllOperatingSystems(string $inputPath, bool $isWindows, bool $expectedResult): void
+    {
+        if ($isWindows) {
+            // Ensure Environment runs as Windows test
+            Environment::initialize(
+                Environment::getContext(),
+                true,
+                false,
+                Environment::getProjectPath(),
+                Environment::getPublicPath(),
+                Environment::getVarPath(),
+                Environment::getConfigPath(),
+                Environment::getCurrentScript(),
+                'WINDOWS'
+            );
+        }
+
+        self::assertSame($expectedResult, PathUtility::isAbsolutePath($inputPath));
     }
 }

@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Configuration\FlexForm\Fixtures;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,13 +15,15 @@ namespace TYPO3\CMS\Core\Tests\Unit\Configuration\FlexForm\Fixtures;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Configuration\FlexForm\Fixtures;
+
 /**
  * Fixture to test hooks from FlexFormTools
  */
 class DataStructureIdentifierPreProcessHookReturnEmptyArray
 {
     /**
-     * Returns a empty array (no match for this hook)
+     * Returns an empty array (no match for this hook)
      *
      * @param array $fieldTca
      * @param string $tableName

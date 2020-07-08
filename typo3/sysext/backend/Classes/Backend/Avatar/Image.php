@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Backend\Avatar;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Backend\Backend\Avatar;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Backend\Avatar;
+
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 
@@ -62,7 +64,7 @@ class Image
     {
         $url = $this->url;
         if ($relativeToCurrentScript && !GeneralUtility::isValidUrl($url)) {
-            $url = PathUtility::getAbsoluteWebPath(PATH_site . $url);
+            $url = PathUtility::getAbsoluteWebPath(Environment::getPublicPath() . '/' . $url);
         }
         return $url;
     }

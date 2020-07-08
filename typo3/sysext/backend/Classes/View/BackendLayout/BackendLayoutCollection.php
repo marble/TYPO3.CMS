@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\View\BackendLayout;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\View\BackendLayout;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\View\BackendLayout;
 
 /**
  * Collection of backend layouts.
@@ -92,7 +93,7 @@ class BackendLayoutCollection
      * Gets a backend layout by (regular) identifier.
      *
      * @param string $identifier
-     * @return NULL|BackendLayout
+     * @return BackendLayout|null
      */
     public function get($identifier)
     {

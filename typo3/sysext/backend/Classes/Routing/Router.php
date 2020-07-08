@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Routing;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Backend\Routing;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Routing;
+
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Routing\Exception\ResourceNotFoundException;
+use TYPO3\CMS\Core\SingletonInterface;
 
 /**
  * Implementation of a class for adding routes, collecting throughout the Bootstrap
@@ -24,11 +26,11 @@ use TYPO3\CMS\Backend\Routing\Exception\ResourceNotFoundException;
  *
  * Ideally, the Router is solely instantiated and accessed via the Bootstrap, the RequestHandler and the UriBuilder.
  *
- * See \TYPO3\CMS\Backend\RequestHandler for more details on route matching() and Bootstrap->initializeBackendRouting().
+ * See \TYPO3\CMS\Backend\Http\RequestHandler for more details on route matching() and Bootstrap->initializeBackendRouting().
  *
  * The architecture is inspired by the Symfony Routing Component.
  */
-class Router implements \TYPO3\CMS\Core\SingletonInterface
+class Router implements SingletonInterface
 {
     /**
      * All routes used in the Backend

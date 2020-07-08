@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Tca;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,18 @@ namespace TYPO3\CMS\Core\Tests\Unit\Tca;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Tests\Functional\Tca;
+
 use TYPO3\CMS\Backend\Tests\Functional\Form\FormTestService;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Frontend\Page\PageRepository;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-class PagesLanguageOverlayVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class PagesLanguageOverlayVisibleFieldsTest extends FunctionalTestCase
 {
     /**
-     * These form fields a visisble in the default page types.
+     * These form fields are visible in the default page types.
      *
      * @var array
      */
@@ -60,7 +62,6 @@ class PagesLanguageOverlayVisibleFieldsTest extends \TYPO3\TestingFramework\Core
                 'content_from_pid',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'module',
             ],
         ],
@@ -71,13 +72,11 @@ class PagesLanguageOverlayVisibleFieldsTest extends \TYPO3\TestingFramework\Core
                 'content_from_pid',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'module',
             ],
         ],
         PageRepository::DOKTYPE_LINK => [
             'additionalFields' => [
-                'urltype',
                 'url',
             ],
             'hiddenFields' => [
@@ -86,7 +85,6 @@ class PagesLanguageOverlayVisibleFieldsTest extends \TYPO3\TestingFramework\Core
                 'content_from_pid',
                 'cache_timeout',
                 'cache_tags',
-                'no_cache',
                 'module',
             ],
         ],
@@ -170,17 +168,17 @@ class PagesLanguageOverlayVisibleFieldsTest extends \TYPO3\TestingFramework\Core
         $GLOBALS['LANG'] = GeneralUtility::makeInstance(LanguageService::class);
 
         $formEngineTestService = GeneralUtility::makeInstance(FormTestService::class);
-        $formResult = $formEngineTestService->createNewRecordForm('pages_language_overlay', ['doktype' => $doktype]);
+        $formResult = $formEngineTestService->createNewRecordForm('pages', ['doktype' => $doktype]);
 
         foreach ($expectedFields as $expectedField) {
-            $this->assertNotFalse(
+            self::assertNotFalse(
                 $formEngineTestService->formHtmlContainsField($expectedField, $formResult['html']),
                 'The field ' . $expectedField . ' is not in the form HTML'
             );
         }
 
         foreach ($hiddenFields as $hiddenField) {
-            $this->assertFalse(
+            self::assertFalse(
                 $formEngineTestService->formHtmlContainsField($hiddenField, $formResult['html']),
                 'The field ' . $hiddenField . ' is in the form HTML'
             );

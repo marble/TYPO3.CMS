@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\Element;
+
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -25,6 +26,17 @@ use TYPO3\CMS\Core\Utility\StringUtility;
  */
 class InputDateTimeElement extends AbstractFormElement
 {
+    /**
+     * Default field information enabled for this element.
+     *
+     * @var array
+     */
+    protected $defaultFieldInformation = [
+        'tcaDescription' => [
+            'renderType' => 'tcaDescription',
+        ],
+    ];
+
     /**
      * Default field wizards enabled for this element.
      *
@@ -68,7 +80,7 @@ class InputDateTimeElement extends AbstractFormElement
         $itemValue = $parameterArray['itemFormElValue'];
         $defaultInputWidth = 10;
         $evalList = GeneralUtility::trimExplode(',', $config['eval'], true);
-        $nullControlNameAttribute = ' name="' . htmlspecialchars('control[active][' . $table . '][' . $row['uid'] . '][' . $fieldName . ']') . '"';
+        $nullControlNameEscaped = htmlspecialchars('control[active][' . $table . '][' . $row['uid'] . '][' . $fieldName . ']');
 
         if (in_array('date', $evalList, true)) {
             $format = 'date';
@@ -91,11 +103,21 @@ class InputDateTimeElement extends AbstractFormElement
         $size = MathUtility::forceIntegerInRange($config['size'] ?? $defaultInputWidth, $this->minimumInputWidth, $this->maxInputWidth);
         $width = (int)$this->formMaxWidth($size);
 
+        $fieldInformationResult = $this->renderFieldInformation();
+        $fieldInformationHtml = $fieldInformationResult['html'];
+        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
+
+        // Early return for read only fields
         if (isset($config['readOnly']) && $config['readOnly']) {
-            // Early return for read only fields
+            // Ensure dbType values (see DatabaseRowDateTimeFields) are converted to a UNIX timestamp before rendering read-only
+            if (!empty($itemValue) && !MathUtility::canBeInterpretedAsInteger($itemValue)) {
+                $itemValue = (new \DateTime($itemValue))->getTimestamp();
+            }
+            // Format the unix-timestamp to the defined format (date/year etc)
             $itemValue = $this->formatValue($format, $itemValue);
             $html = [];
             $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
+            $html[] =   $fieldInformationHtml;
             $html[] =   '<div class="form-wizards-wrap">';
             $html[] =       '<div class="form-wizards-element">';
             $html[] =           '<div class="form-control-wrap" style="max-width: ' . $width . 'px">';
@@ -108,9 +130,10 @@ class InputDateTimeElement extends AbstractFormElement
             return $resultArray;
         }
 
+        $fieldId = StringUtility::getUniqueId('formengine-input-');
         $attributes = [
             'value' => '',
-            'id' => StringUtility::getUniqueId('formengine-input-'),
+            'id' => $fieldId,
             'class' => implode(' ', [
                 't3js-datetimepicker',
                 'form-control',
@@ -144,14 +167,14 @@ class InputDateTimeElement extends AbstractFormElement
                 // (moment.js can only handle UTC or browser's local timezone), we need to offset the value
                 // to eliminate the timezone. JS will receive all dates as if they were UTC, which we undo on save in DataHandler
                 $adjustedValue = $itemValue + date('Z', (int)$itemValue);
-                // output date as a ISO-8601 date
+                // output date as an ISO-8601 date
                 $itemValue = gmdate('c', $adjustedValue);
             }
             if (isset($config['range']['lower'])) {
-                $attributes['data-date-minDate'] = (int)$config['range']['lower'];
+                $attributes['data-date-min-date'] = (int)$config['range']['lower'] * 1000;
             }
             if (isset($config['range']['upper'])) {
-                $attributes['data-date-maxDate'] = (int)$config['range']['upper'];
+                $attributes['data-date-max-date'] = (int)$config['range']['upper'] * 1000;
             }
         }
         if (($format === 'time' || $format === 'timesec') && MathUtility::canBeInterpretedAsInteger($itemValue) && $itemValue != 0) {
@@ -159,10 +182,6 @@ class InputDateTimeElement extends AbstractFormElement
             // and pass on the ISO format to JS.
             $itemValue = gmdate('c', (int)$itemValue);
         }
-
-        $fieldInformationResult = $this->renderFieldInformation();
-        $fieldInformationHtml = $fieldInformationResult['html'];
-        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
 
         $fieldWizardResult = $this->renderFieldWizard();
         $fieldWizardHtml = $fieldWizardResult['html'];
@@ -177,7 +196,7 @@ class InputDateTimeElement extends AbstractFormElement
         $expansionHtml[] =  '<div class="form-wizards-wrap">';
         $expansionHtml[] =      '<div class="form-wizards-element">';
         $expansionHtml[] =          '<div class="input-group">';
-        $expansionHtml[] =              '<input type="text"' . GeneralUtility::implodeAttributes($attributes, true) . ' />';
+        $expansionHtml[] =              '<input type="text" ' . GeneralUtility::implodeAttributes($attributes, true) . ' />';
         $expansionHtml[] =              '<input type="hidden" name="' . $parameterArray['itemFormElName'] . '" value="' . htmlspecialchars($itemValue) . '" />';
         $expansionHtml[] =              '<span class="input-group-btn">';
         $expansionHtml[] =                  '<label class="btn btn-default" for="' . $attributes['id'] . '">';
@@ -186,14 +205,18 @@ class InputDateTimeElement extends AbstractFormElement
         $expansionHtml[] =              '</span>';
         $expansionHtml[] =          '</div>';
         $expansionHtml[] =      '</div>';
-        $expansionHtml[] =      '<div class="form-wizards-items-aside">';
-        $expansionHtml[] =          '<div class="btn-group">';
-        $expansionHtml[] =              $fieldControlHtml;
-        $expansionHtml[] =          '</div>';
-        $expansionHtml[] =      '</div>';
-        $expansionHtml[] =      '<div class="form-wizards-items-bottom">';
-        $expansionHtml[] =          $fieldWizardHtml;
-        $expansionHtml[] =      '</div>';
+        if (!empty($fieldControlHtml)) {
+            $expansionHtml[] =      '<div class="form-wizards-items-aside">';
+            $expansionHtml[] =          '<div class="btn-group">';
+            $expansionHtml[] =              $fieldControlHtml;
+            $expansionHtml[] =          '</div>';
+            $expansionHtml[] =      '</div>';
+        }
+        if (!empty($fieldWizardHtml)) {
+            $expansionHtml[] = '<div class="form-wizards-items-bottom">';
+            $expansionHtml[] = $fieldWizardHtml;
+            $expansionHtml[] = '</div>';
+        }
         $expansionHtml[] =  '</div>';
         $expansionHtml[] = '</div>';
         $expansionHtml = implode(LF, $expansionHtml);
@@ -204,10 +227,10 @@ class InputDateTimeElement extends AbstractFormElement
             $fullElement = [];
             $fullElement[] = '<div class="t3-form-field-disable"></div>';
             $fullElement[] = '<div class="checkbox t3-form-field-eval-null-checkbox">';
-            $fullElement[] =     '<label>';
-            $fullElement[] =         '<input type="hidden"' . $nullControlNameAttribute . ' value="0" />';
-            $fullElement[] =         '<input type="checkbox"' . $nullControlNameAttribute . ' value="1"' . $checked . ' />';
-            $fullElement[] =         $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.nullCheckbox');
+            $fullElement[] =     '<label for="' . $nullControlNameEscaped . '">';
+            $fullElement[] =         '<input type="hidden" name="' . $nullControlNameEscaped . '" value="0" />';
+            $fullElement[] =         '<input type="checkbox" name="' . $nullControlNameEscaped . '" id="' . $nullControlNameEscaped . '" value="1"' . $checked . ' />';
+            $fullElement[] =         $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.nullCheckbox');
             $fullElement[] =     '</label>';
             $fullElement[] = '</div>';
             $fullElement[] = $expansionHtml;
@@ -221,34 +244,31 @@ class InputDateTimeElement extends AbstractFormElement
                 $shortenedPlaceholder = GeneralUtility::fixed_lgd_cs($placeholder, 20);
                 if ($placeholder !== $shortenedPlaceholder) {
                     $overrideLabel = sprintf(
-                        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.placeholder.override'),
+                        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.placeholder.override'),
                         '<span title="' . htmlspecialchars($placeholder) . '">' . htmlspecialchars($shortenedPlaceholder) . '</span>'
                     );
                 } else {
                     $overrideLabel = sprintf(
-                        $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.placeholder.override'),
+                        $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.placeholder.override'),
                         htmlspecialchars($placeholder)
                     );
                 }
             } else {
-                $fallbackValue = 1;
-                $checked = ' checked="checked"';
-                $disabled = ' disabled="disabled"';
                 $overrideLabel = $languageService->sL(
-                    'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.placeholder.override_not_available'
+                    'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.placeholder.override_not_available'
                 );
             }
             $fullElement = [];
             $fullElement[] = '<div class="checkbox t3js-form-field-eval-null-placeholder-checkbox">';
-            $fullElement[] =     '<label>';
-            $fullElement[] =         '<input type="hidden"' . $nullControlNameAttribute . ' value="' . $fallbackValue . '" />';
-            $fullElement[] =         '<input type="checkbox"' . $nullControlNameAttribute . ' value="1"' . $checked . $disabled . ' />';
+            $fullElement[] =     '<label for="' . $nullControlNameEscaped . '">';
+            $fullElement[] =         '<input type="hidden" name="' . $nullControlNameEscaped . '" value="' . $fallbackValue . '" />';
+            $fullElement[] =         '<input type="checkbox" name="' . $nullControlNameEscaped . '" id="' . $nullControlNameEscaped . '" value="1"' . $checked . $disabled . ' />';
             $fullElement[] =         $overrideLabel;
             $fullElement[] =     '</label>';
             $fullElement[] = '</div>';
             $fullElement[] = '<div class="t3js-formengine-placeholder-placeholder">';
             $fullElement[] =    '<div class="form-control-wrap" style="max-width:' . $width . 'px">';
-            $fullElement[] =        '<input type="text" class="form-control" disabled="disabled" value="' . $shortenedPlaceholder . '" />';
+            $fullElement[] =        '<input type="text" class="form-control" disabled="disabled" value="' . htmlspecialchars($shortenedPlaceholder) . '" />';
             $fullElement[] =    '</div>';
             $fullElement[] = '</div>';
             $fullElement[] = '<div class="t3js-formengine-placeholder-formfield">';
@@ -257,6 +277,11 @@ class InputDateTimeElement extends AbstractFormElement
             $fullElement = implode(LF, $fullElement);
         }
 
+        $resultArray['requireJsModules'][] = ['TYPO3/CMS/Backend/FormEngine/Element/InputDateTimeElement' => '
+            function(InputDateTimeElement) {
+                new InputDateTimeElement(' . GeneralUtility::quoteJSvalue($fieldId) . ');
+            }'
+        ];
         $resultArray['html'] = '<div class="formengine-field-item t3js-formengine-field-item">' . $fieldInformationHtml . $fullElement . '</div>';
         return $resultArray;
     }

@@ -10,24 +10,4 @@
  *
  * The TYPO3 project - inspiring people to share!
  */
-
-/**
- * Module: TYPO3/CMS/Beuser/BackendUserListing
- * JavaScript for backend user listing
- * @exports TYPO3/CMS/Beuser/BackendUserListing
- */
-define(['jquery', 'TYPO3/CMS/Backend/jquery.clearable'], function($) {
-
-	var $searchFields = $('#tx_Beuser_username');
-	var searchResultShown = ('' !== $searchFields.first().val());
-
-	// make search field clearable
-	$searchFields.clearable({
-		onClear: function() {
-			if (searchResultShown) {
-				$(this).closest('form').submit();
-			}
-		}
-	});
-
-});
+define(["require","exports","TYPO3/CMS/Backend/Input/Clearable"],(function(e,t){"use strict";return new class{constructor(){let e;if(null!==(e=document.getElementById("tx_Beuser_username"))){const t=""!==e.value;e.clearable({onClear:e=>{t&&e.closest("form").submit()}})}}}}));

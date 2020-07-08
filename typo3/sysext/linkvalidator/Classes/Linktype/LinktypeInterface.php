@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Linkvalidator\Linktype;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Linkvalidator\Linktype;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Linkvalidator\Linktype;
 
 /**
  * This class provides interface implementation.
@@ -28,6 +29,14 @@ interface LinktypeInterface
      * @return string Validation error message or success code
      */
     public function checkLink($url, $softRefEntry, $reference);
+
+    /**
+     * Function to override config of Linktype. Should be used only
+     * if necessary. Add additional configuration to TSconfig.
+     *
+     * @param array $config
+     */
+    public function setAdditionalConfig(array $config): void;
 
     /**
      * Base type fetching method, based on the type that softRefParserObj returns.

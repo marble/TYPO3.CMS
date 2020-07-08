@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tree\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,20 @@ namespace TYPO3\CMS\Backend\Tree\View;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tree\View;
+
+use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+
 /**
  * Local position map class when creating new Content Elements
+ *
+ * @internal This class is a TYPO3 Backend implementation and is not considered part of the Public TYPO3 API.
  */
 class ContentCreationPagePositionMap extends PagePositionMap
 {
     /**
-     * @var bool
+     * @var int
      */
     public $dontPrintPageInsertIcons = 1;
 
@@ -48,12 +54,13 @@ class ContentCreationPagePositionMap extends PagePositionMap
      */
     public function onClickInsertRecord($row, $vv, $moveUid, $pid, $sys_lang = 0)
     {
-        $location = \TYPO3\CMS\Backend\Utility\BackendUtility::getModuleUrl('record_edit', [
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        $location = (string)$uriBuilder->buildUriFromRoute('record_edit', [
             'edit[tt_content][' . (is_array($row) ? -$row['uid'] : $pid) . ']' => 'new',
             'defVals[tt_content][colPos]' => $vv,
             'defVals[tt_content][sys_language_uid]' => $sys_lang,
-            'returnUrl' => $GLOBALS['SOBE']->R_URI
+            'returnUrl' => GeneralUtility::_GP('returnUrl')
         ]);
-        return 'window.location.href=' . \TYPO3\CMS\Core\Utility\GeneralUtility::quoteJSvalue($location) . '+document.editForm.defValues.value; return false;';
+        return $this->clientContext . '.location.href=' . GeneralUtility::quoteJSvalue($location) . '+document.editForm.defValues.value; return false;';
     }
 }

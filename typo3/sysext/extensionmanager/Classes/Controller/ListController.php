@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,86 +13,90 @@ namespace TYPO3\CMS\Extensionmanager\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Controller;
+
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
+use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Backend\View\BackendTemplateView;
-use TYPO3\CMS\Core\Core\Bootstrap;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\View\ViewInterface;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
+use TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository;
 use TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException;
+use TYPO3\CMS\Extensionmanager\Utility\DependencyUtility;
 use TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility;
+use TYPO3\CMS\Extensionmanager\Utility\ListUtility;
 use TYPO3\CMS\Extensionmanager\Utility\Repository\Helper;
 
 /**
  * Controller for extension listings (TER or local extensions)
+ * @internal This class is a specific controller implementation and is not considered part of the Public TYPO3 API.
  */
 class ListController extends AbstractModuleController
 {
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository
+     * @var ExtensionRepository
      */
     protected $extensionRepository;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\ListUtility
+     * @var ListUtility
      */
     protected $listUtility;
 
     /**
-     * @var \TYPO3\CMS\Core\Page\PageRenderer
+     * @var PageRenderer
      */
     protected $pageRenderer;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\DependencyUtility
+     * @var DependencyUtility
      */
     protected $dependencyUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\ConfigurationUtility
+     * @var string
      */
-    protected $configurationUtility;
+    protected $backendUserFilter = '';
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository $extensionRepository
+     * @param ExtensionRepository $extensionRepository
      */
-    public function injectExtensionRepository(\TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository $extensionRepository)
+    public function injectExtensionRepository(ExtensionRepository $extensionRepository)
     {
         $this->extensionRepository = $extensionRepository;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\ListUtility $listUtility
+     * @param ListUtility $listUtility
      */
-    public function injectListUtility(\TYPO3\CMS\Extensionmanager\Utility\ListUtility $listUtility)
+    public function injectListUtility(ListUtility $listUtility)
     {
         $this->listUtility = $listUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Core\Page\PageRenderer $pageRenderer
+     * @param PageRenderer $pageRenderer
      */
-    public function injectPageRenderer(\TYPO3\CMS\Core\Page\PageRenderer $pageRenderer)
+    public function injectPageRenderer(PageRenderer $pageRenderer)
     {
         $this->pageRenderer = $pageRenderer;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\DependencyUtility $dependencyUtility
+     * @param DependencyUtility $dependencyUtility
      */
-    public function injectDependencyUtility(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility $dependencyUtility)
+    public function injectDependencyUtility(DependencyUtility $dependencyUtility)
     {
         $this->dependencyUtility = $dependencyUtility;
-    }
-
-    /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\ConfigurationUtility $configurationUtility
-     */
-    public function injectConfigurationUtility(\TYPO3\CMS\Extensionmanager\Utility\ConfigurationUtility $configurationUtility)
-    {
-        $this->configurationUtility = $configurationUtility;
     }
 
     /**
@@ -102,7 +105,8 @@ class ListController extends AbstractModuleController
     public function initializeAction()
     {
         $this->pageRenderer->addInlineLanguageLabelFile('EXT:extensionmanager/Resources/Private/Language/locallang.xlf');
-        if ($this->configurationUtility->getCurrentConfiguration('extensionmanager')['offlineMode']['value']) {
+        $isAutomaticInstallationEnabled = (bool)GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('extensionmanager', 'offlineMode');
+        if ($isAutomaticInstallationEnabled) {
             $this->settings['offlineMode'] = true;
         }
     }
@@ -127,7 +131,7 @@ class ListController extends AbstractModuleController
      */
     protected function addComposerModeNotification()
     {
-        if (Bootstrap::usesComposerClassLoading()) {
+        if (Environment::isComposerMode()) {
             $this->addFlashMessage(
                 LocalizationUtility::translate(
                     'composerMode.message',
@@ -147,10 +151,23 @@ class ListController extends AbstractModuleController
      */
     public function indexAction()
     {
+        if ($this->request->hasArgument('filter') && is_string($this->request->getArgument('filter'))) {
+            $this->backendUserFilter = $this->request->getArgument('filter');
+            $this->saveBackendUserFilter();
+        } else {
+            $this->backendUserFilter = $this->getBackendUserFilter();
+        }
+
         $this->addComposerModeNotification();
-        $availableAndInstalledExtensions = $this->listUtility->getAvailableAndInstalledExtensionsWithAdditionalInformation();
+        $availableAndInstalledExtensions = $this->listUtility->getAvailableAndInstalledExtensionsWithAdditionalInformation($this->backendUserFilter);
         ksort($availableAndInstalledExtensions);
-        $this->view->assign('extensions', $availableAndInstalledExtensions);
+        $this->view->assignMultiple(
+            [
+                'extensions' => $availableAndInstalledExtensions,
+                'isComposerMode' => Environment::isComposerMode(),
+                'backendUserFilter' => $this->backendUserFilter ?: 'All'
+            ]
+        );
         $this->handleTriggerArguments();
     }
 
@@ -212,7 +229,7 @@ class ListController extends AbstractModuleController
         $importExportInstalled = ExtensionManagementUtility::isLoaded('impexp');
         if ($importExportInstalled) {
             try {
-                /** @var $repositoryHelper Helper */
+                /** @var Helper $repositoryHelper */
                 $repositoryHelper = $this->objectManager->get(Helper::class);
                 // Check if a TER update has been done at all, if not, fetch it directly
                 // Repository needs an update, but not because of the extension hash has changed
@@ -263,7 +280,7 @@ class ListController extends AbstractModuleController
      */
     protected function registerDocheaderButtons()
     {
-        if (Bootstrap::usesComposerClassLoading()) {
+        if (Environment::isComposerMode()) {
             return;
         }
 
@@ -292,5 +309,42 @@ class ListController extends AbstractModuleController
             ->setClasses($classes)
             ->setIcon($icon);
         $buttonBar->addButton($button, ButtonBar::BUTTON_POSITION_LEFT);
+    }
+
+    protected function getBackendUserFilter(): string
+    {
+        $backendUser = $this->getBackendUserAuthentication();
+
+        if (!$backendUser instanceof BackendUserAuthentication) {
+            return '';
+        }
+
+        return $backendUser->uc['BackendComponents']['States']['ExtensionManager']['filter'] ?? '';
+    }
+
+    protected function saveBackendUserFilter(): void
+    {
+        $backendUser = $this->getBackendUserAuthentication();
+
+        if (!$backendUser instanceof BackendUserAuthentication) {
+            return;
+        }
+
+        $backendUserId = (int)$backendUser->user['uid'];
+        $backendUserRecord = BackendUtility::getRecord('be_users', $backendUserId);
+
+        if (is_array($backendUserRecord) && isset($backendUserRecord['uc'])) {
+            $uc = unserialize($backendUserRecord['uc'], ['allowed_classes' => [\stdClass::class]]);
+            if (is_array($uc)) {
+                $uc['BackendComponents']['States']['ExtensionManager']['filter'] = $this->backendUserFilter;
+                $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('be_users');
+                $connection->update('be_users', ['uc' => serialize($uc)], ['uid' => $backendUserId]);
+            }
+        }
+    }
+
+    protected function getBackendUserAuthentication(): ?BackendUserAuthentication
+    {
+        return $GLOBALS['BE_USER'];
     }
 }

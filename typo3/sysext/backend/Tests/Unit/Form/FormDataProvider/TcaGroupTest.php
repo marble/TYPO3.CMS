@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,40 +13,27 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Clipboard\Clipboard;
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaGroup;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\RelationHandler;
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaGroupTest extends UnitTestCase
 {
     /**
-     * @var TcaGroup
+     * @var bool Reset singletons created by subject
      */
-    protected $subject;
-
-    /**
-     * @var array
-     */
-    protected $singletonInstances;
-
-    protected function setUp()
-    {
-        $this->subject = new TcaGroup();
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-    }
-
-    protected function tearDown()
-    {
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
-    }
+    protected $resetSingletonInstances = true;
 
     /**
      * @test
@@ -69,7 +55,7 @@ class TcaGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
         $expected = $input;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaGroup())->addData($input));
     }
 
     /**
@@ -78,6 +64,7 @@ class TcaGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addDataThrowsExceptionWithTypeGroupAndNoValidInternalType()
     {
         $input = [
+            'tableName' => 'aTable',
             'processedTca' => [
                 'columns' => [
                     'aField' => [
@@ -91,86 +78,7 @@ class TcaGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1438780511);
-        $this->subject->addData($input);
-    }
-
-    /**
-     * @test
-     */
-    public function addDataSetsUploadFolderForFileReference()
-    {
-        $input = [
-            'databaseRow' => [
-                'aField' => '',
-            ],
-            'processedTca' => [
-                'columns' => [
-                    'aField' => [
-                        'config' => [
-                            'type' => 'group',
-                            'internal_type' => 'file_reference',
-                            'maxitems' => 99999,
-                        ],
-                    ],
-                ],
-            ],
-        ];
-
-        $expected = $input;
-        $expected['databaseRow']['aField'] = [];
-        $expected['processedTca']['columns']['aField']['config']['allowed'] = '*';
-        $expected['processedTca']['columns']['aField']['config']['clipboardElements'] = [];
-        $expected['processedTca']['columns']['aField']['config']['uploadfolder'] = '';
-
-        $clipboardProphecy = $this->prophesize(Clipboard::class);
-        GeneralUtility::addInstance(Clipboard::class, $clipboardProphecy->reveal());
-        $clipboardProphecy->initializeClipboard()->shouldBeCalled();
-        $clipboardProphecy->elFromTable('_FILE')->shouldBeCalled()->willReturn([]);
-
-        $this->assertEquals($expected, $this->subject->addData($input));
-    }
-
-    /**
-     * @test
-     */
-    public function addDataSetsFileData()
-    {
-        $input = [
-            'databaseRow' => [
-                'aField' => '/aDir/aFile.txt,/anotherDir/anotherFile.css',
-            ],
-            'processedTca' => [
-                'columns' => [
-                    'aField' => [
-                        'config' => [
-                            'type' => 'group',
-                            'internal_type' => 'file',
-                            'maxitems' => 99999,
-                        ],
-                    ],
-                ],
-            ],
-        ];
-
-        $clipboardProphecy = $this->prophesize(Clipboard::class);
-        GeneralUtility::addInstance(Clipboard::class, $clipboardProphecy->reveal());
-        $clipboardProphecy->initializeClipboard()->shouldBeCalled();
-        $clipboardProphecy->elFromTable('_FILE')->shouldBeCalled()->willReturn([]);
-
-        $expected = $input;
-        $expected['databaseRow']['aField'] = [
-            [
-                'uidOrPath' => '/aDir/aFile.txt',
-                'title' => '/aDir/aFile.txt',
-            ],
-            [
-                'uidOrPath' => '/anotherDir/anotherFile.css',
-                'title' => '/anotherDir/anotherFile.css',
-            ],
-        ];
-        $expected['processedTca']['columns']['aField']['config']['clipboardElements'] = [];
-        $expected['processedTca']['columns']['aField']['config']['allowed'] = '*';
-        $this->assertEquals($expected, $this->subject->addData($input));
+        (new TcaGroup())->addData($input);
     }
 
     /**
@@ -212,7 +120,7 @@ class TcaGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ]
         ];
         $expected['processedTca']['columns']['aField']['config']['clipboardElements'] = [];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaGroup())->addData($input));
     }
 
     /**
@@ -241,6 +149,9 @@ class TcaGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ],
         ];
+
+        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
 
         $clipboardProphecy = $this->prophesize(Clipboard::class);
         GeneralUtility::addInstance(Clipboard::class, $clipboardProphecy->reveal());
@@ -280,6 +191,6 @@ class TcaGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         $expected['processedTca']['columns']['aField']['config']['clipboardElements'] = [];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, (new TcaGroup())->addData($input));
     }
 }

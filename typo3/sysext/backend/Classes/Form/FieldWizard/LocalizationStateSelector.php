@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Form\FieldWizard;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,9 +15,12 @@ namespace TYPO3\CMS\Backend\Form\FieldWizard;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\FieldWizard;
+
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Core\DataHandling\Localization\State;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Allows to define the localization state per field.
@@ -35,10 +38,7 @@ class LocalizationStateSelector extends AbstractNode
         $result = $this->initializeResultArray();
 
         $fieldName = $this->data['fieldName'];
-        $l10nStateFieldName = '';
-        if (isset($l10nStateFieldName)) {
-            $l10nStateFieldName = 'l10n_state';
-        }
+        $l10nStateFieldName = 'l10n_state';
         if (
             !$l10nStateFieldName
             || !isset($this->data['defaultLanguageRow'])
@@ -83,7 +83,7 @@ class LocalizationStateSelector extends AbstractNode
         $html[] = '<div class="t3js-l10n-state-container">';
         $html[] =   '<div>';
         $html[] =       '<strong>';
-        $html[] =           $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:localizationStateSelector.header');
+        $html[] =           $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:localizationStateSelector.header');
         $html[] =       '</strong>';
         $html[] =   '</div>';
         $html[] =   '<div class="radio radio-inline">';
@@ -96,7 +96,7 @@ class LocalizationStateSelector extends AbstractNode
         $html[] =               $localizationState->isCustomState($fieldName) ? ' checked="checked"' : '';
         $html[] =               ' data-original-language-value=""';
         $html[] =           '>';
-        $html[] =           $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:localizationStateSelector.customValue');
+        $html[] =           $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:localizationStateSelector.customValue');
         $html[] =       '</label>';
         $html[] =   '</div>';
         $html[] =   '<div class="radio radio-inline">';
@@ -108,7 +108,7 @@ class LocalizationStateSelector extends AbstractNode
         $html[] =               $localizationState->isParentState($fieldName) ? ' checked="checked"' : '';
         $html[] =               ' data-original-language-value="' . htmlspecialchars((string)$fieldValueInParentRow) . '"';
         $html[] =           '>';
-        $html[] =           $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:localizationStateSelector.defaultLanguageValue');
+        $html[] =           $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:localizationStateSelector.defaultLanguageValue');
         $html[] =       '</label>';
         $html[] =   '</div>';
         if ($fieldValueInSourceRow !== null) {
@@ -121,12 +121,17 @@ class LocalizationStateSelector extends AbstractNode
             $html[] =           $localizationState->isSourceState($fieldName) ? ' checked="checked"' : '';
             $html[] =           ' data-original-language-value="' . htmlspecialchars((string)$fieldValueInSourceRow) . '"';
             $html[] =       '>';
-            $html[] =       sprintf($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:localizationStateSelector.sourceLanguageValue'), htmlspecialchars($sourceLanguageTitle));
+            $html[] =       sprintf($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:localizationStateSelector.sourceLanguageValue'), htmlspecialchars($sourceLanguageTitle));
             $html[] =   '</label>';
             $html[] = '</div>';
         }
         $html[] = '</div>';
 
+        $result['requireJsModules'][] = ['TYPO3/CMS/Backend/FormEngine/FieldWizard/LocalizationStateSelector' => '
+            function(LocalizationStateSelector) {
+                new LocalizationStateSelector(' . GeneralUtility::quoteJSvalue($fieldElementName) . ');
+            }'
+        ];
         $result['html'] = implode(LF, $html);
         return $result;
     }

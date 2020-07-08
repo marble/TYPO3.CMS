@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Filelist;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +13,16 @@ namespace TYPO3\CMS\Filelist;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Filelist;
+
+use TYPO3\CMS\Backend\Tree\View\FolderTreeView;
+
 /**
  * Class for drag and drop and ajax functionality
  * @see class \TYPO3\CMS\Backend\Tree\View\BrowseTreeView
+ * @internal this is a concrete TYPO3 tree implementation and solely used for EXT:filelist and not part of TYPO3's Core API.
  */
-class FileListFolderTree extends \TYPO3\CMS\Backend\Tree\View\FolderTreeView
+class FileListFolderTree extends FolderTreeView
 {
     /**
      * @var bool
@@ -46,7 +50,7 @@ class FileListFolderTree extends \TYPO3\CMS\Backend\Tree\View\FolderTreeView
      * @param \TYPO3\CMS\Core\Resource\Folder $folderObject Folder to work on
      * @param int $bank Bank pointer (which mount point number)
      * @return string
-     * @access private
+     * @internal
      */
     public function wrapTitle($title, $folderObject, $bank = 0)
     {

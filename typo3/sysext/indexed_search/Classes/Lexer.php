@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\IndexedSearch;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,19 @@ namespace TYPO3\CMS\IndexedSearch;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\IndexedSearch;
+
+use TYPO3\CMS\Core\Charset\CharsetConverter;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+
 /**
  * Lexer class for indexed_search
  * A lexer splits the text into words
+ * @internal
  */
 class Lexer
 {
+
     /**
      * Debugging options:
      *
@@ -35,13 +41,6 @@ class Lexer
     public $debugString = '';
 
     /**
-     * Charset class object
-     *
-     * @var \TYPO3\CMS\Core\Charset\CharsetConverter
-     */
-    public $csObj;
-
-    /**
      * Configuration of the lexer:
      *
      * @var array
@@ -55,18 +54,10 @@ class Lexer
     ];
 
     /**
-     * Constructor: Initializes the charset class
-     */
-    public function __construct()
-    {
-        $this->csObj = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Charset\CharsetConverter::class);
-    }
-
-    /**
      * Splitting string into words.
      * Used for indexing, can also be used to find words in query.
      *
-     * @param string String with UTF-8 content to process.
+     * @param string $wordString String with UTF-8 content to process.
      * @return array Array of words in utf-8
      */
     public function split2Words($wordString)
@@ -78,17 +69,19 @@ class Lexer
             $wordString = mb_strtolower($wordString, 'utf-8');
         }
         // Now, splitting words:
-        $len = 0;
-        $start = 0;
         $pos = 0;
         $words = [];
         $this->debugString = '';
         while (1) {
-            list($start, $len) = $this->get_word($wordString, $pos);
+            [$start, $len] = $this->get_word($wordString, $pos);
             if ($len) {
                 $this->addWords($words, $wordString, $start, $len);
                 if ($this->debug) {
-                    $this->debugString .= '<span style="color:red">' . htmlspecialchars(substr($wordString, $pos, ($start - $pos))) . '</span>' . htmlspecialchars(substr($wordString, $start, $len));
+                    $this->debugString .= '<span style="color:red">' . htmlspecialchars(substr(
+                        $wordString,
+                        $pos,
+                        $start - $pos
+                    )) . '</span>' . htmlspecialchars(substr($wordString, $start, $len));
                 }
                 $pos = $start + $len;
             } else {
@@ -119,7 +112,7 @@ class Lexer
         // Get next chars unicode number and find type:
         $bc = 0;
         $cp = $this->utf8_ord($theWord, $bc);
-        list($cType) = $this->charType($cp);
+        [$cType] = $this->charType($cp);
         // If string is a CJK sequence we follow this algorithm:
         /*
         DESCRIPTION OF (CJK) ALGORITHMContinuous letters and numbers make up words. Spaces and symbols
@@ -144,8 +137,9 @@ class Lexer
         } else {
             // Normal "single-byte" chars:
             // Remove chars:
+            $charsetConverter = GeneralUtility::makeInstance(CharsetConverter::class);
             foreach ($this->lexerConf['removeChars'] as $skipJoin) {
-                $theWord = str_replace($this->csObj->UnumberToChar($skipJoin), '', $theWord);
+                $theWord = str_replace($charsetConverter->UnumberToChar($skipJoin), '', $theWord);
             }
             // Add word:
             $words[] = $theWord;
@@ -215,11 +209,10 @@ class Lexer
                                 $len = $printJoinLgd;
                             }
                             return true;
-                        } else {
-                            // If a printJoin char is found, record the length if it has not been recorded already:
-                            if (!$printJoinLgd) {
-                                $printJoinLgd = $len;
-                            }
+                        }
+                        // If a printJoin char is found, record the length if it has not been recorded already:
+                        if (!$printJoinLgd) {
+                            $printJoinLgd = $len;
                         }
                     } else {
                         // When a true letter is found, reset printJoinLgd counter:
@@ -241,7 +234,7 @@ class Lexer
             $pos += $bc;
             // Determine the type:
             $cType_prev = $cType;
-            list($cType) = $this->charType($cp);
+            [$cType] = $this->charType($cp);
             if ($cType) {
                 continue;
             }
@@ -275,6 +268,8 @@ class Lexer
         if ($cp >= 12352 && $cp <= 12543 || $cp >= 12592 && $cp <= 12687 || $cp >= 13312 && $cp <= 19903 || $cp >= 19968 && $cp <= 40879 || $cp >= 44032 && $cp <= 55215 || $cp >= 131072 && $cp <= 195103) {
             return ['cjk'];
         }
+
+        return [];
     }
 
     /**

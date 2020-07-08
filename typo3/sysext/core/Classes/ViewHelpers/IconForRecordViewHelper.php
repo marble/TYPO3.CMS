@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,22 +13,39 @@ namespace TYPO3\CMS\Core\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\ViewHelpers;
+
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
- * Displays icon for record
+ * Displays icon for record.
+ *
+ * Examples
+ * ========
+ *
+ * Default::
+ *
+ *    <core:iconForRecord table="tt_content" row="{record}" />
+ *
+ * Output::
+ *
+ *     <span class="t3js-icon icon icon-size-small icon-state-default icon-mimetypes-x-content-text" data-identifier="mimetypes-x-content-text">
+ *         <span class="icon-markup">
+ *             <img src="/typo3/sysext/core/Resources/Public/Icons/T3Icons/mimetypes/mimetypes-x-content-text.svg" width="16" height="16">
+ *         </span>
+ *     </span>
  */
 class IconForRecordViewHelper extends AbstractViewHelper
 {
     use CompileWithRenderStatic;
 
     /**
-     * View helper returns HTML, thus we need to disable output escaping
+     * ViewHelper returns HTML, thus we need to disable output escaping
      *
      * @var bool
      */

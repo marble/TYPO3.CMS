@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseRowDateTimeFields;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabaseRowDateTimeFieldsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabaseRowDateTimeFieldsTest extends UnitTestCase
 {
     /**
      * @test
@@ -40,7 +42,7 @@ class DatabaseRowDateTimeFieldsTest extends \TYPO3\TestingFramework\Core\Unit\Un
         ];
         $expected = $input;
         $expected['databaseRow']['aField'] = 0;
-        $this->assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
+        self::assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
     }
 
     /**
@@ -62,7 +64,29 @@ class DatabaseRowDateTimeFieldsTest extends \TYPO3\TestingFramework\Core\Unit\Un
         ];
         $expected = $input;
         $expected['databaseRow']['aField'] = 0;
-        $this->assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
+        self::assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
+    }
+
+    /**
+     * @test
+     */
+    public function addDataSetsTimestampZeroForDefaultTimeField()
+    {
+        $input = [
+            'tableName' => 'aTable',
+            'processedTca' => [
+                'columns' => [
+                    'aField' => [
+                        'config' => [
+                            'dbType' => 'time',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $expected = $input;
+        $expected['databaseRow']['aField'] = 0;
+        self::assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
     }
 
     /**
@@ -89,7 +113,7 @@ class DatabaseRowDateTimeFieldsTest extends \TYPO3\TestingFramework\Core\Unit\Un
         ];
         $expected = $input;
         $expected['databaseRow']['aField'] = '2015-07-27T00:00:00+00:00';
-        $this->assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
+        self::assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
         date_default_timezone_set($oldTimezone);
     }
 
@@ -117,7 +141,35 @@ class DatabaseRowDateTimeFieldsTest extends \TYPO3\TestingFramework\Core\Unit\Un
         ];
         $expected = $input;
         $expected['databaseRow']['aField'] = '2015-07-27T15:25:32+00:00';
-        $this->assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
+        self::assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
+        date_default_timezone_set($oldTimezone);
+    }
+
+    /**
+     * @test
+     */
+    public function addDataConvertsTimeStringToTimestamp()
+    {
+        $oldTimezone = date_default_timezone_get();
+        date_default_timezone_set('UTC');
+        $input = [
+            'tableName' => 'aTable',
+            'processedTca' => [
+                'columns' => [
+                    'aField' => [
+                        'config' => [
+                            'dbType' => 'time',
+                        ],
+                    ],
+                ],
+            ],
+            'databaseRow' => [
+                'aField' => '15:25:32',
+            ],
+        ];
+        $expected = $input;
+        $expected['databaseRow']['aField'] = date('Y-m-d') . 'T15:25:32+00:00';
+        self::assertEquals($expected, (new DatabaseRowDateTimeFields())->addData($input));
         date_default_timezone_set($oldTimezone);
     }
 }

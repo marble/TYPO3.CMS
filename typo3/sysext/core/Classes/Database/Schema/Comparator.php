@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Database\Schema;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,11 +15,14 @@ namespace TYPO3\CMS\Core\Database\Schema;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database\Schema;
+
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Platforms\MySqlPlatform;
 use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Schema\Table;
-use Doctrine\DBAL\Types;
+use Doctrine\DBAL\Types\BlobType;
+use Doctrine\DBAL\Types\TextType;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -69,6 +72,8 @@ class Comparator extends \Doctrine\DBAL\Schema\Comparator
             $tableDifferences = GeneralUtility::makeInstance(TableDiff::class, $fromTable->getName());
             $tableDifferences->fromTable = $fromTable;
         } else {
+            $renamedColumns = $tableDifferences->renamedColumns;
+            $renamedIndexes = $tableDifferences->renamedIndexes;
             // Rebuild TableDiff with enhanced TYPO3 TableDiff class
             $tableDifferences = GeneralUtility::makeInstance(
                 TableDiff::class,
@@ -81,6 +86,8 @@ class Comparator extends \Doctrine\DBAL\Schema\Comparator
                 $tableDifferences->removedIndexes,
                 $tableDifferences->fromTable
             );
+            $tableDifferences->renamedColumns = $renamedColumns;
+            $tableDifferences->renamedIndexes = $renamedIndexes;
         }
 
         // Set the table options to be parsed in the AlterTable event.
@@ -110,7 +117,7 @@ class Comparator extends \Doctrine\DBAL\Schema\Comparator
         $properties1 = $column1->toArray();
         $properties2 = $column2->toArray();
 
-        if ($properties1['type'] instanceof Types\BlobType || $properties1['type'] instanceof Types\TextType) {
+        if ($properties1['type'] instanceof BlobType || $properties1['type'] instanceof TextType) {
             // Doctrine does not provide a length for LONGTEXT/LONGBLOB columns
             $length1 = $properties1['length'] ?: 2147483647;
             $length2 = $properties2['length'] ?: 2147483647;

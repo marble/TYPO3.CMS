@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,26 +13,32 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Form\FormDataGroup\FlexFormSegment;
+use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseRowDefaultValues;
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaFlexProcess;
+use TYPO3\CMS\Backend\Form\FormDataProvider\TcaRadioItems;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaFlexProcessTest extends UnitTestCase
 {
     /**
      * @var BackendUserAuthentication|ObjectProphecy
      */
     protected $backendUserProphecy;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         /** @var BackendUserAuthentication|ObjectProphecy backendUserProphecy */
         $this->backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
         $GLOBALS['BE_USER'] = $this->backendUserProphecy->reveal();
@@ -52,6 +57,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
             'databaseRow' => [],
             'processedTca' => [
                 'columns' => [
@@ -77,6 +83,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
             'databaseRow' => [
                 'aField' => [
                     'data' => [],
@@ -131,7 +138,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'sheets' => [],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -141,7 +148,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
+            'selectTreeCompileItems' => false,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -210,7 +220,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -220,7 +230,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
+            'selectTreeCompileItems' => false,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -289,7 +302,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -299,7 +312,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
+            'selectTreeCompileItems' => false,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -368,7 +384,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -378,7 +394,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
+            'selectTreeCompileItems' => false,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -447,7 +466,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -457,7 +476,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
+            'selectTreeCompileItems' => false,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -510,7 +532,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -520,7 +542,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
+            'selectTreeCompileItems' => false,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -581,7 +606,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -591,7 +616,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
+            'selectTreeCompileItems' => false,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -652,7 +680,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -662,7 +690,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'selectTreeCompileItems' => false,
+            'effectivePid' => 1,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -725,7 +756,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -735,7 +766,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'selectTreeCompileItems' => false,
+            'effectivePid' => 1,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -795,7 +829,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
 
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['formDataGroup']['flexFormSegment'] = [
-            \TYPO3\CMS\Backend\Form\FormDataProvider\TcaRadioItems::class => [],
+            TcaRadioItems::class => [],
         ];
 
         /** @var LanguageService|ObjectProphecy $languageService */
@@ -831,7 +865,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -841,7 +875,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
+            'selectTreeCompileItems' => false,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -880,7 +917,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
 
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['formDataGroup']['flexFormSegment'] = [
-            \TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseRowDefaultValues::class => [],
+            DatabaseRowDefaultValues::class => [],
         ];
 
         /** @var LanguageService|ObjectProphecy $languageService */
@@ -894,7 +931,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = $input;
         $expected['databaseRow']['aField']['data']['sDEF']['lDEF']['aFlexField']['vDEF'] = 'defaultValue';
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -904,6 +941,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
             'databaseRow' => [
                 'aField' => [
                     'data' => [],
@@ -953,6 +991,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
             'databaseRow' => [
                 'aField' => [
                     'data' => [],
@@ -1002,7 +1041,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
+            'selectTreeCompileItems' => false,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [
                         'sDEF' => [
@@ -1077,7 +1119,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
 
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['formDataGroup']['flexFormSegment'] = [
-            \TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseRowDefaultValues::class => [],
+            DatabaseRowDefaultValues::class => [],
         ];
 
         /** @var LanguageService|ObjectProphecy $languageService */
@@ -1099,7 +1141,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected['processedTca']['columns']['aField']['config']['ds']['sheets']['sDEF']['ROOT']['el']['section_1']['children']['2']
             =  $expected['processedTca']['columns']['aField']['config']['ds']['sheets']['sDEF']['ROOT']['el']['section_1']['el']['container_1'];
 
-        $this->assertEquals($expected, (new TcaFlexProcess())->addData($input));
+        self::assertEquals($expected, (new TcaFlexProcess())->addData($input));
     }
 
     /**
@@ -1109,6 +1151,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
             'databaseRow' => [
                 'aField' => [
                     'data' => [],
@@ -1169,6 +1212,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
             'databaseRow' => [
                 'aField' => [
                     'data' => [],
@@ -1229,6 +1273,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
             'databaseRow' => [
                 'aField' => [
                     'data' => [],
@@ -1289,6 +1334,7 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'effectivePid' => 1,
             'databaseRow' => [
                 'aField' => [
                     'data' => [],
@@ -1349,7 +1395,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'selectTreeCompileItems' => false,
+            'effectivePid' => 1,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],
@@ -1408,7 +1457,10 @@ class TcaFlexProcessTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $input = [
             'tableName' => 'aTable',
+            'selectTreeCompileItems' => false,
+            'effectivePid' => 1,
             'databaseRow' => [
+                'uid' => 5,
                 'aField' => [
                     'data' => [],
                 ],

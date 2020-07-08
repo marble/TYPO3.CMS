@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Imaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,28 @@ namespace TYPO3\CMS\Core\Tests\Unit\Imaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Imaging;
+
+use Prophecy\Argument;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Imaging\IconRegistry;
 use TYPO3\CMS\Core\Type\Icon\IconState;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Testcase for \TYPO3\CMS\Core\Imaging\Icon
+ * Test case
  */
-class IconTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class IconTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Core\Imaging\Icon
+     * @var Icon
      */
-    protected $subject = null;
+    protected $subject;
 
     /**
      * @var string
@@ -41,10 +49,25 @@ class IconTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $iconFactory = new IconFactory();
+        parent::setUp();
+        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+        $cacheFrontendProphecy = $this->prophesize(FrontendInterface::class);
+        $cacheManagerProphecy->getCache('assets')->willReturn($cacheFrontendProphecy->reveal());
+        $cacheFrontendProphecy->get(Argument::cetera())->willReturn(false);
+        $cacheFrontendProphecy->set(Argument::cetera())->willReturn(null);
+        $eventDispatcherProphecy = $this->prophesize(EventDispatcherInterface::class);
+        $iconFactory = new IconFactory($eventDispatcherProphecy->reveal(), new IconRegistry());
         $this->subject = $iconFactory->getIcon($this->iconIdentifier, Icon::SIZE_SMALL, $this->overlayIdentifier, IconState::cast(IconState::STATE_DISABLED));
+    }
+
+    public function tearDown(): void
+    {
+        // Drop cache manager singleton again
+        GeneralUtility::purgeInstances();
+        parent::tearDown();
     }
 
     /**
@@ -52,7 +75,7 @@ class IconTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function renderAndCastToStringReturnsTheSameCode()
     {
-        $this->assertEquals($this->subject->render(), (string)$this->subject);
+        self::assertEquals($this->subject->render(), (string)$this->subject);
     }
 
     /**
@@ -60,7 +83,7 @@ class IconTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getIdentifierReturnsCorrectIdentifier()
     {
-        $this->assertEquals($this->iconIdentifier, $this->subject->getIdentifier());
+        self::assertEquals($this->iconIdentifier, $this->subject->getIdentifier());
     }
 
     /**
@@ -68,15 +91,15 @@ class IconTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getOverlayIdentifierReturnsCorrectIdentifier()
     {
-        $this->assertEquals($this->overlayIdentifier, $this->subject->getOverlayIcon()->getIdentifier());
+        self::assertEquals($this->overlayIdentifier, $this->subject->getOverlayIcon()->getIdentifier());
     }
 
     /**
      * @test
      */
-    public function getSizedentifierReturnsCorrectIdentifier()
+    public function getSizeIdentifierReturnsCorrectIdentifier()
     {
-        $this->assertEquals(Icon::SIZE_SMALL, $this->subject->getSize());
+        self::assertEquals(Icon::SIZE_SMALL, $this->subject->getSize());
     }
 
     /**
@@ -84,6 +107,6 @@ class IconTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getStateReturnsCorrectIdentifier()
     {
-        $this->assertTrue($this->subject->getState()->equals(IconState::STATE_DISABLED));
+        self::assertTrue($this->subject->getState()->equals(IconState::STATE_DISABLED));
     }
 }

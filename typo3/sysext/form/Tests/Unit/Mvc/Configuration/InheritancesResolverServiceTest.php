@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,28 +15,72 @@ namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
+
 use TYPO3\CMS\Form\Mvc\Configuration\Exception\CycleInheritancesException;
 use TYPO3\CMS\Form\Mvc\Configuration\InheritancesResolverService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class InheritancesResolverServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class InheritancesResolverServiceTest extends UnitTestCase
 {
     /**
      * @var InheritancesResolverService
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = new InheritancesResolverService();
     }
 
     /**
      * @test
+     * Test for the explicit example in service class comment
      */
-    public function getMergedConfigurationSimpleInheritance()
+    public function getDocExampleInheritance(): void
+    {
+        $input = [
+            'Form' => [
+                'part1' => [
+                    'key1' => 'value1',
+                    'key2' => 'value2',
+                    'key3' => 'value3',
+                ],
+                'part2' => [
+                    '__inheritances' => [
+                        10 => 'Form.part1',
+                    ],
+                    'key2' => 'another_value'
+                ],
+            ],
+        ];
+
+        $expected = [
+            'Form' => [
+                'part1' => [
+                    'key1' => 'value1',
+                    'key2' => 'value2',
+                    'key3' => 'value3',
+                ],
+                'part2' => [
+                    'key1' => 'value1',
+                    'key2' => 'another_value',
+                    'key3' => 'value3'
+                ],
+            ],
+        ];
+
+        self::assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
+    }
+
+    /**
+     * @test
+     */
+    public function getMergedConfigurationSimpleInheritance(): void
     {
         $input = [
             'Form' => [
@@ -70,13 +115,13 @@ class InheritancesResolverServiceTest extends \TYPO3\TestingFramework\Core\Unit\
             ],
         ];
 
-        $this->assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
+        self::assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
     }
 
     /**
      * @test
      */
-    public function getMergedConfigurationSimpleInheritanceOverrideValue()
+    public function getMergedConfigurationSimpleInheritanceOverrideValue(): void
     {
         $input = [
             'Form' => [
@@ -103,13 +148,13 @@ class InheritancesResolverServiceTest extends \TYPO3\TestingFramework\Core\Unit\
             ],
         ];
 
-        $this->assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
+        self::assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
     }
 
     /**
      * @test
      */
-    public function getMergedConfigurationSimpleInheritanceRemoveValue()
+    public function getMergedConfigurationSimpleInheritanceRemoveValue(): void
     {
         $input = [
             'Form' => [
@@ -168,13 +213,13 @@ class InheritancesResolverServiceTest extends \TYPO3\TestingFramework\Core\Unit\
             ],
         ];
 
-        $this->assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
+        self::assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
     }
 
     /**
      * @test
      */
-    public function getMergedConfigurationSimpleMixin()
+    public function getMergedConfigurationSimpleMixin(): void
     {
         $input = [
             'Form' => [
@@ -212,13 +257,13 @@ class InheritancesResolverServiceTest extends \TYPO3\TestingFramework\Core\Unit\
             ],
         ];
 
-        $this->assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
+        self::assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
     }
 
     /**
      * @test
      */
-    public function getMergedConfigurationAdvancedMixin()
+    public function getMergedConfigurationAdvancedMixin(): void
     {
         $input = [
             'Form' => [
@@ -305,13 +350,13 @@ class InheritancesResolverServiceTest extends \TYPO3\TestingFramework\Core\Unit\
             ],
         ];
 
-        $this->assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
+        self::assertSame($expected, $this->subject->reset()->setReferenceConfiguration($input)->getResolvedConfiguration($input));
     }
 
     /**
      * @test
      */
-    public function getResolvedConfigurationThrowsExceptionIfCycleDepenciesOnSameLevelIsFound()
+    public function getResolvedConfigurationThrowsExceptionIfCycleDependenciesOnSameLevelIsFound(): void
     {
         $input = [
             'TYPO3' => [
@@ -341,7 +386,7 @@ class InheritancesResolverServiceTest extends \TYPO3\TestingFramework\Core\Unit\
     /**
      * @test
      */
-    public function getResolvedConfigurationThrowsExceptionIfCycleDepenciesOnSameLevelWithGapIsFound()
+    public function getResolvedConfigurationThrowsExceptionIfCycleDependenciesOnSameLevelWithGapIsFound(): void
     {
         $input = [
             'TYPO3' => [
@@ -381,7 +426,7 @@ class InheritancesResolverServiceTest extends \TYPO3\TestingFramework\Core\Unit\
     /**
      * @test
      */
-    public function getResolvedConfigurationThrowsExceptionIfCycleDepenciesOnHigherLevelIsFound()
+    public function getResolvedConfigurationThrowsExceptionIfCycleDependenciesOnHigherLevelIsFound(): void
     {
         $input = [
             'TYPO3' => [

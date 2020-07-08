@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\IRRE\ForeignField;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\IRRE\ForeignField;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Workspaces\Tests\Functional\DataHandling\IRRE\ForeignField;
 
 /**
  * Functional test for the DataHandler
@@ -31,15 +32,14 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
     protected $coreExtensionsToLoad = [
         'fluid',
-        'version',
         'workspaces',
     ];
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->importScenarioDataSet('ReferenceIndex');
-        $this->backendUser->workspace = self::VALUE_WorkspaceId;
+        $this->setWorkspaceId(self::VALUE_WorkspaceId);
     }
 
     /**
@@ -47,7 +47,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
 
     /**
-     * @see DataSet/deleteParentContentRecordAndDiscardDeletedParentRecord.csv
+     * See DataSet/deleteParentContentRecordAndDiscardDeletedParentRecord.csv
      */
     public function deleteParentContentAndDiscardDeletedParent()
     {
@@ -61,7 +61,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
 
     /**
-     * @see DataSet/createAndCopyParentContentRecordWithHotelAndOfferChildRecordsAndDiscardCopiedParentRecord.csv
+     * See DataSet/createAndCopyParentContentRecordWithHotelAndOfferChildRecordsAndDiscardCopiedParentRecord.csv
      */
     public function createAndCopyParentContentWithHotelAndOfferChildrenAndDiscardCopiedParent()
     {
@@ -81,7 +81,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/createNLocalizeParentContentNHotelNOfferChildrenNDiscardCreatedParent.csv
+     * See DataSet/createNLocParentNHotelNOfferChildrenNDiscardCreatedParent.csv
      */
     public function createAndLocalizeParentContentWithHotelAndOfferChildrenAndDiscardCreatedParent()
     {
@@ -101,7 +101,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/createAndLocalizeParentContentRecordWithHotelAndOfferChildRecordsAndDiscardLocalizedParentRecord.csv
+     * See DataSet/createAndLocalizeParentContentRecordWithHotelAndOfferChildRecordsAndDiscardLocalizedParentRecord.csv
      */
     public function createAndLocalizeParentContentWithHotelAndOfferChildrenAndDiscardLocalizedParent()
     {
@@ -121,7 +121,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/modifyParentRecordWithHotelChildRecordAndDiscardModifiedParentRecord.csv
+     * See DataSet/modifyParentRecordWithHotelChildRecordAndDiscardModifiedParentRecord.csv
      */
     public function modifyParentWithHotelChildAndDiscardModifiedParent()
     {
@@ -137,7 +137,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/modifyParentRecordWithHotelChildRecordAndDiscardAllModifiedRecords.csv
+     * See DataSet/modifyParentRecordWithHotelChildRecordAndDiscardAllModifiedRecords.csv
      */
     public function modifyParentWithHotelChildAndDiscardAll()
     {
@@ -151,7 +151,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
         $modifiedContentId = $this->actionService->getDataHandler()->getAutoVersionId(self::TABLE_Content, self::VALUE_ContentIdFirst);
         $modifiedHotelId = $this->actionService->getDataHandler()->getAutoVersionId(self::TABLE_Hotel, 4);
         $this->actionService->clearWorkspaceRecords(
-                [
+            [
                     self::TABLE_Content => [$modifiedContentId],
                     self::TABLE_Hotel => [$modifiedHotelId],
                 ]
@@ -159,7 +159,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/modifyNDiscardNModifyParentWHotelChild.csv
+     * See DataSet/modifyNDiscardNModifyParentWHotelChild.csv
      */
     public function modifyAndDiscardAndModifyParentWithHotelChild()
     {

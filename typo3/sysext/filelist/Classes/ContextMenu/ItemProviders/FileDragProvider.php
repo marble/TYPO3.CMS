@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Filelist\ContextMenu\ItemProviders;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,24 +15,28 @@ namespace TYPO3\CMS\Filelist\ContextMenu\ItemProviders;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Filelist\ContextMenu\ItemProviders;
+
+use TYPO3\CMS\Backend\ContextMenu\ItemProviders\AbstractProvider;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Drag drop menu provider for legacy tree (used in filelist folder tree)
+ * @internal this is a concrete TYPO3 hook implementation and solely used for EXT:filelist and not part of TYPO3's Core API.
  */
-class FileDragProvider extends \TYPO3\CMS\Backend\ContextMenu\ItemProviders\AbstractProvider
+class FileDragProvider extends AbstractProvider
 {
     /**
      * @var array
      */
     protected $itemsConfiguration = [
         'copyInto' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.copyFolder_into',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.copyFolder_into',
             'iconIdentifier' => 'apps-pagetree-drag-move-into',
             'callbackAction' => 'dropCopyInto'
         ],
         'moveInto' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.moveFolder_into',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.moveFolder_into',
             'iconIdentifier' => 'apps-pagetree-drag-move-into',
             'callbackAction' => 'dropMoveInto'
         ]
@@ -44,16 +48,6 @@ class FileDragProvider extends \TYPO3\CMS\Backend\ContextMenu\ItemProviders\Abst
     public function canHandle(): bool
     {
         return $this->table === 'folders-drag';
-    }
-
-    /**
-     * @param string $itemName
-     * @param string $type
-     * @return bool
-     */
-    protected function canRender(string $itemName, string $type): bool
-    {
-        return true;
     }
 
     /**

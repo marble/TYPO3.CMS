@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Validation\Validator;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,15 @@ namespace TYPO3\CMS\Extbase\Validation\Validator;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Validation\Validator;
+
+use TYPO3\CMS\Extbase\Error\Result;
+use TYPO3\CMS\Extbase\Persistence\Generic\LazyObjectStorage;
+use TYPO3\CMS\Extbase\Utility\TypeHandlingUtility;
+use TYPO3\CMS\Extbase\Validation\ValidatorResolver;
+
 /**
  * A generic collection validator.
- *
- * @api
  */
 class CollectionValidator extends GenericObjectValidator
 {
@@ -38,7 +42,7 @@ class CollectionValidator extends GenericObjectValidator
     /**
      * @param \TYPO3\CMS\Extbase\Validation\ValidatorResolver $validatorResolver
      */
-    public function injectValidatorResolver(\TYPO3\CMS\Extbase\Validation\ValidatorResolver $validatorResolver)
+    public function injectValidatorResolver(ValidatorResolver $validatorResolver)
     {
         $this->validatorResolver = $validatorResolver;
     }
@@ -49,23 +53,26 @@ class CollectionValidator extends GenericObjectValidator
      *
      * @param mixed $value The value that should be validated
      * @return \TYPO3\CMS\Extbase\Error\Result
-     * @api
      */
     public function validate($value)
     {
-        $this->result = new \TYPO3\CMS\Extbase\Error\Result();
+        $this->result = new Result();
 
         if ($this->acceptsEmptyValues === false || $this->isEmpty($value) === false) {
-            if ((is_object($value) && !\TYPO3\CMS\Extbase\Utility\TypeHandlingUtility::isCollectionType(get_class($value))) && !is_array($value)) {
+            if ((is_object($value) && !TypeHandlingUtility::isCollectionType(get_class($value))) && !is_array($value)) {
                 $this->addError('The given subject was not a collection.', 1317204797);
                 return $this->result;
-            } elseif ($value instanceof \TYPO3\CMS\Extbase\Persistence\Generic\LazyObjectStorage && !$value->isInitialized()) {
-                return $this->result;
-            } elseif (is_object($value) && $this->isValidatedAlready($value)) {
-                return $this->result;
-            } else {
-                $this->isValid($value);
             }
+            if ($value instanceof LazyObjectStorage && !$value->isInitialized()) {
+                return $this->result;
+            }
+            if (is_object($value)) {
+                if ($this->isValidatedAlready($value)) {
+                    return $this->result;
+                }
+                $this->markInstanceAsValidated($value);
+            }
+            $this->isValid($value);
         }
         return $this->result;
     }
@@ -86,11 +93,7 @@ class CollectionValidator extends GenericObjectValidator
             if (isset($this->options['elementValidator'])) {
                 $collectionElementValidator = $this->validatorResolver->createValidator($this->options['elementValidator']);
             } elseif (isset($this->options['elementType'])) {
-                if (isset($this->options['validationGroups'])) {
-                    $collectionElementValidator = $this->validatorResolver->getBaseValidatorConjunction($this->options['elementType'], $this->options['validationGroups']);
-                } else {
-                    $collectionElementValidator = $this->validatorResolver->getBaseValidatorConjunction($this->options['elementType']);
-                }
+                $collectionElementValidator = $this->validatorResolver->getBaseValidatorConjunction($this->options['elementType']);
             } else {
                 return;
             }

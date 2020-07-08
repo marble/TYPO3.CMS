@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\FolderStructure;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Install\FolderStructure;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Install\Status;
+namespace TYPO3\CMS\Install\FolderStructure;
+
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Install\FolderStructure\Exception\InvalidArgumentException;
 
 /**
  * A link
+ * @internal This class is only meant to be used within EXT:install and is not part of the TYPO3 Core API.
  */
 class LinkNode extends AbstractNode implements NodeInterface
 {
@@ -35,8 +38,8 @@ class LinkNode extends AbstractNode implements NodeInterface
      */
     public function __construct(array $structure, NodeInterface $parent = null)
     {
-        if (is_null($parent)) {
-            throw new Exception\InvalidArgumentException(
+        if ($parent === null) {
+            throw new InvalidArgumentException(
                 'Link node must have parent',
                 1380485700
             );
@@ -44,8 +47,8 @@ class LinkNode extends AbstractNode implements NodeInterface
         $this->parent = $parent;
 
         // Ensure name is a single segment, but not a path like foo/bar or an absolute path /foo
-        if (strstr($structure['name'], '/') !== false) {
-            throw new Exception\InvalidArgumentException(
+        if (strpos($structure['name'], '/') !== false) {
+            throw new InvalidArgumentException(
                 'File name must not contain forward slash',
                 1380546061
             );
@@ -63,61 +66,71 @@ class LinkNode extends AbstractNode implements NodeInterface
      * Returns OK status if is link and possible target is correct
      * Else returns error (not fixable)
      *
-     * @return array<\TYPO3\CMS\Install\Status\StatusInterface>
+     * @return FlashMessage[]
      */
-    public function getStatus()
+    public function getStatus(): array
     {
         if ($this->isWindowsOs()) {
-            $status = new Status\InfoStatus();
-            $status->setTitle($this->getRelativePathBelowSiteRoot() . ' should be a link, but this support is incomplete for Windows.');
-            $status->setMessage(
-                'This node is not handled for Windows OS and should be checked manually.'
-            );
-            return [$status];
+            return [
+                new FlashMessage(
+                    'This node is not handled for Windows OS and should be checked manually.',
+                    $this->getRelativePathBelowSiteRoot() . ' should be a link, but this support is incomplete for Windows.',
+                    FlashMessage::INFO
+                ),
+            ];
         }
 
         if (!$this->exists()) {
-            $status = new Status\ErrorStatus();
-            $status->setTitle($this->getRelativePathBelowSiteRoot() . ' should be a link, but it does not exist');
-            $status->setMessage('Links cannot be fixed by this system');
-            return [$status];
+            return [
+                new FlashMessage(
+                    'Links cannot be fixed by this system',
+                    $this->getRelativePathBelowSiteRoot() . ' should be a link, but it does not exist',
+                    FlashMessage::ERROR
+                ),
+            ];
         }
 
         if (!$this->isLink()) {
-            $status = new Status\WarningStatus();
-            $status->setTitle('Path ' . $this->getRelativePathBelowSiteRoot() . ' is not a link');
             $type = @filetype($this->getAbsolutePath());
             if ($type) {
-                $status->setMessage(
+                $messageBody =
                     'The target ' . $this->getRelativePathBelowSiteRoot() . ' should be a link,' .
                     ' but is of type ' . $type . '. This cannot be fixed automatically. Please investigate.'
-                );
+                ;
             } else {
-                $status->setMessage(
+                $messageBody =
                     'The target ' . $this->getRelativePathBelowSiteRoot() . ' should be a file,' .
                     ' but is of unknown type, probably because an upper level directory does not exist. Please investigate.'
-                );
+                ;
             }
-            return [$status];
+            return [
+                new FlashMessage(
+                    $messageBody,
+                    'Path ' . $this->getRelativePathBelowSiteRoot() . ' is not a link',
+                    FlashMessage::WARNING
+                ),
+            ];
         }
 
         if (!$this->isTargetCorrect()) {
-            $status = new Status\ErrorStatus();
-            $status->setTitle($this->getRelativePathBelowSiteRoot() . ' is a link, but link target is not as specified');
-            $status->setMessage(
-                'Link target should be ' . $this->getTarget() . ' but is ' . $this->getCurrentTarget()
-            );
-            return [$status];
+            return [
+                new FlashMessage(
+                    'Link target should be ' . $this->getTarget() . ' but is ' . $this->getCurrentTarget(),
+                    $this->getRelativePathBelowSiteRoot() . ' is a link, but link target is not as specified',
+                    FlashMessage::ERROR
+                ),
+            ];
         }
-
-        $status = new Status\OkStatus();
         $message = 'Is a link';
         if ($this->getTarget() !== '') {
             $message .= ' and correctly points to target ' . $this->getTarget();
         }
-        $status->setTitle($this->getRelativePathBelowSiteRoot());
-        $status->setMessage($message);
-        return [$status];
+        return [
+            new FlashMessage(
+                $message,
+                $this->getRelativePathBelowSiteRoot()
+            ),
+        ];
     }
 
     /**
@@ -125,9 +138,9 @@ class LinkNode extends AbstractNode implements NodeInterface
      *
      * If there is nothing to fix, returns an empty array
      *
-     * @return array<\TYPO3\CMS\Install\Status\StatusInterface>
+     * @return FlashMessage[]
      */
-    public function fix()
+    public function fix(): array
     {
         return [];
     }
@@ -151,7 +164,7 @@ class LinkNode extends AbstractNode implements NodeInterface
     protected function isLink()
     {
         if (!$this->exists()) {
-            throw new Exception\InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Link does not exist',
                 1380556246
             );
@@ -168,13 +181,13 @@ class LinkNode extends AbstractNode implements NodeInterface
     protected function isTargetCorrect()
     {
         if (!$this->exists()) {
-            throw new Exception\InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Link does not exist',
                 1380556245
             );
         }
         if (!$this->isLink()) {
-            throw new Exception\InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Node is not a link',
                 1380556247
             );

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,16 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\LinkHandling\LinkService;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Frontend\Service\TypoLinkCodecService;
 use TYPO3\CMS\Recordlist\Controller\AbstractLinkBrowserController;
 
@@ -34,6 +37,7 @@ class LinkBrowserController extends AbstractLinkBrowserController
     protected function initCurrentUrl()
     {
         $currentLink = isset($this->parameters['currentValue']) ? trim($this->parameters['currentValue']) : '';
+        /** @var array<string, string> $currentLinkParts */
         $currentLinkParts = GeneralUtility::makeInstance(TypoLinkCodecService::class)->decode($currentLink);
         $currentLinkParts['params'] = $currentLinkParts['additionalParams'];
         unset($currentLinkParts['additionalParams']);
@@ -51,9 +55,6 @@ class LinkBrowserController extends AbstractLinkBrowserController
         parent::initCurrentUrl();
     }
 
-    /**
-     * Initialize document template object
-     */
     protected function initDocumentTemplate()
     {
         parent::initDocumentTemplate();
@@ -64,12 +65,11 @@ class LinkBrowserController extends AbstractLinkBrowserController
         unset($this->parameters['fieldChangeFunc']['alert']);
         $update = [];
         foreach ($this->parameters['fieldChangeFunc'] as $v) {
-            $update[] = 'parent.opener.' . $v;
+            $update[] = 'FormEngineLinkBrowserAdapter.getParent().' . $v;
         }
         $inlineJS = implode(LF, $update);
 
         $pageRenderer = GeneralUtility::makeInstance(PageRenderer::class);
-        $pageRenderer->loadJquery();
         $pageRenderer->loadRequireJsModule('TYPO3/CMS/Backend/FormEngineLinkBrowserAdapter', 'function(FormEngineLinkBrowserAdapter) {
 			FormEngineLinkBrowserAdapter.updateFunctions = function() {' . $inlineJS . '};
 		}');
@@ -81,10 +81,9 @@ class LinkBrowserController extends AbstractLinkBrowserController
      * This avoids to implement the encoding functionality again in JS for the browser.
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function encodeTypoLink(ServerRequestInterface $request, ResponseInterface $response)
+    public function encodeTypoLink(ServerRequestInterface $request): ResponseInterface
     {
         $typoLinkParts = $request->getQueryParams();
         if (isset($typoLinkParts['params'])) {
@@ -93,9 +92,7 @@ class LinkBrowserController extends AbstractLinkBrowserController
         }
 
         $typoLink = GeneralUtility::makeInstance(TypoLinkCodecService::class)->encode($typoLinkParts);
-
-        $response->getBody()->write(json_encode(['typoLink' => $typoLink]));
-        return $response;
+        return new JsonResponse(['typoLink' => $typoLink]);
     }
 
     /**
@@ -122,7 +119,7 @@ class LinkBrowserController extends AbstractLinkBrowserController
                 }
                 unset($value);
             }
-            $result = $this->parameters['fieldChangeFuncHash'] === GeneralUtility::hmac(serialize($fieldChangeFunctions));
+            $result = hash_equals(GeneralUtility::hmac(serialize($fieldChangeFunctions)), $this->parameters['fieldChangeFuncHash']);
         }
         return $result;
     }
@@ -134,12 +131,13 @@ class LinkBrowserController extends AbstractLinkBrowserController
      */
     protected function getBodyTagAttributes()
     {
+        $formEngineParameters = [];
         $parameters = parent::getBodyTagAttributes();
 
         $formEngineParameters['fieldChangeFunc'] = $this->parameters['fieldChangeFunc'];
         $formEngineParameters['fieldChangeFuncHash'] = GeneralUtility::hmac(serialize($this->parameters['fieldChangeFunc']));
 
-        $parameters['data-add-on-params'] .= GeneralUtility::implodeArrayForUrl('P', $formEngineParameters);
+        $parameters['data-add-on-params'] .= HttpUtility::buildQueryString(['P' => $formEngineParameters], '&');
 
         return $parameters;
     }
@@ -165,5 +163,15 @@ class LinkBrowserController extends AbstractLinkBrowserController
             }
         }
         return (int)BackendUtility::getTSCpidCached($browserParameters['table'], $browserParameters['uid'], $pageId)[0];
+    }
+
+    /**
+     * Retrieve the configuration
+     * @return array
+     */
+    public function getConfiguration(): array
+    {
+        $tsConfig = BackendUtility::getPagesTSconfig($this->getCurrentPageId());
+        return $tsConfig['TCEMAIN.']['linkHandler.']['page.']['configuration.'] ?? [];
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Scheduler\Task;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Scheduler\Task;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Scheduler\Task;
+
 use TYPO3\CMS\Core\Resource\Index\ExtractorInterface;
 use TYPO3\CMS\Core\Resource\Index\ExtractorRegistry;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Scheduler\AdditionalFieldProviderInterface;
@@ -24,6 +26,7 @@ use TYPO3\CMS\Scheduler\Controller\SchedulerModuleController;
 
 /**
  * Additional BE fields for task which extracts metadata from storage
+ * @internal This class is a specific scheduler task implementation is not considered part of the Public TYPO3 API.
  */
 class FileStorageExtractionAdditionalFieldProvider implements AdditionalFieldProviderInterface
 {
@@ -31,7 +34,7 @@ class FileStorageExtractionAdditionalFieldProvider implements AdditionalFieldPro
      * Add additional fields
      *
      * @param array $taskInfo Reference to the array containing the info used in the add/edit form
-     * @param AbstractTask|NULL $task When editing, reference to the current task. NULL when adding.
+     * @param AbstractTask|null $task When editing, reference to the current task. NULL when adding.
      * @param SchedulerModuleController $parentObject Reference to the calling object (Scheduler's BE module)
      * @return array Array containing all the information pertaining to the additional fields
      * @throws \InvalidArgumentException
@@ -41,6 +44,7 @@ class FileStorageExtractionAdditionalFieldProvider implements AdditionalFieldPro
         if ($task !== null && !$task instanceof FileStorageExtractionTask) {
             throw new \InvalidArgumentException('Task not of type FileStorageExtractionTask', 1384275695);
         }
+        $additionalFields = [];
         $additionalFields['scheduler_fileStorageIndexing_storage'] = $this->getAllStoragesField($task);
         $additionalFields['scheduler_fileStorageIndexing_fileCount'] = $this->getFileCountField($task);
         $additionalFields['scheduler_fileStorageIndexing_registeredExtractors'] = $this->getRegisteredExtractorsField($task);
@@ -50,13 +54,13 @@ class FileStorageExtractionAdditionalFieldProvider implements AdditionalFieldPro
     /**
      * Returns a field configuration including a selectbox for available storages
      *
-     * @param FileStorageExtractionTask $task When editing, reference to the current task object. NULL when adding.
+     * @param FileStorageExtractionTask|null $task When editing, reference to the current task object. NULL when adding.
      * @return array Array containing all the information pertaining to the additional fields
      */
     protected function getAllStoragesField(FileStorageExtractionTask $task = null)
     {
         /** @var \TYPO3\CMS\Core\Resource\ResourceStorage[] $storages */
-        $storages = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Resource\StorageRepository::class)->findAll();
+        $storages = GeneralUtility::makeInstance(StorageRepository::class)->findAll();
         $options = [];
         foreach ($storages as $storage) {
             if ($task !== null && $task->storageUid === $storage->getUid()) {
@@ -82,7 +86,7 @@ class FileStorageExtractionAdditionalFieldProvider implements AdditionalFieldPro
     /**
      * Returns a field configuration including an input field for the file count
      *
-     * @param FileStorageExtractionTask $task When editing, reference to the current task object. NULL when adding.
+     * @param FileStorageExtractionTask|null $task When editing, reference to the current task object. NULL when adding.
      * @return array Array containing all the information pertaining to the additional fields
      */
     protected function getFileCountField(FileStorageExtractionTask $task = null)
@@ -104,7 +108,7 @@ class FileStorageExtractionAdditionalFieldProvider implements AdditionalFieldPro
     /**
      * Returns a field configuration telling about the status of registered extractors.
      *
-     * @param FileStorageExtractionTask $task When editing, reference to the current task object. NULL when adding.
+     * @param FileStorageExtractionTask|null $task When editing, reference to the current task object. NULL when adding.
      * @return array Array containing all the information pertaining to the additional fields
      */
     protected function getRegisteredExtractorsField(FileStorageExtractionTask $task = null)
@@ -158,9 +162,11 @@ class FileStorageExtractionAdditionalFieldProvider implements AdditionalFieldPro
             || !MathUtility::canBeInterpretedAsInteger($submittedData['scheduler_fileStorageIndexing_fileCount'])
         ) {
             return false;
-        } elseif (ResourceFactory::getInstance()->getStorageObject($submittedData['scheduler_fileStorageIndexing_storage']) === null) {
+        }
+        if (GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject($submittedData['scheduler_fileStorageIndexing_storage']) === null) {
             return false;
-        } elseif (!MathUtility::isIntegerInRange($submittedData['scheduler_fileStorageIndexing_fileCount'], 1, 9999)) {
+        }
+        if (!MathUtility::isIntegerInRange($submittedData['scheduler_fileStorageIndexing_fileCount'], 1, 9999)) {
             return false;
         }
         return true;
@@ -170,12 +176,12 @@ class FileStorageExtractionAdditionalFieldProvider implements AdditionalFieldPro
      * Save additional field in task
      *
      * @param array $submittedData Contains data submitted by the user
-     * @param \TYPO3\CMS\Scheduler\Task\AbstractTask $task Reference to the current task object
+     * @param AbstractTask $task Reference to the current task object
      * @throws \InvalidArgumentException
      */
-    public function saveAdditionalFields(array $submittedData, \TYPO3\CMS\Scheduler\Task\AbstractTask $task)
+    public function saveAdditionalFields(array $submittedData, AbstractTask $task)
     {
-        if ($task !== null && !$task instanceof FileStorageExtractionTask) {
+        if (!$task instanceof FileStorageExtractionTask) {
             throw new \InvalidArgumentException('Task not of type FileStorageExtractionTask', 1384275698);
         }
         $task->storageUid = (int)$submittedData['scheduler_fileStorageIndexing_storage'];

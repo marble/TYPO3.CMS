@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +15,16 @@ namespace TYPO3\CMS\Extbase\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Configuration;
+
+use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+
 /**
  * Class ConfigurationManagerInterface
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
-interface ConfigurationManagerInterface extends \TYPO3\CMS\Core\SingletonInterface
+interface ConfigurationManagerInterface extends SingletonInterface
 {
     const CONFIGURATION_TYPE_FRAMEWORK = 'Framework';
     const CONFIGURATION_TYPE_SETTINGS = 'Settings';
@@ -26,15 +33,14 @@ interface ConfigurationManagerInterface extends \TYPO3\CMS\Core\SingletonInterfa
     /**
      * @param \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer $contentObject
      */
-    public function setContentObject(\TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer $contentObject = null);
+    public function setContentObject(ContentObjectRenderer $contentObject): void;
 
     /**
      * Get the content object
      *
-     * @return \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer
-     * @api (v4 only)
+     * @return \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer|null
      */
-    public function getContentObject();
+    public function getContentObject(): ?ContentObjectRenderer;
 
     /**
      * Returns the specified configuration.
@@ -47,7 +53,7 @@ interface ConfigurationManagerInterface extends \TYPO3\CMS\Core\SingletonInterfa
      * @param string $pluginName if specified, the configuration for the given plugin will be returned.
      * @return array The configuration
      */
-    public function getConfiguration($configurationType, $extensionName = null, $pluginName = null);
+    public function getConfiguration(string $configurationType, ?string $extensionName = null, ?string $pluginName = null): array;
 
     /**
      * Sets the specified raw configuration coming from the outside.
@@ -55,7 +61,7 @@ interface ConfigurationManagerInterface extends \TYPO3\CMS\Core\SingletonInterfa
      *
      * @param array $configuration The new configuration
      */
-    public function setConfiguration(array $configuration = []);
+    public function setConfiguration(array $configuration = []): void;
 
     /**
      * Returns TRUE if a certain feature, identified by $featureName
@@ -67,5 +73,5 @@ interface ConfigurationManagerInterface extends \TYPO3\CMS\Core\SingletonInterfa
      * @param string $featureName
      * @return bool
      */
-    public function isFeatureEnabled($featureName);
+    public function isFeatureEnabled(string $featureName): bool;
 }

@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,41 +15,37 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Database\Schema\SqlReader;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Package\PackageManager;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Tests for SqlReader
+ * Test case
  */
-class SqlReaderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class SqlReaderTest extends UnitTestCase
 {
     /**
-     * @var SqlReader
+     * @var bool Reset singletons created by subject
      */
-    protected $subject;
-
-    /**
-     * Set up the test subject
-     */
-    protected function setUp()
-    {
-        parent::setUp();
-        $this->subject = GeneralUtility::makeInstance(SqlReader::class);
-    }
+    protected $resetSingletonInstances = true;
 
     /**
      * @test
      */
     public function getStatementArraySplitsStatements()
     {
-        $result = $this->subject->getStatementArray(
+        $subject = new SqlReader($this->prophesize(EventDispatcherInterface::class)->reveal(), $this->prophesize(PackageManager::class)->reveal());
+        $result = $subject->getStatementArray(
             'CREATE TABLE aTestTable(' . LF . '  aTestField INT(11)' . LF . ');' .
             LF .
             'INSERT INTO aTestTable(`aTestField`) VALUES(1);'
         );
-        $this->assertCount(2, $result);
-        $this->assertStringStartsWith('CREATE TABLE', $result[0]);
-        $this->assertStringStartsWith('INSERT INTO', $result[1]);
+        self::assertCount(2, $result);
+        self::assertStringStartsWith('CREATE TABLE', $result[0]);
+        self::assertStringStartsWith('INSERT INTO', $result[1]);
     }
 
     /**
@@ -58,14 +53,15 @@ class SqlReaderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getStatementArrayFiltersStatements()
     {
-        $result = $this->subject->getStatementArray(
+        $subject = new SqlReader($this->prophesize(EventDispatcherInterface::class)->reveal(), $this->prophesize(PackageManager::class)->reveal());
+        $result = $subject->getStatementArray(
             'CREATE TABLE aTestTable(' . LF . '  aTestField INT(11)' . LF . ');' .
             LF .
             'INSERT INTO aTestTable(`aTestField`) VALUES(1);',
             '^CREATE TABLE'
         );
-        $this->assertCount(1, $result);
-        $this->assertStringStartsWith('CREATE TABLE', array_pop($result));
+        self::assertCount(1, $result);
+        self::assertStringStartsWith('CREATE TABLE', array_pop($result));
     }
 
     /**
@@ -73,14 +69,15 @@ class SqlReaderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getInsertStatementArrayResult()
     {
-        $result = $this->subject->getInsertStatementArray(
+        $subject = new SqlReader($this->prophesize(EventDispatcherInterface::class)->reveal(), $this->prophesize(PackageManager::class)->reveal());
+        $result = $subject->getInsertStatementArray(
             'CREATE TABLE aTestTable(' . LF . '  aTestField INT(11)' . LF . ');' .
             LF .
             'INSERT INTO aTestTable(`aTestField`) VALUES(1);'
         );
 
-        $this->assertCount(1, $result);
-        $this->assertStringStartsWith('INSERT', array_pop($result));
+        self::assertCount(1, $result);
+        self::assertStringStartsWith('INSERT', array_pop($result));
     }
 
     /**
@@ -88,7 +85,8 @@ class SqlReaderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getInsertStatementArrayResultWithNewline()
     {
-        $result = $this->subject->getInsertStatementArray(
+        $subject = new SqlReader($this->prophesize(EventDispatcherInterface::class)->reveal(), $this->prophesize(PackageManager::class)->reveal());
+        $result = $subject->getInsertStatementArray(
             'CREATE TABLE aTestTable(' . LF . '  aTestField INT(11)' . LF . ');' .
             LF .
             'INSERT INTO aTestTable(`aTestField`) ' .
@@ -96,8 +94,8 @@ class SqlReaderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'VALUES(1);'
         );
 
-        $this->assertCount(1, $result);
-        $this->assertSame('INSERT INTO aTestTable(`aTestField`) VALUES(1);', array_pop($result));
+        self::assertCount(1, $result);
+        self::assertSame('INSERT INTO aTestTable(`aTestField`) VALUES(1);', array_pop($result));
     }
 
     /**
@@ -105,12 +103,51 @@ class SqlReaderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getCreateTableStatementArrayResult()
     {
-        $result = $this->subject->getCreateTableStatementArray(
+        $subject = new SqlReader($this->prophesize(EventDispatcherInterface::class)->reveal(), $this->prophesize(PackageManager::class)->reveal());
+        $result = $subject->getCreateTableStatementArray(
             'CREATE TABLE aTestTable(' . LF . '  aTestField INT(11)' . LF . ');' .
             LF .
             'INSERT INTO aTestTable(`aTestField`) VALUES(1);'
         );
-        $this->assertCount(1, $result);
-        $this->assertStringStartsWith('CREATE TABLE', array_pop($result));
+        self::assertCount(1, $result);
+        self::assertStringStartsWith('CREATE TABLE', array_pop($result));
+    }
+
+    /**
+     * @param string $comment
+     * @dataProvider commentProvider
+     * @test
+     */
+    public function getCreateTableStatementArrayResultWithComment(string $comment)
+    {
+        $subject = new SqlReader($this->prophesize(EventDispatcherInterface::class)->reveal(), $this->prophesize(PackageManager::class)->reveal());
+        $result = $subject->getCreateTableStatementArray(
+            $comment . LF . 'CREATE TABLE aTestTable(' . LF . '  aTestField INT(11)' . LF . ');' .
+            LF .
+            'INSERT INTO aTestTable(`aTestField`) VALUES(1);'
+        );
+        self::assertCount(1, $result);
+        self::assertStringStartsWith('CREATE TABLE', array_pop($result));
+    }
+
+    public function commentProvider(): array
+    {
+        return [
+            'Single line comment starting with "#"' => [
+                '# Comment'
+            ],
+            'Single line comment starting with "--"' => [
+                '-- Comment'
+            ],
+            'Single line c-style comment' => [
+                '/* Same line c-style comment */'
+            ],
+            'Multiline comment variant 1' => [
+                '/*' . LF . 'Some comment text' . LF . 'more text' . LF . '*/'
+            ],
+            'Multiline comment variant 2' => [
+                '/* More' . LF . ' comments */'
+            ]
+        ];
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Driver;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Core\Resource\Driver;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Driver;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 
 /**
@@ -25,8 +27,8 @@ abstract class AbstractDriver implements DriverInterface
      * CAPABILITIES
      *******************/
     /**
-     * The capabilities of this driver. See Storage::CAPABILITY_* constants for possible values. This value should be set
-     * in the constructor of derived classes.
+     * The capabilities of this driver. See \TYPO3\CMS\Core\Resource\ResourceStorageInterface::::CAPABILITY_* constants
+     * for possible values. This value should be set in the constructor of derived classes.
      *
      * @var int
      */
@@ -66,7 +68,7 @@ abstract class AbstractDriver implements DriverInterface
     }
 
     /**
-     * Checks a fileName for validity. This could be overidden in concrete
+     * Checks a fileName for validity. This could be overridden in concrete
      * drivers if they have different file naming rules.
      *
      * @param string $fileName
@@ -97,7 +99,10 @@ abstract class AbstractDriver implements DriverInterface
      * Returns the capabilities of this driver.
      *
      * @return int
-     * @see Storage::CAPABILITY_* constants
+     * @see \TYPO3\CMS\Core\Resource\ResourceStorageInterface::CAPABILITY_BROWSABLE
+     * @see \TYPO3\CMS\Core\Resource\ResourceStorageInterface::CAPABILITY_PUBLIC
+     * @see \TYPO3\CMS\Core\Resource\ResourceStorageInterface::CAPABILITY_WRITABLE
+     * @see \TYPO3\CMS\Core\Resource\ResourceStorageInterface::CAPABILITY_HIERARCHICAL_IDENTIFIERS
      */
     public function getCapabilities()
     {
@@ -127,7 +132,7 @@ abstract class AbstractDriver implements DriverInterface
      */
     protected function getTemporaryPathForFile($fileIdentifier)
     {
-        return \TYPO3\CMS\Core\Utility\GeneralUtility::tempnam('fal-tempfile-', '.' . PathUtility::pathinfo($fileIdentifier, PATHINFO_EXTENSION));
+        return GeneralUtility::tempnam('fal-tempfile-', '.' . PathUtility::pathinfo($fileIdentifier, PATHINFO_EXTENSION));
     }
 
     /**

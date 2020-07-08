@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Core;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +15,11 @@ namespace TYPO3\CMS\Extbase\Core;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Core;
+
 /**
  * Bootstrap Interface
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 interface BootstrapInterface
 {
@@ -26,7 +30,6 @@ interface BootstrapInterface
      * @param string $content The content. Not used
      * @param array $configuration The TS configuration array
      * @return string $content The processed content
-     * @api
      */
-    public function run($content, $configuration);
+    public function run(string $content, array $configuration): string;
 }

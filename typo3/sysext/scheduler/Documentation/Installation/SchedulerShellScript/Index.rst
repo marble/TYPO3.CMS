@@ -1,4 +1,4 @@
-﻿.. ==================================================
+.. ==================================================
 .. FOR YOUR INFORMATION
 .. --------------------------------------------------
 .. -*- coding: utf-8 -*- with BOM.
@@ -9,39 +9,85 @@
 
 .. _scheduler-shell-script:
 
-The Scheduler shell script
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+==========================
+The scheduler shell script
+==========================
 
-The Scheduler provides a PHP shell script designed to be run using
+The scheduler provides a PHP shell script designed to be run using
 TYPO3's command-line dispatcher. To try and run that script a first
-time, type the following command (adapting the path to PHP and TYPO3
-to match your system):
+time, type the following command.
 
-::
+On a Composer based system::
 
-   /usr/local/bin/php /home/bob/www/typo3/cli_dispatch.phpsh scheduler
+   bin/typo3 scheduler:run
 
 
-.. _options:
+On a system without Composer (adapt the path to TYPO3
+to match your system)::
+
+   typo3/sysext/core/bin/typo3 scheduler:run
+
+You might have to add the full path to the PHP interpreter
+in front of the command if PHP is not on the search path::
+
+   /usr/local/bin/php typo3/sysext/core/bin/typo3 scheduler:run
+
+
+In the following examples, we will use the path to `typo3` for systems
+with Composer.
+
+Show help
+=========
+
+In order to show help::
+
+   bin/typo3 scheduler:run --help
+
+
+.. _scheduler-shell-script-options:
 
 Providing options to the shell script
-"""""""""""""""""""""""""""""""""""""
+=====================================
 
 The shell scripts accepts a number of options which can be provided in any
 order.
 
-To run a specific scheduler task you need to provide the uid of the task:
+`--task (-i)`
+-------------
 
-::
+To run a specific scheduler task you need to provide the uid of the task::
 
-   /usr/local/bin/php /home/bob/www/typo3/cli_dispatch.phpsh scheduler --task=8
+   bin/typo3 scheduler:run --task=8
+
+or
+
+   bin/typo3 scheduler:run -i 8
+
 
 The example will trigger the task with uid 8.
 
-To run a task even if it is disabled, you need to provide the force option
+.. versionadded:: 10.3
 
-::
+    It is possible to run several tasks::
 
-   /usr/local/bin/php /home/bob/www/typo3/cli_dispatch.phpsh scheduler --task=8 -f
+        bin/typo3 scheduler:run --task=8 --task=2
+
+    The tasks will be executed in the order in which they are provided.
+
+`--f`
+-----
+
+To run a task even if it is disabled (or not scheduled to be run yet),
+you need to provide the force option::
+
+   bin/typo3 scheduler:run --task=8 -f
 
 This will also run the task with uid 8 if it is disabled.
+
+`--v`
+-----
+
+A single -v flag will output errors only. Two -vv flags will also output additional
+information::
+
+    bin/typo3 scheduler:run --task=8 -v

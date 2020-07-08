@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Database\Schema\Parser\AST;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,13 +15,15 @@ namespace TYPO3\CMS\Core\Database\Schema\Parser\AST;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database\Schema\Parser\AST;
+
 /**
  * Syntax node to structure an index definition.
  */
 class CreateIndexDefinitionItem extends AbstractCreateDefinitionItem
 {
     /**
-     * @var
+     * @var string
      */
     public $indexName = '';
 

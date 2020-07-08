@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -277,7 +278,8 @@ class IrreTutorialRecordsTest extends AbstractImportExportTestCase
 
         $subject->setRecordTypesIncludeFields($recordTypesIncludeFields);
 
-        $subject->export_addRecord('pages', BackendUtility::getRecord('pages', 1));
+        // @todo: Do not rely on BackendUtility::getRecord() in the test case itself
+        $subject->export_addRecord('pages', $this->forceStringsOnRowValues(BackendUtility::getRecord('pages', 1)));
         $this->addRecordsForPid($subject, 1, array_keys($recordTypesIncludeFields));
 
         $this->setPageTree($subject, 1);
@@ -295,8 +297,8 @@ class IrreTutorialRecordsTest extends AbstractImportExportTestCase
 
         $out = $subject->compileMemoryToFileContent('xml');
 
-        $this->assertXmlStringEqualsXmlFile(
-            __DIR__ . '/../Fixtures/XmlExports/' . $this->databasePlatform . '/irre-records.xml',
+        self::assertXmlStringEqualsXmlFile(
+            __DIR__ . '/../Fixtures/XmlExports/irre-records.xml',
             $out
         );
     }

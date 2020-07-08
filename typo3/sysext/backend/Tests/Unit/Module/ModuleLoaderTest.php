@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Module;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,19 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Module;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Module;
+
 use TYPO3\CMS\Backend\Module\ModuleLoader;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class ModuleLoaderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ModuleLoaderTest extends UnitTestCase
 {
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $GLOBALS['LANG'] = new \stdClass();
         $GLOBALS['LANG']->lang = 'it';
     }
@@ -181,6 +184,6 @@ class ModuleLoaderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $moduleLoader = new ModuleLoader();
         $moduleLoader->addLabelsForModule($moduleName, $labels);
-        $this->assertEquals($expectedResult, $moduleLoader->getLabelsForModule($moduleName));
+        self::assertEquals($expectedResult, $moduleLoader->getLabelsForModule($moduleName));
     }
 }

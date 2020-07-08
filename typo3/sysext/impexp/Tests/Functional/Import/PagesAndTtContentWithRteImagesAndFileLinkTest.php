@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp\Tests\Functional\Import;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Impexp\Tests\Functional\Import;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Impexp\Tests\Functional\Import;
+
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Impexp\Import;
 use TYPO3\CMS\Impexp\Tests\Functional\AbstractImportExportTestCase;
@@ -44,14 +46,14 @@ class PagesAndTtContentWithRteImagesAndFileLinkTest extends AbstractImportExport
         );
         $subject->importData(0);
 
-        $this->testFilesToDelete[] = PATH_site . 'fileadmin/user_upload/typo3_image2.jpg';
-        $this->testFilesToDelete[] = PATH_site . 'fileadmin/user_upload/typo3_image3.jpg';
+        $this->testFilesToDelete[] = Environment::getPublicPath() . '/fileadmin/user_upload/typo3_image2.jpg';
+        $this->testFilesToDelete[] = Environment::getPublicPath() . '/fileadmin/user_upload/typo3_image3.jpg';
 
         $this->assertCSVDataSet('EXT:impexp/Tests/Functional/Fixtures/DatabaseAssertions/importPagesAndRelatedTtContentWithRteImagesAndFileLink.csv');
 
-        $this->assertFileNotExists(PATH_site . 'fileadmin/_processed_/csm_typo3_image2_5c2670fd59.jpg');
+        self::assertFileNotExists(Environment::getPublicPath() . '/fileadmin/_processed_/csm_typo3_image2_5c2670fd59.jpg');
 
-        $this->assertFileEquals(__DIR__ . '/../Fixtures/Folders/fileadmin/user_upload/typo3_image2.jpg', PATH_site . 'fileadmin/user_upload/typo3_image2.jpg');
-        $this->assertFileEquals(__DIR__ . '/../Fixtures/Folders/fileadmin/user_upload/typo3_image3.jpg', PATH_site . 'fileadmin/user_upload/typo3_image3.jpg');
+        self::assertFileEquals(__DIR__ . '/../Fixtures/Folders/fileadmin/user_upload/typo3_image2.jpg', Environment::getPublicPath() . '/fileadmin/user_upload/typo3_image2.jpg');
+        self::assertFileEquals(__DIR__ . '/../Fixtures/Folders/fileadmin/user_upload/typo3_image3.jpg', Environment::getPublicPath() . '/fileadmin/user_upload/typo3_image3.jpg');
     }
 }

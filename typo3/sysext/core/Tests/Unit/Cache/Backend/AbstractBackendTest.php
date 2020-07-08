@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Cache\Backend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,18 @@ namespace TYPO3\CMS\Core\Tests\Unit\Cache\Backend;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Cache\Backend;
+
 use TYPO3\CMS\Core\Tests\Unit\Cache\Backend\Fixtures\ConcreteBackendFixture;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class AbstractBackendTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractBackendTest extends UnitTestCase
 {
+    protected $resetSingletonInstances = true;
+
     /**
      * @test
      */
@@ -28,6 +32,6 @@ class AbstractBackendTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         // The fixture class implements methods setSomeOption() and getSomeOption()
         $backend = new ConcreteBackendFixture('Testing', ['someOption' => 'someValue']);
-        $this->assertSame('someValue', $backend->getSomeOption());
+        self::assertSame('someValue', $backend->getSomeOption());
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\FolderStructure;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,15 @@ namespace TYPO3\CMS\Install\FolderStructure;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Install\Status;
+namespace TYPO3\CMS\Install\FolderStructure;
+
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Install\FolderStructure\Exception\InvalidArgumentException;
+use TYPO3\CMS\Install\FolderStructure\Exception\RootNodeException;
 
 /**
  * Root node of structure
+ * @internal This class is only meant to be used within EXT:install and is not part of the TYPO3 Core API.
  */
 class RootNode extends DirectoryNode implements RootNodeInterface
 {
@@ -31,8 +35,8 @@ class RootNode extends DirectoryNode implements RootNodeInterface
      */
     public function __construct(array $structure, NodeInterface $parent = null)
     {
-        if (!is_null($parent)) {
-            throw new Exception\RootNodeException(
+        if ($parent !== null) {
+            throw new RootNodeException(
                 'Root node must not have parent',
                 1366140117
             );
@@ -42,7 +46,7 @@ class RootNode extends DirectoryNode implements RootNodeInterface
             || ($this->isWindowsOs() && substr($structure['name'], 1, 2) !== ':/')
             || (!$this->isWindowsOs() && $structure['name'][0] !== '/')
         ) {
-            throw new Exception\InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Root node expects absolute path as name',
                 1366141329
             );
@@ -61,15 +65,17 @@ class RootNode extends DirectoryNode implements RootNodeInterface
     /**
      * Get own status and status of child objects - Root node gives error status if not exists
      *
-     * @return array<\TYPO3\CMS\Install\Status\StatusInterface>
+     * @return FlashMessage[]
      */
-    public function getStatus()
+    public function getStatus(): array
     {
         $result = [];
         if (!$this->exists()) {
-            $status = new Status\ErrorStatus();
-            $status->setTitle($this->getAbsolutePath() . ' does not exist');
-            $result[] = $status;
+            $result[] = new FlashMessage(
+                '',
+                $this->getAbsolutePath() . ' does not exist',
+                FlashMessage::ERROR
+            );
         } else {
             $result = $this->getSelfStatus();
         }

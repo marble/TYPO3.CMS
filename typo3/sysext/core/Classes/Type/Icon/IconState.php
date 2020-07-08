@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Type\Icon;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Type\Icon;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Type\Icon;
+
+use TYPO3\CMS\Core\Type\Enumeration;
+
 /**
  * A class providing constants for icon states
  */
-class IconState extends \TYPO3\CMS\Core\Type\Enumeration
+final class IconState extends Enumeration
 {
     const __default = self::STATE_DEFAULT;
 

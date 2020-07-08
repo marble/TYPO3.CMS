@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Validation\Validator;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Extbase\Validation\Validator;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Validation\Validator;
+
+use TYPO3\CMS\Extbase\Error\Result;
 use TYPO3\CMS\Extbase\Reflection\ObjectAccess;
 
 /**
@@ -32,15 +34,19 @@ class GenericObjectValidator extends AbstractValidator implements ObjectValidato
      *
      * @param mixed $value The value that should be validated
      * @return \TYPO3\CMS\Extbase\Error\Result
-     * @api
      */
     public function validate($value)
     {
-        $this->result = new \TYPO3\CMS\Extbase\Error\Result();
+        if (is_object($value) && $this->isValidatedAlready($value)) {
+            return $this->result;
+        }
+
+        $this->result = new Result();
         if ($this->acceptsEmptyValues === false || $this->isEmpty($value) === false) {
             if (!is_object($value)) {
                 $this->addError('Object expected, %1$s given.', 1241099149, [gettype($value)]);
             } elseif ($this->isValidatedAlready($value) === false) {
+                $this->markInstanceAsValidated($value);
                 $this->isValid($value);
             }
         }
@@ -62,9 +68,16 @@ class GenericObjectValidator extends AbstractValidator implements ObjectValidato
         // @todo add support for lazy loading proxies, if needed
         if (ObjectAccess::isPropertyGettable($object, $propertyName)) {
             return ObjectAccess::getProperty($object, $propertyName);
-        } else {
-            return ObjectAccess::getProperty($object, $propertyName, true);
         }
+        throw new \RuntimeException(
+            sprintf(
+                'Could not get value of property "%s::%s", make sure the property is either public or has a getter get%3$s(), a hasser has%3$s() or an isser is%3$s().',
+                get_class($object),
+                $propertyName,
+                ucfirst($propertyName)
+            ),
+            1546632293
+        );
     }
 
     /**
@@ -73,7 +86,7 @@ class GenericObjectValidator extends AbstractValidator implements ObjectValidato
      *
      * @param mixed $value The value to be validated
      * @param \Traversable $validators The validators to be called on the value
-     * @param string $propertyName Name of ther property to check
+     * @param string $propertyName Name of the property to check
      */
     protected function checkProperty($value, $validators, $propertyName)
     {
@@ -101,7 +114,6 @@ class GenericObjectValidator extends AbstractValidator implements ObjectValidato
      * Checks if the given value is valid according to the property validators.
      *
      * @param mixed $object The value that should be validated
-     * @api
      */
     protected function isValid($object)
     {
@@ -116,7 +128,6 @@ class GenericObjectValidator extends AbstractValidator implements ObjectValidato
      *
      * @param mixed $object The object to be checked
      * @return bool TRUE if the given value is an object
-     * @api
      */
     public function canValidate($object)
     {
@@ -128,7 +139,6 @@ class GenericObjectValidator extends AbstractValidator implements ObjectValidato
      *
      * @param string $propertyName Name of the property to validate
      * @param ValidatorInterface $validator The property validator
-     * @api
      */
     public function addPropertyValidator($propertyName, ValidatorInterface $validator)
     {
@@ -149,11 +159,17 @@ class GenericObjectValidator extends AbstractValidator implements ObjectValidato
         }
         if ($this->validatedInstancesContainer->contains($object)) {
             return true;
-        } else {
-            $this->validatedInstancesContainer->attach($object);
-
-            return false;
         }
+
+        return false;
+    }
+
+    /**
+     * @param object $object
+     */
+    protected function markInstanceAsValidated($object): void
+    {
+        $this->validatedInstancesContainer->attach($object);
     }
 
     /**
@@ -165,10 +181,9 @@ class GenericObjectValidator extends AbstractValidator implements ObjectValidato
     public function getPropertyValidators($propertyName = null)
     {
         if ($propertyName !== null) {
-            return (isset($this->propertyValidators[$propertyName])) ? $this->propertyValidators[$propertyName] : [];
-        } else {
-            return $this->propertyValidators;
+            return $this->propertyValidators[$propertyName] ?? [];
         }
+        return $this->propertyValidators;
     }
 
     /**
@@ -180,7 +195,6 @@ class GenericObjectValidator extends AbstractValidator implements ObjectValidato
      * Allows to set a container to keep track of validated instances.
      *
      * @param \SplObjectStorage $validatedInstancesContainer A container to keep track of validated instances
-     * @api
      */
     public function setValidatedInstancesContainer(\SplObjectStorage $validatedInstancesContainer)
     {

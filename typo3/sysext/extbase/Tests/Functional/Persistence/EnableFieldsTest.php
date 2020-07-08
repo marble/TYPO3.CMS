@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
 use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase;
 
@@ -36,7 +37,7 @@ class EnableFieldsTest extends AbstractDataHandlerActionTestCase
     /**
      * Sets up this test suite.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -45,7 +46,8 @@ class EnableFieldsTest extends AbstractDataHandlerActionTestCase
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/fe_users.xml');
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/blogs-with-fe_groups.xml');
 
-        $this->setUpFrontendRootPage(1, ['typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/Frontend/JsonRenderer.ts']);
+        $this->setUpFrontendSite(1);
+        $this->setUpFrontendRootPage(1, ['typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/Frontend/JsonRenderer.typoscript']);
     }
 
     /**
@@ -54,7 +56,7 @@ class EnableFieldsTest extends AbstractDataHandlerActionTestCase
     public function protectedRecordsNotFoundIfNoUserLoggedIn()
     {
         $responseSections = $this->getFrontendResponse(1)->getResponseSections('Extbase:list()');
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Blog)->setField('title')->setValues('Blog1'));
     }
 
@@ -64,7 +66,7 @@ class EnableFieldsTest extends AbstractDataHandlerActionTestCase
     public function onlyReturnProtectedRecordsForTheFirstUserGroup()
     {
         $responseSections = $this->getFrontendResponse(1, 0, 0, 0, true, 1)->getResponseSections('Extbase:list()');
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Blog)->setField('title')->setValues('Blog1', 'Blog2'));
     }
 
@@ -74,7 +76,7 @@ class EnableFieldsTest extends AbstractDataHandlerActionTestCase
     public function onlyReturnProtectedRecordsForTheSecondUserGroup()
     {
         $responseSections = $this->getFrontendResponse(1, 0, 0, 0, true, 2)->getResponseSections('Extbase:list()');
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Blog)->setField('title')->setValues('Blog1', 'Blog3'));
     }
 
@@ -85,12 +87,12 @@ class EnableFieldsTest extends AbstractDataHandlerActionTestCase
     {
         // first request to fill the query cache
         $responseSections = $this->getFrontendResponse(1, 0, 0, 0, true, 1)->getResponseSections('Extbase:list()');
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Blog)->setField('title')->setValues('Blog1', 'Blog2'));
 
         // second request with other frontenduser
         $responseSections = $this->getFrontendResponse(1, 0, 0, 0, true, 2)->getResponseSections('Extbase:list()');
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Blog)->setField('title')->setValues('Blog1', 'Blog3'));
     }
 }

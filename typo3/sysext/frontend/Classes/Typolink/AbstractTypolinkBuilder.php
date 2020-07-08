@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Frontend\Typolink;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,17 +15,27 @@ namespace TYPO3\CMS\Frontend\Typolink;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Typolink;
+
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Http\ServerRequestFactory;
+use TYPO3\CMS\Core\Routing\PageArguments;
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
+use TYPO3\CMS\Core\Site\Entity\NullSite;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\TypoScript\TemplateService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\CMS\Frontend\Http\UrlProcessorInterface;
-use TYPO3\CMS\Frontend\Page\PageRepository;
 
 /**
  * Abstract class to provide proper helper for most types necessary
- * Hands in the contentobject which is needed here for all the stdWrap magic.
+ * Hands in the ContentObject and TSFE which are needed here for all the stdWrap magic.
  */
 abstract class AbstractTypolinkBuilder
 {
@@ -35,13 +45,20 @@ abstract class AbstractTypolinkBuilder
     protected $contentObjectRenderer;
 
     /**
+     * @var TypoScriptFrontendController|null
+     */
+    protected $typoScriptFrontendController;
+
+    /**
      * AbstractTypolinkBuilder constructor.
      *
-     * @param $contentObjectRenderer ContentObjectRenderer
+     * @param ContentObjectRenderer $contentObjectRenderer
+     * @param TypoScriptFrontendController $typoScriptFrontendController
      */
-    public function __construct(ContentObjectRenderer $contentObjectRenderer)
+    public function __construct(ContentObjectRenderer $contentObjectRenderer, TypoScriptFrontendController $typoScriptFrontendController = null)
     {
         $this->contentObjectRenderer = $contentObjectRenderer;
+        $this->typoScriptFrontendController = $typoScriptFrontendController ?? $GLOBALS['TSFE'] ?? null;
     }
 
     /**
@@ -67,7 +84,7 @@ abstract class AbstractTypolinkBuilder
      */
     protected function forceAbsoluteUrl(string $url, array $configuration): string
     {
-        if (!empty($url) && !empty($configuration['forceAbsoluteUrl']) &&  preg_match('#^(?:([a-z]+)(://)([^/]*)/?)?(.*)$#', $url, $matches)) {
+        if (!empty($url) && !empty($configuration['forceAbsoluteUrl']) && preg_match('#^(?:([a-z]+)(://)([^/]*)/?)?(.*)$#', $url, $matches)) {
             $urlParts = [
                 'scheme' => $matches[1],
                 'delimiter' => '://',
@@ -103,6 +120,20 @@ abstract class AbstractTypolinkBuilder
     }
 
     /**
+     * Determines whether lib.parseFunc is defined.
+     *
+     * @return bool
+     */
+    protected function isLibParseFuncDefined(): bool
+    {
+        $configuration = $this->contentObjectRenderer->mergeTSRef(
+            ['parseFunc' => '< lib.parseFunc'],
+            'parseFunc'
+        );
+        return !empty($configuration['parseFunc.']) && is_array($configuration['parseFunc.']);
+    }
+
+    /**
      * Helper method to a fallback method parsing HTML out of it
      *
      * @param string $originalLinkText the original string, if empty, the fallback link text
@@ -111,11 +142,29 @@ abstract class AbstractTypolinkBuilder
      */
     protected function parseFallbackLinkTextIfLinkTextIsEmpty(string $originalLinkText, string $fallbackLinkText): string
     {
-        if ($originalLinkText === '') {
-            return $this->contentObjectRenderer->parseFunc($fallbackLinkText, ['makelinks' => 0], '< lib.parseFunc');
-        } else {
+        if ($originalLinkText !== '') {
             return $originalLinkText;
         }
+        if ($this->isLibParseFuncDefined()) {
+            return $this->contentObjectRenderer->parseFunc($fallbackLinkText, ['makelinks' => 0], '< lib.parseFunc');
+        }
+        // encode in case `lib.parseFunc` is not configured
+        return $this->encodeFallbackLinkTextIfLinkTextIsEmpty($originalLinkText, $fallbackLinkText);
+    }
+
+    /**
+     * Helper method to a fallback method properly encoding HTML.
+     *
+     * @param string $originalLinkText the original string, if empty, the fallback link text
+     * @param string $fallbackLinkText the string to be used.
+     * @return string the final text
+     */
+    protected function encodeFallbackLinkTextIfLinkTextIsEmpty(string $originalLinkText, string $fallbackLinkText): string
+    {
+        if ($originalLinkText !== '') {
+            return $originalLinkText;
+        }
+        return htmlspecialchars($fallbackLinkText, ENT_QUOTES);
     }
 
     /**
@@ -130,17 +179,18 @@ abstract class AbstractTypolinkBuilder
     protected function resolveTargetAttribute(array $conf, string $name, bool $respectFrameSetOption = false, string $fallbackTarget = ''): string
     {
         $tsfe = $this->getTypoScriptFrontendController();
-        $targetAttributeAllowed = (!$respectFrameSetOption || !$tsfe->config['config']['doctype'] ||
-            in_array((string)$tsfe->config['config']['doctype'], ['xhtml_trans', 'xhtml_basic', 'html5'], true));
+        $targetAttributeAllowed = !$respectFrameSetOption
+            || (!isset($tsfe->config['config']['doctype']) || !$tsfe->config['config']['doctype'])
+            || in_array((string)$tsfe->config['config']['doctype'], ['xhtml_trans', 'xhtml_basic', 'html5'], true);
 
         $target = '';
         if (isset($conf[$name])) {
             $target = $conf[$name];
-        } elseif ($targetAttributeAllowed) {
+        } elseif ($targetAttributeAllowed && !$conf['directImageLink']) {
             $target = $fallbackTarget;
         }
-        if ($conf[$name . '.']) {
-            $target = (string)$this->contentObjectRenderer->stdWrap($target, $conf[$name . '.']);
+        if (isset($conf[$name . '.']) && $conf[$name . '.']) {
+            $target = (string)$this->contentObjectRenderer->stdWrap($target, $conf[$name . '.'] ?? []);
         }
         return $target;
     }
@@ -151,19 +201,16 @@ abstract class AbstractTypolinkBuilder
      * @param string $context The context in which the method is called (e.g. typoLink).
      * @param string $url The URL that should be processed.
      * @param array $typolinkConfiguration The current link configuration array.
-     * @return string|NULL Returns NULL if URL was not processed or the processed URL as a string.
+     * @return string|null Returns NULL if URL was not processed or the processed URL as a string.
      * @throws \RuntimeException if a hook was registered but did not fulfill the correct parameters.
      */
     protected function processUrl(string $context, string $url, array $typolinkConfiguration = [])
     {
-        if (
-            empty($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['urlProcessing']['urlProcessors'])
-            || !is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['urlProcessing']['urlProcessors'])
-        ) {
+        $urlProcessors = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['urlProcessing']['urlProcessors'] ?? false;
+        if (!$urlProcessors) {
             return $url;
         }
 
-        $urlProcessors = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['urlProcessing']['urlProcessors'];
         foreach ($urlProcessors as $identifier => $configuration) {
             if (empty($configuration) || !is_array($configuration)) {
                 throw new \RuntimeException('Missing configuration for URI processor "' . $identifier . '".', 1491130459);
@@ -193,22 +240,43 @@ abstract class AbstractTypolinkBuilder
      */
     public function getTypoScriptFrontendController(): TypoScriptFrontendController
     {
-        if (!$GLOBALS['TSFE']) {
-            // This usually happens when typolink is created by the TYPO3 Backend, where no TSFE object
-            // is there. This functionality is currently completely internal, as these links cannot be
-            // created properly from the Backend.
-            // However, this is added to avoid any exceptions when trying to create a link
-            $GLOBALS['TSFE'] = GeneralUtility::makeInstance(
-                TypoScriptFrontendController::class,
-                    [],
-                    (int)GeneralUtility::_GP('id'),
-                    (int)GeneralUtility::_GP('type')
-            );
-            $GLOBALS['TSFE']->sys_page = GeneralUtility::makeInstance(PageRepository::class);
-            $GLOBALS['TSFE']->sys_page->init(false);
-            $GLOBALS['TSFE']->tmpl = GeneralUtility::makeInstance(TemplateService::class);
-            $GLOBALS['TSFE']->tmpl->init();
+        if ($this->typoScriptFrontendController instanceof TypoScriptFrontendController) {
+            return $this->typoScriptFrontendController;
         }
-        return $GLOBALS['TSFE'];
+
+        // This usually happens when typolink is created by the TYPO3 Backend, where no TSFE object
+        // is there. This functionality is currently completely internal, as these links cannot be
+        // created properly from the Backend.
+        // However, this is added to avoid any exceptions when trying to create a link.
+        // Detecting the "first" site usually comes from the fact that TSFE needs to be instantiated
+        // during tests
+        $request = $GLOBALS['TYPO3_REQUEST'] ?? ServerRequestFactory::fromGlobals();
+        $site = $request->getAttribute('site');
+        if (!$site instanceof Site) {
+            $sites = GeneralUtility::makeInstance(SiteFinder::class)->getAllSites();
+            $site = reset($sites);
+            if (!$site instanceof Site) {
+                $site = new NullSite();
+            }
+        }
+        $language = $request->getAttribute('language');
+        if (!$language instanceof SiteLanguage) {
+            $language = $site->getDefaultLanguage();
+        }
+
+        $id = $request->getQueryParams()['id'] ?? $request->getParsedBody()['id'] ?? $site->getRootPageId();
+        $type = $request->getQueryParams()['type'] ?? $request->getParsedBody()['type'] ?? '0';
+
+        $this->typoScriptFrontendController = GeneralUtility::makeInstance(
+            TypoScriptFrontendController::class,
+            GeneralUtility::makeInstance(Context::class),
+            $site,
+            $language,
+            $request->getAttribute('routing', new PageArguments((int)$id, (string)$type, [])),
+            GeneralUtility::makeInstance(FrontendUserAuthentication::class)
+        );
+        $this->typoScriptFrontendController->sys_page = GeneralUtility::makeInstance(PageRepository::class);
+        $this->typoScriptFrontendController->tmpl = GeneralUtility::makeInstance(TemplateService::class);
+        return $this->typoScriptFrontendController;
     }
 }

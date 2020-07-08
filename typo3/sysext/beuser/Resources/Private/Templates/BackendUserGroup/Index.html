@@ -1,43 +1,59 @@
-{namespace be = TYPO3\CMS\Backend\ViewHelpers}
-{namespace bu = TYPO3\CMS\Beuser\ViewHelpers}
+<html
+    xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+    xmlns:be="http://typo3.org/ns/TYPO3/CMS/Backend/ViewHelpers"
+    data-namespace-typo3-fluid="true">
 
 <f:layout name="Default" />
 
-<f:section name="headline">
-	<h1><f:translate key="backendUserGroupListing" /></h1>
+<f:section name="Buttons">
+    <be:moduleLayout.button.linkButton
+        icon="actions-add"
+        title="{f:translate(id: 'LLL:EXT:backend/Resources/Private/Language/locallang_layout.xlf:newRecordGeneral')}"
+        link="{be:uri.newRecord(table: 'be_groups')}"
+    />
 </f:section>
 
-<f:section name="content">
+<f:section name="Content">
+    <h1><f:translate key="backendUserGroupListing" /></h1>
 
-	<f:comment>
-		Listing of all user groups
-	</f:comment>
-	<f:be.widget.paginate objects="{backendUserGroups}" as="paginatedBackendUserGroups" configuration="{itemsPerPage: 50, insertBelow: 1}">
-		<div class="table-fit">
-			<table class="table table-striped table-hover">
-				<thead>
-					<tr>
-						<th class="col-icon"></th>
-						<th class="col-title"><f:translate key="backendUserGroup" /></th>
-						<th><f:translate key="subGroups" /></th>
-						<th class="col-control"></th>
-					</tr>
-				</thead>
-				<tbody>
-					<f:for each="{paginatedBackendUserGroups}" as="backendUserGroup">
-						<f:render partial="BackendUserGroup/IndexListRow" arguments="{demand: demand, backendUserGroup: backendUserGroup, dateFormat: dateFormat, timeFormat: timeFormat, returnUrl: returnUrl}" />
-					</f:for>
-					<f:comment>
-						Footer row: no officially defined style yet
-					</f:comment>
-					<tr>
-						<td colspan="4">
-							<f:count subject="{backendUserGroups}" /> <f:translate key="LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:be_groups" />s
-						</td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
-	</f:be.widget.paginate>
+    <f:if condition="{compareGroupUidList}">
+        <h3>{f:translate(key: 'section.compare', default: 'Compare')}</h3>
+        <div class="table-fit">
+            <table id="typo3-backend-user-list-compare" class="table table-hover">
+                <tbody>
+                <f:for each="{compareGroupList}" as="compareGroup">
+                    <tr>
+                        <td class="col-icon">
+                            <a href="#" class="t3js-contextmenutrigger" data-table="be_usergroup" data-uid="{compareGroup.uid}" title="id={compareGroup.uid}">
+                                <core:iconForRecord table="be_groups" row="{compareGroup}"/>
+                            </a>
+                        </td>
+                        <td class="col-title">
+                            {compareGroup.title}
+                        </td>
+                        <td class="col-control">
+                            <div class="btn-group" role="group">
+                                <be:link.editRecord class="btn btn-default" table="be_groups" uid="{compareGroup.uid}" title="{f:translate(key:'edit')}">
+                                    <core:icon identifier="actions-open" />
+                                </be:link.editRecord>
+                            </div>
+                            <div class="btn-group" role="group">
+                                <f:link.action action="removeFromCompareList" arguments="{uid: compareGroup.uid}" class="btn btn-default" title="{f:translate(key: 'remove')}">
+                                    <core:icon identifier="actions-remove" />
+                                </f:link.action>
+                            </div>
+                        </td>
+                    </tr>
+                </f:for>
+                </tbody>
+            </table>
+        </div>
+        <f:link.action action="compare" class="btn btn-default">{f:translate(key: 'compareBackendUsersGroups')}</f:link.action>
+        <f:link.action action="removeAllFromCompareList" class="btn btn-default"><core:icon identifier="actions-selection-delete" /> {f:translate(key: 'clearCompareList')}</f:link.action>
+        <hr>
+        <h3>{f:translate(key: 'section.allUserGroups', default: 'All User Groups')}</h3>
+    </f:if>
 
+    <f:render partial="BackendUserGroup/PaginatedListWidget" arguments="{_all}" />
 </f:section>
+</html>

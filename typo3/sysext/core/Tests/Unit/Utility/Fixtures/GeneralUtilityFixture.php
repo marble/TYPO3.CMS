@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -21,8 +22,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class GeneralUtilityFixture extends GeneralUtility
 {
-    const DEPRECATION_LOG_PATH = 'typo3temp/var/test_deprecation/test.log';
-
     /**
      * @var int
      */
@@ -56,16 +55,6 @@ class GeneralUtilityFixture extends GeneralUtility
     protected static function isInternalRequestType()
     {
         return false;
-    }
-
-    /**
-     * Gets the absolute path to the deprecation log file.
-     *
-     * @return string Absolute path to the deprecation log file
-     */
-    public static function getDeprecationLogFileName()
-    {
-        return PATH_site . static::DEPRECATION_LOG_PATH;
     }
 
     /**

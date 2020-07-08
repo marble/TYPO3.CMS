@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +15,26 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Unit\Configuration;
+
+use TYPO3\CMS\Core\TypoScript\TypoScriptService;
+use TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager;
+use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class AbstractConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractConfigurationManagerTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var AbstractConfigurationManager|\PHPUnit\Framework\MockObject\MockObject|AccessibleObjectInterface
      */
     protected $abstractConfigurationManager;
 
     /**
-     * @var \TYPO3\CMS\Core\TypoScript\TypoScriptService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var TypoScriptService|\PHPUnit\Framework\MockObject\MockObject|AccessibleObjectInterface
      */
     protected $mockTypoScriptService;
 
@@ -95,56 +104,56 @@ class AbstractConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit
     ];
 
     /**
-     * @var array
-     */
-    protected $testSwitchableControllerActions = [
-        'Controller1' => [
-            'actions' => ['action1', 'action2', 'action3']
-        ],
-        'Controller2' => [
-            'actions' => ['action4', 'action5', 'action6'],
-            'nonCacheableActions' => ['action4', 'action6']
-        ]
-    ];
-
-    /**
      * Sets up this testcase
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->abstractConfigurationManager = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager::class, ['getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getSwitchableControllerActions', 'getRecursiveStoragePids']);
-        $this->mockTypoScriptService = $this->getAccessibleMock(\TYPO3\CMS\Core\TypoScript\TypoScriptService::class);
+        parent::setUp();
+        $this->abstractConfigurationManager = $this->getAccessibleMock(
+            AbstractConfigurationManager::class,
+            [
+                'getContextSpecificFrameworkConfiguration',
+                'getTypoScriptSetup',
+                'getPluginConfiguration',
+                'getControllerConfiguration',
+                'getRecursiveStoragePids'
+            ],
+            [],
+            '',
+            false
+        );
+        $this->mockTypoScriptService = $this->getMockBuilder(TypoScriptService::class)->getMock();
         $this->abstractConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
     }
 
     /**
      * @test
      */
-    public function setConfigurationResetsConfigurationCache()
+    public function setConfigurationResetsConfigurationCache(): void
     {
         $this->abstractConfigurationManager->_set('configurationCache', ['foo' => 'bar']);
         $this->abstractConfigurationManager->setConfiguration([]);
-        $this->assertEquals([], $this->abstractConfigurationManager->_get('configurationCache'));
+        self::assertEquals([], $this->abstractConfigurationManager->_get('configurationCache'));
     }
 
     /**
      * @test
      */
-    public function setConfigurationSetsExtensionAndPluginName()
+    public function setConfigurationSetsExtensionAndPluginName(): void
     {
         $configuration = [
             'extensionName' => 'SomeExtensionName',
             'pluginName' => 'SomePluginName'
         ];
         $this->abstractConfigurationManager->setConfiguration($configuration);
-        $this->assertEquals('SomeExtensionName', $this->abstractConfigurationManager->_get('extensionName'));
-        $this->assertEquals('SomePluginName', $this->abstractConfigurationManager->_get('pluginName'));
+        self::assertEquals('SomeExtensionName', $this->abstractConfigurationManager->_get('extensionName'));
+        self::assertEquals('SomePluginName', $this->abstractConfigurationManager->_get('pluginName'));
     }
 
     /**
      * @test
      */
-    public function setConfigurationConvertsTypoScriptArrayToPlainArray()
+    public function setConfigurationConvertsTypoScriptArrayToPlainArray(): void
     {
         $configuration = [
             'foo' => 'bar',
@@ -156,45 +165,54 @@ class AbstractConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit
             'settings' => ['foo' => 'bar'],
             'view' => ['subkey' => ['subsubkey' => 'subsubvalue']]
         ];
-        $this->mockTypoScriptService->expects($this->atLeastOnce())->method('convertTypoScriptArrayToPlainArray')->with($configuration)->will($this->returnValue($expectedResult));
+        $this->mockTypoScriptService->expects(self::atLeastOnce())->method('convertTypoScriptArrayToPlainArray')->with($configuration)->willReturn($expectedResult);
         $this->abstractConfigurationManager->setConfiguration($configuration);
-        $this->assertEquals($expectedResult, $this->abstractConfigurationManager->_get('configuration'));
+        self::assertEquals($expectedResult, $this->abstractConfigurationManager->_get('configuration'));
     }
 
     /**
      * @test
      */
-    public function getConfigurationReturnsCachedResultOfCurrentPlugin()
+    public function getConfigurationReturnsCachedResultOfCurrentPlugin(): void
     {
         $this->abstractConfigurationManager->_set('extensionName', 'CurrentExtensionName');
         $this->abstractConfigurationManager->_set('pluginName', 'CurrentPluginName');
-        $this->abstractConfigurationManager->_set('configurationCache', ['currentextensionname_currentpluginname' => ['foo' => 'bar'], 'someotherextension_somepluginname' => ['baz' => 'shouldnotbereturned']]);
+        $this->abstractConfigurationManager->_set('configurationCache', [
+            'currentextensionname_currentpluginname' => ['foo' => 'bar'],
+            'someotherextension_somepluginname' => ['baz' => 'shouldnotbereturned']
+        ]);
         $expectedResult = ['foo' => 'bar'];
         $actualResult = $this->abstractConfigurationManager->getConfiguration();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function getConfigurationReturnsCachedResultForGivenExtension()
+    public function getConfigurationReturnsCachedResultForGivenExtension(): void
     {
-        $this->abstractConfigurationManager->_set('configurationCache', ['someextensionname_somepluginname' => ['foo' => 'bar'], 'someotherextension_somepluginname' => ['baz' => 'shouldnotbereturned']]);
+        $this->abstractConfigurationManager->_set('configurationCache', [
+            'someextensionname_somepluginname' => ['foo' => 'bar'],
+            'someotherextension_somepluginname' => ['baz' => 'shouldnotbereturned']
+        ]);
         $expectedResult = ['foo' => 'bar'];
         $actualResult = $this->abstractConfigurationManager->getConfiguration('SomeExtensionName', 'SomePluginName');
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function getConfigurationRecursivelyMergesCurrentPluginConfigurationWithFrameworkConfiguration()
+    public function getConfigurationRecursivelyMergesCurrentPluginConfigurationWithFrameworkConfiguration(): void
     {
         $this->abstractConfigurationManager->_set('extensionName', 'CurrentExtensionName');
         $this->abstractConfigurationManager->_set('pluginName', 'CurrentPluginName');
-        $this->abstractConfigurationManager->expects($this->once())->method('getTypoScriptSetup')->will($this->returnValue($this->testTypoScriptSetup));
-        $this->mockTypoScriptService->expects($this->atLeastOnce())->method('convertTypoScriptArrayToPlainArray')->with($this->testTypoScriptSetup['config.']['tx_extbase.'])->will($this->returnValue($this->testTypoScriptSetupConverted['config']['tx_extbase']));
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testPluginConfiguration));
+        $this->abstractConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($this->testTypoScriptSetup);
+        $this->mockTypoScriptService->expects(self::atLeastOnce())->method('convertTypoScriptArrayToPlainArray')->with($this->testTypoScriptSetup['config.']['tx_extbase.'])->willReturn($this->testTypoScriptSetupConverted['config']['tx_extbase']);
+        $this->abstractConfigurationManager->expects(self::once())->method('getPluginConfiguration')->with(
+            'CurrentExtensionName',
+            'CurrentPluginName'
+        )->willReturn($this->testPluginConfiguration);
         $expectedResult = [
             'settings' => [
                 'setting1' => 'overriddenValue1',
@@ -211,21 +229,24 @@ class AbstractConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit
             'persistence' => [
                 'storagePid' => '123'
             ],
-            'controllerConfiguration' => null
+            'controllerConfiguration' => []
         ];
-        $this->abstractConfigurationManager->expects($this->once())->method('getContextSpecificFrameworkConfiguration')->with($expectedResult)->will($this->returnValue($expectedResult));
+        $this->abstractConfigurationManager->expects(self::once())->method('getContextSpecificFrameworkConfiguration')->with($expectedResult)->willReturn($expectedResult);
         $actualResult = $this->abstractConfigurationManager->getConfiguration();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function getConfigurationRecursivelyMergesPluginConfigurationOfSpecifiedPluginWithFrameworkConfiguration()
-    {
-        $this->abstractConfigurationManager->expects($this->once())->method('getTypoScriptSetup')->will($this->returnValue($this->testTypoScriptSetup));
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->with('SomeExtensionName', 'SomePluginName')->will($this->returnValue($this->testPluginConfiguration));
-        $this->mockTypoScriptService->expects($this->atLeastOnce())->method('convertTypoScriptArrayToPlainArray')->with($this->testTypoScriptSetup['config.']['tx_extbase.'])->will($this->returnValue($this->testTypoScriptSetupConverted['config']['tx_extbase']));
+    public function getConfigurationRecursivelyMergesPluginConfigurationOfSpecifiedPluginWithFrameworkConfiguration(
+    ): void {
+        $this->abstractConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($this->testTypoScriptSetup);
+        $this->abstractConfigurationManager->expects(self::once())->method('getPluginConfiguration')->with(
+            'SomeExtensionName',
+            'SomePluginName'
+        )->willReturn($this->testPluginConfiguration);
+        $this->mockTypoScriptService->expects(self::atLeastOnce())->method('convertTypoScriptArrayToPlainArray')->with($this->testTypoScriptSetup['config.']['tx_extbase.'])->willReturn($this->testTypoScriptSetupConverted['config']['tx_extbase']);
         $expectedResult = [
             'settings' => [
                 'setting1' => 'overriddenValue1',
@@ -242,288 +263,132 @@ class AbstractConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit
             'persistence' => [
                 'storagePid' => '123'
             ],
-            'controllerConfiguration' => null
+            'controllerConfiguration' => []
         ];
-        $this->abstractConfigurationManager->expects($this->never())->method('getContextSpecificFrameworkConfiguration');
+        $this->abstractConfigurationManager->expects(self::never())->method('getContextSpecificFrameworkConfiguration');
         $actualResult = $this->abstractConfigurationManager->getConfiguration('SomeExtensionName', 'SomePluginName');
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function getConfigurationDoesNotOverrideConfigurationWithContextSpecificFrameworkConfigurationIfDifferentPluginIsSpecified()
-    {
-        $this->abstractConfigurationManager->expects($this->never())->method('getContextSpecificFrameworkConfiguration');
+    public function getConfigurationDoesNotOverrideConfigurationWithContextSpecificFrameworkConfigurationIfDifferentPluginIsSpecified(
+    ): void {
+        $this->abstractConfigurationManager->expects(self::never())->method('getContextSpecificFrameworkConfiguration');
         $this->abstractConfigurationManager->getConfiguration('SomeExtensionName', 'SomePluginName');
     }
 
     /**
      * @test
      */
-    public function getConfigurationOverridesConfigurationWithContextSpecificFrameworkConfigurationIfNoPluginWasSpecified()
-    {
-        $this->abstractConfigurationManager->expects($this->once())->method('getTypoScriptSetup')->will($this->returnValue($this->testTypoScriptSetup));
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->with()->will($this->returnValue($this->testPluginConfiguration));
-        $contextSpecifixFrameworkConfiguration = [
+    public function getConfigurationOverridesConfigurationWithContextSpecificFrameworkConfigurationIfNoPluginWasSpecified(
+    ): void {
+        $this->abstractConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($this->testTypoScriptSetup);
+        $this->abstractConfigurationManager->expects(self::once())->method('getPluginConfiguration')->with()->willReturn($this->testPluginConfiguration);
+        $contextSpecificFrameworkConfiguration = [
             'context' => [
-                'specific' => 'framwork',
+                'specific' => 'framework',
                 'conf' => 'iguration'
             ]
         ];
-        $this->abstractConfigurationManager->expects($this->once())->method('getContextSpecificFrameworkConfiguration')->will($this->returnValue($contextSpecifixFrameworkConfiguration));
+        $this->abstractConfigurationManager->expects(self::once())->method('getContextSpecificFrameworkConfiguration')->willReturn($contextSpecificFrameworkConfiguration);
         $actualResult = $this->abstractConfigurationManager->getConfiguration();
-        $this->assertEquals($contextSpecifixFrameworkConfiguration, $actualResult);
+        self::assertEquals($contextSpecificFrameworkConfiguration, $actualResult);
     }
 
     /**
      * @test
      */
-    public function getConfigurationOverridesConfigurationWithContextSpecificFrameworkConfigurationIfSpecifiedPluginIsTheCurrentPlugin()
-    {
+    public function getConfigurationOverridesConfigurationWithContextSpecificFrameworkConfigurationIfSpecifiedPluginIsTheCurrentPlugin(
+    ): void {
         $this->abstractConfigurationManager->_set('extensionName', 'CurrentExtensionName');
         $this->abstractConfigurationManager->_set('pluginName', 'CurrentPluginName');
-        $this->abstractConfigurationManager->expects($this->once())->method('getTypoScriptSetup')->will($this->returnValue($this->testTypoScriptSetup));
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testPluginConfiguration));
-        $contextSpecifixFrameworkConfiguration = [
+        $this->abstractConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($this->testTypoScriptSetup);
+        $this->abstractConfigurationManager->expects(self::once())->method('getPluginConfiguration')->with(
+            'CurrentExtensionName',
+            'CurrentPluginName'
+        )->willReturn($this->testPluginConfiguration);
+        $contextSpecificFrameworkConfiguration = [
             'context' => [
-                'specific' => 'framwork',
+                'specific' => 'framework',
                 'conf' => 'iguration'
             ]
         ];
-        $this->abstractConfigurationManager->expects($this->once())->method('getContextSpecificFrameworkConfiguration')->will($this->returnValue($contextSpecifixFrameworkConfiguration));
-        $actualResult = $this->abstractConfigurationManager->getConfiguration('CurrentExtensionName', 'CurrentPluginName');
-        $this->assertEquals($contextSpecifixFrameworkConfiguration, $actualResult);
+        $this->abstractConfigurationManager->expects(self::once())->method('getContextSpecificFrameworkConfiguration')->willReturn($contextSpecificFrameworkConfiguration);
+        $actualResult = $this->abstractConfigurationManager->getConfiguration(
+            'CurrentExtensionName',
+            'CurrentPluginName'
+        );
+        self::assertEquals($contextSpecificFrameworkConfiguration, $actualResult);
     }
 
     /**
      * @test
      */
-    public function getConfigurationStoresResultInConfigurationCache()
+    public function getConfigurationStoresResultInConfigurationCache(): void
     {
         $this->abstractConfigurationManager->_set('extensionName', 'CurrentExtensionName');
         $this->abstractConfigurationManager->_set('pluginName', 'CurrentPluginName');
-        $this->abstractConfigurationManager->expects($this->any())->method('getPluginConfiguration')->will($this->returnValue(['foo' => 'bar']));
+        $this->abstractConfigurationManager->expects(self::any())->method('getPluginConfiguration')->willReturn(['foo' => 'bar']);
         $this->abstractConfigurationManager->getConfiguration();
         $this->abstractConfigurationManager->getConfiguration('SomeOtherExtensionName', 'SomeOtherCurrentPluginName');
-        $expectedResult = ['currentextensionname_currentpluginname', 'someotherextensionname_someothercurrentpluginname'];
+        $expectedResult = [
+            'currentextensionname_currentpluginname',
+            'someotherextensionname_someothercurrentpluginname'
+        ];
         $actualResult = array_keys($this->abstractConfigurationManager->_get('configurationCache'));
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function getConfigurationRetrievesStoragePidIncludingGivenStoragePidWithRecursiveSetForSingleStoragePid()
-    {
+    public function getConfigurationRetrievesStoragePidIncludingGivenStoragePidWithRecursiveSetForSingleStoragePid(
+    ): void {
         $pluginConfiguration = [
             'persistence' => [
                 'storagePid' => 1,
                 'recursive' => 99
             ]
         ];
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->will($this->returnValue($pluginConfiguration));
-        $this->abstractConfigurationManager->expects($this->once())->method('getRecursiveStoragePids')->with('-1');
+        $this->abstractConfigurationManager->expects(self::once())->method('getPluginConfiguration')->willReturn($pluginConfiguration);
+        $this->abstractConfigurationManager->expects(self::once())->method('getRecursiveStoragePids')->with([-1]);
         $this->abstractConfigurationManager->getConfiguration('SomeOtherExtensionName', 'SomeOtherCurrentPluginName');
     }
 
     /**
      * @test
      */
-    public function getConfigurationRetrievesStoragePidIncludingGivenStoragePidWithRecursiveSetForMultipleStoragePid()
-    {
+    public function getConfigurationRetrievesStoragePidIncludingGivenStoragePidWithRecursiveSetForMultipleStoragePid(
+    ): void {
         $pluginConfiguration = [
             'persistence' => [
                 'storagePid' => '1,25',
                 'recursive' => 99
             ]
         ];
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->will($this->returnValue($pluginConfiguration));
-        $this->abstractConfigurationManager->expects($this->once())->method('getRecursiveStoragePids')->with('-1,-25');
+        $this->abstractConfigurationManager->expects(self::once())->method('getPluginConfiguration')->willReturn($pluginConfiguration);
+        $this->abstractConfigurationManager->expects(self::once())->method('getRecursiveStoragePids')->with([-1, -25]);
         $this->abstractConfigurationManager->getConfiguration('SomeOtherExtensionName', 'SomeOtherCurrentPluginName');
     }
 
     /**
-     * switchableControllerActions *
-     */
-    /**
      * @test
      */
-    public function switchableControllerActionsAreNotOverriddenIfPluginNameIsSpecified()
+    public function getContentObjectReturnsNullIfNoContentObjectHasBeenSet(): void
     {
-        /** @var \TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $abstractConfigurationManager = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager::class, ['overrideSwitchableControllerActions', 'getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getSwitchableControllerActions', 'getRecursiveStoragePids']);
-        $abstractConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
-        $abstractConfigurationManager->setConfiguration(['switchableControllerActions' => ['overriddenSwitchableControllerActions']]);
-        $abstractConfigurationManager->expects($this->any())->method('getPluginConfiguration')->will($this->returnValue([]));
-        $abstractConfigurationManager->expects($this->never())->method('overrideSwitchableControllerActions');
-        $abstractConfigurationManager->getConfiguration('SomeExtensionName', 'SomePluginName');
+        self::assertNull($this->abstractConfigurationManager->getContentObject());
     }
 
     /**
      * @test
      */
-    public function switchableControllerActionsAreOverriddenIfSpecifiedPluginIsTheCurrentPlugin()
+    public function getContentObjectTheCurrentContentObject(): void
     {
-        /** @var \TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $configuration = ['extensionName' => 'CurrentExtensionName', 'pluginName' => 'CurrentPluginName', 'switchableControllerActions' => ['overriddenSwitchableControllerActions']];
-        $abstractConfigurationManager = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager::class, ['overrideSwitchableControllerActions', 'getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getSwitchableControllerActions', 'getRecursiveStoragePids']);
-        $this->mockTypoScriptService->expects($this->any())->method('convertTypoScriptArrayToPlainArray')->with($configuration)->will($this->returnValue($configuration));
-        $abstractConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
-        $abstractConfigurationManager->setConfiguration($configuration);
-        $abstractConfigurationManager->expects($this->any())->method('getPluginConfiguration')->will($this->returnValue([]));
-        $abstractConfigurationManager->expects($this->once())->method('overrideSwitchableControllerActions');
-        $abstractConfigurationManager->getConfiguration('CurrentExtensionName', 'CurrentPluginName');
-    }
-
-    /**
-     * @test
-     */
-    public function switchableControllerActionsAreOverriddenIfPluginNameIsNotSpecified()
-    {
-        /** @var \TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $configuration = ['switchableControllerActions' => ['overriddenSwitchableControllerActions']];
-        $abstractConfigurationManager = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager::class, ['overrideSwitchableControllerActions', 'getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getSwitchableControllerActions', 'getRecursiveStoragePids']);
-        $this->mockTypoScriptService->expects($this->any())->method('convertTypoScriptArrayToPlainArray')->with($configuration)->will($this->returnValue($configuration));
-        $abstractConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
-        $abstractConfigurationManager->setConfiguration($configuration);
-        $abstractConfigurationManager->expects($this->any())->method('getPluginConfiguration')->will($this->returnValue([]));
-        $abstractConfigurationManager->expects($this->once())->method('overrideSwitchableControllerActions');
-        $abstractConfigurationManager->getConfiguration();
-    }
-
-    /**
-     * @test
-     */
-    public function orderOfActionsCanBeOverriddenForCurrentPlugin()
-    {
-        $configuration = [
-            'extensionName' => 'CurrentExtensionName',
-            'pluginName' => 'CurrentPluginName',
-            'switchableControllerActions' => [
-                'Controller1' => ['action2', 'action1', 'action3']
-            ]
-        ];
-        $this->mockTypoScriptService->expects($this->any())->method('convertTypoScriptArrayToPlainArray')->with($configuration)->will($this->returnValue($configuration));
-        $this->abstractConfigurationManager->setConfiguration($configuration);
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testPluginConfiguration));
-        $this->abstractConfigurationManager->expects($this->once())->method('getSwitchableControllerActions')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testSwitchableControllerActions));
-        $this->abstractConfigurationManager->expects($this->once())->method('getContextSpecificFrameworkConfiguration')->will($this->returnCallback(function ($a) {
-            return $a;
-        }));
-        $mergedConfiguration = $this->abstractConfigurationManager->getConfiguration();
-        $expectedResult = [
-            'Controller1' => [
-                'actions' => ['action2', 'action1', 'action3']
-            ]
-        ];
-        $actualResult = $mergedConfiguration['controllerConfiguration'];
-        $this->assertEquals($expectedResult, $actualResult);
-    }
-
-    /**
-     * @test
-     */
-    public function newActionsCanBeAddedForCurrentPlugin()
-    {
-        $configuration = [
-            'extensionName' => 'CurrentExtensionName',
-            'pluginName' => 'CurrentPluginName',
-            'switchableControllerActions' => [
-                'Controller1' => ['action2', 'action1', 'action3', 'newAction']
-            ]
-        ];
-        $this->mockTypoScriptService->expects($this->any())->method('convertTypoScriptArrayToPlainArray')->with($configuration)->will($this->returnValue($configuration));
-        $this->abstractConfigurationManager->setConfiguration($configuration);
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testPluginConfiguration));
-        $this->abstractConfigurationManager->expects($this->once())->method('getSwitchableControllerActions')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testSwitchableControllerActions));
-        $this->abstractConfigurationManager->expects($this->once())->method('getContextSpecificFrameworkConfiguration')->will($this->returnCallback(function ($a) {
-            return $a;
-        }));
-        $mergedConfiguration = $this->abstractConfigurationManager->getConfiguration();
-        $expectedResult = [
-            'Controller1' => [
-                'actions' => ['action2', 'action1', 'action3', 'newAction']
-            ]
-        ];
-        $actualResult = $mergedConfiguration['controllerConfiguration'];
-        $this->assertEquals($expectedResult, $actualResult);
-    }
-
-    /**
-     * @test
-     */
-    public function controllersCanNotBeOverridden()
-    {
-        $configuration = [
-            'extensionName' => 'CurrentExtensionName',
-            'pluginName' => 'CurrentPluginName',
-            'switchableControllerActions' => [
-                'NewController' => ['action1', 'action2']
-            ]
-        ];
-        $this->mockTypoScriptService->expects($this->any())->method('convertTypoScriptArrayToPlainArray')->with($configuration)->will($this->returnValue($configuration));
-        $this->abstractConfigurationManager->setConfiguration($configuration);
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testPluginConfiguration));
-        $this->abstractConfigurationManager->expects($this->once())->method('getSwitchableControllerActions')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testSwitchableControllerActions));
-        $this->abstractConfigurationManager->expects($this->once())->method('getContextSpecificFrameworkConfiguration')->will($this->returnCallback(function ($a) {
-            return $a;
-        }));
-        $mergedConfiguration = $this->abstractConfigurationManager->getConfiguration();
-        $expectedResult = [];
-        $actualResult = $mergedConfiguration['controllerConfiguration'];
-        $this->assertEquals($expectedResult, $actualResult);
-    }
-
-    /**
-     * @test
-     */
-    public function cachingOfActionsCanNotBeChanged()
-    {
-        $configuration = [
-            'extensionName' => 'CurrentExtensionName',
-            'pluginName' => 'CurrentPluginName',
-            'switchableControllerActions' => [
-                'Controller1' => ['newAction', 'action1'],
-                'Controller2' => ['newAction2', 'action4', 'action5']
-            ]
-        ];
-        $this->mockTypoScriptService->expects($this->any())->method('convertTypoScriptArrayToPlainArray')->with($configuration)->will($this->returnValue($configuration));
-        $this->abstractConfigurationManager->setConfiguration($configuration);
-        $this->abstractConfigurationManager->expects($this->once())->method('getPluginConfiguration')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testPluginConfiguration));
-        $this->abstractConfigurationManager->expects($this->once())->method('getSwitchableControllerActions')->with('CurrentExtensionName', 'CurrentPluginName')->will($this->returnValue($this->testSwitchableControllerActions));
-        $this->abstractConfigurationManager->expects($this->once())->method('getContextSpecificFrameworkConfiguration')->will($this->returnCallback(function ($a) {
-            return $a;
-        }));
-        $mergedConfiguration = $this->abstractConfigurationManager->getConfiguration();
-        $expectedResult = [
-            'Controller1' => [
-                'actions' => ['newAction', 'action1']
-            ],
-            'Controller2' => [
-                'actions' => ['newAction2', 'action4', 'action5'],
-                'nonCacheableActions' => ['action4']
-            ]
-        ];
-        $actualResult = $mergedConfiguration['controllerConfiguration'];
-        $this->assertEquals($expectedResult, $actualResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getContentObjectReturnsNullIfNoContentObjectHasBeenSet()
-    {
-        $this->assertNull($this->abstractConfigurationManager->getContentObject());
-    }
-
-    /**
-     * @test
-     */
-    public function getContentObjectTheCurrentContentObject()
-    {
-        $mockContentObject = $this->createMock(\TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::class);
+        /** @var ContentObjectRenderer|\PHPUnit\Framework\MockObject\MockObject $mockContentObject */
+        $mockContentObject = $this->createMock(ContentObjectRenderer::class);
         $this->abstractConfigurationManager->setContentObject($mockContentObject);
-        $this->assertSame($this->abstractConfigurationManager->getContentObject(), $mockContentObject);
+        self::assertSame($this->abstractConfigurationManager->getContentObject(), $mockContentObject);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tree\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,15 @@ namespace TYPO3\CMS\Backend\Tree\View;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Routing\Router;
+namespace TYPO3\CMS\Backend\Tree\View;
+
 use TYPO3\CMS\Backend\Routing\UriBuilder;
-use TYPO3\CMS\Backend\Tree\Pagetree\Commands;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
-use TYPO3\CMS\Core\Database\Query\Restriction\BackendWorkspaceRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -36,15 +35,15 @@ abstract class AbstractTreeView
     // EXTERNAL, static:
     // If set, the first element in the tree is always expanded.
     /**
-     * @var int
+     * @var bool
      */
-    public $expandFirst = 0;
+    public $expandFirst = false;
 
     // If set, then ALL items will be expanded, regardless of stored settings.
     /**
-     * @var int
+     * @var bool
      */
-    public $expandAll = 0;
+    public $expandAll = false;
 
     // Holds the current script to reload to.
     /**
@@ -94,7 +93,7 @@ abstract class AbstractTreeView
      * Needs to be initialized with $GLOBALS['BE_USER']
      * Done by default in init()
      *
-     * @var \TYPO3\CMS\Core\Authentication\BackendUserAuthentication
+     * @var \TYPO3\CMS\Core\Authentication\BackendUserAuthentication|string
      */
     public $BE_USER = '';
 
@@ -105,9 +104,9 @@ abstract class AbstractTreeView
      * values are the ID of the root element (COULD be zero or anything else.
      * For pages that would be the uid of the page, zero for the pagetree root.)
      *
-     * @var array|NULL
+     * @var array|null
      */
-    public $MOUNTS = null;
+    public $MOUNTS;
 
     /**
      * Database table to get the tree data from.
@@ -155,7 +154,7 @@ abstract class AbstractTreeView
      * List of other fields which are ALLOWED to set (here, based on the "pages" table!)
      *
      * @see addField()
-     * @var array
+     * @var string
      */
     public $defaultList = 'uid,pid,tstamp,sorting,deleted,perms_userid,perms_groupid,perms_user,perms_group,perms_everybody,crdate,cruser_id';
 
@@ -194,14 +193,6 @@ abstract class AbstractTreeView
      */
     public $setRecs = 0;
 
-    /**
-     * Sets the associative array key which identifies a new sublevel if arrays are used for trees.
-     * This value has formerly been "subLevel" and "--sublevel--"
-     *
-     * @var string
-     */
-    public $subLevelID = '_SUB_LEVEL';
-
     // *********
     // Internal
     // *********
@@ -236,19 +227,6 @@ abstract class AbstractTreeView
      * @var array
      */
     public $specUIDmap = [];
-
-    // For arrays:
-    // Holds the input data array
-    /**
-     * @var bool
-     */
-    public $data = false;
-
-    // Holds an index with references to the data array.
-    /**
-     * @var bool
-     */
-    public $dataLookup = false;
 
     // For both types
     // Tree is accumulated in this variable
@@ -289,12 +267,8 @@ abstract class AbstractTreeView
     protected function determineScriptUrl()
     {
         if ($routePath = GeneralUtility::_GP('route')) {
-            $router = GeneralUtility::makeInstance(Router::class);
-            $route = $router->match($routePath);
             $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-            $this->thisScript = (string)$uriBuilder->buildUriFromRoute($route->getOption('_identifier'));
-        } elseif ($moduleName = GeneralUtility::_GP('M')) {
-            $this->thisScript = BackendUtility::getModuleUrl($moduleName);
+            $this->thisScript = (string)$uriBuilder->buildUriFromRoutePath($routePath);
         } else {
             $this->thisScript = GeneralUtility::getIndpEnv('SCRIPT_NAME');
         }
@@ -331,9 +305,6 @@ abstract class AbstractTreeView
         }
         // Sets the tree name which is used to identify the tree, used for JavaScript and other things
         $this->treeName = str_replace('_', '', $this->treeName ?: $this->table);
-        // Setting this to FALSE disables the use of array-trees by default
-        $this->data = false;
-        $this->dataLookup = false;
     }
 
     /**
@@ -402,7 +373,7 @@ abstract class AbstractTreeView
                 if ($this->ext_showPathAboveMounts) {
                     $mountPointPid = $rootRec['pid'];
                     if ($lastMountPointPid !== $mountPointPid) {
-                        $title = Commands::getMountPointPath($mountPointPid);
+                        $title = $this->getMountPointPath((int)$mountPointPid);
                         $this->tree[] = ['isMountPointPath' => true, 'title' => $title];
                     }
                     $lastMountPointPid = $mountPointPid;
@@ -501,7 +472,7 @@ abstract class AbstractTreeView
      * @param int $nextCount The number of sub-elements to the current element.
      * @param bool $isOpen The element was expanded to render subelements if this flag is set.
      * @return string Image tag with the plus/minus icon.
-     * @access private
+     * @internal
      * @see \TYPO3\CMS\Backend\Tree\View\PageTreeView::PMicon()
      */
     public function PMicon($row, $a, $c, $nextCount, $isOpen)
@@ -510,9 +481,8 @@ abstract class AbstractTreeView
             $cmd = $this->bank . '_' . ($isOpen ? '0_' : '1_') . $row['uid'] . '_' . $this->treeName;
             $bMark = $this->bank . '_' . $row['uid'];
             return $this->PM_ATagWrap('', $cmd, $bMark, $isOpen);
-        } else {
-            return '';
         }
+        return '';
     }
 
     /**
@@ -523,7 +493,7 @@ abstract class AbstractTreeView
      * @param string $bMark If set, the link will have an anchor point (=$bMark) and a name attribute (=$bMark)
      * @param bool $isOpen
      * @return string Link-wrapped input string
-     * @access private
+     * @internal
      */
     public function PM_ATagWrap($icon, $cmd, $bMark = '', $isOpen = false)
     {
@@ -532,9 +502,8 @@ abstract class AbstractTreeView
             $name = $bMark ? ' name="' . $bMark . '"' : '';
             $aUrl = $this->getThisScript() . 'PM=' . $cmd . $anchor;
             return '<a class="list-tree-control ' . ($isOpen ? 'list-tree-control-open' : 'list-tree-control-closed') . '" href="' . htmlspecialchars($aUrl) . '"' . $name . '><i class="fa"></i></a>';
-        } else {
-            return $icon;
         }
+        return $icon;
     }
 
     /**
@@ -544,7 +513,7 @@ abstract class AbstractTreeView
      * @param array $row Item record
      * @param int $bank Bank pointer (which mount point number)
      * @return string
-     * @access private
+     * @internal
      */
     public function wrapTitle($title, $row, $bank = 0)
     {
@@ -558,7 +527,7 @@ abstract class AbstractTreeView
      * @param string $icon The image tag for the icon
      * @param array $row The row for the current element
      * @return string The processed icon input value.
-     * @access private
+     * @internal
      */
     public function wrapIcon($icon, $row)
     {
@@ -583,7 +552,7 @@ abstract class AbstractTreeView
      * @param string $str Input string, like a page title for the tree
      * @param array $row record row with "php_tree_stop" field
      * @return string Modified string
-     * @access private
+     * @internal
      */
     public function wrapStop($str, $row)
     {
@@ -605,25 +574,25 @@ abstract class AbstractTreeView
      *
      * @param int $id Record id/key
      * @return bool
-     * @access private
+     * @internal
      * @see \TYPO3\CMS\Backend\Tree\View\PageTreeView::expandNext()
      */
     public function expandNext($id)
     {
-        return $this->stored[$this->bank][$id] || $this->expandAll ? 1 : 0;
+        return !empty($this->stored[$this->bank][$id]) || $this->expandAll;
     }
 
     /**
      * Get stored tree structure AND updating it if needed according to incoming PM GET var.
      *
-     * @access private
+     * @internal
      */
     public function initializePositionSaving()
     {
         // Get stored tree structure:
-        $this->stored = unserialize($this->BE_USER->uc['browseTrees'][$this->treeName]);
+        $this->stored = json_decode($this->BE_USER->uc['browseTrees'][$this->treeName], true);
         // PM action
-        // (If an plus/minus icon has been clicked, the PM GET var is sent and we
+        // (If a plus/minus icon has been clicked, the PM GET var is sent and we
         // must update the stored positions in the tree):
         // 0: mount key, 1: set/clear boolean, 2: item ID (cannot contain "_"), 3: treeName
         $PM = explode('_', GeneralUtility::_GP('PM'));
@@ -645,11 +614,11 @@ abstract class AbstractTreeView
      * Saves the content of ->stored (keeps track of expanded positions in the tree)
      * $this->treeName will be used as key for BE_USER->uc[] to store it in
      *
-     * @access private
+     * @internal
      */
     public function savePosition()
     {
-        $this->BE_USER->uc['browseTrees'][$this->treeName] = serialize($this->stored);
+        $this->BE_USER->uc['browseTrees'][$this->treeName] = json_encode($this->stored);
         $this->BE_USER->writeUC();
     }
 
@@ -699,7 +668,7 @@ abstract class AbstractTreeView
     public function getTitleStr($row, $titleLen = 30)
     {
         $title = htmlspecialchars(GeneralUtility::fixed_lgd_cs($row['title'], $titleLen));
-        $title = trim($row['title']) === '' ? '<em>[' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.no_title')) . ']</em>' : $title;
+        $title = trim($row['title']) === '' ? '<em>[' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title')) . ']</em>' : $title;
         return $title;
     }
 
@@ -739,7 +708,7 @@ abstract class AbstractTreeView
 
     /********************************
      *
-     * tree data buidling
+     * tree data building
      *
      ********************************/
     /**
@@ -748,7 +717,6 @@ abstract class AbstractTreeView
      * @param int $uid item id for which to select subitems (parent id)
      * @param int $depth Max depth (recursivity limit)
      * @param string $depthData HTML-code prefix for recursive calls.
-
      * @return int The count of items on the level
      */
     public function getTree($uid, $depth = 999, $depthData = '')
@@ -765,8 +733,7 @@ abstract class AbstractTreeView
         $idH = [];
         // Traverse the records:
         while ($crazyRecursionLimiter > 0 && ($row = $this->getDataNext($res))) {
-            $pageUid = ($this->table === 'pages') ? $row['uid'] : $row['pid'];
-            if (!$this->getBackendUser()->isInWebMount($pageUid)) {
+            if (!$this->getBackendUser()->isInWebMount($this->table === 'pages' ? $row : $row['pid'])) {
                 // Current record is not within web mount => skip it
                 continue;
             }
@@ -775,7 +742,7 @@ abstract class AbstractTreeView
             $crazyRecursionLimiter--;
             $newID = $row['uid'];
             if ($newID == 0) {
-                throw new \RuntimeException('Endless recursion detected: TYPO3 has detected an error in the database. Please fix it manually (e.g. using phpMyAdmin) and change the UID of ' . $this->table . ':0 to a new value. See http://forge.typo3.org/issues/16150 to get more information about a possible cause.', 1294586383);
+                throw new \RuntimeException('Endless recursion detected: TYPO3 has detected an error in the database. Please fix it manually (e.g. using phpMyAdmin) and change the UID of ' . $this->table . ':0 to a new value. See https://forge.typo3.org/issues/16150 to get more information about a possible cause.', 1294586383);
             }
             // Reserve space.
             $this->tree[] = [];
@@ -839,20 +806,16 @@ abstract class AbstractTreeView
      *
      * @param int $uid Id to count subitems for
      * @return int
-     * @access private
+     * @internal
      */
     public function getCount($uid)
     {
-        if (is_array($this->data)) {
-            $res = $this->getDataInit($uid);
-            return $this->getDataCount($res);
-        } else {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->table);
-            $queryBuilder->getRestrictions()
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->table);
+        $queryBuilder->getRestrictions()
                 ->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-                ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
-            $count = $queryBuilder
+                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, (int)$this->BE_USER->workspace));
+        $count = $queryBuilder
                 ->count('uid')
                 ->from($this->table)
                 ->where(
@@ -865,8 +828,7 @@ abstract class AbstractTreeView
                 ->execute()
                 ->fetchColumn();
 
-            return (int)$count;
-        }
+        return (int)$count;
     }
 
     /**
@@ -889,11 +851,7 @@ abstract class AbstractTreeView
      */
     public function getRecord($uid)
     {
-        if (is_array($this->data)) {
-            return $this->dataLookup[$uid];
-        } else {
-            return BackendUtility::getRecordWSOL($this->table, $uid);
-        }
+        return BackendUtility::getRecordWSOL($this->table, $uid);
     }
 
     /**
@@ -904,24 +862,16 @@ abstract class AbstractTreeView
      * @param int $parentId parent item id
      *
      * @return mixed Data handle (Tables: An sql-resource, arrays: A parentId integer. -1 is returned if there were NO subLevel.)
-     * @access private
+     * @internal
      */
     public function getDataInit($parentId)
     {
-        if (is_array($this->data)) {
-            if (!is_array($this->dataLookup[$parentId][$this->subLevelID])) {
-                $parentId = -1;
-            } else {
-                reset($this->dataLookup[$parentId][$this->subLevelID]);
-            }
-            return $parentId;
-        } else {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->table);
-            $queryBuilder->getRestrictions()
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->table);
+        $queryBuilder->getRestrictions()
                 ->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-                ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
-            $queryBuilder
+                ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, (int)$this->BE_USER->workspace));
+        $queryBuilder
                 ->select(...$this->fieldArray)
                 ->from($this->table)
                 ->where(
@@ -932,13 +882,12 @@ abstract class AbstractTreeView
                     QueryHelper::stripLogicalOperatorPrefix($this->clause)
                 );
 
-            foreach (QueryHelper::parseOrderBy($this->orderByFields) as $orderPair) {
-                list($fieldName, $order) = $orderPair;
-                $queryBuilder->addOrderBy($fieldName, $order);
-            }
-
-            return $queryBuilder->execute();
+        foreach (QueryHelper::parseOrderBy($this->orderByFields) as $orderPair) {
+            [$fieldName, $order] = $orderPair;
+            $queryBuilder->addOrderBy($fieldName, $order);
         }
+
+        return $queryBuilder->execute();
     }
 
     /**
@@ -946,16 +895,12 @@ abstract class AbstractTreeView
      *
      * @param mixed $res Data handle
      * @return int number of items
-     * @access private
+     * @internal
      * @see getDataInit()
      */
     public function getDataCount(&$res)
     {
-        if (is_array($this->data)) {
-            return count($this->dataLookup[$res][$this->subLevelID]);
-        } else {
-            return $res->rowCount();
-        }
+        return $res->rowCount();
     }
 
     /**
@@ -963,83 +908,57 @@ abstract class AbstractTreeView
      *
      * @param mixed $res Data handle
      *
-     * @return array item data array OR FALSE if end of elements.
-     * @access private
+     * @return array|bool item data array OR FALSE if end of elements.
+     * @internal
      * @see getDataInit()
      */
     public function getDataNext(&$res)
     {
-        if (is_array($this->data)) {
-            if ($res < 0) {
-                $row = false;
-            } else {
-                list(, $row) = each($this->dataLookup[$res][$this->subLevelID]);
+        while ($row = $res->fetch()) {
+            BackendUtility::workspaceOL($this->table, $row, $this->BE_USER->workspace, true);
+            if (is_array($row)) {
+                break;
             }
-            return $row;
-        } else {
-            while ($row = $res->fetch()) {
-                BackendUtility::workspaceOL($this->table, $row, $this->BE_USER->workspace, true);
-                if (is_array($row)) {
-                    break;
-                }
-            }
-            return $row;
         }
+        return $row;
     }
 
     /**
      * Getting the tree data: frees data handle
      *
      * @param mixed $res Data handle
-     * @access private
+     * @internal
      */
     public function getDataFree(&$res)
     {
-        if (!is_array($this->data)) {
-            $res->closeCursor();
-        }
+        $res->closeCursor();
     }
 
     /**
-     * Used to initialize class with an array to browse.
-     * The array inputted will be traversed and an internal index for lookup is created.
-     * The keys of the input array are perceived as "uid"s of records which means that keys GLOBALLY must be unique like uids are.
-     * "uid" and "pid" "fakefields" are also set in each record.
-     * All other fields are optional.
+     * Returns the mount point path for a temporary mount or the given id
      *
-     * @param array $dataArr The input array, see examples below in this script.
-     * @param bool $traverse Internal, for recursion.
-     * @param int $pid Internal, for recursion.
+     * @param int $uid
+     * @return string
      */
-    public function setDataFromArray(&$dataArr, $traverse = false, $pid = 0)
+    protected function getMountPointPath(int $uid): string
     {
-        if (!$traverse) {
-            $this->data = &$dataArr;
-            $this->dataLookup = [];
-            // Add root
-            $this->dataLookup[0][$this->subLevelID] = &$dataArr;
+        if ($uid <= 0) {
+            return '';
         }
-        foreach ($dataArr as $uid => $val) {
-            $dataArr[$uid]['uid'] = $uid;
-            $dataArr[$uid]['pid'] = $pid;
-            // Gives quick access to id's
-            $this->dataLookup[$uid] = &$dataArr[$uid];
-            if (is_array($val[$this->subLevelID])) {
-                $this->setDataFromArray($dataArr[$uid][$this->subLevelID], true, $uid);
+        $rootline = array_reverse(BackendUtility::BEgetRootLine($uid));
+        array_shift($rootline);
+        $path = [];
+        foreach ($rootline as $rootlineElement) {
+            $record = BackendUtility::getRecordWSOL('pages', $rootlineElement['uid'], 'title, nav_title', '', true, true);
+            $text = $record['title'];
+            if ((bool)($this->getBackendUser()->getTSConfig()['options.']['pageTree.']['showNavTitle'] ?? false)
+                && trim($record['nav_title'] ?? '') !== ''
+            ) {
+                $text = $record['nav_title'];
             }
+            $path[] = htmlspecialchars($text);
         }
-    }
-
-    /**
-     * Sets the internal data arrays
-     *
-     * @param array $treeArr Content for $this->data
-     * @param array $treeLookupArr Content for $this->dataLookup
-     */
-    public function setDataFromTreeArray(&$treeArr, &$treeLookupArr)
-    {
-        $this->data = &$treeArr;
-        $this->dataLookup = &$treeLookupArr;
+        return '/' . implode('/', $path);
     }
 
     /**

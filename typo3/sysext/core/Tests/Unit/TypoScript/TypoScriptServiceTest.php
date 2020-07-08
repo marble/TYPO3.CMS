@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Service;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +15,21 @@ namespace TYPO3\CMS\Core\Tests\Unit\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\TypoScript;
+
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TypoScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TypoScriptServiceTest extends UnitTestCase
 {
     /**
      * data provider for convertTypoScriptArrayToPlainArray
      * @return array
      */
-    public function convertTypoScriptArrayToPlainArrayTestdata()
+    public function convertTypoScriptArrayToPlainArrayTestdata(): array
     {
         return [
             'simple typoscript array' => [
@@ -151,11 +155,13 @@ class TypoScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
      * @param mixed $typoScriptSettings
      * @param mixed $expectedSettings
      */
-    public function convertTypoScriptArrayToPlainArrayRemovesTrailingDotsWithChangedOrderInTheTypoScriptArray($typoScriptSettings, $expectedSettings)
-    {
+    public function convertTypoScriptArrayToPlainArrayRemovesTrailingDotsWithChangedOrderInTheTypoScriptArray(
+        $typoScriptSettings,
+        $expectedSettings
+    ): void {
         $typoScriptService = new TypoScriptService();
         $processedSettings = $typoScriptService->convertTypoScriptArrayToPlainArray($typoScriptSettings);
-        $this->assertEquals($expectedSettings, $processedSettings);
+        self::assertEquals($expectedSettings, $processedSettings);
     }
 
     /**
@@ -163,7 +169,7 @@ class TypoScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
      *
      * @return array
      */
-    public function convertPlainArrayToTypoScriptArrayTestdata()
+    public function convertPlainArrayToTypoScriptArrayTestdata(): array
     {
         return [
             'simple typoscript' => [
@@ -285,17 +291,17 @@ class TypoScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
      * @param mixed $extbaseTS
      * @param mixed $classic
      */
-    public function convertPlainArrayToTypoScriptArray($extbaseTS, $classic)
+    public function convertPlainArrayToTypoScriptArray($extbaseTS, $classic): void
     {
         $typoScriptService = new TypoScriptService();
         $converted = $typoScriptService->convertPlainArrayToTypoScriptArray($extbaseTS);
-        $this->assertEquals($converted, $classic);
+        self::assertEquals($converted, $classic);
     }
 
     /**
      * @return array
      */
-    public function explodeConfigurationForOptionSplitProvider()
+    public function explodeConfigurationForOptionSplitProvider(): array
     {
         return [
             [
@@ -408,10 +414,10 @@ class TypoScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
      * @dataProvider explodeConfigurationForOptionSplitProvider
      * @see https://docs.typo3.org/typo3cms/TyposcriptReference/ObjectsAndProperties/Index.html#objects-optionsplit
      */
-    public function explodeConfigurationForOptionSplitTest($configuration, $splitCount, $expected)
+    public function explodeConfigurationForOptionSplitTest($configuration, $splitCount, $expected): void
     {
         $serviceObject = new TypoScriptService();
         $actual = $serviceObject->explodeConfigurationForOptionSplit($configuration, $splitCount);
-        $this->assertSame($expected, $actual);
+        self::assertSame($expected, $actual);
     }
 }

@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Install\Tests\Unit\UpgradeAnalysis;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,13 +15,17 @@ namespace TYPO3\CMS\Install\Tests\Unit\UpgradeAnalysis;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Tests\Unit\UpgradeAnalysis;
+
 use org\bovigo\vfs\vfsStream;
 use org\bovigo\vfs\vfsStreamDirectory;
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Utility\VersionNumberUtility;
 use TYPO3\CMS\Install\UpgradeAnalysis\DocumentationFile;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
-class DocumentationFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DocumentationFileTest extends UnitTestCase
 {
     /**
      * @var DocumentationFile
@@ -42,8 +45,9 @@ class DocumentationFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
     /**
      * set up test environment
      */
-    public function setUp()
+    public function setUp(): void
     {
+        parent::setUp();
         $content_12345 = [
             '====',
             'Breaking: #12345 - Issue',
@@ -76,6 +80,7 @@ class DocumentationFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             'Some more content'
         ];
 
+        $currentVersion = (int)explode('.', VersionNumberUtility::getNumericTypo3Version())[0];
         $structure = [
             'Changelog' => [
                 '1.2' => [
@@ -86,8 +91,21 @@ class DocumentationFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
                 '2.0' => [
                     'Important-98574-Issue.rst' => implode("\n", $content_98574),
                 ],
+                $currentVersion-3 . '.0' => [
+                    'Important-98574-Issue.rst' => implode("\n", $content_98574),
+                ],
+                $currentVersion-2 . '.0' => [
+                    'Important-98574-Issue.rst' => implode("\n", $content_98574),
+                ],
+                $currentVersion-1 . '.0' => [
+                    'Important-98574-Issue.rst' => implode("\n", $content_98574),
+                ],
+                $currentVersion . '.0' => [
+                    'Important-98574-Issue.rst' => implode("\n", $content_98574),
+                ],
                 'master' => [
                     'Breaking-13579-Issue.rst' => implode("\n", $content_13579),
+                    'Important-13579-Issue.rst' => implode("\n", $content_13579),
                     'Index.rst' => '',
                 ],
             ],
@@ -96,8 +114,10 @@ class DocumentationFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         $this->docRoot = vfsStream::setup('root', null, $structure);
 
         $this->registry = $this->prophesize(Registry::class);
-        $this->documentationFileService = new DocumentationFile($this->registry->reveal(),
-            vfsStream::url('root/Changelog'));
+        $this->documentationFileService = new DocumentationFile(
+            $this->registry->reveal(),
+            vfsStream::url('root/Changelog')
+        );
     }
 
     /**
@@ -134,16 +154,27 @@ class DocumentationFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
     /**
      * @test
      */
-    public function findDocumentationFilesReturnsArrayOfFiles()
+    public function findDocumentationFilesReturnsArrayOfFilesForTheLastThreeMajorVersions()
     {
+        $currentVersion = (int)explode('.', VersionNumberUtility::getNumericTypo3Version())[0];
         $expected = [
-            '1.2' => [],
-            '2.0' => [],
+            $currentVersion-2 . '.0' => [],
+            $currentVersion-1 . '.0' => [],
+            $currentVersion . '.0' => [],
             'master' => [],
         ];
 
-        $result = $this->documentationFileService->findDocumentationFiles(vfsStream::url('root/Changelog'));
-        self::assertEquals(array_keys($expected), array_keys($result));
+        $result = $this->documentationFileService->findDocumentationDirectories(vfsStream::url('root/Changelog'));
+        self::assertEquals(array_keys($expected), $result);
+    }
+
+    /**
+     * @test
+     */
+    public function findDocumentsRespectsFilesWithSameIssueNumber()
+    {
+        $result = $this->documentationFileService->findDocumentationFiles(vfsStream::url('root/Changelog/master'));
+        self::assertCount(2, $result);
     }
 
     /**
@@ -153,10 +184,11 @@ class DocumentationFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
     {
         $expected = [
             'unittest',
-            'cat:Important',
+            'Important',
         ];
-        $result = $this->documentationFileService->findDocumentationFiles(vfsStream::url('root/Changelog'));
-        self::assertEquals($expected, $result['2.0'][98574]['tags']);
+        $result = $this->documentationFileService->findDocumentationFiles(vfsStream::url('root/Changelog/2.0'));
+        $firstResult = current($result);
+        self::assertEquals($expected, $firstResult['tags']);
     }
 
     /**
@@ -165,11 +197,14 @@ class DocumentationFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
     public function filesAreFilteredByUsersChoice()
     {
         $ignoredFiles = ['vfs://root/Changelog/1.2/Breaking-12345-Issue.rst'];
-        $this->registry->get('upgradeAnalysisIgnoreFilter', 'ignoredDocumentationFiles',
-            Argument::any())->willReturn($ignoredFiles);
+        $this->registry->get(
+            'upgradeAnalysisIgnoreFilter',
+            'ignoredDocumentationFiles',
+            Argument::any()
+        )->willReturn($ignoredFiles);
 
-        $result = $this->documentationFileService->findDocumentationFiles(vfsStream::url('root/Changelog'));
-        self::assertArrayNotHasKey(12345, $result['1.2']);
+        $result = $this->documentationFileService->findDocumentationFiles(vfsStream::url('root/Changelog/1.2'));
+        self::assertArrayNotHasKey(12345, $result);
     }
 
     /**

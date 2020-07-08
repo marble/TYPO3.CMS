@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,25 +13,33 @@ namespace TYPO3\CMS\Backend\Tests\Unit\View;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\View;
+
+use TYPO3\CMS\Backend\View\BackendLayoutView;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Testing behaviour of \TYPO3\CMS\Backend\View\BackendLayoutView
  */
-class BackendLayoutViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class BackendLayoutViewTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Backend\View\BackendLayoutView|\PHPUnit_Framework_MockObject_MockObject
+     * @var \TYPO3\CMS\Backend\View\BackendLayoutView|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $backendLayoutView;
 
     /**
      * Sets up this test case.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->backendLayoutView = $this->getAccessibleMock(
-            \TYPO3\CMS\Backend\View\BackendLayoutView::class,
+            BackendLayoutView::class,
             ['getPage', 'getRootLine'],
-            [], '', false
+            [],
+            '',
+            false
         );
     }
 
@@ -47,15 +54,15 @@ class BackendLayoutViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
     {
         $pageId = $page['uid'];
 
-        $this->backendLayoutView->expects($this->once())
-            ->method('getPage')->with($this->equalTo($pageId))
-            ->will($this->returnValue($page));
-        $this->backendLayoutView->expects($this->any())
-            ->method('getRootLine')->with($this->equalTo($pageId))
-            ->will($this->returnValue($rootLine));
+        $this->backendLayoutView->expects(self::once())
+            ->method('getPage')->with(self::equalTo($pageId))
+            ->willReturn($page);
+        $this->backendLayoutView->expects(self::any())
+            ->method('getRootLine')->with(self::equalTo($pageId))
+            ->willReturn($rootLine);
 
         $selectedCombinedIdentifier = $this->backendLayoutView->_call('getSelectedCombinedIdentifier', $pageId);
-        $this->assertEquals($expected, $selectedCombinedIdentifier);
+        self::assertEquals($expected, $selectedCombinedIdentifier);
     }
 
     /**

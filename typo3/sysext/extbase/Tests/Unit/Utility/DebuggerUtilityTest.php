@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,12 +12,17 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Utility;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\Tests\Unit\Utility;
+
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
 use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DebuggerUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DebuggerUtilityTest extends UnitTestCase
 {
     /**
      * @test
@@ -26,7 +30,7 @@ class DebuggerUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function debuggerRewindsInstancesOfIterator()
     {
         /** @var $objectStorage \TYPO3\CMS\Extbase\Persistence\ObjectStorage */
-        $objectStorage = $this->getMockBuilder(\TYPO3\CMS\Extbase\Persistence\ObjectStorage::class)
+        $objectStorage = $this->getMockBuilder(ObjectStorage::class)
             ->setMethods(['dummy'])
             ->getMock();
         for ($i = 0; $i < 5; $i++) {
@@ -35,7 +39,21 @@ class DebuggerUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             $objectStorage->attach($obj);
         }
         DebuggerUtility::var_dump($objectStorage, null, 8, true, false, true);
-        $this->assertTrue($objectStorage->valid());
+        self::assertTrue($objectStorage->valid());
+    }
+
+    /**
+     * @test
+     */
+    public function debuggerDoesNotRewindInstancesOfGenerator()
+    {
+        $generator = (function () {
+            yield 1;
+            yield 2;
+            yield 3;
+        })();
+        $result = DebuggerUtility::var_dump($generator, null, 8, true, false, true);
+        self::assertStringContainsString('Generator', $result);
     }
 
     /**
@@ -46,7 +64,17 @@ class DebuggerUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $testObject = new \stdClass();
         $testObject->foo = 'bar';
         $result = DebuggerUtility::var_dump($testObject, null, 8, true, false, true);
-        $this->assertRegExp('/foo.*bar/', $result);
+        self::assertRegExp('/foo.*bar/', $result);
+    }
+
+    /**
+     * @test
+     */
+    public function varDumpHandlesVariadicArguments()
+    {
+        $result = DebuggerUtility::var_dump(function (...$args) {
+        }, null, 8, true, false, true);
+        self::assertStringContainsString('function (...$args)', $result);
     }
 
     /**
@@ -59,7 +87,7 @@ class DebuggerUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $testClass->notSoSecretData = 'I like burger.';
 
         $result = DebuggerUtility::var_dump($testClass, null, 8, true, false, true, null, ['secretData']);
-        self::assertNotContains($testClass->secretData, $result);
+        self::assertStringNotContainsString($testClass->secretData, $result);
     }
 
     /**
@@ -71,6 +99,28 @@ class DebuggerUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $testClass->data = 'I like burger.';
 
         $result = DebuggerUtility::var_dump($testClass, null, 8, true, false, true, [\stdClass::class]);
-        self::assertNotContains($testClass->data, $result);
+        self::assertStringNotContainsString($testClass->data, $result);
+    }
+
+    /**
+     * @test
+     */
+    public function varDumpShowsDumpOfDateTime()
+    {
+        $date = \DateTime::createFromFormat('Y-m-d H:i:s', '2018-11-26 09:27:28', new \DateTimeZone('UTC'));
+
+        $result = DebuggerUtility::var_dump($date, null, 8, true, false, true, [\stdClass::class]);
+        self::assertStringContainsString('2018-11-26T09:27:28', $result);
+    }
+
+    /**
+     * @test
+     */
+    public function varDumpShowsDumpOfDateTimeImmutable()
+    {
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', '2018-11-26 09:27:28', new \DateTimeZone('UTC'));
+
+        $result = DebuggerUtility::var_dump($date, null, 8, true, false, true, [\stdClass::class]);
+        self::assertStringContainsString('2018-11-26T09:27:28', $result);
     }
 }

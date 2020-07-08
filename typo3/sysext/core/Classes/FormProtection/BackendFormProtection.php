@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\FormProtection;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,10 @@ namespace TYPO3\CMS\Core\FormProtection;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\FormProtection;
+
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Error\Exception;
 use TYPO3\CMS\Core\Registry;
 
 /**
@@ -101,7 +103,7 @@ class BackendFormProtection extends AbstractFormProtection
         $this->registry = $registry;
         $this->validationFailedCallback = $validationFailedCallback;
         if (!$this->isAuthorizedBackendSession()) {
-            throw new \TYPO3\CMS\Core\Error\Exception('A back-end form protection may only be instantiated if there is an active back-end session.', 1285067843);
+            throw new Exception('A back-end form protection may only be instantiated if there is an active back-end session.', 1285067843);
         }
     }
 
@@ -124,7 +126,7 @@ class BackendFormProtection extends AbstractFormProtection
      * Saves the tokens so that they can be used by a later incarnation of this
      * class.
      *
-     * @access private
+     * @internal
      */
     public function persistSessionToken()
     {
@@ -135,7 +137,7 @@ class BackendFormProtection extends AbstractFormProtection
      * Sets the session token for the user from the registry
      * and returns it additionally.
      *
-     * @access private
+     * @internal
      * @return string
      * @throws \UnexpectedValueException
      */
@@ -152,7 +154,7 @@ class BackendFormProtection extends AbstractFormProtection
      * Stores the session token in the registry to have it
      * available during re-login of the user.
      *
-     * @access private
+     * @internal
      */
     public function storeSessionTokenInRegistry()
     {
@@ -162,7 +164,7 @@ class BackendFormProtection extends AbstractFormProtection
     /**
      * Removes the session token for the user from the registry.
      *
-     * @access private
+     * @internal
      */
     public function removeSessionTokenFromRegistry()
     {

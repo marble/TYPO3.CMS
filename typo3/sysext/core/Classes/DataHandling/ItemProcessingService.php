@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\DataHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\DataHandling;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\DataHandling;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -61,7 +62,7 @@ class ItemProcessingService
                 $fieldLabel = $languageService->sL($GLOBALS['TCA'][$table]['columns'][$field]['label']);
             }
             $message = sprintf(
-                $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:error.items_proc_func_error'),
+                $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:error.items_proc_func_error'),
                 $fieldLabel,
                 $exception->getMessage()
             );
@@ -73,7 +74,7 @@ class ItemProcessingService
                 FlashMessage::ERROR,
                 true
             );
-            /** @var $flashMessageService \TYPO3\CMS\Core\Messaging\FlashMessageService */
+            /** @var \TYPO3\CMS\Core\Messaging\FlashMessageService $flashMessageService */
             $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
             $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
             $defaultFlashMessageQueue->enqueue($flashMessage);

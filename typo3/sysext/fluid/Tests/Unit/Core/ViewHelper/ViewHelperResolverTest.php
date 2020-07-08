@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\Core\ViewHelper;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,32 +12,33 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\Core\ViewHelper;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\Core\ViewHelper;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Fluid\Core\ViewHelper\ViewHelperResolver;
 use TYPO3\CMS\Fluid\ViewHelpers\CObjectViewHelper;
 use TYPO3\CMS\Fluid\ViewHelpers\Format\HtmlentitiesViewHelper;
-use TYPO3Fluid\Fluid\ViewHelpers\RenderViewHelper;
+use TYPO3\CMS\Fluid\ViewHelpers\RenderViewHelper;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class ViewHelperResolverTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ViewHelperResolverTest extends UnitTestCase
 {
+    protected $resetSingletonInstances = true;
+
     /**
      * @test
      */
     public function createViewHelperInstanceCreatesViewHelperInstanceUsingObjectManager()
     {
-        $objectManager = $this->getMockBuilder(ObjectManager::class)
-            ->setMethods(['get'])
-            ->disableOriginalConstructor()
-            ->getMock();
-        $objectManager->expects($this->once())->method('get')->with('x')->willReturn('y');
-        $resolver = $this->getMockBuilder(ViewHelperResolver::class)
-            ->setMethods(['getObjectManager'])
-            ->getMock();
-        $resolver->expects($this->once())->method('getObjectManager')->willReturn($objectManager);
-        $this->assertEquals('y', $resolver->createViewHelperInstanceFromClassName('x'));
+        $objectManager = $this->prophesize(ObjectManager::class);
+        $objectManager->get('x')->willReturn(new \stdClass());
+        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManager->reveal());
+        self::assertInstanceOf(\stdClass::class, (new ViewHelperResolver())->createViewHelperInstanceFromClassName('x'));
     }
 
     /**
@@ -51,7 +51,7 @@ class ViewHelperResolverTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     public function resolveViewHelperClassNameResolvesExpectedViewHelperClassName($namespace, $method, $expected)
     {
         $viewHelperResolver = new ViewHelperResolver();
-        $this->assertEquals($expected, $viewHelperResolver->resolveViewHelperClassName($namespace, $method));
+        self::assertEquals($expected, $viewHelperResolver->resolveViewHelperClassName($namespace, $method));
     }
 
     /**

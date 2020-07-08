@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
+
 /**
  * Abstract parser for TYPO3's extension.xml file.
+ * @internal This class is a specific ExtensionManager implementation and is not part of the Public TYPO3 API.
  */
 abstract class AbstractExtensionXmlParser extends AbstractXmlParser
 {
@@ -24,131 +26,136 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
      *
      * @var string
      */
-    protected $authorcompany = null;
+    protected $authorcompany;
 
     /**
      * Keeps current author mail address of an extension's version.
      *
      * @var string
      */
-    protected $authoremail = null;
+    protected $authoremail;
 
     /**
      * Keeps current author name of an extension's version.
      *
      * @var string
      */
-    protected $authorname = null;
+    protected $authorname;
 
     /**
      * Keeps current category of an extension's version.
      *
      * @var string
      */
-    protected $category = null;
+    protected $category;
 
     /**
      * Keeps current dependencies of an extension's version.
      *
      * @var string
      */
-    protected $dependencies = null;
+    protected $dependencies;
 
     /**
      * Keeps current description of an extension's version.
      *
      * @var string
      */
-    protected $description = null;
+    protected $description;
 
     /**
      * Keeps current download number sum of all extension's versions.
      *
      * @var string
      */
-    protected $extensionDownloadCounter = null;
+    protected $extensionDownloadCounter;
 
     /**
      * Keeps current key of an extension.
      *
      * @var string
      */
-    protected $extensionKey = null;
+    protected $extensionKey;
 
     /**
      * Keeps current upload date of an extension's version.
      *
      * @var string
      */
-    protected $lastuploaddate = null;
+    protected $lastuploaddate;
 
     /**
      * Keeps current owner username of an extension's version.
      *
      * @var string
      */
-    protected $ownerusername = null;
+    protected $ownerusername;
 
     /**
      * Keeps current reviewstate of an extension's version.
      *
      * @var string
      */
-    protected $reviewstate = null;
+    protected $reviewstate;
 
     /**
      * Keeps current state of an extension's version.
      *
      * @var string
      */
-    protected $state = null;
+    protected $state;
 
     /**
      * Keeps current t3x file hash of an extension's version.
      *
      * @var string
      */
-    protected $t3xfilemd5 = null;
+    protected $t3xfilemd5;
 
     /**
      * Keeps current title of an extension's version.
      *
      * @var string
      */
-    protected $title = null;
+    protected $title;
 
     /**
      * Keeps current upload comment of an extension's version.
      *
      * @var string
      */
-    protected $uploadcomment = null;
+    protected $uploadcomment;
 
     /**
      * Keeps current version number.
      *
      * @var string
      */
-    protected $version = null;
+    protected $version;
 
     /**
      * Keeps current download number of an extension's version.
      *
      * @var string
      */
-    protected $versionDownloadCounter = null;
+    protected $versionDownloadCounter;
 
     /**
-     * Returns an assoziative array of all extension version properties.
+     * Link to the documentation
+     *
+     * @var string
+     */
+    protected $documentationLink;
+
+    /**
+     * Returns an associative array of all extension version properties.
      *
      * Valid array keys of returned array are:
      * extkey, version, alldownloadcounter, downloadcounter, title, description,
      * state, reviewstate, category, lastuploaddate, uploadcomment, dependencies,
      * authorname, authoremail, authorcompany, ownerusername, t3xfilemd5
      *
-     * @access public
-     * @see $extensionKey, $version, $extensionDownloadCounter,
-     * @return array assoziative array of an extension version's properties
+     * @return array associative array of an extension version's properties
      */
     public function getAll()
     {
@@ -170,15 +177,15 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
         $versionProperties['authorcompany'] = $this->authorcompany;
         $versionProperties['ownerusername'] = $this->ownerusername;
         $versionProperties['t3xfilemd5'] = $this->t3xfilemd5;
+        $versionProperties['documentationlink'] = $this->documentationLink;
         return $versionProperties;
     }
 
     /**
      * Returns download number sum of all extension's versions.
      *
-     * @access public
      * @return string download number sum
-     * @see $extensionDLCounter, getAll()
+     * @see getAll()
      */
     public function getAlldownloadcounter()
     {
@@ -188,9 +195,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns company name of extension author.
      *
-     * @access public
      * @return string company name of extension author
-     * @see $authorcompany, getAll()
+     * @see getAll()
      */
     public function getAuthorcompany()
     {
@@ -200,9 +206,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns e-mail address of extension author.
      *
-     * @access public
      * @return string e-mail address of extension author
-     * @see $authoremail, getAll()
+     * @see getAll()
      */
     public function getAuthoremail()
     {
@@ -212,9 +217,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns name of extension author.
      *
-     * @access public
      * @return string name of extension author
-     * @see $authorname, getAll()
+     * @see getAll()
      */
     public function getAuthorname()
     {
@@ -224,9 +228,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns category of an extension.
      *
-     * @access public
      * @return string extension category
-     * @see $category, getAll()
+     * @see getAll()
      */
     public function getCategory()
     {
@@ -236,9 +239,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns dependencies of an extension's version.
      *
-     * @access public
      * @return string extension dependencies
-     * @see $dependencies, getAll()
+     * @see getAll()
      */
     public function getDependencies()
     {
@@ -248,9 +250,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns description of an extension's version.
      *
-     * @access public
      * @return string extension description
-     * @see $description, getAll()
+     * @see getAll()
      */
     public function getDescription()
     {
@@ -260,9 +261,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns download number of an extension's version.
      *
-     * @access public
      * @return string download number
-     * @see $versionDLCounter, getAll()
+     * @see getAll()
      */
     public function getDownloadcounter()
     {
@@ -272,9 +272,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns key of an extension.
      *
-     * @access public
      * @return string extension key
-     * @see $extensionKey, getAll()
+     * @see getAll()
      */
     public function getExtkey()
     {
@@ -284,9 +283,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns last uploaddate of an extension's version.
      *
-     * @access public
      * @return string last upload date of an extension's version
-     * @see $lastuploaddate, getAll()
+     * @see getAll()
      */
     public function getLastuploaddate()
     {
@@ -296,9 +294,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns username of extension owner.
      *
-     * @access public
      * @return string extension owner's username
-     * @see $ownerusername, getAll()
+     * @see getAll()
      */
     public function getOwnerusername()
     {
@@ -308,9 +305,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns review state of an extension's version.
      *
-     * @access public
      * @return string extension review state
-     * @see $reviewstate, getAll()
+     * @see getAll()
      */
     public function getReviewstate()
     {
@@ -320,9 +316,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns state of an extension's version.
      *
-     * @access public
      * @return string extension state
-     * @see $state, getAll()
+     * @see getAll()
      */
     public function getState()
     {
@@ -332,9 +327,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns t3x file hash of an extension's version.
      *
-     * @access public
-     * @return string t3x file hash	 *
-     * @see $t3xfilemd5, getAll()
+     * @return string t3x file hash
+     * @see getAll()
      */
     public function getT3xfilemd5()
     {
@@ -344,9 +338,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns title of an extension's version.
      *
-     * @access public
      * @return string extension title
-     * @see $title, getAll()
+     * @see getAll()
      */
     public function getTitle()
     {
@@ -356,9 +349,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns extension upload comment.
      *
-     * @access public
      * @return string extension upload comment
-     * @see $uploadcomment, getAll()
+     * @see getAll()
      */
     public function getUploadcomment()
     {
@@ -368,9 +360,8 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     /**
      * Returns version number.
      *
-     * @access public
      * @return string version number
-     * @see $version, getAll()
+     * @see getAll()
      */
     public function getVersion()
     {
@@ -378,17 +369,24 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     }
 
     /**
+     * @return string
+     */
+    public function getDocumentationLink()
+    {
+        return $this->documentationLink;
+    }
+
+    /**
      * Method resets version class properties.
      *
      * @param bool $resetAll If TRUE, additionally extension properties are reset
-     * @see $extensionKey, $version, $extensionDLCounter, $versionDLCounter,
      */
     protected function resetProperties($resetAll = false)
     {
         // resetting at least class property "version" is mandatory
         // as we need to do some magic in regards to
         // an extension's and version's child node "downloadcounter"
-        $this->version = $this->title = $this->versionDownloadCounter = $this->description = $this->state = $this->reviewstate = $this->category = $this->lastuploaddate = $this->uploadcomment = $this->dependencies = $this->authorname = $this->authoremail = $this->authorcompany = $this->ownerusername = $this->t3xfilemd5 = null;
+        $this->version = $this->title = $this->versionDownloadCounter = $this->description = $this->state = $this->reviewstate = $this->category = $this->lastuploaddate = $this->uploadcomment = $this->dependencies = $this->authorname = $this->authoremail = $this->authorcompany = $this->ownerusername = $this->t3xfilemd5 = $this->documentationLink = null;
         if ($resetAll) {
             $this->extensionKey = $this->extensionDownloadCounter = null;
         }
@@ -403,7 +401,7 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     protected function convertDependencies($dependencies)
     {
         $newDependencies = [];
-        $dependenciesArray = unserialize($dependencies);
+        $dependenciesArray = unserialize($dependencies, ['allowed_classes' => false]);
         if (is_array($dependenciesArray)) {
             foreach ($dependenciesArray as $version) {
                 if (!empty($version['kind']) && !empty($version['extensionKey'])) {

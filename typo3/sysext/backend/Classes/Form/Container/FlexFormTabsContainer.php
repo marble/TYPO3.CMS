@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Container;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Form\Container;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\Container;
+
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -25,6 +26,17 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class FlexFormTabsContainer extends AbstractContainer
 {
+    /**
+     * Default field information enabled for this element.
+     *
+     * @var array
+     */
+    protected $defaultFieldInformation = [
+        'tcaDescription' => [
+            'renderType' => 'tcaDescription',
+        ],
+    ];
+
     /**
      * Entry method
      *
@@ -42,6 +54,7 @@ class FlexFormTabsContainer extends AbstractContainer
         $flexFormRowData = $this->data['flexFormRowData'];
 
         $resultArray = $this->initializeResultArray();
+
         $resultArray['requireJsModules'][] = 'TYPO3/CMS/Backend/Tabs';
 
         $domIdPrefix = 'DTM-' . GeneralUtility::shortMD5($this->data['parameterArray']['itemFormElName']);
@@ -55,7 +68,7 @@ class FlexFormTabsContainer extends AbstractContainer
                 continue;
             }
 
-            $tabCounter ++;
+            $tabCounter++;
 
             // Assemble key for loading the correct CSH file
             // @todo: what is that good for? That is for the title of single elements ... see FlexFormElementContainer!
@@ -84,17 +97,23 @@ class FlexFormTabsContainer extends AbstractContainer
             $options['renderType'] = 'flexFormElementContainer';
             $childReturn = $this->nodeFactory->create($options)->render();
 
-            $tabElements[] = [
-                'label' => !empty(trim($sheetDataStructure['ROOT']['sheetTitle'])) ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetTitle'])) : $sheetName,
-                'content' => $childReturn['html'],
-                'description' => trim($sheetDataStructure['ROOT']['sheetDescription']) ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetDescription'])) : '',
-                'linkTitle' => trim($sheetDataStructure['ROOT']['sheetShortDescr']) ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetShortDescr'])) : '',
-            ];
+            if ($childReturn['html'] !== '') {
+                $tabElements[] = [
+                    'label' => !empty(trim($sheetDataStructure['ROOT']['sheetTitle'])) ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetTitle'])) : $sheetName,
+                    'content' => $childReturn['html'],
+                    'description' => trim($sheetDataStructure['ROOT']['sheetDescription']) ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetDescription'])) : '',
+                    'linkTitle' => trim($sheetDataStructure['ROOT']['sheetShortDescr']) ? $languageService->sL(trim($sheetDataStructure['ROOT']['sheetShortDescr'])) : '',
+                ];
 
-            $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $childReturn, false);
+                $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $childReturn, false);
+            }
         }
 
-        $resultArray['html'] = $this->renderTabMenu($tabElements, $domIdPrefix);
+        $fieldInformationResult = $this->renderFieldInformation();
+        $resultArray['html'] = '<div>' . $fieldInformationResult['html'] . '</div>';
+        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
+
+        $resultArray['html'] .= $this->renderTabMenu($tabElements, $domIdPrefix);
         return $resultArray;
     }
 

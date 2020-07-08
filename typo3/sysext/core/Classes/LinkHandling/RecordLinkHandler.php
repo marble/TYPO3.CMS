@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\LinkHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\LinkHandling;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\LinkHandling;
 
 /**
  * Resolves links to records and the parameters given
@@ -41,6 +43,10 @@ class RecordLinkHandler implements LinkHandlingInterface
         }
         $urn = $this->baseUrn;
         $urn .= sprintf('?identifier=%s&uid=%s', $parameters['identifier'], $parameters['uid']);
+
+        if (!empty($parameters['fragment'])) {
+            $urn .= sprintf('#%s', $parameters['fragment']);
+        }
 
         return $urn;
     }

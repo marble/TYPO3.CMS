@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,32 +12,46 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Configuration;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\Tests\Unit\Configuration;
+
 use Prophecy\Prophecy\ObjectProphecy;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\QueryGenerator;
+use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Configuration\BackendConfigurationManager;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class BackendConfigurationManagerTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Extbase\Configuration\BackendConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var \TYPO3\CMS\Extbase\Configuration\BackendConfigurationManager|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $backendConfigurationManager;
 
     /**
-     * @var \TYPO3\CMS\Core\TypoScript\TypoScriptService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var \TYPO3\CMS\Core\TypoScript\TypoScriptService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $mockTypoScriptService;
 
     /**
      * Sets up this testcase
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->backendConfigurationManager = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Configuration\BackendConfigurationManager::class, ['getTypoScriptSetup']);
-        $this->mockTypoScriptService = $this->getAccessibleMock(\TYPO3\CMS\Core\TypoScript\TypoScriptService::class);
+        parent::setUp();
+        $this->backendConfigurationManager = $this->getAccessibleMock(
+            BackendConfigurationManager::class,
+            ['getTypoScriptSetup'],
+            [],
+            '',
+            false
+        );
+        $this->mockTypoScriptService = $this->getMockBuilder(TypoScriptService::class)->getMock();
         $this->backendConfigurationManager->_set('typoScriptService', $this->mockTypoScriptService);
     }
 
@@ -47,10 +60,10 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
      */
     public function getCurrentPageIdReturnsPageIdFromGet()
     {
-        \TYPO3\CMS\Core\Utility\GeneralUtility::_GETset(['id' => 123]);
+        $_GET['id'] = 123;
         $expectedResult = 123;
         $actualResult = $this->backendConfigurationManager->_call('getCurrentPageId');
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -58,11 +71,11 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
      */
     public function getCurrentPageIdReturnsPageIdFromPost()
     {
-        \TYPO3\CMS\Core\Utility\GeneralUtility::_GETset(['id' => 123]);
+        $_GET['id'] = 123;
         $_POST['id'] = 321;
         $expectedResult = 321;
         $actualResult = $this->backendConfigurationManager->_call('getCurrentPageId');
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -70,10 +83,10 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
      */
     public function getPluginConfigurationReturnsEmptyArrayIfNoPluginConfigurationWasFound()
     {
-        $this->backendConfigurationManager->expects($this->once())->method('getTypoScriptSetup')->will($this->returnValue(['foo' => 'bar']));
+        $this->backendConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn(['foo' => 'bar']);
         $expectedResult = [];
         $actualResult = $this->backendConfigurationManager->_call('getPluginConfiguration', 'SomeExtensionName', 'SomePluginName');
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -96,15 +109,15 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
                 'tx_someextensionname.' => $testSettings
             ]
         ];
-        $this->mockTypoScriptService->expects($this->any())->method('convertTypoScriptArrayToPlainArray')->with($testSettings)->will($this->returnValue($testSettingsConverted));
-        $this->backendConfigurationManager->expects($this->once())->method('getTypoScriptSetup')->will($this->returnValue($testSetup));
+        $this->mockTypoScriptService->expects(self::any())->method('convertTypoScriptArrayToPlainArray')->with($testSettings)->willReturn($testSettingsConverted);
+        $this->backendConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($testSetup);
         $expectedResult = [
             'settings' => [
                 'foo' => 'bar'
             ]
         ];
         $actualResult = $this->backendConfigurationManager->_call('getPluginConfiguration', 'SomeExtensionName');
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -127,15 +140,15 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
                 'tx_someextensionname_somepluginname.' => $testSettings
             ]
         ];
-        $this->mockTypoScriptService->expects($this->any())->method('convertTypoScriptArrayToPlainArray')->with($testSettings)->will($this->returnValue($testSettingsConverted));
-        $this->backendConfigurationManager->expects($this->once())->method('getTypoScriptSetup')->will($this->returnValue($testSetup));
+        $this->mockTypoScriptService->expects(self::any())->method('convertTypoScriptArrayToPlainArray')->with($testSettings)->willReturn($testSettingsConverted);
+        $this->backendConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($testSetup);
         $expectedResult = [
             'settings' => [
                 'foo' => 'bar'
             ]
         ];
         $actualResult = $this->backendConfigurationManager->_call('getPluginConfiguration', 'SomeExtensionName', 'SomePluginName');
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -162,7 +175,7 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
         $testPluginSettings = [
             'settings.' => [
                 'some.' => [
-                    'nested' => 'valueOverridde',
+                    'nested' => 'valueOverride',
                     'new' => 'value'
                 ]
             ]
@@ -170,7 +183,7 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
         $testPluginSettingsConverted = [
             'settings' => [
                 'some' => [
-                    'nested' => 'valueOverridde',
+                    'nested' => 'valueOverride',
                     'new' => 'value'
                 ]
             ]
@@ -181,39 +194,39 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
                 'tx_someextensionname_somepluginname.' => $testPluginSettings
             ]
         ];
-        $this->mockTypoScriptService->expects($this->at(0))->method('convertTypoScriptArrayToPlainArray')->with($testExtensionSettings)->will($this->returnValue($testExtensionSettingsConverted));
-        $this->mockTypoScriptService->expects($this->at(1))->method('convertTypoScriptArrayToPlainArray')->with($testPluginSettings)->will($this->returnValue($testPluginSettingsConverted));
-        $this->backendConfigurationManager->expects($this->once())->method('getTypoScriptSetup')->will($this->returnValue($testSetup));
+        $this->mockTypoScriptService->expects(self::at(0))->method('convertTypoScriptArrayToPlainArray')->with($testExtensionSettings)->willReturn($testExtensionSettingsConverted);
+        $this->mockTypoScriptService->expects(self::at(1))->method('convertTypoScriptArrayToPlainArray')->with($testPluginSettings)->willReturn($testPluginSettingsConverted);
+        $this->backendConfigurationManager->expects(self::once())->method('getTypoScriptSetup')->willReturn($testSetup);
         $expectedResult = [
             'settings' => [
                 'foo' => 'bar',
                 'some' => [
-                    'nested' => 'valueOverridde',
+                    'nested' => 'valueOverride',
                     'new' => 'value'
                 ]
             ]
         ];
         $actualResult = $this->backendConfigurationManager->_call('getPluginConfiguration', 'SomeExtensionName', 'SomePluginName');
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function getSwitchableControllerActionsReturnsEmptyArrayByDefault()
+    public function getControllerConfigurationReturnsEmptyArrayByDefault()
     {
         $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['extbase'] = null;
         $expectedResult = [];
-        $actualResult = $this->backendConfigurationManager->_call('getSwitchableControllerActions', 'SomeExtensionName', 'SomePluginName');
-        $this->assertEquals($expectedResult, $actualResult);
+        $actualResult = $this->backendConfigurationManager->_call('getControllerConfiguration', 'SomeExtensionName', 'SomePluginName');
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function getSwitchableControllerActionsReturnsConfigurationStoredInExtconf()
+    public function getControllerConfigurationReturnsConfigurationStoredInExtconf()
     {
-        $testSwitchableControllerActions = [
+        $controllerConfiguration = [
             'Controller1' => [
                 'actions' => [
                     'action1',
@@ -230,67 +243,10 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
                 ]
             ]
         ];
-        $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['extbase']['extensions']['SomeExtensionName']['modules']['SomePluginName']['controllers'] = $testSwitchableControllerActions;
-        $expectedResult = $testSwitchableControllerActions;
-        $actualResult = $this->backendConfigurationManager->_call('getSwitchableControllerActions', 'SomeExtensionName', 'SomePluginName');
-        $this->assertEquals($expectedResult, $actualResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getContextSpecificFrameworkConfigurationReturnsUnmodifiedFrameworkConfigurationIfRequestHandlersAreConfigured()
-    {
-        $frameworkConfiguration = [
-            'pluginName' => 'Pi1',
-            'extensionName' => 'SomeExtension',
-            'foo' => [
-                'bar' => [
-                    'baz' => 'Foo'
-                ]
-            ],
-            'mvc' => [
-                'requestHandlers' => [
-                    \TYPO3\CMS\Extbase\Mvc\Web\FrontendRequestHandler::class => 'SomeRequestHandler'
-                ]
-            ]
-        ];
-        $expectedResult = $frameworkConfiguration;
-        $actualResult = $this->backendConfigurationManager->_call('getContextSpecificFrameworkConfiguration', $frameworkConfiguration);
-        $this->assertEquals($expectedResult, $actualResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getContextSpecificFrameworkConfigurationSetsDefaultRequestHandlersIfRequestHandlersAreNotConfigured()
-    {
-        $frameworkConfiguration = [
-            'pluginName' => 'Pi1',
-            'extensionName' => 'SomeExtension',
-            'foo' => [
-                'bar' => [
-                    'baz' => 'Foo'
-                ]
-            ]
-        ];
-        $expectedResult = [
-            'pluginName' => 'Pi1',
-            'extensionName' => 'SomeExtension',
-            'foo' => [
-                'bar' => [
-                    'baz' => 'Foo'
-                ]
-            ],
-            'mvc' => [
-                'requestHandlers' => [
-                    \TYPO3\CMS\Extbase\Mvc\Web\FrontendRequestHandler::class => \TYPO3\CMS\Extbase\Mvc\Web\FrontendRequestHandler::class,
-                    \TYPO3\CMS\Extbase\Mvc\Web\BackendRequestHandler::class => \TYPO3\CMS\Extbase\Mvc\Web\BackendRequestHandler::class
-                ]
-            ]
-        ];
-        $actualResult = $this->backendConfigurationManager->_call('getContextSpecificFrameworkConfiguration', $frameworkConfiguration);
-        $this->assertEquals($expectedResult, $actualResult);
+        $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['extbase']['extensions']['SomeExtensionName']['modules']['SomePluginName']['controllers'] = $controllerConfiguration;
+        $expectedResult = $controllerConfiguration;
+        $actualResult = $this->backendConfigurationManager->_call('getControllerConfiguration', 'SomeExtensionName', 'SomePluginName');
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -298,24 +254,30 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
      */
     public function storagePidsAreExtendedIfRecursiveSearchIsConfigured()
     {
-        $storagePid = '1,2,3';
+        $storagePids = [1, 2, 3];
         $recursive = 99;
 
         /** @var \TYPO3\CMS\Core\Authentication\BackendUserAuthentication|ObjectProphecy $beUserAuthentication */
-        $beUserAuthentication = $this->prophesize(\TYPO3\CMS\Core\Authentication\BackendUserAuthentication::class);
+        $beUserAuthentication = $this->prophesize(BackendUserAuthentication::class);
         $beUserAuthentication->getPagePermsClause(1)->willReturn('1=1');
         $GLOBALS['BE_USER'] = $beUserAuthentication->reveal();
 
-        $abstractConfigurationManager = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Configuration\BackendConfigurationManager::class, ['overrideSwitchableControllerActions', 'getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getSwitchableControllerActions']);
-        $queryGenerator = $this->createMock(\TYPO3\CMS\Core\Database\QueryGenerator::class);
-        $queryGenerator->expects($this->any())
+        $abstractConfigurationManager = $this->getAccessibleMock(
+            BackendConfigurationManager::class,
+            ['getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getControllerConfiguration'],
+            [],
+            '',
+            false
+        );
+        $queryGenerator = $this->createMock(QueryGenerator::class);
+        $queryGenerator->expects(self::any())
             ->method('getTreeList')
-            ->will($this->onConsecutiveCalls('4', '', '5,6'));
+            ->will(self::onConsecutiveCalls('4', '', '5,6'));
         GeneralUtility::addInstance(QueryGenerator::class, $queryGenerator);
 
-        $expectedResult = '4,5,6';
-        $actualResult = $abstractConfigurationManager->_call('getRecursiveStoragePids', $storagePid, $recursive);
-        $this->assertEquals($expectedResult, $actualResult);
+        $expectedResult = [4, 5, 6];
+        $actualResult = $abstractConfigurationManager->_call('getRecursiveStoragePids', $storagePids, $recursive);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -323,24 +285,30 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
      */
     public function storagePidsAreExtendedIfRecursiveSearchIsConfiguredAndWithPidIncludedForNegativePid()
     {
-        $storagePid = '1,2,-3';
+        $storagePids = [1, 2, -3];
         $recursive = 99;
 
         /** @var \TYPO3\CMS\Core\Authentication\BackendUserAuthentication|ObjectProphecy $beUserAuthentication */
-        $beUserAuthentication = $this->prophesize(\TYPO3\CMS\Core\Authentication\BackendUserAuthentication::class);
+        $beUserAuthentication = $this->prophesize(BackendUserAuthentication::class);
         $beUserAuthentication->getPagePermsClause(1)->willReturn('1=1');
         $GLOBALS['BE_USER'] = $beUserAuthentication->reveal();
 
-        $abstractConfigurationManager = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Configuration\BackendConfigurationManager::class, ['overrideSwitchableControllerActions', 'getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getSwitchableControllerActions', 'getQueryGenerator']);
-        $queryGenerator = $this->createMock(\TYPO3\CMS\Core\Database\QueryGenerator::class);
-        $queryGenerator->expects($this->any())
+        $abstractConfigurationManager = $this->getAccessibleMock(
+            BackendConfigurationManager::class,
+            ['getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getControllerConfiguration', 'getQueryGenerator'],
+            [],
+            '',
+            false
+        );
+        $queryGenerator = $this->createMock(QueryGenerator::class);
+        $queryGenerator->expects(self::any())
             ->method('getTreeList')
-            ->will($this->onConsecutiveCalls('4', '', '3,5,6'));
+            ->will(self::onConsecutiveCalls('4', '', '3,5,6'));
         GeneralUtility::addInstance(QueryGenerator::class, $queryGenerator);
 
-        $expectedResult = '4,3,5,6';
-        $actualResult = $abstractConfigurationManager->_call('getRecursiveStoragePids', $storagePid, $recursive);
-        $this->assertEquals($expectedResult, $actualResult);
+        $expectedResult = [4, 3, 5, 6];
+        $actualResult = $abstractConfigurationManager->_call('getRecursiveStoragePids', $storagePids, $recursive);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -348,13 +316,19 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
      */
     public function storagePidsAreNotExtendedIfRecursiveSearchIsNotConfigured()
     {
-        $storagePid = '1,2,3';
+        $storagePids = [1, 2, 3];
 
-        $abstractConfigurationManager = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Configuration\BackendConfigurationManager::class, ['overrideSwitchableControllerActions', 'getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getSwitchableControllerActions']);
+        $abstractConfigurationManager = $this->getAccessibleMock(
+            BackendConfigurationManager::class,
+            ['getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getControllerConfiguration'],
+            [],
+            '',
+            false
+        );
 
-        $expectedResult = '1,2,3';
-        $actualResult = $abstractConfigurationManager->_call('getRecursiveStoragePids', $storagePid);
-        $this->assertEquals($expectedResult, $actualResult);
+        $expectedResult = [1, 2, 3];
+        $actualResult = $abstractConfigurationManager->_call('getRecursiveStoragePids', $storagePids);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -362,13 +336,19 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\
      */
     public function storagePidsAreNotExtendedIfRecursiveSearchIsConfiguredForZeroLevels()
     {
-        $storagePid = '1,2,3';
+        $storagePids = [1, 2, 3];
         $recursive = 0;
 
-        $abstractConfigurationManager = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Configuration\BackendConfigurationManager::class, ['overrideSwitchableControllerActions', 'getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getSwitchableControllerActions']);
+        $abstractConfigurationManager = $this->getAccessibleMock(
+            BackendConfigurationManager::class,
+            ['getContextSpecificFrameworkConfiguration', 'getTypoScriptSetup', 'getPluginConfiguration', 'getControllerConfiguration'],
+            [],
+            '',
+            false
+        );
 
-        $expectedResult = '1,2,3';
-        $actualResult = $abstractConfigurationManager->_call('getRecursiveStoragePids', $storagePid, $recursive);
-        $this->assertEquals($expectedResult, $actualResult);
+        $expectedResult = [1, 2, 3];
+        $actualResult = $abstractConfigurationManager->_call('getRecursiveStoragePids', $storagePids, $recursive);
+        self::assertEquals($expectedResult, $actualResult);
     }
 }

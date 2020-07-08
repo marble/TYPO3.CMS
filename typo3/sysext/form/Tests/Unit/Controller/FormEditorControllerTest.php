@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Controller;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,62 +15,56 @@ namespace TYPO3\CMS\Form\Tests\Unit\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Controller;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Form\Controller\FormEditorController;
 use TYPO3\CMS\Form\Domain\Exception\RenderingException;
 use TYPO3\CMS\Form\Service\TranslationService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FormEditorControllerTest extends UnitTestCase
 {
-
     /**
-     * @var array A backup of registered singleton instances
+     * @var bool Reset singletons created by subject
      */
-    protected $singletonInstances = [];
+    protected $resetSingletonInstances = true;
 
     /**
      * Set up
      */
-    public function setUp()
+    public function setUp(): void
     {
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-    }
-
-    /**
-     * Tear down
-     */
-    public function tearDown()
-    {
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
+        parent::setUp();
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['encryptionKey'] = '12345';
     }
 
     /**
      * @test
      */
-    public function getInsertRenderablesPanelConfigurationReturnsGroupedAndSortedConfiguration()
+    public function getInsertRenderablesPanelConfigurationReturnsGroupedAndSortedConfiguration(): void
     {
         $mockController = $this->getAccessibleMock(FormEditorController::class, [
             'dummy'
         ], [], '', false);
 
-        $objectMangerProphecy = $this->prophesize(ObjectManager::class);
-        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectMangerProphecy->reveal());
+        $objectManagerProphecy = $this->prophesize(ObjectManager::class);
+        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManagerProphecy->reveal());
 
         $mockTranslationService = $this->getAccessibleMock(TranslationService::class, [
             'translate'
         ], [], '', false);
 
         $mockTranslationService
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('translate')
             ->willReturnArgument(4);
 
-        $objectMangerProphecy
+        $objectManagerProphecy
             ->get(TranslationService::class)
             ->willReturn($mockTranslationService);
 
@@ -90,19 +85,19 @@ class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             'Password' => [
                 'group' => 'input',
                 'groupSorting' => 110,
-                'iconIdentifier' => 't3-form-icon-password',
+                'iconIdentifier' => 'form-password',
                 'label' => 'Password label',
             ],
             'Text' => [
                 'group' => 'input',
                 'groupSorting' => 100,
-                'iconIdentifier' => 't3-form-icon-text',
+                'iconIdentifier' => 'form-text',
                 'label' => 'Text label',
             ],
             'SingleSelect' => [
                 'group' => 'select',
                 'groupSorting' => 100,
-                'iconIdentifier' => 't3-form-icon-single-select',
+                'iconIdentifier' => 'form-single-select',
                 'label' => 'Single select label',
             ],
         ];
@@ -116,14 +111,14 @@ class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                         'cssKey' => 'text',
                         'label' => 'Text label',
                         'sorting' => 100,
-                        'iconIdentifier' => 't3-form-icon-text',
+                        'iconIdentifier' => 'form-text',
                     ],
                     1 => [
                         'key' => 'Password',
                         'cssKey' => 'password',
                         'label' => 'Password label',
                         'sorting' => 110,
-                        'iconIdentifier' => 't3-form-icon-password',
+                        'iconIdentifier' => 'form-password',
                     ],
                 ],
                 'label' => 'Basic elements',
@@ -136,38 +131,38 @@ class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                         'cssKey' => 'singleselect',
                         'label' => 'Single select label',
                         'sorting' => 100,
-                        'iconIdentifier' => 't3-form-icon-single-select',
+                        'iconIdentifier' => 'form-single-select',
                     ],
                 ],
                 'label' => 'Select elements',
             ],
         ];
 
-        $this->assertSame($expected, $mockController->_call('getInsertRenderablesPanelConfiguration', $input));
+        self::assertSame($expected, $mockController->_call('getInsertRenderablesPanelConfiguration', $input));
     }
 
     /**
      * @test
      */
-    public function getFormEditorDefinitionsReturnReducedConfiguration()
+    public function getFormEditorDefinitionsReturnReducedConfiguration(): void
     {
         $mockController = $this->getAccessibleMock(FormEditorController::class, [
             'dummy'
         ], [], '', false);
 
-        $objectMangerProphecy = $this->prophesize(ObjectManager::class);
-        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectMangerProphecy->reveal());
+        $objectManagerProphecy = $this->prophesize(ObjectManager::class);
+        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManagerProphecy->reveal());
 
         $mockTranslationService = $this->getAccessibleMock(TranslationService::class, [
             'translateValuesRecursive'
         ], [], '', false);
 
         $mockTranslationService
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('translateValuesRecursive')
             ->willReturnArgument(0);
 
-        $objectMangerProphecy
+        $objectManagerProphecy
             ->get(TranslationService::class)
             ->willReturn($mockTranslationService);
 
@@ -277,46 +272,13 @@ class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             ],
         ];
 
-        $this->assertSame($expected, $mockController->_call('getFormEditorDefinitions'));
+        self::assertSame($expected, $mockController->_call('getFormEditorDefinitions'));
     }
 
     /**
      * @test
      */
-    public function convertJsonArrayToAssociativeArrayReturnTransformedArray()
-    {
-        $mockController = $this->getAccessibleMock(FormEditorController::class, [
-            'dummy'
-        ], [], '', false);
-
-        $input = [
-            'francine' => 'stan',
-            'properties' => [
-                'options' => [
-                    0 => [
-                        '_label' => 'label',
-                        '_value' => 'value',
-                    ],
-                ],
-            ],
-        ];
-
-        $expected = [
-            'francine' => 'stan',
-            'properties' => [
-                'options' => [
-                    'value' => 'label',
-                ],
-            ],
-        ];
-
-        $this->assertSame($expected, $mockController->_call('convertJsonArrayToAssociativeArray', $input));
-    }
-
-    /**
-     * @test
-     */
-    public function renderFormEditorTemplatesThrowsExceptionIfLayoutRootPathsNotSet()
+    public function renderFormEditorTemplatesThrowsExceptionIfLayoutRootPathsNotSet(): void
     {
         $this->expectException(RenderingException::class);
         $this->expectExceptionCode(1480294721);
@@ -339,7 +301,7 @@ class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function renderFormEditorTemplatesThrowsExceptionIfLayoutRootPathsNotArray()
+    public function renderFormEditorTemplatesThrowsExceptionIfLayoutRootPathsNotArray(): void
     {
         $this->expectException(RenderingException::class);
         $this->expectExceptionCode(1480294721);
@@ -363,7 +325,7 @@ class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function renderFormEditorTemplatesThrowsExceptionIfPartialRootPathsNotSet()
+    public function renderFormEditorTemplatesThrowsExceptionIfPartialRootPathsNotSet(): void
     {
         $this->expectException(RenderingException::class);
         $this->expectExceptionCode(1480294722);
@@ -387,7 +349,7 @@ class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function renderFormEditorTemplatesThrowsExceptionIfPartialRootPathsNotArray()
+    public function renderFormEditorTemplatesThrowsExceptionIfPartialRootPathsNotArray(): void
     {
         $this->expectException(RenderingException::class);
         $this->expectExceptionCode(1480294722);
@@ -411,7 +373,7 @@ class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function renderFormEditorTemplatesThrowsExceptionIftemplatePathAndFilenameNotSet()
+    public function renderFormEditorTemplatesThrowsExceptionIfTemplatePathAndFilenameNotSet(): void
     {
         $this->expectException(RenderingException::class);
         $this->expectExceptionCode(1485636499);
@@ -427,5 +389,122 @@ class FormEditorControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         ]);
 
         $mockController->_call('renderFormEditorTemplates', []);
+    }
+
+    /**
+     * @test
+     */
+    public function transformMultiValuePropertiesForFormEditorConvertMultiValueDataIntoMetaData()
+    {
+        $mockController = $this->getAccessibleMock(FormEditorController::class, [
+            'dummy'
+        ], [], '', false);
+
+        $input = [
+            0 => [
+                'bar' => 'baz',
+            ],
+            1 => [
+                'type' => 'SOMEELEMENT',
+                'properties' => [
+                    'options' => [
+                        5 => '5',
+                        4 => '4',
+                        3 => '3',
+                        2 => '2',
+                        1 => '1',
+                    ],
+                ],
+            ],
+            2 => [
+                0 => [
+                    'type' => 'TEST',
+                    'properties' => [
+                        'options' => [
+                            5 => '5',
+                            4 => '4',
+                            3 => '3',
+                            2 => '2',
+                            1 => '1',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $multiValueProperties = [
+            'TEST' => [
+                0 => 'properties.options',
+            ],
+        ];
+
+        $expected = [
+            0 => [
+                'bar' => 'baz',
+            ],
+            1 => [
+                'type' => 'SOMEELEMENT',
+                'properties' => [
+                    'options' => [
+                        5 => '5',
+                        4 => '4',
+                        3 => '3',
+                        2 => '2',
+                        1 => '1',
+                    ],
+                ],
+            ],
+            2 => [
+                0 => [
+                    'type' => 'TEST',
+                    'properties' => [
+                        'options' => [
+                            ['_label' => '5', '_value' => 5],
+                            ['_label' => '4', '_value' => 4],
+                            ['_label' => '3', '_value' => 3],
+                            ['_label' => '2', '_value' => 2],
+                            ['_label' => '1', '_value' => 1],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        self::assertSame($expected, $mockController->_call('transformMultiValuePropertiesForFormEditor', $input, 'type', $multiValueProperties));
+    }
+
+    /**
+     * @test
+     */
+    public function filterEmptyArraysRemovesEmptyArrayKeys()
+    {
+        $mockController = $this->getAccessibleMock(FormEditorController::class, [
+            'dummy'
+        ], [], '', false);
+
+        $input = [
+            'heinz' => 1,
+            'klaus' => [],
+            'sabine' => [
+                'heinz' => '2',
+                'klaus' => [],
+                'horst' => [
+                    'heinz' => '',
+                    'paul' => [[]],
+                ],
+            ],
+        ];
+
+        $expected = [
+            'heinz' => 1,
+            'sabine' => [
+                'heinz' => '2',
+                'horst' => [
+                    'heinz' => '',
+                ],
+            ],
+        ];
+
+        self::assertSame($expected, $mockController->_call('filterEmptyArrays', $input));
     }
 }

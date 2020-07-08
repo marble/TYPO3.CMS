@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,25 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\UserTsConfig;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class UserTsConfigTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class UserTsConfigTest extends UnitTestCase
 {
     /**
      * @var UserTsConfig
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = new UserTsConfig();
     }
 
@@ -37,9 +41,10 @@ class UserTsConfigTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addDataSetsUserTypoScriptInResult()
     {
         $expected = ['foo'];
-        $GLOBALS['BE_USER'] = new \stdClass();
-        $GLOBALS['BE_USER']->userTS = $expected;
+        $backendUserAuthenticationProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $backendUserAuthenticationProphecy->getTSConfig()->willReturn($expected);
+        $GLOBALS['BE_USER'] = $backendUserAuthenticationProphecy->reveal();
         $result = $this->subject->addData([]);
-        $this->assertEquals($expected, $result['userTsConfig']);
+        self::assertEquals($expected, $result['userTsConfig']);
     }
 }

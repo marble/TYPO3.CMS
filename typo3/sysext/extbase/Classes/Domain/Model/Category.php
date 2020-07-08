@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,20 @@ namespace TYPO3\CMS\Extbase\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Domain\Model;
+
+use TYPO3\CMS\Extbase\Annotation as Extbase;
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
+use TYPO3\CMS\Extbase\Persistence\Generic\LazyLoadingProxy;
+
 /**
  * This model represents a category (for anything).
- *
- * @api
  */
-class Category extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
+class Category extends AbstractEntity
 {
     /**
      * @var string
-     * @validate notEmpty
+     * @Extbase\Validate("NotEmpty")
      */
     protected $title = '';
 
@@ -33,16 +36,15 @@ class Category extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     protected $description = '';
 
     /**
-     * @var \TYPO3\CMS\Extbase\Domain\Model\Category|NULL
-     * @lazy
+     * @var \TYPO3\CMS\Extbase\Domain\Model\Category|null
+     * @Extbase\ORM\Lazy
      */
-    protected $parent = null;
+    protected $parent;
 
     /**
      * Gets the title.
      *
      * @return string the title, might be empty
-     * @api
      */
     public function getTitle()
     {
@@ -53,7 +55,6 @@ class Category extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Sets the title.
      *
      * @param string $title the title to set, may be empty
-     * @api
      */
     public function setTitle($title)
     {
@@ -64,7 +65,6 @@ class Category extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Gets the description.
      *
      * @return string the description, might be empty
-     * @api
      */
     public function getDescription()
     {
@@ -75,7 +75,6 @@ class Category extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Sets the description.
      *
      * @param string $description the description to set, may be empty
-     * @api
      */
     public function setDescription($description)
     {
@@ -85,12 +84,11 @@ class Category extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     /**
      * Gets the parent category.
      *
-     * @return \TYPO3\CMS\Extbase\Domain\Model\Category|NULL the parent category
-     * @api
+     * @return \TYPO3\CMS\Extbase\Domain\Model\Category|null the parent category
      */
     public function getParent()
     {
-        if ($this->parent instanceof \TYPO3\CMS\Extbase\Persistence\Generic\LazyLoadingProxy) {
+        if ($this->parent instanceof LazyLoadingProxy) {
             $this->parent->_loadRealInstance();
         }
         return $this->parent;
@@ -100,7 +98,6 @@ class Category extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Sets the parent category.
      *
      * @param \TYPO3\CMS\Extbase\Domain\Model\Category $parent the parent category
-     * @api
      */
     public function setParent(\TYPO3\CMS\Extbase\Domain\Model\Category $parent)
     {

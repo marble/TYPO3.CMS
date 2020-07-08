@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\DataHandler;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,28 +15,44 @@ namespace TYPO3\CMS\Core\Tests\Unit\DataHandler;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\DataHandling;
+
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
+use TYPO3\CMS\Core\Database\RelationHandler;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\DataHandling\DataHandlerCheckModifyAccessListHookInterface;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\SysLog\Action as SystemLogGenericAction;
+use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
 use TYPO3\CMS\Core\Tests\Unit\DataHandling\Fixtures\AllowAccessHookFixture;
 use TYPO3\CMS\Core\Tests\Unit\DataHandling\Fixtures\InvalidHookFixture;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DataHandlerTest extends UnitTestCase
 {
+
+    /**
+     * @var bool Reset singletons created by subject
+     */
+    protected $resetSingletonInstances = true;
+
     /**
      * @var array A backup of registered singleton instances
      */
     protected $singletonInstances = [];
 
     /**
-     * @var DataHandler|\PHPUnit_Framework_MockObject_MockObject|AccessibleObjectInterface
+     * @var DataHandler|\PHPUnit\Framework\MockObject\MockObject|AccessibleObjectInterface
      */
     protected $subject;
 
@@ -47,33 +64,25 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * Set up the tests
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $GLOBALS['TCA'] = [];
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
+        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+        $cacheFrontendProphecy = $this->prophesize(FrontendInterface::class);
+        $cacheManagerProphecy->getCache('runtime')->willReturn($cacheFrontendProphecy->reveal());
         $this->backEndUser = $this->createMock(BackendUserAuthentication::class);
         $this->subject = $this->getAccessibleMock(DataHandler::class, ['dummy']);
         $this->subject->start([], '', $this->backEndUser);
     }
 
     /**
-     * Tear down the tests
-     */
-    protected function tearDown()
-    {
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
-    }
-
-    //////////////////////////////////////
-    // Tests for the basic functionality
-    //////////////////////////////////////
-    /**
      * @test
      */
     public function fixtureCanBeCreated()
     {
-        $this->assertTrue($this->subject instanceof DataHandler);
+        self::assertTrue($this->subject instanceof DataHandler);
     }
 
     //////////////////////////////////////////
@@ -85,7 +94,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function adminIsAllowedToModifyNonAdminTable()
     {
         $this->subject->admin = true;
-        $this->assertTrue($this->subject->checkModifyAccessList('tt_content'));
+        self::assertTrue($this->subject->checkModifyAccessList('tt_content'));
     }
 
     /**
@@ -94,7 +103,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function nonAdminIsNorAllowedToModifyNonAdminTable()
     {
         $this->subject->admin = false;
-        $this->assertFalse($this->subject->checkModifyAccessList('tt_content'));
+        self::assertFalse($this->subject->checkModifyAccessList('tt_content'));
     }
 
     /**
@@ -104,7 +113,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $this->subject->admin = false;
         $this->backEndUser->groupData['tables_modify'] = 'tt_content';
-        $this->assertTrue($this->subject->checkModifyAccessList('tt_content'));
+        self::assertTrue($this->subject->checkModifyAccessList('tt_content'));
     }
 
     /**
@@ -113,7 +122,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function adminIsAllowedToModifyAdminTable()
     {
         $this->subject->admin = true;
-        $this->assertTrue($this->subject->checkModifyAccessList('be_users'));
+        self::assertTrue($this->subject->checkModifyAccessList('be_users'));
     }
 
     /**
@@ -122,7 +131,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function nonAdminIsNotAllowedToModifyAdminTable()
     {
         $this->subject->admin = false;
-        $this->assertFalse($this->subject->checkModifyAccessList('be_users'));
+        self::assertFalse($this->subject->checkModifyAccessList('be_users'));
     }
 
     /**
@@ -130,7 +139,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function nonAdminWithTableModifyAccessIsNotAllowedToModifyAdminTable()
     {
-        $tableName = $this->getUniqueId('aTable');
+        $tableName = StringUtility::getUniqueId('aTable');
         $GLOBALS['TCA'] = [
             $tableName => [
                 'ctrl' => [
@@ -140,13 +149,13 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         $this->subject->admin = false;
         $this->backEndUser->groupData['tables_modify'] = $tableName;
-        $this->assertFalse($this->subject->checkModifyAccessList($tableName));
+        self::assertFalse($this->subject->checkModifyAccessList($tableName));
     }
 
     /**
      * @test
      */
-    public function evalCheckValueDouble2()
+    public function checkValueInputEvalWithEvalDouble2(): void
     {
         $testData = [
             '-0,5' => '-0.50',
@@ -158,11 +167,14 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         foreach ($testData as $value => $expectedReturnValue) {
             $returnValue = $this->subject->checkValue_input_Eval($value, ['double2'], '');
-            $this->assertSame($returnValue['value'], $expectedReturnValue);
+            self::assertSame($returnValue['value'], $expectedReturnValue);
         }
     }
 
-    public function dataProviderDatetime()
+    /**
+     * @return array
+     */
+    public function checkValueInputEvalWithEvalDatetimeDataProvider(): array
     {
         // Three elements: input, timezone of input, expected output (UTC)
         return [
@@ -177,9 +189,9 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
     /**
      * @test
-     * @dataProvider dataProviderDatetime
+     * @dataProvider checkValueInputEvalWithEvalDatetimeDataProvider
      */
-    public function evalCheckValueDatetime($input, $serverTimezone, $expectedOutput)
+    public function checkValueInputEvalWithEvalDatetime($input, $serverTimezone, $expectedOutput): void
     {
         $oldTimezone = date_default_timezone_get();
         date_default_timezone_set($serverTimezone);
@@ -189,7 +201,31 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         // set before the assertion is performed, so it is restored even for failing tests
         date_default_timezone_set($oldTimezone);
 
-        $this->assertEquals($expectedOutput, $output['value']);
+        self::assertEquals($expectedOutput, $output['value']);
+    }
+
+    /**
+     * @test
+     */
+    public function checkValueInputEvalWithSaltedPasswordKeepsExistingHash(): void
+    {
+        // Note the involved salted passwords are NOT mocked since the factory is static
+        $subject = new DataHandler();
+        $inputValue = '$1$GNu9HdMt$RwkPb28pce4nXZfnplVZY/';
+        $result = $subject->checkValue_input_Eval($inputValue, ['saltedPassword'], '', 'be_users');
+        self::assertSame($inputValue, $result['value']);
+    }
+
+    /**
+     * @test
+     */
+    public function checkValueInputEvalWithSaltedPasswordReturnsHashForSaltedPassword(): void
+    {
+        // Note the involved salted passwords are NOT mocked since the factory is static
+        $inputValue = 'myPassword';
+        $subject = new DataHandler();
+        $result = $subject->checkValue_input_Eval($inputValue, ['saltedPassword'], '', 'be_users');
+        self::assertNotSame($inputValue, $result['value']);
     }
 
     /**
@@ -204,12 +240,20 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '0',
                 0
             ],
-            '"-1999999" is interpreted correctly as -1999999 and is lot lower than -200000' => [
-                '-1999999',
-                -1999999
+            '"-2000001" is interpreted correctly as -2000001 but is lower than -2000000 and set to -2000000' => [
+                '-2000001',
+                -2000000
             ],
-            '"3000000" is interpreted correctly as 3000000 but is higher then 200000 and set to 200000' => [
-                '3000000',
+            '"-2000000" is interpreted correctly as -2000000 and is equal to -2000000' => [
+                '-2000000',
+                -2000000
+            ],
+            '"2000000" is interpreted correctly as 2000000 and is equal to 2000000' => [
+                '2000000',
+                2000000
+            ],
+            '"2000001" is interpreted correctly as 2000001 but is greater then 2000000 and set to 2000000' => [
+                '2000001',
                 2000000
             ],
         ];
@@ -232,7 +276,63 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ]
         ];
         $returnValue = $this->subject->_call('checkValueForInput', $value, $tcaFieldConf, '', 0, 0, '');
-        $this->assertSame($returnValue['value'], $expectedReturnValue);
+        self::assertSame($returnValue['value'], $expectedReturnValue);
+    }
+
+    /**
+     * @return array
+     */
+    public function inputValuesDataTimeDataProvider()
+    {
+        return [
+            'undershot date adjusted' => [
+                '2018-02-28T00:00:00Z',
+                1519862400,
+            ],
+            'exact lower date accepted' => [
+                '2018-03-01T00:00:00Z',
+                1519862400,
+            ],
+            'exact upper date accepted' => [
+                '2018-03-31T23:59:59Z',
+                1522540799,
+            ],
+            'exceeded date adjusted' => [
+                '2018-04-01T00:00:00Z',
+                1522540799,
+            ],
+        ];
+    }
+
+    /**
+     * @param string $value
+     * @param int $expected
+     *
+     * @test
+     * @dataProvider inputValuesDataTimeDataProvider
+     */
+    public function inputValueCheckRecognizesDateTimeValuesAsIntegerValuesCorrectly($value, int $expected)
+    {
+        $tcaFieldConf = [
+            'input' => [],
+            'eval' => 'datetime',
+            'range' => [
+                // unix timestamp: 1519862400
+                'lower' => gmmktime(0, 0, 0, 3, 1, 2018),
+                // unix timestamp: 1522540799
+                'upper' => gmmktime(23, 59, 59, 3, 31, 2018),
+            ]
+        ];
+
+        // @todo Switch to UTC since otherwise DataHandler removes timezone offset
+        $previousTimezone = date_default_timezone_get();
+        date_default_timezone_set('UTC');
+
+        $returnValue = $this->subject->_call('checkValueForInput', $value, $tcaFieldConf, '', 0, 0, '');
+
+        date_default_timezone_set($previousTimezone);
+
+        self::assertSame($returnValue['value'], $expected);
     }
 
     /**
@@ -246,7 +346,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'input' => []
                 ]
             ],
-            'tca with dbType != date/datetime' => [
+            'tca with dbType != date/datetime/time' => [
                 [
                     'input' => [],
                     'dbType' => 'foo'
@@ -289,12 +389,12 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function doesCheckModifyAccessListHookGetsCalled()
     {
-        $hookClass = $this->getUniqueId('tx_coretest');
-        $hookMock = $this->getMockBuilder(\TYPO3\CMS\Core\DataHandling\DataHandlerCheckModifyAccessListHookInterface::class)
+        $hookClass = StringUtility::getUniqueId('tx_coretest');
+        $hookMock = $this->getMockBuilder(DataHandlerCheckModifyAccessListHookInterface::class)
             ->setMethods(['checkModifyAccessList'])
             ->setMockClassName($hookClass)
             ->getMock();
-        $hookMock->expects($this->once())->method('checkModifyAccessList');
+        $hookMock->expects(self::once())->method('checkModifyAccessList');
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['checkModifyAccessList'][] = $hookClass;
         GeneralUtility::addInstance($hookClass, $hookMock);
         $this->subject->checkModifyAccessList('tt_content');
@@ -308,7 +408,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function doesCheckModifyAccessListHookModifyAccessAllowed()
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['checkModifyAccessList'][] = AllowAccessHookFixture::class;
-        $this->assertTrue($this->subject->checkModifyAccessList('tt_content'));
+        self::assertTrue($this->subject->checkModifyAccessList('tt_content'));
     }
 
     /////////////////////////////////////
@@ -326,7 +426,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->backEndUser->workspace = 1;
         $this->backEndUser->workspaceRec = ['freeze' => true];
         $subject->BE_USER = $this->backEndUser;
-        $this->assertFalse($subject->process_datamap());
+        self::assertFalse($subject->process_datamap());
     }
 
     /**
@@ -340,7 +440,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
 
-        /** @var $subject DataHandler|\PHPUnit_Framework_MockObject_MockObject */
+        /** @var $subject DataHandler|\PHPUnit\Framework\MockObject\MockObject */
         $subject = $this->getMockBuilder(DataHandler::class)
             ->setMethods([
                 'newlog',
@@ -368,25 +468,25 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $cacheManagerMock = $this->getMockBuilder(CacheManager::class)
             ->setMethods(['flushCachesInGroupByTags'])
             ->getMock();
-        $cacheManagerMock->expects($this->once())->method('flushCachesInGroupByTags')->with('pages', []);
+        $cacheManagerMock->expects(self::once())->method('flushCachesInGroupByTags')->with('pages', []);
 
-        $subject->expects($this->once())->method('getCacheManager')->willReturn($cacheManagerMock);
-        $subject->expects($this->once())->method('recordInfo')->will($this->returnValue(null));
-        $subject->expects($this->once())->method('checkModifyAccessList')->with('pages')->will($this->returnValue(true));
-        $subject->expects($this->once())->method('tableReadOnly')->with('pages')->will($this->returnValue(false));
-        $subject->expects($this->once())->method('checkRecordUpdateAccess')->will($this->returnValue(true));
-        $subject->expects($this->once())->method('unsetElementsToBeDeleted')->willReturnArgument(0);
+        $subject->expects(self::once())->method('getCacheManager')->willReturn($cacheManagerMock);
+        $subject->expects(self::once())->method('recordInfo')->willReturn(null);
+        $subject->expects(self::once())->method('checkModifyAccessList')->with('pages')->willReturn(true);
+        $subject->expects(self::once())->method('tableReadOnly')->with('pages')->willReturn(false);
+        $subject->expects(self::once())->method('checkRecordUpdateAccess')->willReturn(true);
+        $subject->expects(self::once())->method('unsetElementsToBeDeleted')->willReturnArgument(0);
 
-        /** @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject $backEndUser */
+        /** @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject $backEndUser */
         $backEndUser = $this->createMock(BackendUserAuthentication::class);
         $backEndUser->workspace = 1;
         $backEndUser->workspaceRec = ['freeze' => false];
-        $backEndUser->expects($this->once())->method('workspaceAllowAutoCreation')->will($this->returnValue(true));
-        $backEndUser->expects($this->once())->method('workspaceCannotEditRecord')->will($this->returnValue(true));
-        $backEndUser->expects($this->once())->method('recordEditAccessInternals')->with('pages', 1)->will($this->returnValue(true));
+        $backEndUser->expects(self::once())->method('workspaceAllowAutoCreation')->willReturn(true);
+        $backEndUser->expects(self::once())->method('workspaceCannotEditRecord')->willReturn(true);
+        $backEndUser->expects(self::once())->method('recordEditAccessInternals')->with('pages', 1)->willReturn(true);
         $subject->BE_USER = $backEndUser;
         $createdDataHandler = $this->createMock(DataHandler::class);
-        $createdDataHandler->expects($this->once())->method('start')->with([], [
+        $createdDataHandler->expects(self::once())->method('start')->with([], [
             'pages' => [
                 1 => [
                     'version' => [
@@ -396,8 +496,8 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ]
             ]
         ]);
-        $createdDataHandler->expects($this->never())->method('process_datamap');
-        $createdDataHandler->expects($this->once())->method('process_cmdmap');
+        $createdDataHandler->expects(self::never())->method('process_datamap');
+        $createdDataHandler->expects(self::once())->method('process_cmdmap');
         GeneralUtility::addInstance(DataHandler::class, $createdDataHandler);
         $subject->process_datamap();
     }
@@ -407,11 +507,11 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function doesCheckFlexFormValueHookGetsCalled()
     {
-        $hookClass = $this->getUniqueId('tx_coretest');
+        $hookClass = StringUtility::getUniqueId('tx_coretest');
         $hookMock = $this->getMockBuilder($hookClass)
             ->setMethods(['checkFlexFormValue_beforeMerge'])
             ->getMock();
-        $hookMock->expects($this->once())->method('checkFlexFormValue_beforeMerge');
+        $hookMock->expects(self::once())->method('checkFlexFormValue_beforeMerge');
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_tcemain.php']['checkFlexFormValue'][] = $hookClass;
         GeneralUtility::addInstance($hookClass, $hookMock);
         $flexFormToolsProphecy = $this->prophesize(FlexFormTools::class);
@@ -430,10 +530,10 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function logCallsWriteLogOfBackendUserIfLoggingIsEnabled()
     {
         $backendUser = $this->createMock(BackendUserAuthentication::class);
-        $backendUser->expects($this->once())->method('writelog');
+        $backendUser->expects(self::once())->method('writelog');
         $this->subject->enableLogging = true;
         $this->subject->BE_USER = $backendUser;
-        $this->subject->log('', 23, 0, 42, 0, 'details');
+        $this->subject->log('', 23, SystemLogGenericAction::UNDEFINED, 42, SystemLogErrorClassification::MESSAGE, 'details');
     }
 
     /**
@@ -442,10 +542,10 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function logDoesNotCallWriteLogOfBackendUserIfLoggingIsDisabled()
     {
         $backendUser = $this->createMock(BackendUserAuthentication::class);
-        $backendUser->expects($this->never())->method('writelog');
+        $backendUser->expects(self::never())->method('writelog');
         $this->subject->enableLogging = false;
         $this->subject->BE_USER = $backendUser;
-        $this->subject->log('', 23, 0, 42, 0, 'details');
+        $this->subject->log('', 23, SystemLogGenericAction::UNDEFINED, 42, SystemLogErrorClassification::MESSAGE, 'details');
     }
 
     /**
@@ -457,9 +557,9 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->subject->BE_USER = $backendUser;
         $this->subject->enableLogging = true;
         $this->subject->errorLog = [];
-        $logDetailsUnique = $this->getUniqueId('details');
-        $this->subject->log('', 23, 0, 42, 1, $logDetailsUnique);
-        $this->assertStringEndsWith($logDetailsUnique, $this->subject->errorLog[0]);
+        $logDetailsUnique = StringUtility::getUniqueId('details');
+        $this->subject->log('', 23, SystemLogGenericAction::UNDEFINED, 42, SystemLogErrorClassification::USER_ERROR, $logDetailsUnique);
+        self::assertStringEndsWith($logDetailsUnique, $this->subject->errorLog[0]);
     }
 
     /**
@@ -471,10 +571,10 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->subject->BE_USER = $backendUser;
         $this->subject->enableLogging = true;
         $this->subject->errorLog = [];
-        $logDetails = $this->getUniqueId('details');
-        $this->subject->log('', 23, 0, 42, 1, '%1$s' . $logDetails . '%2$s', -1, ['foo', 'bar']);
+        $logDetails = StringUtility::getUniqueId('details');
+        $this->subject->log('', 23, SystemLogGenericAction::UNDEFINED, 42, SystemLogErrorClassification::USER_ERROR, '%1$s' . $logDetails . '%2$s', -1, ['foo', 'bar']);
         $expected = 'foo' . $logDetails . 'bar';
-        $this->assertStringEndsWith($expected, $this->subject->errorLog[0]);
+        self::assertStringEndsWith($expected, $this->subject->errorLog[0]);
     }
 
     /**
@@ -489,12 +589,10 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function equalSubmittedAndStoredValuesAreDetermined($expected, $submittedValue, $storedValue, $storedType, $allowNull)
     {
-        $result = $this->callInaccessibleMethod(
-            $this->subject,
-            'isSubmittedValueEqualToStoredValue',
-            $submittedValue, $storedValue, $storedType, $allowNull
-        );
-        $this->assertEquals($expected, $result);
+        $result = \Closure::bind(function () use ($submittedValue, $storedValue, $storedType, $allowNull) {
+            return $this->isSubmittedValueEqualToStoredValue($submittedValue, $storedValue, $storedType, $allowNull);
+        }, $this->subject, DataHandler::class)();
+        self::assertEquals($expected, $result);
     }
 
     /**
@@ -688,7 +786,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $table = 'phpunit_dummy';
 
-        /** @var DataHandler|\PHPUnit_Framework_MockObject_MockObject|AccessibleObjectInterface $subject */
+        /** @var DataHandler|\PHPUnit\Framework\MockObject\MockObject|AccessibleObjectInterface $subject */
         $subject = $this->getAccessibleMock(
             DataHandler::class,
             ['dummy']
@@ -708,7 +806,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ]
         ];
 
-        $this->assertEquals($expected, $subject->_call('getPlaceholderTitleForTableLabel', $table));
+        self::assertEquals($expected, $subject->_call('getPlaceholderTitleForTableLabel', $table));
     }
 
     /**
@@ -741,17 +839,17 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function deletePagesOnRootLevelIsDenied()
     {
-        /** @var DataHandler|\PHPUnit_Framework_MockObject_MockObject|AccessibleObjectInterface $dataHandlerMock */
+        /** @var DataHandler|\PHPUnit\Framework\MockObject\MockObject|AccessibleObjectInterface $dataHandlerMock */
         $dataHandlerMock = $this->getMockBuilder(DataHandler::class)
-            ->setMethods(['canDeletePage', 'newlog2'])
+            ->setMethods(['canDeletePage', 'log'])
             ->getMock();
         $dataHandlerMock
-            ->expects($this->never())
+            ->expects(self::never())
             ->method('canDeletePage');
         $dataHandlerMock
-            ->expects($this->once())
-            ->method('newlog2')
-            ->with('Deleting all pages starting from the root-page is disabled.', 'pages', 0, 0, 2);
+            ->expects(self::once())
+            ->method('log')
+            ->with('pages', 0, 0, 0, 2, 'Deleting all pages starting from the root-page is disabled.', -1, [], 0);
 
         $dataHandlerMock->deletePages(0);
     }
@@ -761,26 +859,26 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function deleteRecord_procBasedOnFieldTypeRespectsEnableCascadingDelete()
     {
-        $table = $this->getUniqueId('foo_');
+        $table = StringUtility::getUniqueId('foo_');
         $conf = [
             'type' => 'inline',
-            'foreign_table' => $this->getUniqueId('foreign_foo_'),
+            'foreign_table' => StringUtility::getUniqueId('foreign_foo_'),
             'behaviour' => [
                 'enableCascadingDelete' => 0,
             ]
         ];
 
         /** @var \TYPO3\CMS\Core\Database\RelationHandler $mockRelationHandler */
-        $mockRelationHandler = $this->createMock(\TYPO3\CMS\Core\Database\RelationHandler::class);
+        $mockRelationHandler = $this->createMock(RelationHandler::class);
         $mockRelationHandler->itemArray = [
-            '1' => ['table' => $this->getUniqueId('bar_'), 'id' => 67]
+            '1' => ['table' => StringUtility::getUniqueId('bar_'), 'id' => 67]
         ];
 
-        /** @var DataHandler|\PHPUnit_Framework_MockObject_MockObject|AccessibleObjectInterface $mockDataHandler */
+        /** @var DataHandler|\PHPUnit\Framework\MockObject\MockObject|AccessibleObjectInterface $mockDataHandler */
         $mockDataHandler = $this->getAccessibleMock(DataHandler::class, ['getInlineFieldType', 'deleteAction', 'createRelationHandlerInstance'], [], '', false);
-        $mockDataHandler->expects($this->once())->method('getInlineFieldType')->will($this->returnValue('field'));
-        $mockDataHandler->expects($this->once())->method('createRelationHandlerInstance')->will($this->returnValue($mockRelationHandler));
-        $mockDataHandler->expects($this->never())->method('deleteAction');
+        $mockDataHandler->expects(self::once())->method('getInlineFieldType')->willReturn('field');
+        $mockDataHandler->expects(self::once())->method('createRelationHandlerInstance')->willReturn($mockRelationHandler);
+        $mockDataHandler->expects(self::never())->method('deleteAction');
         $mockDataHandler->deleteRecord_procBasedOnFieldType($table, 42, 'foo', 'bar', $conf);
     }
 
@@ -837,7 +935,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ['Item 3', 0]
             ]
         ];
-        $this->assertSame($expectedResult, $this->subject->_call('checkValueForCheck', $result, $value, $tcaFieldConfiguration, '', 0, 0, ''));
+        self::assertSame($expectedResult, $this->subject->_call('checkValueForCheck', $result, $value, $tcaFieldConfiguration, '', 0, 0, ''));
     }
 
     /**
@@ -845,12 +943,8 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function checkValueForInputConvertsNullToEmptyString()
     {
-        $previousLanguageService = $GLOBALS['LANG'];
-        $GLOBALS['LANG'] = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Localization\LanguageService::class);
-        $GLOBALS['LANG']->init('default');
         $expectedResult = ['value' => ''];
-        $this->assertSame($expectedResult, $this->subject->_call('checkValueForInput', null, ['type' => 'string', 'max' => 40], 'tt_content', 'NEW55c0e67f8f4d32.04974534', 89, 'table_caption'));
-        $GLOBALS['LANG'] = $previousLanguageService;
+        self::assertSame($expectedResult, $this->subject->_call('checkValueForInput', null, ['type' => 'string', 'max' => 40], 'tt_content', 'NEW55c0e67f8f4d32.04974534', 89, 'table_caption'));
     }
 
     /**
@@ -862,7 +956,7 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function referenceValuesAreCasted($value, array $configuration, $expected)
     {
-        $this->assertEquals(
+        self::assertEquals(
             $expected,
             $this->subject->_call('castReferenceValue', $value, $configuration)
         );
@@ -899,5 +993,38 @@ class DataHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '', ['default' => 13], 13
             ],
         ];
+    }
+
+    /**
+     * @return array
+     */
+    public function clearPrefixFromValueRemovesPrefixDataProvider(): array
+    {
+        return [
+            'normal case' => ['Test (copy 42)', 'Test'],
+            // all cases below look fishy and indicate bugs
+            'with double spaces before' => ['Test  (copy 42)', 'Test '],
+            'with three spaces before' => ['Test   (copy 42)', 'Test  '],
+            'with space after' => ['Test (copy 42) ', 'Test (copy 42) '],
+            'with double spaces after' => ['Test (copy 42)  ', 'Test (copy 42)  '],
+            'with three spaces after' => ['Test (copy 42)   ', 'Test (copy 42)   '],
+            'with double tab before' => ['Test' . "\t" . '(copy 42)', 'Test'],
+            'with double tab after' => ['Test (copy 42)' . "\t", 'Test (copy 42)' . "\t"],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider clearPrefixFromValueRemovesPrefixDataProvider
+     * @param string $input
+     * @param string $expected
+     */
+    public function clearPrefixFromValueRemovesPrefix(string $input, string $expected)
+    {
+        $languageServiceProphecy = $this->prophesize(LanguageService::class);
+        $languageServiceProphecy->sL('testLabel')->willReturn('(copy %s)');
+        $GLOBALS['LANG'] = $languageServiceProphecy->reveal();
+        $GLOBALS['TCA']['testTable']['ctrl']['prependAtCopy'] = 'testLabel';
+        self::assertEquals($expected, (new DataHandler())->clearPrefixFromValue('testTable', $input));
     }
 }

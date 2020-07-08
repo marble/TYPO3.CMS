@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Cache;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,13 +12,17 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Cache;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\Core\Cache;
+
 use TYPO3\CMS\Core\Cache\Backend\PhpCapableBackendInterface;
 use TYPO3\CMS\Fluid\Core\Cache\FluidTemplateCache;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FluidTemplateCacheTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FluidTemplateCacheTest extends UnitTestCase
 {
     /**
      * @test
@@ -27,7 +30,7 @@ class FluidTemplateCacheTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     public function flushCallsFlushOnBackend()
     {
         $backend = $this->createMock(PhpCapableBackendInterface::class);
-        $backend->expects($this->once())->method('flush');
+        $backend->expects(self::once())->method('flush');
         $instance = new FluidTemplateCache('dummy', $backend);
         $instance->flush();
     }
@@ -41,7 +44,7 @@ class FluidTemplateCacheTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
             ->setMethods(['requireOnce'])
             ->disableOriginalConstructor()
             ->getMock();
-        $instance->expects($this->once())->method('requireOnce')->with('foobar');
+        $instance->expects(self::once())->method('requireOnce')->with('foobar');
         $instance->get('foobar');
     }
 
@@ -51,11 +54,11 @@ class FluidTemplateCacheTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     public function setCallsSetOnBackend()
     {
         $backend = $this->createMock(PhpCapableBackendInterface::class);
-        $backend->expects($this->once())->method('set')->with(
+        $backend->expects(self::once())->method('set')->with(
             'test',
             '<?php' . LF . 'test' . LF . '#',
             ['foobar'],
-            $this->anything()
+            self::anything()
         );
         $instance = new FluidTemplateCache('dummy', $backend);
         $instance->set('test', 'test', ['foobar']);
@@ -67,11 +70,11 @@ class FluidTemplateCacheTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     public function setRemovesLeadingPhpTagBeforeCallingParentWhichAddsLeadingPhpTag()
     {
         $backend = $this->createMock(PhpCapableBackendInterface::class);
-        $backend->expects($this->once())->method('set')->with(
+        $backend->expects(self::once())->method('set')->with(
             'test',
             '<?php' . LF . 'test' . LF . '#',
             ['foobar'],
-            $this->anything()
+            self::anything()
         );
         $instance = new FluidTemplateCache('dummy', $backend);
         $instance->set('test', '<?php' . LF . 'test', ['foobar']);

@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,17 +15,12 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
+
 use TYPO3\CMS\Core\Database\Query\Restriction\BackendWorkspaceRestriction;
 
 class BackendWorkspaceRestrictionTest extends AbstractRestrictionTestCase
 {
-    /**
-     */
-    protected function setUp()
-    {
-        parent::setUp();
-    }
-
     /**
      * @test
      */
@@ -36,7 +31,7 @@ class BackendWorkspaceRestrictionTest extends AbstractRestrictionTestCase
         ];
         $subject = new BackendWorkspaceRestriction(0);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('("aTable"."t3ver_wsid" = 0) OR ("aTable"."t3ver_state" <= 0)', (string)$expression);
+        self::assertSame('("aTable"."t3ver_wsid" = 0) OR ("aTable"."t3ver_state" <= 0)', (string)$expression);
     }
 
     /**
@@ -49,7 +44,7 @@ class BackendWorkspaceRestrictionTest extends AbstractRestrictionTestCase
         ];
         $subject = new BackendWorkspaceRestriction(42);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('("aTable"."t3ver_wsid" = 42) OR ("aTable"."t3ver_state" <= 0)', (string)$expression);
+        self::assertSame('("aTable"."t3ver_wsid" = 42) OR ("aTable"."t3ver_state" <= 0)', (string)$expression);
     }
 
     /**
@@ -62,7 +57,7 @@ class BackendWorkspaceRestrictionTest extends AbstractRestrictionTestCase
         ];
         $subject = new BackendWorkspaceRestriction(0, false);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('("aTable"."t3ver_wsid" = 0) AND ("aTable"."pid" <> -1)', (string)$expression);
+        self::assertSame('("aTable"."t3ver_wsid" = 0) AND ("aTable"."t3ver_oid" = 0)', (string)$expression);
     }
 
     /**
@@ -75,6 +70,6 @@ class BackendWorkspaceRestrictionTest extends AbstractRestrictionTestCase
         ];
         $subject = new BackendWorkspaceRestriction(42, false);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('("aTable"."t3ver_wsid" = 42) AND ("aTable"."pid" = -1)', (string)$expression);
+        self::assertSame('("aTable"."t3ver_wsid" = 42) AND ("aTable"."t3ver_oid" > 0)', (string)$expression);
     }
 }

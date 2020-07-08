@@ -10,39 +10,4 @@
  *
  * The TYPO3 project - inspiring people to share!
  */
-define(["require", "exports"], function (require, exports) {
-    "use strict";
-    var InteractionRequest = (function () {
-        function InteractionRequest(type, parentRequest) {
-            if (parentRequest === void 0) { parentRequest = null; }
-            this.processed = false;
-            this.processedData = null;
-            this.type = type;
-            this.parentRequest = parentRequest;
-        }
-        Object.defineProperty(InteractionRequest.prototype, "outerMostRequest", {
-            get: function () {
-                var request = this;
-                while (request.parentRequest instanceof InteractionRequest) {
-                    request = request.parentRequest;
-                }
-                return request;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        InteractionRequest.prototype.isProcessed = function () {
-            return this.processed;
-        };
-        InteractionRequest.prototype.getProcessedData = function () {
-            return this.processedData;
-        };
-        InteractionRequest.prototype.setProcessedData = function (processedData) {
-            if (processedData === void 0) { processedData = null; }
-            this.processed = true;
-            this.processedData = processedData;
-        };
-        return InteractionRequest;
-    }());
-    return InteractionRequest;
-});
+define(["require","exports"],(function(e,s){"use strict";class t{constructor(e,s=null){this.processed=!1,this.processedData=null,this.type=e,this.parentRequest=s}get outerMostRequest(){let e=this;for(;e.parentRequest instanceof t;)e=e.parentRequest;return e}isProcessed(){return this.processed}getProcessedData(){return this.processedData}setProcessedData(e=null){this.processed=!0,this.processedData=e}}return t}));

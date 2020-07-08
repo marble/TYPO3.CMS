@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +13,22 @@ namespace TYPO3\CMS\Install\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Configuration;
+
 use TYPO3\CMS\Core\Configuration\ConfigurationManager;
+use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Abstract preset class implements common preset code
+ * @internal only to be used within EXT:install
  */
 abstract class AbstractPreset implements PresetInterface
 {
     /**
      * @var \TYPO3\CMS\Core\Configuration\ConfigurationManager
      */
-    protected $configurationManager = null;
+    protected $configurationManager;
 
     /**
      * @var string Name of preset, must be set by extending classes
@@ -87,7 +90,7 @@ abstract class AbstractPreset implements PresetInterface
         foreach ($this->configurationValues as $configurationKey => $configurationValue) {
             try {
                 $currentValue = $this->configurationManager->getConfigurationValueByPath($configurationKey);
-            } catch (\RuntimeException $e) {
+            } catch (MissingArrayPathException $e) {
                 $currentValue = null;
             }
             if ($currentValue !== $configurationValue) {

@@ -13,9 +13,18 @@ cd typo3/
 
 ignoreFiles=()
 # auto generated file, shouldn't be checked
-ignoreFiles+="sysext/core/Build/Configuration/Acceptance/Support/_generated/AcceptanceTesterActions.php"
-# a exception in here throws up an code from a previous exception
+ignoreFiles+="sysext/core/Tests/Acceptance/Support/_generated/BackendTesterActions.php"
+ignoreFiles+="sysext/core/Tests/Acceptance/Support/_generated/InstallTesterActions.php"
+# an exception in here throws a code from a previous exception/error
 ignoreFiles+="sysext/extbase/Classes/Core/Bootstrap.php"
+ignoreFiles+="sysext/form/Classes/Mvc/Property/Exception/TypeConverterException.php"
+ignoreFiles+="sysext/core/Classes/Database/Driver/PDOStatement.php"
+ignoreFiles+="sysext/core/Classes/Database/Driver/PDOConnection.php"
+ignoreFiles+="sysext/frontend/Classes/Typolink/PageLinkBuilder.php"
+
+# both ActionController and AbstractController throw the same exceptions
+# until AbstractController is removed
+ignoreFiles+="sysext/extbase/Classes/Mvc/Controller/AbstractController.php"
 
 foundNewFile=0
 oldFilename=""

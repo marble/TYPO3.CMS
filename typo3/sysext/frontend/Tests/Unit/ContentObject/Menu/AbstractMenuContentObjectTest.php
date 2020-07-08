@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject\Menu;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,53 +14,89 @@ namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject\Menu;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject\Menu;
+
 use Doctrine\DBAL\Driver\Statement;
 use Prophecy\Argument;
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Cache\Frontend\VariableFrontend;
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\LanguageAspect;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Http\ServerRequest;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Localization\LanguageServiceFactory;
+use TYPO3\CMS\Core\Localization\LanguageStore;
+use TYPO3\CMS\Core\Localization\Locales;
+use TYPO3\CMS\Core\Localization\LocalizationFactory;
+use TYPO3\CMS\Core\Routing\PageArguments;
+use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\ContentObject\Menu\AbstractMenuContentObject;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractMenuContentObjectTest extends UnitTestCase
 {
-    /**
-     * @var array
-     */
-    protected $singletonInstances = [];
-
     /**
      * @var AbstractMenuContentObject
      */
-    protected $subject = null;
+    protected $subject;
 
     /**
      * Set up this testcase
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $proxyClassName = $this->buildAccessibleProxy(AbstractMenuContentObject::class);
-        $this->subject = $this->getMockForAbstractClass($proxyClassName);
-        $GLOBALS['TSFE'] = $this->getMockBuilder(\TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController::class)
-            ->setConstructorArgs([$GLOBALS['TYPO3_CONF_VARS'], 1, 1])
+        parent::setUp();
+        $GLOBALS['TYPO3_REQUEST'] = new ServerRequest('https://www.example.com', 'GET');
+        $this->subject = $this->getAccessibleMockForAbstractClass(AbstractMenuContentObject::class);
+        $site = new Site('test', 1, [
+            'base' => 'https://www.example.com',
+            'languages' => [
+                [
+                    'languageId' => 0,
+                    'title' => 'English',
+                    'locale' => 'en_UK',
+                    'base' => '/'
+                ]
+            ]
+        ]);
+        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+        $cacheFrontendProphecy = $this->prophesize(FrontendInterface::class);
+        $cacheManagerProphecy->getCache('l10n')->willReturn($cacheFrontendProphecy->reveal());
+        $cacheFrontendProphecy->get(Argument::cetera())->willReturn(false);
+        $cacheFrontendProphecy->set(Argument::cetera())->willReturn(null);
+        $languageService = new LanguageService(new Locales(), new LocalizationFactory(new LanguageStore(), $cacheManagerProphecy->reveal()));
+        $languageServiceFactoryProphecy = $this->prophesize(LanguageServiceFactory::class);
+        $languageServiceFactoryProphecy->create(Argument::any())->willReturn($languageService);
+        GeneralUtility::addInstance(LanguageServiceFactory::class, $languageServiceFactoryProphecy->reveal());
+        $frontendUserProphecy = $this->prophesize(FrontendUserAuthentication::class);
+        $GLOBALS['TSFE'] = $this->getMockBuilder(TypoScriptFrontendController::class)
+            ->setConstructorArgs([new Context(), $site, $site->getDefaultLanguage(), new PageArguments(1, '1', []), $frontendUserProphecy->reveal()])
+            ->setMethods(['initCaches'])
             ->getMock();
         $GLOBALS['TSFE']->cObj = new ContentObjectRenderer();
         $GLOBALS['TSFE']->page = [];
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
     }
 
     /**
      * Reset singleton instances
      */
-    protected function tearDown()
+    protected function tearDown(): void
     {
         GeneralUtility::purgeInstances();
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
         parent::tearDown();
     }
 
@@ -78,9 +115,6 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
         $connectionPoolProphet = $this->prophesize(ConnectionPool::class);
         $connectionPoolProphet->getConnectionForTable('tt_content')->willReturn($connectionProphet->reveal());
         GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
-
-        $this->subject->sys_page = $this->getMockBuilder(\TYPO3\CMS\Frontend\Page\PageRepository::class)->getMock();
-        $this->subject->parent_cObj = $this->getMockBuilder(ContentObjectRenderer::class)->getMock();
     }
 
     /**
@@ -89,9 +123,11 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
     public function sectionIndexReturnsEmptyArrayIfTheRequestedPageCouldNotBeFetched()
     {
         $this->prepareSectionIndexTest();
-        $this->subject->sys_page->expects($this->once())->method('getPage')->will($this->returnValue(null));
+        $pageRepository = $this->getMockBuilder(PageRepository::class)->getMock();
+        $pageRepository->expects(self::once())->method('getPage')->willReturn(null);
+        $this->subject->_set('sys_page', $pageRepository);
         $result = $this->subject->_call('sectionIndex', 'field');
-        $this->assertEquals($result, []);
+        self::assertEquals($result, []);
     }
 
     /**
@@ -100,10 +136,12 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
     public function sectionIndexUsesTheInternalIdIfNoPageIdWasGiven()
     {
         $this->prepareSectionIndexTest();
-        $this->subject->id = 10;
-        $this->subject->sys_page->expects($this->once())->method('getPage')->will($this->returnValue(null))->with(10);
+        $pageRepository = $this->getMockBuilder(PageRepository::class)->getMock();
+        $pageRepository->expects(self::once())->method('getPage')->willReturn(null)->with(10);
+        $this->subject->_set('sys_page', $pageRepository);
+        $this->subject->_set('id', 10);
         $result = $this->subject->_call('sectionIndex', 'field');
-        $this->assertEquals($result, []);
+        self::assertEquals($result, []);
     }
 
     /**
@@ -114,8 +152,15 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1337334849);
         $this->prepareSectionIndexTest();
-        $this->subject->sys_page->expects($this->once())->method('getPage')->will($this->returnValue([]));
-        $this->subject->parent_cObj->expects($this->once())->method('exec_getQuery')->will($this->returnValue(0));
+        $pageRepository = $this->getMockBuilder(PageRepository::class)->getMock();
+        $pageRepository->expects(self::once())->method('getPage')->willReturn([]);
+        $this->subject->_set('sys_page', $pageRepository);
+        $this->subject->_set('id', 10);
+
+        $cObject = $this->getMockBuilder(ContentObjectRenderer::class)->getMock();
+        $cObject->expects(self::once())->method('exec_getQuery')->willReturn(0);
+        $this->subject->_set('parent_cObj', $cObject);
+
         $this->subject->_call('sectionIndex', 'field');
     }
 
@@ -128,13 +173,25 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
         $statementProphet->fetch()->shouldBeCalledTimes(2)->willReturn(['uid' => 0, 'header' => 'NOT_OVERLAID'], false);
 
         $this->prepareSectionIndexTest();
-        $this->subject->mconf['sectionIndex.']['type'] = 'all';
-        $GLOBALS['TSFE']->sys_language_contentOL = 1;
-        $this->subject->sys_page->expects($this->once())->method('getPage')->will($this->returnValue(['_PAGES_OVERLAY_LANGUAGE' => 1]));
-        $this->subject->parent_cObj->expects($this->once())->method('exec_getQuery')->willReturn($statementProphet->reveal());
-        $this->subject->sys_page->expects($this->once())->method('getRecordOverlay')->will($this->returnValue(['uid' => 0, 'header' => 'OVERLAID']));
+        $this->subject->_set('mconf', [
+            'sectionIndex.' => [
+                'type' => 'all'
+            ]
+        ]);
+        $context = GeneralUtility::makeInstance(Context::class);
+        $context->setAspect('language', new LanguageAspect(1, 1, LanguageAspect::OVERLAYS_MIXED));
+
+        $pageRepository = $this->getMockBuilder(PageRepository::class)->setConstructorArgs([$context])->getMock();
+        $pageRepository->expects(self::once())->method('getPage')->willReturn(['_PAGES_OVERLAY_LANGUAGE' => 1]);
+        $pageRepository->expects(self::once())->method('getRecordOverlay')->willReturn(['uid' => 0, 'header' => 'OVERLAID']);
+        $this->subject->_set('sys_page', $pageRepository);
+
+        $cObject = $this->getMockBuilder(ContentObjectRenderer::class)->getMock();
+        $cObject->expects(self::once())->method('exec_getQuery')->willReturn($statementProphet->reveal());
+        $this->subject->_set('parent_cObj', $cObject);
+
         $result = $this->subject->_call('sectionIndex', 'field');
-        $this->assertEquals($result[0]['title'], 'OVERLAID');
+        self::assertEquals($result[0]['title'], 'OVERLAID');
     }
 
     /**
@@ -190,12 +247,23 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
         $statementProphet->fetch()->willReturn($dataRow, false);
 
         $this->prepareSectionIndexTest();
-        $this->subject->mconf['sectionIndex.']['type'] = 'header';
-        $this->subject->sys_page->expects($this->once())->method('getPage')->will($this->returnValue([]));
-        $this->subject->parent_cObj->expects($this->once())->method('exec_getQuery')
-            ->willReturn($statementProphet->reveal());
+        $this->subject->_set('mconf', [
+            'sectionIndex.' => [
+                'type' => 'header'
+            ]
+        ]);
+
+        $pageRepository = $this->getMockBuilder(PageRepository::class)->getMock();
+        $pageRepository->expects(self::once())->method('getPage')->willReturn(['_PAGES_OVERLAY_LANGUAGE' => 1]);
+        $pageRepository->expects(self::once())->method('getPage')->willReturn([]);
+        $this->subject->_set('sys_page', $pageRepository);
+
+        $cObject = $this->getMockBuilder(ContentObjectRenderer::class)->getMock();
+        $cObject->expects(self::once())->method('exec_getQuery')->willReturn($statementProphet->reveal());
+        $this->subject->_set('parent_cObj', $cObject);
+
         $result = $this->subject->_call('sectionIndex', 'field');
-        $this->assertCount($expectedAmount, $result);
+        self::assertCount($expectedAmount, $result);
     }
 
     /**
@@ -239,17 +307,24 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
         $statementProphet->fetch()->willReturn([]);
 
         $this->prepareSectionIndexTest();
-        $this->subject->sys_page->expects($this->once())->method('getPage')->will($this->returnValue([]));
-        $this->subject->mconf['sectionIndex.'] = $configuration;
+        $this->subject->_set('mconf', ['sectionIndex.' => $configuration]);
+
+        $pageRepository = $this->getMockBuilder(PageRepository::class)->getMock();
+        $pageRepository->expects(self::once())->method('getPage')->willReturn([]);
+        $this->subject->_set('sys_page', $pageRepository);
+
         $queryConfiguration = [
             'pidInList' => 12,
             'orderBy' => 'field',
             'languageField' => 'sys_language_uid',
             'where' => $whereClausePrefix
         ];
-        $this->subject->parent_cObj->expects($this->once())->method('exec_getQuery')
-            ->with('tt_content', $queryConfiguration)
-            ->willReturn($statementProphet->reveal());
+
+        $cObject = $this->getMockBuilder(ContentObjectRenderer::class)->getMock();
+        $cObject->expects(self::once())->method('exec_getQuery')
+            ->with('tt_content', $queryConfiguration)->willReturn($statementProphet->reveal());
+        $this->subject->_set('parent_cObj', $cObject);
+
         $this->subject->_call('sectionIndex', 'field', 12);
     }
 
@@ -304,133 +379,105 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
             $menu[] = ['uid' => $page];
         }
         $runtimeCacheMock = $this->getMockBuilder(VariableFrontend::class)->setMethods(['get', 'set'])->disableOriginalConstructor()->getMock();
-        $runtimeCacheMock->expects($this->once())->method('get')->with($this->anything())->willReturn(false);
-        $runtimeCacheMock->expects($this->once())->method('set')->with($this->anything(), ['result' => $expectedResult]);
-        $this->subject = $this->getMockBuilder(AbstractMenuContentObject::class)->setMethods(['getRuntimeCache'])->getMockForAbstractClass();
-        $this->subject->expects($this->once())->method('getRuntimeCache')->willReturn($runtimeCacheMock);
+        $runtimeCacheMock->expects(self::once())->method('get')->with(self::anything())->willReturn(false);
+        $runtimeCacheMock->expects(self::once())->method('set')->with(self::anything(), ['result' => $expectedResult]);
+
+        $this->subject = $this->getAccessibleMockForAbstractClass(AbstractMenuContentObject::class, [], '', true, true, true, ['getRuntimeCache']);
+        $this->subject->expects(self::once())->method('getRuntimeCache')->willReturn($runtimeCacheMock);
         $this->prepareSectionIndexTest();
-        $this->subject->parent_cObj = $this->getMockBuilder(ContentObjectRenderer::class)->getMock();
 
-        $this->subject->sys_page->expects($this->once())->method('getMenu')->will($this->returnValue($menu));
-        $this->subject->menuArr = [
+        $pageRepository = $this->getMockBuilder(PageRepository::class)->getMock();
+        $pageRepository->expects(self::once())->method('getMenu')->willReturn($menu);
+        $this->subject->_set('sys_page', $pageRepository);
+        $this->subject->_set('menuArr', [
             0 => ['uid' => 1]
-        ];
-        $this->subject->conf['excludeUidList'] = $excludeUidList;
+        ]);
+        $this->subject->_set('conf', ['excludeUidList' => $excludeUidList]);
 
-        $this->assertEquals($expectedResult, $this->subject->isItemState('IFSUB', 0));
+        self::assertEquals($expectedResult, $this->subject->_call('isItemState', 'IFSUB', 0));
     }
 
     /**
      * @return array
      */
-    public function menuTypoLinkCreatesExpectedTypoLinkConfiurationDataProvider()
+    public function menuTypoLinkCreatesExpectedTypoLinkConfigurationDataProvider()
     {
         return [
             'standard parameter without access protected setting' => [
                 [
                     'parameter' => 1,
-                    'linkAccessRestrictedPages' => false,
-                    'useCacheHash' => true
+                    'linkAccessRestrictedPages' => false
                 ],
                 [
                     'showAccessRestrictedPages' => false
                 ],
-                true,
                 ['uid' => 1],
                 '',
                 0,
-                '',
-                '',
-                '',
                 ''
             ],
             'standard parameter with access protected setting' => [
                 [
                     'parameter' => 10,
-                    'linkAccessRestrictedPages' => true,
-                    'useCacheHash' => true
+                    'linkAccessRestrictedPages' => true
                 ],
                 [
                     'showAccessRestrictedPages' => true
                 ],
-                true,
                 ['uid' => 10],
                 '',
                 0,
-                '',
-                '',
-                '',
                 ''
             ],
             'standard parameter with access protected setting "NONE" casts to boolean linkAccessRestrictedPages (delegates resolving to typoLink method internals)' => [
                 [
                     'parameter' => 10,
-                    'linkAccessRestrictedPages' => true,
-                    'useCacheHash' => true
+                    'linkAccessRestrictedPages' => true
                 ],
                 [
                     'showAccessRestrictedPages' => 'NONE'
                 ],
-                true,
                 ['uid' => 10],
                 '',
                 0,
-                '',
-                '',
-                '',
                 ''
             ],
             'standard parameter with access protected setting (int)67 casts to boolean linkAccessRestrictedPages (delegates resolving to typoLink method internals)' => [
                 [
                     'parameter' => 10,
-                    'linkAccessRestrictedPages' => true,
-                    'useCacheHash' => true
+                    'linkAccessRestrictedPages' => true
                 ],
                 [
                     'showAccessRestrictedPages' => 67
                 ],
-                true,
                 ['uid' => 10],
                 '',
                 0,
-                '',
-                '',
-                '',
                 ''
             ],
             'standard parameter with target' => [
                 [
                     'parameter' => 1,
                     'target' => '_blank',
-                    'linkAccessRestrictedPages' => false,
-                    'useCacheHash' => true
+                    'linkAccessRestrictedPages' => false
                 ],
                 [
                     'showAccessRestrictedPages' => false
                 ],
-                true,
                 ['uid' => 1],
                 '_blank',
                 0,
-                '',
-                '',
-                '',
                 ''
             ],
             'parameter with typeOverride=10' => [
                 [
                     'parameter' => '10,10',
-                    'linkAccessRestrictedPages' => false,
-                    'useCacheHash' => true
+                    'linkAccessRestrictedPages' => false
                 ],
                 [
                     'showAccessRestrictedPages' => false
                 ],
-                true,
                 ['uid' => 10],
-                '',
-                0,
-                '',
                 '',
                 '',
                 10
@@ -439,60 +486,46 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
                 [
                     'parameter' => '10,10',
                     'linkAccessRestrictedPages' => false,
-                    'useCacheHash' => true,
                     'target' => '_self'
                 ],
                 [
                     'showAccessRestrictedPages' => false
                 ],
-                true,
                 ['uid' => 10],
                 '_self',
-                0,
                 '',
-                '',
-                '',
-                10
+                '10'
             ],
             'parameter with invalid value in typeOverride=foobar ignores typeOverride' => [
                 [
                     'parameter' => 20,
                     'linkAccessRestrictedPages' => false,
-                    'useCacheHash' => true,
                     'target' => '_self'
                 ],
                 [
                     'showAccessRestrictedPages' => false
                 ],
-                true,
                 ['uid' => 20],
                 '_self',
-                0,
                 '',
-                '',
-                '',
-                'foobar'
+                'foobar',
+                20
             ],
             'standard parameter with section name' => [
                 [
                     'parameter' => 10,
                     'target' => '_blank',
                     'linkAccessRestrictedPages' => false,
-                    'no_cache' => true,
                     'section' => 'section-name'
                 ],
                 [
                     'showAccessRestrictedPages' => false
                 ],
-                true,
                 [
                     'uid' => 10,
                     'sectionIndex_uid' => 'section-name'
                 ],
                 '_blank',
-                1,
-                '',
-                '',
                 '',
                 ''
             ],
@@ -500,72 +533,60 @@ class AbstractMenuContentObjectTest extends \TYPO3\TestingFramework\Core\Unit\Un
                 [
                     'parameter' => 10,
                     'linkAccessRestrictedPages' => false,
-                    'no_cache' => true,
                     'section' => 'section-name',
                     'additionalParams' => '&test=foobar'
                 ],
                 [
                     'showAccessRestrictedPages' => false
                 ],
-                true,
                 [
                     'uid' => 10,
                     'sectionIndex_uid' => 'section-name'
                 ],
                 '',
-                1,
-                '',
-                '',
                 '&test=foobar',
-                ''
+                '',
             ],
             'overridden page array uid value gets used as parameter' => [
                 [
                     'parameter' => 99,
                     'linkAccessRestrictedPages' => false,
-                    'no_cache' => true,
                     'section' => 'section-name'
                 ],
                 [
                     'showAccessRestrictedPages' => false
                 ],
-                true,
                 [
                     'uid' => 10,
                     'sectionIndex_uid' => 'section-name'
                 ],
                 '',
-                1,
                 '',
-                ['uid' => 99],
                 '',
-                ''
+                99
             ],
         ];
     }
 
     /**
      * @test
-     * @dataProvider menuTypoLinkCreatesExpectedTypoLinkConfiurationDataProvider
+     * @dataProvider menuTypoLinkCreatesExpectedTypoLinkConfigurationDataProvider
      * @param array $expected
      * @param array $mconf
-     * @param bool $useCacheHash
      * @param array $page
      * @param mixed $oTarget
-     * @param int $no_cache
-     * @param string $script
-     * @param string $overrideArray
      * @param string $addParams
      * @param string $typeOverride
+     * @param int $overrideId
      */
-    public function menuTypoLinkCreatesExpectedTypoLinkConfiguration(array $expected, array $mconf, $useCacheHash = true, array $page, $oTarget, $no_cache, $script, $overrideArray = '', $addParams = '', $typeOverride = '')
+    public function menuTypoLinkCreatesExpectedTypoLinkConfiguration(array $expected, array $mconf, array $page, $oTarget, $addParams = '', $typeOverride = '', int $overrideId = null)
     {
-        $this->subject->parent_cObj = $this->getMockBuilder(ContentObjectRenderer::class)
+        $cObject = $this->getMockBuilder(ContentObjectRenderer::class)
             ->setMethods(['typoLink'])
             ->getMock();
-        $this->subject->mconf = $mconf;
-        $this->subject->_set('useCacheHash', $useCacheHash);
-        $this->subject->parent_cObj->expects($this->once())->method('typoLink')->with('|', $expected);
-        $this->subject->menuTypoLink($page, $oTarget, $no_cache, $script, $overrideArray, $addParams, $typeOverride);
+        $cObject->expects(self::once())->method('typoLink')->with('|', $expected);
+        $this->subject->_set('parent_cObj', $cObject);
+        $this->subject->_set('mconf', $mconf);
+        $this->subject->_call('menuTypoLink', $page, $oTarget, $addParams, $typeOverride, $overrideId);
     }
 }

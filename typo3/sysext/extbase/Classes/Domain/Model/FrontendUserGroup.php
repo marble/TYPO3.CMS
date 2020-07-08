@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Extbase\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Domain\Model;
+
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+
 /**
  * A Frontend User Group
- *
- * @api
  */
-class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
+class FrontendUserGroup extends AbstractEntity
 {
     /**
      * @var string
@@ -49,14 +51,13 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     public function __construct($title = '')
     {
         $this->setTitle($title);
-        $this->subgroup = new \TYPO3\CMS\Extbase\Persistence\ObjectStorage();
+        $this->subgroup = new ObjectStorage();
     }
 
     /**
      * Sets the title value
      *
      * @param string $title
-     * @api
      */
     public function setTitle($title)
     {
@@ -67,7 +68,6 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Returns the title value
      *
      * @return string
-     * @api
      */
     public function getTitle()
     {
@@ -78,7 +78,6 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Sets the lockToDomain value
      *
      * @param string $lockToDomain
-     * @api
      */
     public function setLockToDomain($lockToDomain)
     {
@@ -89,7 +88,6 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Returns the lockToDomain value
      *
      * @return string
-     * @api
      */
     public function getLockToDomain()
     {
@@ -100,7 +98,6 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Sets the description value
      *
      * @param string $description
-     * @api
      */
     public function setDescription($description)
     {
@@ -111,7 +108,6 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Returns the description value
      *
      * @return string
-     * @api
      */
     public function getDescription()
     {
@@ -123,9 +119,8 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * although it can hold several subgroups.
      *
      * @param \TYPO3\CMS\Extbase\Persistence\ObjectStorage $subgroup An object storage containing the subgroups to add
-     * @api
      */
-    public function setSubgroup(\TYPO3\CMS\Extbase\Persistence\ObjectStorage $subgroup)
+    public function setSubgroup(ObjectStorage $subgroup)
     {
         $this->subgroup = $subgroup;
     }
@@ -134,7 +129,6 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Adds a subgroup to the frontend user
      *
      * @param \TYPO3\CMS\Extbase\Domain\Model\FrontendUserGroup $subgroup
-     * @api
      */
     public function addSubgroup(\TYPO3\CMS\Extbase\Domain\Model\FrontendUserGroup $subgroup)
     {
@@ -145,7 +139,6 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * Removes a subgroup from the frontend user group
      *
      * @param \TYPO3\CMS\Extbase\Domain\Model\FrontendUserGroup $subgroup
-     * @api
      */
     public function removeSubgroup(\TYPO3\CMS\Extbase\Domain\Model\FrontendUserGroup $subgroup)
     {
@@ -157,7 +150,6 @@ class FrontendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * although it can hold several subgroups.
      *
      * @return \TYPO3\CMS\Extbase\Persistence\ObjectStorage An object storage containing the subgroups
-     * @api
      */
     public function getSubgroup()
     {

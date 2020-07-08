@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,17 +15,12 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
+
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendGroupRestriction;
 
 class FrontendGroupRestrictionTest extends AbstractRestrictionTestCase
 {
-    /**
-     */
-    protected function setUp()
-    {
-        parent::setUp();
-    }
-
     /**
      * @test
      */
@@ -38,7 +33,7 @@ class FrontendGroupRestrictionTest extends AbstractRestrictionTestCase
         ];
         $subject = new FrontendGroupRestriction([]);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('("aTable"."myGroupField" IS NULL) OR ("aTable"."myGroupField" = \'\') OR ("aTable"."myGroupField" = \'0\')', (string)$expression);
+        self::assertSame('("aTable"."myGroupField" IS NULL) OR ("aTable"."myGroupField" = \'\') OR ("aTable"."myGroupField" = \'0\')', (string)$expression);
     }
 
     /**
@@ -53,6 +48,6 @@ class FrontendGroupRestrictionTest extends AbstractRestrictionTestCase
         ];
         $subject = new FrontendGroupRestriction([2, 3]);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('("aTable"."myGroupField" IS NULL) OR ("aTable"."myGroupField" = \'\') OR ("aTable"."myGroupField" = \'0\') OR (FIND_IN_SET(\'2\', "aTable"."myGroupField")) OR (FIND_IN_SET(\'3\', "aTable"."myGroupField"))', (string)$expression);
+        self::assertSame('("aTable"."myGroupField" IS NULL) OR ("aTable"."myGroupField" = \'\') OR ("aTable"."myGroupField" = \'0\') OR (FIND_IN_SET(\'2\', "aTable"."myGroupField")) OR (FIND_IN_SET(\'3\', "aTable"."myGroupField"))', (string)$expression);
     }
 }

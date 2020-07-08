@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataGroup;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +13,27 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataGroup;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataGroup;
+
 use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Form\FormDataGroup\FlexFormSegment;
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FlexFormSegmentTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FlexFormSegmentTest extends UnitTestCase
 {
     /**
      * @var FlexFormSegment
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->subject = new FlexFormSegment();
     }
@@ -50,7 +52,7 @@ class FlexFormSegmentTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $input = ['foo'];
 
-        $this->assertEquals($input, $this->subject->compile($input));
+        self::assertEquals($input, $this->subject->compile($input));
     }
 
     /**
@@ -72,7 +74,7 @@ class FlexFormSegmentTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $providerResult = ['foo'];
         $formDataProviderProphecy->addData(Argument::cetera())->shouldBeCalled()->willReturn($providerResult);
 
-        $this->assertEquals($providerResult, $this->subject->compile([]));
+        self::assertEquals($providerResult, $this->subject->compile([]));
     }
 
     /**

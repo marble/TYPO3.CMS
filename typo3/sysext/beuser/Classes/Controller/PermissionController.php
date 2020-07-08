@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Beuser\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +13,13 @@ namespace TYPO3\CMS\Beuser\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Beuser\Controller;
+
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
 use TYPO3\CMS\Backend\Tree\View\PageTreeView;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Backend\View\BackendTemplateView;
-use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -28,6 +29,7 @@ use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 
 /**
  * Backend module page permissions
+ * @internal This class is a TYPO3 Backend implementation and is not considered part of the Public TYPO3 API.
  */
 class PermissionController extends ActionController
 {
@@ -42,19 +44,14 @@ class PermissionController extends ActionController
     protected $id;
 
     /**
-     * @var int
+     * @var string
      */
-    protected $returnId;
+    protected $returnUrl = '';
 
     /**
      * @var int
      */
     protected $depth;
-
-    /**
-     * @var int
-     */
-    protected $lastEdited;
 
     /**
      * Number of levels to enable recursive settings for
@@ -87,23 +84,31 @@ class PermissionController extends ActionController
      */
     protected function initializeAction()
     {
+        // determine depth parameter
+        $this->depth = (int)GeneralUtility::_GP('depth') > 0
+            ? (int)GeneralUtility::_GP('depth')
+            : (int)$this->getBackendUser()->getSessionData(self::SESSION_PREFIX . 'depth');
+        if ($this->request->hasArgument('depth')) {
+            $this->depth = (int)$this->request->getArgument('depth');
+        }
+        $this->getBackendUser()->setAndSaveSessionData(self::SESSION_PREFIX . 'depth', $this->depth);
+
         // determine id parameter
         $this->id = (int)GeneralUtility::_GP('id');
         if ($this->request->hasArgument('id')) {
             $this->id = (int)$this->request->getArgument('id');
         }
 
-        // determine depth parameter
-        $this->depth = ((int)GeneralUtility::_GP('depth') > 0)
-            ? (int) GeneralUtility::_GP('depth')
-            : $this->getBackendUser()->getSessionData(self::SESSION_PREFIX . 'depth');
-        if ($this->request->hasArgument('depth')) {
-            $this->depth = (int)$this->request->getArgument('depth');
+        if (!BackendUtility::getRecord('pages', $this->id)) {
+            $this->id = 0;
         }
-        $this->getBackendUser()->setAndSaveSessionData(self::SESSION_PREFIX . 'depth', $this->depth);
-        $this->lastEdited = GeneralUtility::_GP('lastEdited');
-        $this->returnId = GeneralUtility::_GP('returnId');
-        $this->pageInfo = BackendUtility::readPageAccess($this->id, ' 1=1');
+
+        $this->returnUrl = GeneralUtility::_GP('returnUrl');
+        if ($this->request->hasArgument('returnUrl')) {
+            $this->returnUrl = $this->request->getArgument('returnUrl');
+        }
+
+        $this->setPageInfo();
     }
 
     /**
@@ -114,29 +119,15 @@ class PermissionController extends ActionController
     protected function initializeView(ViewInterface $view)
     {
         parent::initializeView($view);
-        $view->assign(
-            'previewUrl',
-            BackendUtility::viewOnClick(
-                (int)$this->pageInfo['uid'],
-                '',
-                BackendUtility::BEgetRootLine((int)$this->pageInfo['uid'])
-            )
-        );
+        $this->setPageInfo();
 
         // the view of the update action has a different view class
         if ($view instanceof BackendTemplateView) {
             $view->getModuleTemplate()->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Beuser/Permissions');
             $view->getModuleTemplate()->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/Tooltip');
-            $view->getModuleTemplate()->addJavaScriptCode(
-                'jumpToUrl',
-                '
-                function jumpToUrl(URL) {
-                    window.location.href = URL;
-                    return false;
-                }
-                '
-            );
+
             $this->registerDocHeaderButtons();
+            $this->view->getModuleTemplate()->getDocHeaderComponent()->setMetaInformation($this->pageInfo);
             $this->view->getModuleTemplate()->setFlashMessageQueue($this->controllerContext->getFlashMessageQueue());
         }
     }
@@ -158,27 +149,25 @@ class PermissionController extends ActionController
         $extensionName = $currentRequest->getControllerExtensionName();
         if (empty($getVars)) {
             $modulePrefix = strtolower('tx_' . $extensionName . '_' . $moduleName);
-            $getVars = ['id', 'M', $modulePrefix];
+            $getVars = ['id', 'route', $modulePrefix];
         }
 
         if ($currentRequest->getControllerActionName() === 'edit') {
             // CLOSE button:
-            $closeUrl = $this->uriBuilder->reset()->setArguments([
-                'action' => 'index',
-                'id' => $this->id
-            ])->buildBackendUri();
-            $closeButton = $buttonBar->makeLinkButton()
-                ->setHref($closeUrl)
-                ->setTitle($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.closeDoc'))
-                ->setIcon($this->view->getModuleTemplate()->getIconFactory()->getIcon(
-                    'actions-close',
-                    Icon::SIZE_SMALL
-                ));
-            $buttonBar->addButton($closeButton);
+            if (!empty($this->returnUrl)) {
+                $closeButton = $buttonBar->makeLinkButton()
+                    ->setHref($this->returnUrl)
+                    ->setTitle($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.closeDoc'))
+                    ->setIcon($this->view->getModuleTemplate()->getIconFactory()->getIcon(
+                        'actions-close',
+                        Icon::SIZE_SMALL
+                    ));
+                $buttonBar->addButton($closeButton);
+            }
 
             // SAVE button:
             $saveButton = $buttonBar->makeInputButton()
-                ->setTitle($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.saveCloseDoc'))
+                ->setTitle($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.saveCloseDoc'))
                 ->setName('tx_beuser_system_beusertxpermission[submit]')
                 ->setValue('Save')
                 ->setForm('PermissionControllerEdit')
@@ -191,7 +180,7 @@ class PermissionController extends ActionController
             $buttonBar->addButton($saveButton);
         }
 
-        // SHORTCUT botton:
+        // SHORTCUT bottom:
         $shortcutButton = $buttonBar->makeShortcutButton()
             ->setModuleName($moduleName)
             ->setGetVariables($getVars);
@@ -220,13 +209,14 @@ class PermissionController extends ActionController
         $depthOptions = [];
         $url = $this->uriBuilder->reset()->setArguments([
             'action' => 'index',
-            'depth' => '__DEPTH__',
+            'depth' => '${value}',
             'id' => $this->id
         ])->buildBackendUri();
         foreach ([1, 2, 3, 4, 10] as $depthLevel) {
             $levelLabel = $depthLevel === 1 ? 'level' : 'levels';
             $depthOptions[$depthLevel] = $depthLevel . ' ' . LocalizationUtility::translate('LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:' . $levelLabel, 'beuser');
         }
+        $this->view->assign('currentId', $this->id);
         $this->view->assign('depthBaseUrl', $url);
         $this->view->assign('depth', $this->depth);
         $this->view->assign('depthOptions', $depthOptions);
@@ -236,7 +226,7 @@ class PermissionController extends ActionController
         $beGroupArray = BackendUtility::getGroupNames();
         $this->view->assign('beGroups', $beGroupArray);
 
-        /** @var $tree PageTreeView */
+        /** @var PageTreeView $tree */
         $tree = GeneralUtility::makeInstance(PageTreeView::class);
         $tree->init();
         $tree->addField('perms_user', true);
@@ -282,8 +272,8 @@ class PermissionController extends ActionController
                 FlashMessage::WARNING
             );
         }
-        // Get usernames and groupnames
-        $beGroupArray = BackendUtility::getListGroupNames('title,uid');
+        // Get user names and group names
+        $beGroupArray = BackendUtility::getGroupNames();
         $beUserArray  = BackendUtility::getUserNames();
 
         // Owner selector
@@ -304,7 +294,7 @@ class PermissionController extends ActionController
         $this->view->assign('currentBeGroup', $this->pageInfo['perms_groupid']);
         $this->view->assign('beGroupData', $beGroupDataArray);
         $this->view->assign('pageInfo', $this->pageInfo);
-        $this->view->assign('returnId', $this->returnId);
+        $this->view->assign('returnUrl', $this->returnUrl);
         $this->view->assign('recursiveSelectOptions', $this->getRecursiveSelectOptions());
     }
 
@@ -316,6 +306,8 @@ class PermissionController extends ActionController
      */
     protected function updateAction(array $data, array $mirror)
     {
+        $dataHandlerInput = [];
+        // Prepare the input data for data handler
         if (!empty($data['pages'])) {
             foreach ($data['pages'] as $pageUid => $properties) {
                 // if the owner and group field shouldn't be touched, unset the option
@@ -325,26 +317,26 @@ class PermissionController extends ActionController
                 if ((int)$properties['perms_groupid'] === -1) {
                     unset($properties['perms_groupid']);
                 }
-                $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable('pages');
-                $connection->update(
-                    'pages',
-                    $properties,
-                    ['uid' => (int)$pageUid]
-                );
-
+                $dataHandlerInput[$pageUid] = $properties;
                 if (!empty($mirror['pages'][$pageUid])) {
-                    $mirrorPages = GeneralUtility::trimExplode(',', $mirror['pages'][$pageUid]);
+                    $mirrorPages = GeneralUtility::intExplode(',', $mirror['pages'][$pageUid]);
                     foreach ($mirrorPages as $mirrorPageUid) {
-                        $connection->update(
-                            'pages',
-                            $properties,
-                            ['uid' => (int)$mirrorPageUid]
-                        );
+                        $dataHandlerInput[$mirrorPageUid] = $properties;
                     }
                 }
             }
         }
-        $this->redirect('index', null, null, ['id' => $this->returnId, 'depth' => $this->depth]);
+
+        $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
+        $dataHandler->start(
+            [
+                'pages' => $dataHandlerInput
+            ],
+            []
+        );
+        $dataHandler->process_datamap();
+
+        $this->redirectToUri($this->returnUrl);
     }
 
     /**
@@ -396,6 +388,14 @@ class PermissionController extends ActionController
             }
         }
         return $options;
+    }
+
+    /**
+     * Check if page record exists and set pageInfo
+     */
+    protected function setPageInfo(): void
+    {
+        $this->pageInfo = BackendUtility::readPageAccess(BackendUtility::getRecord('pages', $this->id) ? $this->id : 0, ' 1=1');
     }
 
     /**

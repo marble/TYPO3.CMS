@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,21 +15,30 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+
 use Doctrine\DBAL\Schema\ForeignKeyConstraint;
 use Doctrine\DBAL\Schema\Index;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\IntegerType;
 use Doctrine\DBAL\Types\SmallIntType;
 use Doctrine\DBAL\Types\TextType;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Database\Schema\Parser\Parser;
 use TYPO3\CMS\Core\Database\Schema\SqlReader;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Package\PackageManager;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for TableBuilder
  */
-class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TableBuilderTest extends UnitTestCase
 {
+    /**
+     * @var bool Reset singletons created by subject
+     */
+    protected $resetSingletonInstances = true;
+
     /**
      * @var Table
      */
@@ -39,14 +47,16 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * Setup test subject
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $sqlFile = file_get_contents(implode(DIRECTORY_SEPARATOR, [__DIR__, '..', 'Fixtures', 'tablebuilder.sql']));
-        $sqlReader = GeneralUtility::makeInstance(SqlReader::class);
+        $eventDispatcherProphecy = $this->prophesize(EventDispatcherInterface::class);
+        $packageManagerProphecy = $this->prophesize(PackageManager::class);
+        $sqlReader = new SqlReader($eventDispatcherProphecy->reveal(), $packageManagerProphecy->reveal());
         $statements = $sqlReader->getCreateTableStatementArray($sqlFile);
 
-        $parser = GeneralUtility::makeInstance(Parser::class, $statements[0]);
+        $parser = new Parser($statements[0]);
         $this->table = $parser->parse()[0];
     }
 
@@ -55,7 +65,7 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function hasExpectedTableName()
     {
-        $this->assertSame('aTestTable', $this->table->getName());
+        self::assertSame('aTestTable', $this->table->getName());
     }
 
     /**
@@ -63,8 +73,8 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function hasExpectedTableEngine()
     {
-        $this->assertTrue($this->table->hasOption('engine'));
-        $this->assertSame('MyISAM', $this->table->getOption('engine'));
+        self::assertTrue($this->table->hasOption('engine'));
+        self::assertSame('MyISAM', $this->table->getOption('engine'));
     }
 
     /**
@@ -72,8 +82,8 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function hasExpectedTableCollation()
     {
-        $this->assertTrue($this->table->hasOption('charset'));
-        $this->assertSame('latin1', $this->table->getOption('charset'));
+        self::assertTrue($this->table->hasOption('charset'));
+        self::assertSame('latin1', $this->table->getOption('charset'));
     }
 
     /**
@@ -81,8 +91,8 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function hasExpectedTableCharacterSet()
     {
-        $this->assertTrue($this->table->hasOption('collate'));
-        $this->assertSame('latin1_german_cs', $this->table->getOption('collate'));
+        self::assertTrue($this->table->hasOption('collate'));
+        self::assertSame('latin1_german_cs', $this->table->getOption('collate'));
     }
 
     /**
@@ -90,8 +100,8 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function hasExpectedTableRowFormat()
     {
-        $this->assertTrue($this->table->hasOption('row_format'));
-        $this->assertSame('DYNAMIC', $this->table->getOption('row_format'));
+        self::assertTrue($this->table->hasOption('row_format'));
+        self::assertSame('DYNAMIC', $this->table->getOption('row_format'));
     }
 
     /**
@@ -99,8 +109,8 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function hasExpectedTableAutoIncrementValue()
     {
-        $this->assertTrue($this->table->hasOption('auto_increment'));
-        $this->assertSame('1', $this->table->getOption('auto_increment'));
+        self::assertTrue($this->table->hasOption('auto_increment'));
+        self::assertSame('1', $this->table->getOption('auto_increment'));
     }
 
     /**
@@ -109,12 +119,12 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedUidColumn()
     {
         $subject = $this->table->getColumn('uid');
-        $this->assertInstanceOf(IntegerType::class, $subject->getType());
-        $this->assertSame(11, $subject->getLength());
-        $this->assertFalse($subject->getUnsigned());
-        $this->assertTrue($subject->getNotnull());
-        $this->assertNull($subject->getDefault());
-        $this->assertTrue($subject->getAutoincrement());
+        self::assertInstanceOf(IntegerType::class, $subject->getType());
+        self::assertSame(11, $subject->getLength());
+        self::assertFalse($subject->getUnsigned());
+        self::assertTrue($subject->getNotnull());
+        self::assertNull($subject->getDefault());
+        self::assertTrue($subject->getAutoincrement());
     }
 
     /**
@@ -123,12 +133,12 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedPidColumn()
     {
         $subject = $this->table->getColumn('pid');
-        $this->assertInstanceOf(IntegerType::class, $subject->getType());
-        $this->assertSame(11, $subject->getLength());
-        $this->assertFalse($subject->getUnsigned());
-        $this->assertTrue($subject->getNotnull());
-        $this->assertFalse($subject->getAutoincrement());
-        $this->assertSame('0', $subject->getDefault());
+        self::assertInstanceOf(IntegerType::class, $subject->getType());
+        self::assertSame(11, $subject->getLength());
+        self::assertFalse($subject->getUnsigned());
+        self::assertTrue($subject->getNotnull());
+        self::assertFalse($subject->getAutoincrement());
+        self::assertSame('0', $subject->getDefault());
     }
 
     /**
@@ -137,12 +147,12 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedTstampColumn()
     {
         $subject = $this->table->getColumn('tstamp');
-        $this->assertInstanceOf(IntegerType::class, $subject->getType());
-        $this->assertSame(11, $subject->getLength());
-        $this->assertTrue($subject->getUnsigned());
-        $this->assertTrue($subject->getNotnull());
-        $this->assertFalse($subject->getAutoincrement());
-        $this->assertSame('0', $subject->getDefault());
+        self::assertInstanceOf(IntegerType::class, $subject->getType());
+        self::assertSame(11, $subject->getLength());
+        self::assertTrue($subject->getUnsigned());
+        self::assertTrue($subject->getNotnull());
+        self::assertFalse($subject->getAutoincrement());
+        self::assertSame('0', $subject->getDefault());
     }
 
     /**
@@ -151,12 +161,12 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedSortingColumn()
     {
         $subject = $this->table->getColumn('sorting');
-        $this->assertInstanceOf(IntegerType::class, $subject->getType());
-        $this->assertSame(11, $subject->getLength());
-        $this->assertTrue($subject->getUnsigned());
-        $this->assertTrue($subject->getNotnull());
-        $this->assertFalse($subject->getAutoincrement());
-        $this->assertSame(0, $subject->getDefault());
+        self::assertInstanceOf(IntegerType::class, $subject->getType());
+        self::assertSame(11, $subject->getLength());
+        self::assertTrue($subject->getUnsigned());
+        self::assertTrue($subject->getNotnull());
+        self::assertFalse($subject->getAutoincrement());
+        self::assertSame(0, $subject->getDefault());
     }
 
     /**
@@ -165,12 +175,12 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedDeletedColumn()
     {
         $subject = $this->table->getColumn('deleted');
-        $this->assertInstanceOf(SmallIntType::class, $subject->getType());
-        $this->assertSame(1, $subject->getLength());
-        $this->assertTrue($subject->getUnsigned());
-        $this->assertTrue($subject->getNotnull());
-        $this->assertFalse($subject->getAutoincrement());
-        $this->assertSame('0', $subject->getDefault());
+        self::assertInstanceOf(SmallIntType::class, $subject->getType());
+        self::assertSame(1, $subject->getLength());
+        self::assertTrue($subject->getUnsigned());
+        self::assertTrue($subject->getNotnull());
+        self::assertFalse($subject->getAutoincrement());
+        self::assertSame('0', $subject->getDefault());
     }
 
     /**
@@ -179,10 +189,10 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedTSconfigColumn()
     {
         $subject = $this->table->getColumn('TSconfig');
-        $this->assertInstanceOf(TextType::class, $subject->getType());
-        $this->assertSame(65535, $subject->getLength());
-        $this->assertFalse($subject->getNotnull());
-        $this->assertNull($subject->getDefault());
+        self::assertInstanceOf(TextType::class, $subject->getType());
+        self::assertSame(65535, $subject->getLength());
+        self::assertFalse($subject->getNotnull());
+        self::assertNull($subject->getDefault());
     }
 
     /**
@@ -191,12 +201,12 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedNoCacheColumn()
     {
         $subject = $this->table->getColumn('no_cache');
-        $this->assertInstanceOf(IntegerType::class, $subject->getType());
-        $this->assertSame(10, $subject->getLength());
-        $this->assertTrue($subject->getUnsigned());
-        $this->assertTrue($subject->getNotnull());
-        $this->assertFalse($subject->getAutoincrement());
-        $this->assertSame('0', $subject->getDefault());
+        self::assertInstanceOf(IntegerType::class, $subject->getType());
+        self::assertSame(10, $subject->getLength());
+        self::assertTrue($subject->getUnsigned());
+        self::assertTrue($subject->getNotnull());
+        self::assertFalse($subject->getAutoincrement());
+        self::assertSame('0', $subject->getDefault());
     }
 
     /**
@@ -205,9 +215,9 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedPrimaryKey()
     {
         $subject = $this->table->getPrimaryKey();
-        $this->assertInstanceOf(Index::class, $subject);
-        $this->assertTrue($subject->isPrimary());
-        $this->assertSame(['`uid`'], $subject->getColumns());
+        self::assertInstanceOf(Index::class, $subject);
+        self::assertTrue($subject->isPrimary());
+        self::assertSame(['`uid`'], $subject->getColumns());
     }
 
     /**
@@ -216,9 +226,9 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedParentKey()
     {
         $subject = $this->table->getIndex('parent');
-        $this->assertInstanceOf(Index::class, $subject);
-        $this->assertTrue($subject->isUnique());
-        $this->assertSame(['`pid`', '`deleted`', '`sorting`'], $subject->getColumns());
+        self::assertInstanceOf(Index::class, $subject);
+        self::assertTrue($subject->isUnique());
+        self::assertSame(['`pid`', '`deleted`', '`sorting`'], $subject->getColumns());
     }
 
     /**
@@ -227,9 +237,9 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedNoCacheKey()
     {
         $subject = $this->table->getIndex('noCache');
-        $this->assertInstanceOf(Index::class, $subject);
-        $this->assertTrue($subject->isSimpleIndex());
-        $this->assertSame(['`no_cache`'], $subject->getColumns());
+        self::assertInstanceOf(Index::class, $subject);
+        self::assertTrue($subject->isSimpleIndex());
+        self::assertSame(['`no_cache`'], $subject->getColumns());
     }
 
     /**
@@ -238,11 +248,11 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function isExpectedForeignKey()
     {
         $subject = $this->table->getForeignKey('fk_overlay');
-        $this->assertInstanceOf(ForeignKeyConstraint::class, $subject);
-        $this->assertSame(['`pid`'], $subject->getForeignColumns());
-        $this->assertSame(['`uid`'], $subject->getLocalColumns());
-        $this->assertSame('aTestTable', $subject->getLocalTableName());
-        $this->assertSame('pages_language_overlay', $subject->getForeignTableName());
+        self::assertInstanceOf(ForeignKeyConstraint::class, $subject);
+        self::assertSame(['`pid`'], $subject->getForeignColumns());
+        self::assertSame(['`uid`'], $subject->getLocalColumns());
+        self::assertSame('aTestTable', $subject->getLocalTableName());
+        self::assertSame('any_foreign_table', $subject->getForeignTableName());
     }
 
     /**
@@ -251,6 +261,6 @@ class TableBuilderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function hasColumnLengthOnIndex()
     {
         $subject = $this->table->getIndex('substring');
-        $this->assertSame(['`TSconfig`(80)'], $subject->getColumns());
+        self::assertSame(['`TSconfig`(80)'], $subject->getColumns());
     }
 }

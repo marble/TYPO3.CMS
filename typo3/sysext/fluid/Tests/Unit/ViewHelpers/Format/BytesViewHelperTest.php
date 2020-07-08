@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Format\BytesViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 
@@ -27,7 +28,7 @@ class BytesViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new BytesViewHelper();
@@ -100,14 +101,14 @@ class BytesViewHelperTest extends ViewHelperBaseTestcase
                 'expected' => '1.024.0 MB'
             ],
             [
-                'value' => pow(1024, 5),
+                'value' => 1024 ** 5,
                 'decimals' => 1,
                 'decimalSeparator' => null,
                 'thousandsSeparator' => null,
                 'expected' => '1.0 PB'
             ],
             [
-                'value' => pow(1024, 8),
+                'value' => 1024 ** 8,
                 'decimals' => 1,
                 'decimalSeparator' => null,
                 'thousandsSeparator' => null,
@@ -138,7 +139,7 @@ class BytesViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expected, $actualResult);
+        self::assertEquals($expected, $actualResult);
     }
 
     /**
@@ -158,6 +159,6 @@ class BytesViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('12 KB', $actualResult);
+        self::assertEquals('12 KB', $actualResult);
     }
 }

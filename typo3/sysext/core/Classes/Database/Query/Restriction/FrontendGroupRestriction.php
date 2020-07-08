@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Database\Query\Restriction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,8 +15,13 @@ namespace TYPO3\CMS\Core\Database\Query\Restriction;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database\Query\Restriction;
+
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\UserAspect;
 use TYPO3\CMS\Core\Database\Query\Expression\CompositeExpression;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Restriction to filter records, which are limited to the given user groups
@@ -29,11 +34,17 @@ class FrontendGroupRestriction implements QueryRestrictionInterface
     protected $frontendGroupIds;
 
     /**
-     * @param array $frontendGroupIds Normalized array with user groups of currently logged in user (typically expolded value of $GLOBALS['TSFE']->gr_list
+     * @param array $frontendGroupIds Normalized array with user groups of currently logged in user (typically found in the Frontend Context)
      */
     public function __construct(array $frontendGroupIds = null)
     {
-        $this->frontendGroupIds = $frontendGroupIds === null ? explode(',', $GLOBALS['TSFE']->gr_list) : $frontendGroupIds;
+        if ($frontendGroupIds !== null) {
+            $this->frontendGroupIds = $frontendGroupIds;
+        } else {
+            /** @var UserAspect $frontendUserAspect */
+            $frontendUserAspect = GeneralUtility::makeInstance(Context::class)->getAspect('frontend.user');
+            $this->frontendGroupIds = $frontendUserAspect->getGroupIds();
+        }
     }
 
     /**

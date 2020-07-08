@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Exception;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +15,13 @@ namespace TYPO3\CMS\Extbase\Persistence\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Exception;
+
+use TYPO3\CMS\Extbase\Persistence\Exception;
+
 /**
  * An "Unknown Object" exception
  */
-class UnknownObjectException extends \TYPO3\CMS\Extbase\Persistence\Exception
+class UnknownObjectException extends Exception
 {
 }

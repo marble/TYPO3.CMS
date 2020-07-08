@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Domain\Record;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,9 @@ namespace TYPO3\CMS\Workspaces\Domain\Record;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Workspaces\Domain\Record;
+
 use TYPO3\CMS\Workspaces\Service\StagesService;
 
 /**
@@ -96,7 +98,7 @@ class StageRecord extends AbstractRecord
     }
 
     /**
-     * @return NULL|StageRecord
+     * @return StageRecord|null
      */
     public function getPrevious()
     {
@@ -104,7 +106,7 @@ class StageRecord extends AbstractRecord
     }
 
     /**
-     * @return NULL|StageRecord
+     * @return StageRecord|null
      */
     public function getNext()
     {
@@ -119,9 +121,11 @@ class StageRecord extends AbstractRecord
     {
         if ($this->getUid() === $stageRecord->getUid()) {
             return 0;
-        } elseif ($this->isEditStage() || $stageRecord->isExecuteStage() || $this->isPreviousTo($stageRecord)) {
+        }
+        if ($this->isEditStage() || $stageRecord->isExecuteStage() || $this->isPreviousTo($stageRecord)) {
             return -1;
-        } elseif ($this->isExecuteStage() || $stageRecord->isEditStage() || $this->isNextTo($stageRecord)) {
+        }
+        if ($this->isExecuteStage() || $stageRecord->isEditStage() || $this->isNextTo($stageRecord)) {
             return 1;
         }
         return 0;
@@ -266,6 +270,14 @@ class StageRecord extends AbstractRecord
     /**
      * @return bool
      */
+    public function hasDefaultRecipients(): bool
+    {
+        return $this->record['notification_defaults'] !== '';
+    }
+
+    /**
+     * @return bool
+     */
     public function hasPreselection()
     {
         return
@@ -273,6 +285,7 @@ class StageRecord extends AbstractRecord
             || $this->areMembersPreselected()
             || $this->areEditorsPreselected()
             || $this->areResponsiblePersonsPreselected()
+            || $this->hasDefaultRecipients()
         ;
     }
 

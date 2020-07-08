@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Configuration\Image;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,16 @@ namespace TYPO3\CMS\Install\Configuration\Image;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Install\Configuration;
+namespace TYPO3\CMS\Install\Configuration\Image;
+
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Utility\CommandUtility;
 
 /**
  * Preset for GraphicsMagick
+ * @internal only to be used within EXT:install
  */
-class GraphicsMagickPreset extends AbstractImagePreset implements Configuration\PresetInterface
+class GraphicsMagickPreset extends AbstractImagePreset
 {
     /**
      * @var string Name of preset
@@ -40,7 +43,7 @@ class GraphicsMagickPreset extends AbstractImagePreset implements Configuration\
         'GFX/processor_path' => '',
         'GFX/processor_path_lzw' => '',
         'GFX/processor' => 'GraphicsMagick',
-        'GFX/processor_effects' => -1,
+        'GFX/processor_effects' => false,
         'GFX/processor_allowTemporaryMasksAsPng' => false,
         'GFX/processor_colorspace' => 'RGB',
     ];
@@ -66,7 +69,7 @@ class GraphicsMagickPreset extends AbstractImagePreset implements Configuration\
     {
         $result = false;
         foreach ($searchPaths as $path) {
-            if (TYPO3_OS === 'WIN') {
+            if (Environment::isWindows()) {
                 $executable = 'gm.exe';
             } else {
                 $executable = 'gm';
@@ -74,7 +77,7 @@ class GraphicsMagickPreset extends AbstractImagePreset implements Configuration\
             if (@is_file($path . $executable)) {
                 $command = escapeshellarg($path . $executable) . ' -version';
                 $executingResult = false;
-                \TYPO3\CMS\Core\Utility\CommandUtility::exec($command, $executingResult);
+                CommandUtility::exec($command, $executingResult);
                 // First line of exec command should contain string GraphicsMagick
                 $firstResultLine = array_shift($executingResult);
                 if (strpos($firstResultLine, 'GraphicsMagick') !== false) {

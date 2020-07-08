@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Messaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,14 +13,19 @@ namespace TYPO3\CMS\Core\Messaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Messaging;
+
 use TYPO3\CMS\Core\Authentication\AbstractUserAuthentication;
+use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Messaging\Renderer\FlashMessageRendererInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Frontend\Authentication\FrontendUserAuthentication;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 /**
  * A class which collects and renders flash messages.
  */
-class FlashMessageQueue extends \SplQueue
+class FlashMessageQueue extends \SplQueue implements \JsonSerializable
 {
     /**
      * A unique identifier for this queue
@@ -52,11 +56,12 @@ class FlashMessageQueue extends \SplQueue
      *
      * @param FlashMessage $message Instance of \TYPO3\CMS\Core\Messaging\FlashMessage, representing a message
      * @throws \TYPO3\CMS\Core\Exception
+     * @return FlashMessageQueue Self to allow chaining
      */
-    public function enqueue($message)
+    public function enqueue($message): FlashMessageQueue
     {
         if (!($message instanceof FlashMessage)) {
-            throw new \TYPO3\CMS\Core\Exception(
+            throw new Exception(
                 'FlashMessageQueue::enqueue() expects an object of type \TYPO3\CMS\Core\Messaging\FlashMessage but got type "' . (is_object($message) ? get_class($message) : gettype($message)) . '"',
                 1376833554
             );
@@ -66,6 +71,7 @@ class FlashMessageQueue extends \SplQueue
         } else {
             parent::enqueue($message);
         }
+        return $this;
     }
 
     /**
@@ -156,6 +162,9 @@ class FlashMessageQueue extends \SplQueue
      */
     protected function removeAllFlashMessagesFromSession($severity = null)
     {
+        if (!$this->getUserByContext() instanceof AbstractUserAuthentication) {
+            return;
+        }
         if ($severity === null) {
             $this->storeFlashMessagesInSession(null);
         } else {
@@ -175,10 +184,15 @@ class FlashMessageQueue extends \SplQueue
      *
      * @return FlashMessage[]
      */
-    protected function getFlashMessagesFromSession()
+    protected function getFlashMessagesFromSession(): array
     {
-        $flashMessages = $this->getUserByContext()->getSessionData($this->identifier);
-        return is_array($flashMessages) ? $flashMessages : [];
+        $sessionMessages = [];
+        $user = $this->getUserByContext();
+        if ($user instanceof AbstractUserAuthentication) {
+            $sessionMessages = $user->getSessionData($this->identifier);
+            $sessionMessages = is_array($sessionMessages) ? $sessionMessages : [];
+        }
+        return $sessionMessages;
     }
 
     /**
@@ -188,7 +202,10 @@ class FlashMessageQueue extends \SplQueue
      */
     protected function getUserByContext()
     {
-        return TYPO3_MODE === 'BE' ? $GLOBALS['BE_USER'] : $GLOBALS['TSFE']->fe_user;
+        if (($GLOBALS['TSFE'] ?? null) instanceof TypoScriptFrontendController && $GLOBALS['TSFE']->fe_user instanceof FrontendUserAuthentication) {
+            return $GLOBALS['TSFE']->fe_user;
+        }
+        return $GLOBALS['BE_USER'];
     }
 
     /**
@@ -255,5 +272,13 @@ class FlashMessageQueue extends \SplQueue
                 $this->offsetUnset($key);
             }
         }
+    }
+
+    /**
+     * @return array Data which can be serialized by json_encode()
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

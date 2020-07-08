@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
+
 /**
  * Evaluates to the upper-case string value (or values, if multi-valued) of
  * operand.
@@ -23,7 +24,7 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  *
  * If operand evaluates to null, the UpperCase operand also evaluates to null.
  *
- * @license http://www.gnu.org/licenses/lgpl.html GNU Lesser General Public License, version 3 or later
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class UpperCase implements UpperCaseInterface
 {

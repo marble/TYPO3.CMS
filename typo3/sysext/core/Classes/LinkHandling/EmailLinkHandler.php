@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\LinkHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\LinkHandling;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\LinkHandling;
 
 /**
  * Resolves emails
@@ -41,6 +43,9 @@ class EmailLinkHandler implements LinkHandlingInterface
      */
     public function resolveHandlerData(array $data): array
     {
-        return ['email' => substr($data['email'], 7)];
+        if (stripos($data['email'], 'mailto:') === 0) {
+            return ['email' => substr($data['email'], 7)];
+        }
+        return ['email' => $data['email']];
     }
 }

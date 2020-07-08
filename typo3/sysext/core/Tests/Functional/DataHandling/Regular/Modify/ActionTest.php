@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\Modify;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,16 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\Modify;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\Modify;
+
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\AbstractActionTestCase;
+use TYPO3\TestingFramework\Core\Functional\Framework\Frontend\InternalRequest;
+
 /**
  * Functional test for the DataHandler
  */
-class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\AbstractActionTestCase
+class ActionTest extends AbstractActionTestCase
 {
     /**
      * @var string
@@ -30,7 +35,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
 
     /**
      * @test
-     * @see DataSet/createContentRecords.csv
+     * See DataSet/createContentRecords.csv
      */
     public function createContents()
     {
@@ -38,28 +43,31 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('createContents');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1', 'Testing #2'));
     }
 
     /**
      * @test
-     * @see DataSet/createContentForLanguageAll.csv
+     * See DataSet/createContentForLanguageAll.csv
      */
     public function createContentForLanguageAll()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageIdSecond);
         parent::createContentForLanguageAll();
 
         $this->assertAssertionDataSet('createContentForLanguageAll');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageIdSecond)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Language set to all', '[Translate to Deutsch:] [Translate to Dansk:] Regular Element #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyContentRecord.csv
+     * See DataSet/modifyContentRecord.csv
      */
     public function modifyContent()
     {
@@ -67,13 +75,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('modifyContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteContentRecord.csv
+     * See DataSet/deleteContentRecord.csv
      */
     public function deleteContent()
     {
@@ -81,15 +89,15 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('deleteContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1'));
-        $this->assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteLocalizedContentNDeleteContent.csv
+     * See DataSet/deleteLocalizedContentNDeleteContent.csv
      */
     public function deleteLocalizedContentAndDeleteContent()
     {
@@ -97,13 +105,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('deleteLocalizedContentNDeleteContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #3', '[Translate to Dansk:] Regular Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentRecord.csv
+     * See DataSet/copyContentRecord.csv
      */
     public function copyContent()
     {
@@ -111,49 +119,94 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('copyContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #2 (copy 1)'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentToLanguage.csv
+     * See DataSet/copyContentToLanguage.csv
      */
     public function copyContentToLanguage()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         parent::copyContentToLanguage();
         $this->assertAssertionDataSet('copyContentToLanguage');
 
-        $this->setUpFrontendRootPage(1, [
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts',
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRendererNoOverlay.ts'
-        ]);
+        // Set up "dk" to not have overlays
+        $languageConfiguration = $this->siteLanguageConfiguration;
+        $languageConfiguration[self::VALUE_LanguageId]['fallbackType'] = 'free';
+        $this->setUpFrontendSite(1, $languageConfiguration);
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Dansk:] Regular Element #3', '[Translate to Dansk:] Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentToLanguageFromNonDefaultLanguage.csv
+     * See DataSet/copyContentToLanguageWSynchronization.csv
+     */
+    public function copyContentToLanguageWithLanguageSynchronization()
+    {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+        parent::copyContentToLanguageWithLanguageSynchronization();
+        $this->assertAssertionDataSet('copyContentToLanguageWSynchronization');
+
+        // Set up "dk" to not have overlays
+        $languageConfiguration = $this->siteLanguageConfiguration;
+        $languageConfiguration[self::VALUE_LanguageId]['fallbackType'] = 'free';
+        $this->setUpFrontendSite(1, $languageConfiguration);
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+            ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Dansk:] Regular Element #3', '[Translate to Dansk:] Regular Element #2'));
+    }
+
+    /**
+     * @test
+     * See DataSet/copyContentToLanguageWExclude.csv
+     */
+    public function copyContentToLanguageWithLocalizationExclude()
+    {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+        parent::copyContentToLanguageWithLocalizationExclude();
+        $this->assertAssertionDataSet('copyContentToLanguageWExclude');
+
+        // Set up "dk" to not have overlays
+        $languageConfiguration = $this->siteLanguageConfiguration;
+        $languageConfiguration[self::VALUE_LanguageId]['fallbackType'] = 'free';
+        $this->setUpFrontendSite(1, $languageConfiguration);
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+            ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Dansk:] Regular Element #1', '[Translate to Dansk:] Regular Element #3', 'Regular Element #2 (copy 1)'));
+    }
+
+    /**
+     * @test
+     * See DataSet/copyContentToLanguageFromNonDefaultLanguage.csv
      */
     public function copyContentToLanguageFromNonDefaultLanguage()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageIdSecond);
         parent::copyContentToLanguageFromNonDefaultLanguage();
         $this->assertAssertionDataSet('copyContentToLanguageFromNonDefaultLanguage');
 
-        $this->setUpFrontendRootPage(1, [
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts',
-            'typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRendererNoOverlay.ts'
-        ]);
+        // Set up "de" to not have overlays
+        $languageConfiguration = $this->siteLanguageConfiguration;
+        $languageConfiguration[self::VALUE_LanguageIdSecond]['fallbackType'] = 'free';
+        $this->setUpFrontendSite(1, $languageConfiguration);
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageIdSecond)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Deutsch:] [Translate to Dansk:] Regular Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentRecord.csv
+     * See DataSet/copyContentRecord.csv
      */
     public function copyPasteContent()
     {
@@ -161,130 +214,166 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('copyPasteContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentRecord.csv
+     * See DataSet/localizeContentRecord.csv
      */
     public function localizeContent()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         parent::localizeContent();
         $this->assertAssertionDataSet('localizeContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Dansk:] Regular Element #1', '[Translate to Dansk:] Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentWSynchronization.csv
+     * See DataSet/localizeContentRecord.csv
+     * @see \TYPO3\CMS\Core\Migrations\TcaMigration::sanitizeControlSectionIntegrity()
+     */
+    public function localizeContentWithEmptyTcaIntegrityColumns()
+    {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+        parent::localizeContentWithEmptyTcaIntegrityColumns();
+        $this->assertAssertionDataSet('localizeContent');
+
+        $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+            ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Dansk:] Regular Element #1', '[Translate to Dansk:] Regular Element #2'));
+    }
+
+    /**
+     * @test
+     * See DataSet/localizeContentWSynchronization.csv
      */
     public function localizeContentWithLanguageSynchronization()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         parent::localizeContentWithLanguageSynchronization();
         $this->assertAssertionDataSet('localizeContentWSynchronization');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Dansk:] Regular Element #1', 'Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentWSynchronizationHNull.csv
+     * See DataSet/localizeContentWSynchronizationHNull.csv
      */
     public function localizeContentWithLanguageSynchronizationHavingNullValue()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         parent::localizeContentWithLanguageSynchronizationHavingNullValue();
         $this->assertAssertionDataSet('localizeContentWSynchronizationHNull');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Dansk:] Regular Element #1', 'Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentFromNonDefaultLanguage.csv
+     * See DataSet/localizeContentFromNonDefaultLanguage.csv
      */
     public function localizeContentFromNonDefaultLanguage()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageIdSecond);
         parent::localizeContentFromNonDefaultLanguage();
 
         $this->assertAssertionDataSet('localizeContentFromNonDefaultLanguage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageIdSecond)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Deutsch:] [Translate to Dansk:] Regular Element #1', '[Translate to Deutsch:] [Translate to Dansk:] Regular Element #3'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentFromNonDefaultLanguageWSynchronizationDefault.csv
+     * See DataSet/localizeContentFromNonDefaultLanguageWSynchronizationDefault.csv
      */
     public function localizeContentFromNonDefaultLanguageWithLanguageSynchronizationDefault()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageIdSecond);
         parent::localizeContentFromNonDefaultLanguageWithLanguageSynchronizationDefault();
 
         $this->assertAssertionDataSet('localizeContentFromNonDefaultLanguageWSynchronizationDefault');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageIdSecond)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Deutsch:] [Translate to Dansk:] Regular Element #1', 'Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentFromNonDefaultLanguageWSynchronizationSource.csv
+     * See DataSet/localizeContentFromNonDefaultLanguageWSynchronizationSource.csv
      */
     public function localizeContentFromNonDefaultLanguageWithLanguageSynchronizationSource()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageIdSecond);
         parent::localizeContentFromNonDefaultLanguageWithLanguageSynchronizationSource();
 
         $this->assertAssertionDataSet('localizeContentFromNonDefaultLanguageWSynchronizationSource');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageIdSecond)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('[Translate to Deutsch:] [Translate to Dansk:] Regular Element #1', 'Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/createLocalizedContent.csv
+     * See DataSet/createLocalizedContent.csv
      */
     public function createLocalizedContent()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         parent::createLocalizedContent();
 
         $this->assertAssertionDataSet('createLocalizedContent');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Localized Testing'));
     }
 
     /**
      * @test
-     * @see DataSet/createLocalizedContentWSynchronization.csv
+     * See DataSet/createLocalizedContentWSynchronization.csv
      */
     public function createLocalizedContentWithLanguageSynchronization()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         parent::createLocalizedContentWithLanguageSynchronization();
 
         $this->assertAssertionDataSet('createLocalizedContentWSynchronization');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing'));
     }
 
     /**
      * @test
-     * @see DataSet/createLocalizedContentWExclude.csv
+     * See DataSet/createLocalizedContentWExclude.csv
      */
     public function createLocalizedContentWithLocalizationExclude()
     {
@@ -293,13 +382,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('createLocalizedContentWExclude');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing'));
     }
 
     /**
      * @test
-     * @see DataSet/changeContentRecordSorting.csv
+     * See DataSet/changeContentRecordSorting.csv
      */
     public function changeContentSorting()
     {
@@ -307,13 +396,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('changeContentSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/moveContentRecordToDifferentPage.csv
+     * See DataSet/moveContentRecordToDifferentPage.csv
      */
     public function moveContentToDifferentPage()
     {
@@ -321,16 +410,16 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('moveContentToDifferentPage');
 
         $responseSectionsSource = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSectionsSource, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSectionsSource, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1'));
         $responseSectionsTarget = $this->getFrontendResponse(self::VALUE_PageIdTarget)->getResponseSections();
-        $this->assertThat($responseSectionsTarget, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSectionsTarget, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/movePasteContentToDifferentPage.csv
+     * See DataSet/movePasteContentToDifferentPage.csv
      */
     public function movePasteContentToDifferentPage()
     {
@@ -338,16 +427,16 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('movePasteContentToDifferentPage');
 
         $responseSectionsSource = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSectionsSource, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSectionsSource, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1'));
         $responseSectionsTarget = $this->getFrontendResponse(self::VALUE_PageIdTarget)->getResponseSections();
-        $this->assertThat($responseSectionsTarget, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSectionsTarget, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/moveContentRecordToDifferentPageAndChangeSorting.csv
+     * See DataSet/moveContentRecordToDifferentPageAndChangeSorting.csv
      */
     public function moveContentToDifferentPageAndChangeSorting()
     {
@@ -355,7 +444,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('moveContentToDifferentPageNChangeSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageIdTarget)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
     }
 
@@ -365,7 +454,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
 
     /**
      * @test
-     * @see DataSet/createPageRecord.csv
+     * See DataSet/createPageRecord.csv
      */
     public function createPage()
     {
@@ -373,13 +462,45 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('createPage');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'])->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyPageRecord.csv
+     * See DataSet/createPageRecordWithSlugOverrideConfiguration.csv
+     */
+    public function createPageWithSlugOverrideConfiguration(): void
+    {
+        // set default configuration
+        $GLOBALS['TCA']['pages']['columns']['slug']['config']['generatorOptions'] = [
+            'fields' => [
+                'title',
+            ],
+            'fieldSeparator' => '-',
+            'prefixParentPageSlug' => true,
+        ];
+        // set override for doktype default
+        $GLOBALS['TCA']['pages']['types'][PageRepository::DOKTYPE_DEFAULT]['columnsOverrides'] = [
+            'slug' => [
+                'config' => [
+                    'generatorOptions' => [
+                        'fields' => [
+                            'nav_title'
+                        ],
+                        'fieldSeparator' => '-',
+                        'prefixParentPageSlug' => true,
+                    ]
+                ]
+            ]
+        ];
+        parent::createPage();
+        $this->assertAssertionDataSet('createPageWithSlugOverrideConfiguration');
+    }
+
+    /**
+     * @test
+     * See DataSet/modifyPageRecord.csv
      */
     public function modifyPage()
     {
@@ -387,26 +508,26 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('modifyPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deletePageRecord.csv
+     * See DataSet/deletePageRecord.csv
      */
     public function deletePage()
     {
         parent::deletePage();
         $this->assertAssertionDataSet('deletePage');
 
-        $response = $this->getFrontendResponse(self::VALUE_PageId, 0, 0, 0, false);
-        $this->assertContains('PageNotFoundException', $response->getError());
+        $response = $this->executeFrontendRequest((new InternalRequest())->withPageId(self::VALUE_PageId));
+        self::assertEquals(404, $response->getStatusCode());
     }
 
     /**
      * @test
-     * @see DataSet/copyPage.csv
+     * See DataSet/copyPage.csv
      */
     public function copyPage()
     {
@@ -414,7 +535,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('copyPage');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'])->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Relations'));
     }
 
@@ -425,7 +546,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
      * also note that 314 is NOT a record in the default language
      *
      * @test
-     * @see DataSet/copyPageFreeMode.csv
+     * See DataSet/copyPageFreeMode.csv
      */
     public function copyPageFreeMode()
     {
@@ -434,13 +555,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('copyPageFreeMode');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'])->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Target'));
     }
 
     /**
      * @test
-     * @see DataSet/localizePageRecord.csv
+     * See DataSet/localizePageRecord.csv
      */
     public function localizePage()
     {
@@ -448,13 +569,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('localizePage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('[Translate to Dansk:] Relations'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeNCopyPage.csv
+     * See DataSet/localizeNCopyPage.csv
      */
     public function localizeAndCopyPage()
     {
@@ -463,13 +584,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('localizeNCopyPage');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'], self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('[Translate to Dansk:] Relations'));
     }
 
     /**
      * @test
-     * @see DataSet/localizePageWSynchronization.csv
+     * See DataSet/localizePageWSynchronization.csv
      */
     public function localizePageWithLanguageSynchronization()
     {
@@ -477,13 +598,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('localizePageWSynchronization');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeNCopyPageWSynchronization.csv
+     * See DataSet/localizeNCopyPageWSynchronization.csv
      */
     public function localizeAndCopyPageWithLanguageSynchronization()
     {
@@ -492,13 +613,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('localizeNCopyPageWSynchronization');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/changePageRecordSorting.csv
+     * See DataSet/changePageRecordSorting.csv
      */
     public function changePageSorting()
     {
@@ -506,15 +627,15 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('changePageSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Relations'));
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/movePageRecordToDifferentPage.csv
+     * See DataSet/movePageRecordToDifferentPage.csv
      */
     public function movePageToDifferentPage()
     {
@@ -522,15 +643,15 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('movePageToDifferentPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Relations'));
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
     }
 
     /**
      * @test
-     * @see DataSet/movePageRecordToDifferentPageAndChangeSorting.csv
+     * See DataSet/movePageRecordToDifferentPageAndChangeSorting.csv
      */
     public function movePageToDifferentPageAndChangeSorting()
     {
@@ -538,9 +659,9 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular\A
         $this->assertAssertionDataSet('movePageToDifferentPageNChangeSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Relations'));
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Be;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,30 +13,35 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Be;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\ViewHelpers\Be;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 
 /**
- * View helper which return page info icon as known from TYPO3 backend modules
- * Note: This view helper is experimental!
+ * ViewHelper which return page info icon as known from TYPO3 backend modules.
  *
- * = Examples =
+ * .. note::
+ *    This ViewHelper is experimental!
  *
- * <code>
- * <f:be.pageInfo />
- * </code>
- * <output>
+ * Examples
+ * ========
+ *
+ * Default::
+ *
+ *    <f:be.pageInfo />
+ *
  * Page info icon with context menu
- * </output>
  */
 class PageInfoViewHelper extends AbstractBackendViewHelper
 {
 
     /**
-     * This view helper renders HTML, thus output must not be escaped
+     * This ViewHelper renders HTML, thus output must not be escaped
      *
      * @var bool
      */
@@ -47,7 +51,6 @@ class PageInfoViewHelper extends AbstractBackendViewHelper
      * Render javascript in header
      *
      * @return string the rendered page info icon
-     * @see \TYPO3\CMS\Backend\Template\DocumentTemplate::getPageInfo() Note: can't call this method as it's protected!
      */
     public function render()
     {
@@ -68,7 +71,7 @@ class PageInfoViewHelper extends AbstractBackendViewHelper
     public static function renderStatic(array $arguments, \Closure $renderChildrenClosure, RenderingContextInterface $renderingContext)
     {
         $id = GeneralUtility::_GP('id');
-        $pageRecord = BackendUtility::readPageAccess($id, $GLOBALS['BE_USER']->getPagePermsClause(1));
+        $pageRecord = BackendUtility::readPageAccess($id, $GLOBALS['BE_USER']->getPagePermsClause(Permission::PAGE_SHOW));
         // Add icon with context menu, etc:
         /** @var IconFactory $iconFactory */
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
@@ -85,8 +88,8 @@ class PageInfoViewHelper extends AbstractBackendViewHelper
             // On root-level of page tree
             // Make Icon
             $theIcon = '<span title="' . htmlspecialchars($GLOBALS['TYPO3_CONF_VARS']['SYS']['sitename']) . '">' . $iconFactory->getIcon('apps-pagetree-page-domain', Icon::SIZE_SMALL)->render() . '</span>';
-            if ($GLOBALS['BE_USER']->user['admin']) {
-                $theIcon = BackendUtility::wrapClickMenuOnIcon($theIcon, 'pages', 0);
+            if ($GLOBALS['BE_USER']->isAdmin()) {
+                $theIcon = BackendUtility::wrapClickMenuOnIcon($theIcon, 'pages');
             }
         }
         return $theIcon;

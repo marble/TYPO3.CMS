@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,15 +15,19 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Clipboard\Clipboard;
 use TYPO3\CMS\Backend\ContextMenu\ContextMenu;
+use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Script Class for the Context Sensitive Menu in TYPO3
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class ContextMenuController
 {
@@ -32,36 +36,33 @@ class ContextMenuController
      */
     public function __construct()
     {
-        $this->getLanguageService()->includeLLFile('EXT:lang/Resources/Private/Language/locallang_misc.xlf');
+        $this->getLanguageService()->includeLLFile('EXT:core/Resources/Private/Language/locallang_misc.xlf');
     }
 
     /**
      * Renders a context menu
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function getContextMenuAction(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    public function getContextMenuAction(ServerRequestInterface $request): ResponseInterface
     {
         $contextMenu = GeneralUtility::makeInstance(ContextMenu::class);
 
         $params = $request->getQueryParams();
-        $context = isset($params['context']) ? $params['context'] : '';
+        $context = $params['context'] ?? '';
         $items = $contextMenu->getItems($params['table'], $params['uid'], $context);
         if (!is_array($items)) {
             $items = [];
         }
-        $response->getBody()->write(json_encode($items));
-        return $response;
+        return (new JsonResponse())->setPayload($items);
     }
 
     /**
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function clipboardAction(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    public function clipboardAction(ServerRequestInterface $request): ResponseInterface
     {
         /** @var Clipboard $clipboard */
         $clipboard = GeneralUtility::makeInstance(Clipboard::class);
@@ -72,8 +73,7 @@ class ContextMenuController
         $clipboard->cleanCurrent();
 
         $clipboard->endClipboard();
-        $response->getBody()->write(json_encode([]));
-        return $response;
+        return (new JsonResponse())->setPayload([]);
     }
 
     /**

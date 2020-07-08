@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Imaging\ImageManipulation;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Imaging\ImageManipulation;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Imaging\ImageManipulation;
+
 use TYPO3\CMS\Core\Imaging\ImageManipulation\CropVariant;
 use TYPO3\CMS\Core\Imaging\ImageManipulation\InvalidConfigurationException;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
@@ -25,7 +27,7 @@ class CropVariantTest extends UnitTestCase
      * @var array
      */
     private static $tca = [
-        'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.crop_variant.default',
+        'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.crop_variant.default',
         'cropArea' => [
             'x' => 0.0,
             'y' => 0.0,
@@ -34,19 +36,19 @@ class CropVariantTest extends UnitTestCase
         ],
         'allowedAspectRatios' => [
             '16:9' => [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.16_9',
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.16_9',
                 'value' => 1.777777777777777
             ],
             '4:3' => [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.4_3',
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.4_3',
                 'value' => 1.333333333333333
             ],
             '1:1' => [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.1_1',
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.1_1',
                 'value' => 1.0
             ],
             'free' => [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.free',
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.free',
                 'value' => 0.0
             ],
         ],
@@ -69,7 +71,7 @@ class CropVariantTest extends UnitTestCase
 
     private static $expectedConfig = [];
 
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
         self::$expectedConfig = array_merge(['id' => 'default'], self::$tca);
@@ -84,8 +86,8 @@ class CropVariantTest extends UnitTestCase
     public function createFromTcaWorks()
     {
         $cropVariant = CropVariant::createFromConfiguration(self::$expectedConfig['id'], self::$tca);
-        $this->assertInstanceOf(CropVariant::class, $cropVariant);
-        $this->assertSame(self::$expectedConfig, $cropVariant->asArray());
+        self::assertInstanceOf(CropVariant::class, $cropVariant);
+        self::assertSame(self::$expectedConfig, $cropVariant->asArray());
     }
 
     /**
@@ -95,7 +97,7 @@ class CropVariantTest extends UnitTestCase
     {
         $tca = self::$tca;
         unset($tca['selectedRatio']);
-        $this->assertInstanceOf(CropVariant::class, CropVariant::createFromConfiguration(self::$expectedConfig['id'], $tca));
+        self::assertInstanceOf(CropVariant::class, CropVariant::createFromConfiguration(self::$expectedConfig['id'], $tca));
     }
 
     /**

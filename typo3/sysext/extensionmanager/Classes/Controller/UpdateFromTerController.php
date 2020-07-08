@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,67 +12,77 @@ namespace TYPO3\CMS\Extensionmanager\Controller;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extensionmanager\Controller;
+
+use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Extbase\Mvc\View\JsonView;
+use TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository;
+use TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository;
+use TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException;
+use TYPO3\CMS\Extensionmanager\Utility\ListUtility;
+use TYPO3\CMS\Extensionmanager\Utility\Repository\Helper;
 
 /**
  * Controller for actions relating to update of full extension list from TER
+ * @internal This class is a specific controller implementation and is not considered part of the Public TYPO3 API.
  */
 class UpdateFromTerController extends AbstractController
 {
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\Repository\Helper
+     * @var Helper
      */
     protected $repositoryHelper;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository
+     * @var RepositoryRepository
      */
     protected $repositoryRepository;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\ListUtility
+     * @var ListUtility
      */
     protected $listUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository
+     * @var ExtensionRepository
      */
     protected $extensionRepository;
 
     /**
-     * @var JsonView
+     * @var string
      */
     protected $defaultViewObjectName = JsonView::class;
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\Repository\Helper $repositoryHelper
+     * @param Helper $repositoryHelper
      */
-    public function injectRepositoryHelper(\TYPO3\CMS\Extensionmanager\Utility\Repository\Helper $repositoryHelper)
+    public function injectRepositoryHelper(Helper $repositoryHelper)
     {
         $this->repositoryHelper = $repositoryHelper;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository $repositoryRepository
+     * @param RepositoryRepository $repositoryRepository
      */
-    public function injectRepositoryRepository(\TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository $repositoryRepository)
+    public function injectRepositoryRepository(RepositoryRepository $repositoryRepository)
     {
         $this->repositoryRepository = $repositoryRepository;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\ListUtility $listUtility
+     * @param ListUtility $listUtility
      */
-    public function injectListUtility(\TYPO3\CMS\Extensionmanager\Utility\ListUtility $listUtility)
+    public function injectListUtility(ListUtility $listUtility)
     {
         $this->listUtility = $listUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository $extensionRepository
+     * @param ExtensionRepository $extensionRepository
      */
-    public function injectExtensionRepository(\TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository $extensionRepository)
+    public function injectExtensionRepository(ExtensionRepository $extensionRepository)
     {
         $this->extensionRepository = $extensionRepository;
     }
@@ -91,22 +100,21 @@ class UpdateFromTerController extends AbstractController
         if ($this->extensionRepository->countAll() === 0 || $forceUpdateCheck) {
             try {
                 $updated = $this->repositoryHelper->updateExtList();
-            } catch (\TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException $e) {
+            } catch (ExtensionManagerException $e) {
                 $errorMessage = $e->getMessage();
             }
         }
-        /** @var $repository \TYPO3\CMS\Extensionmanager\Domain\Model\Repository */
-        $repository = $this->repositoryRepository->findByUid((int)$this->settings['repositoryUid']);
+        $repository = $this->repositoryRepository->findOneTypo3OrgRepository();
 
         $timeFormat = $this->getLanguageService()->sL('LLL:EXT:extensionmanager/Resources/Private/Language/locallang.xlf:extensionList.updateFromTer.lastUpdate.fullTimeFormat');
-        $lastUpdateTime = $repository->getLastUpdate();
+        $lastUpdateTime = $repository ? $repository->getLastUpdate() : null;
         if (null === $lastUpdateTime) {
             $lastUpdatedSince = $this->getLanguageService()->sL('LLL:EXT:extensionmanager/Resources/Private/Language/locallang.xlf:extensionList.updateFromTer.never');
             $lastUpdateTime = date($timeFormat);
         } else {
-            $lastUpdatedSince = \TYPO3\CMS\Backend\Utility\BackendUtility::calcAge(
+            $lastUpdatedSince = BackendUtility::calcAge(
                 time() - $lastUpdateTime->format('U'),
-                $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.minutesHoursDaysYears')
+                $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.minutesHoursDaysYears')
             );
             $lastUpdateTime = $lastUpdateTime->format($timeFormat);
         }

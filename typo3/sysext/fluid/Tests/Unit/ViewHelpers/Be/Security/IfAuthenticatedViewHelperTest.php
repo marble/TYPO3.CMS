@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Be\Security;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,11 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Be\Security;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Be\Security;
+
+use TYPO3\CMS\Fluid\ViewHelpers\Be\Security\IfAuthenticatedViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
+use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
 
 /**
  * Testcase for be.security.ifAuthenticated view helper
@@ -22,19 +27,23 @@ use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 class IfAuthenticatedViewHelperTest extends ViewHelperBaseTestcase
 {
     /**
-     * @var \TYPO3\CMS\Fluid\ViewHelpers\Be\Security\IfAuthenticatedViewHelper
+     * @var IfAuthenticatedViewHelper
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $GLOBALS['BE_USER'] = new \stdClass();
-        $this->viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\Be\Security\IfAuthenticatedViewHelper::class, ['renderThenChild', 'renderElseChild']);
-        $this->viewHelper->expects($this->any())->method('renderThenChild')->will($this->returnValue('then child'));
-        $this->viewHelper->expects($this->any())->method('renderElseChild')->will($this->returnValue('else child'));
+        $this->viewHelper = new IfAuthenticatedViewHelper();
         $this->injectDependenciesIntoViewHelper($this->viewHelper);
         $this->viewHelper->initializeArguments();
+    }
+
+    protected function tearDown(): void
+    {
+        unset($GLOBALS['BE_USER']);
+        parent::tearDown();
     }
 
     /**
@@ -43,8 +52,15 @@ class IfAuthenticatedViewHelperTest extends ViewHelperBaseTestcase
     public function viewHelperRendersThenChildIfBeUserIsLoggedIn()
     {
         $GLOBALS['BE_USER']->user = ['uid' => 1];
-        $actualResult = $this->viewHelper->render();
-        $this->assertEquals('then child', $actualResult);
+
+        $actualResult = $this->viewHelper->renderStatic(
+            ['then' => 'then child', 'else' => 'else child'],
+            function () {
+            },
+            $this->prophesize(RenderingContextInterface::class)->reveal()
+        );
+
+        self::assertEquals('then child', $actualResult);
     }
 
     /**
@@ -52,7 +68,15 @@ class IfAuthenticatedViewHelperTest extends ViewHelperBaseTestcase
      */
     public function viewHelperRendersElseChildIfBeUserIsNotLoggedIn()
     {
-        $actualResult = $this->viewHelper->render();
-        $this->assertEquals('else child', $actualResult);
+        $GLOBALS['BE_USER']->user = ['uid' => 0];
+
+        $actualResult = $this->viewHelper->renderStatic(
+            ['then' => 'then child', 'else' => 'else child'],
+            function () {
+            },
+            $this->prophesize(RenderingContextInterface::class)->reveal()
+        );
+
+        self::assertEquals('else child', $actualResult);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Container;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Container;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Container;
 
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -60,7 +61,7 @@ class FlexFormSectionContainer extends AbstractContainer
             $options = $this->data;
             $options['flexFormRowData'] = $existingContainerData['el'];
             $options['flexFormDataStructureArray'] = $containerDataStructure;
-            $options['flexFormFormPrefix'] = $this->data['flexFormFormPrefix'] . '[' . $flexFormFieldName . ']' . '[el]';
+            $options['flexFormFormPrefix'] = $this->data['flexFormFormPrefix'] . '[' . $flexFormFieldName . '][el]';
             $options['flexFormContainerName'] = $existingSectionContainerDataStructureType;
             $options['flexFormContainerIdentifier'] = $flexFormContainerIdentifier;
             $options['flexFormContainerElementCollapsed'] = (bool)$flexFormRowData[$flexFormContainerIdentifier]['_TOGGLE'];
@@ -113,7 +114,7 @@ class FlexFormSectionContainer extends AbstractContainer
         }
 
         // Wrap child stuff
-        $toggleAll = htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.toggleall'));
+        $toggleAll = htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.toggleall'));
         $html = [];
         $html[] = '<div class="panel panel-tab">';
         $html[] =     '<div class="panel-body">';
@@ -129,6 +130,7 @@ class FlexFormSectionContainer extends AbstractContainer
         $html[] =                 '</a>';
         $html[] =             '</div>';
         $html[] =             '<div';
+        $html[] =                 'id="flexform-container-' . htmlspecialchars($flexFormFieldName) . '"';
         $html[] =                 'class="panel-group panel-hover t3-form-field-container-flexsection t3-flex-container"';
         $html[] =                 'data-t3-flex-allow-restructure="' . ($userHasAccessToDefaultLanguage ? '1' : '0') . '"';
         $html[] =             '>';

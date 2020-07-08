@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,17 @@ namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
-class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+use ExtbaseTeam\BlogExample\Domain\Repository\BlogRepository;
+use ExtbaseTeam\BlogExample\Domain\Repository\PostRepository;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\Persistence\Generic\LazyObjectStorage;
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
+
+class InTest extends FunctionalTestCase
 {
     /**
      * @var \ExtbaseTeam\BlogExample\Domain\Repository\BlogRepository
@@ -46,7 +53,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
     /**
      * Sets up this test suite.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -56,9 +63,9 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/tags.xml');
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/post-tag-mm.xml');
 
-        $this->objectManager = GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
-        $this->blogRepository = $this->objectManager->get(\ExtbaseTeam\BlogExample\Domain\Repository\BlogRepository::class);
-        $this->postRepository = $this->objectManager->get(\ExtbaseTeam\BlogExample\Domain\Repository\PostRepository::class);
+        $this->objectManager = GeneralUtility::makeInstance(ObjectManager::class);
+        $this->blogRepository = $this->objectManager->get(BlogRepository::class);
+        $this->postRepository = $this->objectManager->get(PostRepository::class);
     }
 
     /**
@@ -75,7 +82,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $inQuery->in('blog', [$blog1, $blog2])
         );
 
-        $this->assertSame(11, $inQuery->count());
+        self::assertSame(11, $inQuery->count());
     }
 
     /**
@@ -92,7 +99,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $inQuery->in('blog', [$blog1, $blog2])
         );
 
-        $this->assertSame(11, $inQuery->count());
+        self::assertSame(11, $inQuery->count());
 
         $newInQuery = $this->postRepository->createQuery();
 
@@ -100,7 +107,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $newInQuery->in('blog', [$blog1])
         );
 
-        $this->assertSame(10, $newInQuery->count());
+        self::assertSame(10, $newInQuery->count());
     }
 
     /**
@@ -111,7 +118,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
         $blog1 = $this->blogRepository->findByUid(1);
         $blog2 = $this->blogRepository->findByUid(2);
 
-        $objectStorage = $this->objectManager->get(\TYPO3\CMS\Extbase\Persistence\ObjectStorage::class);
+        $objectStorage = $this->objectManager->get(ObjectStorage::class);
         $objectStorage->attach($blog1);
         $objectStorage->attach($blog2);
 
@@ -121,7 +128,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $inQuery->in('blog', $objectStorage)
         );
 
-        $this->assertSame(11, $inQuery->count());
+        self::assertSame(11, $inQuery->count());
     }
 
     /**
@@ -132,7 +139,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
         $blog1 = $this->blogRepository->findByUid(1);
         $blog2 = $this->blogRepository->findByUid(2);
 
-        $objectStorage = $this->objectManager->get(\TYPO3\CMS\Extbase\Persistence\ObjectStorage::class);
+        $objectStorage = $this->objectManager->get(ObjectStorage::class);
         $objectStorage->attach($blog1);
         $objectStorage->attach($blog2);
 
@@ -142,9 +149,9 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $inQuery->in('blog', $objectStorage)
         );
 
-        $this->assertSame(11, $inQuery->count());
+        self::assertSame(11, $inQuery->count());
 
-        $newObjectStorage = $this->objectManager->get(\TYPO3\CMS\Extbase\Persistence\ObjectStorage::class);
+        $newObjectStorage = $this->objectManager->get(ObjectStorage::class);
         $newObjectStorage->attach($blog1);
 
         $newInQuery = $this->postRepository->createQuery();
@@ -153,7 +160,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $newInQuery->in('blog', $newObjectStorage)
         );
 
-        $this->assertSame(10, $newInQuery->count());
+        self::assertSame(10, $newInQuery->count());
     }
 
     /**
@@ -171,7 +178,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $inQuery->in('blog', $queryResult)
         );
 
-        $this->assertSame(11, $inQuery->count());
+        self::assertSame(11, $inQuery->count());
     }
 
     /**
@@ -189,7 +196,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $inQuery->in('blog', $queryResult)
         );
 
-        $this->assertSame(11, $inQuery->count());
+        self::assertSame(11, $inQuery->count());
 
         $newInQuery = $this->postRepository->createQuery();
 
@@ -197,7 +204,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $newInQuery->in('blog', $queryResult)
         );
 
-        $this->assertSame(11, $newInQuery->count());
+        self::assertSame(11, $newInQuery->count());
     }
 
     /**
@@ -207,8 +214,8 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
     {
         $blog = $this->blogRepository->findByUid(1);
 
-        $this->assertInstanceOf(
-            \TYPO3\CMS\Extbase\Persistence\Generic\LazyObjectStorage::class,
+        self::assertInstanceOf(
+            LazyObjectStorage::class,
             $blog->getPosts()
         );
 
@@ -218,7 +225,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $inQuery->in('uid', $blog->getPosts())
         );
 
-        $this->assertSame(10, $inQuery->count());
+        self::assertSame(10, $inQuery->count());
     }
 
     /**
@@ -228,8 +235,8 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
     {
         $blog = $this->blogRepository->findByUid(1);
 
-        $this->assertInstanceOf(
-            \TYPO3\CMS\Extbase\Persistence\Generic\LazyObjectStorage::class,
+        self::assertInstanceOf(
+            LazyObjectStorage::class,
             $blog->getPosts()
         );
 
@@ -239,7 +246,7 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $inQuery->in('uid', $blog->getPosts())
         );
 
-        $this->assertSame(10, $inQuery->count());
+        self::assertSame(10, $inQuery->count());
 
         $newInQuery = $this->postRepository->createQuery();
 
@@ -247,6 +254,6 @@ class InTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
             $newInQuery->in('uid', $blog->getPosts())
         );
 
-        $this->assertSame(10, $newInQuery->count());
+        self::assertSame(10, $newInQuery->count());
     }
 }

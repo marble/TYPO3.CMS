@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Mvc;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Form\Mvc;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Form\Mvc;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Error\Result;
@@ -64,7 +66,7 @@ class ProcessingRule
      * @param \TYPO3\CMS\Extbase\Property\PropertyMappingConfiguration $propertyMappingConfiguration
      * @internal
      */
-    public function injectPropertyMappingConfiguration(\TYPO3\CMS\Extbase\Property\PropertyMappingConfiguration $propertyMappingConfiguration)
+    public function injectPropertyMappingConfiguration(PropertyMappingConfiguration $propertyMappingConfiguration)
     {
         $this->propertyMappingConfiguration = $propertyMappingConfiguration;
     }
@@ -73,7 +75,7 @@ class ProcessingRule
      * @param \TYPO3\CMS\Extbase\Validation\Validator\ConjunctionValidator $validator
      * @internal
      */
-    public function injectConjunctionValidator(\TYPO3\CMS\Extbase\Validation\Validator\ConjunctionValidator $validator)
+    public function injectConjunctionValidator(ConjunctionValidator $validator)
     {
         $this->validator = $validator;
     }
@@ -82,7 +84,7 @@ class ProcessingRule
      * @param \TYPO3\CMS\Extbase\Property\PropertyMapper $propertyMapper
      * @internal
      */
-    public function injectPropertyMapper(\TYPO3\CMS\Extbase\Property\PropertyMapper $propertyMapper)
+    public function injectPropertyMapper(PropertyMapper $propertyMapper)
     {
         $this->propertyMapper = $propertyMapper;
     }
@@ -127,7 +129,7 @@ class ProcessingRule
     /**
      * Returns the child validators of the ConjunctionValidator that is bound to this processing rule
      *
-     * @return \SplObjectStorage<ValidatorInterface>
+     * @return \SplObjectStorage
      * @internal
      */
     public function getValidators(): \SplObjectStorage
@@ -142,6 +144,18 @@ class ProcessingRule
     public function addValidator(ValidatorInterface $validator)
     {
         $this->validator->addValidator($validator);
+    }
+
+    /**
+     * Removes the specified validator.
+     *
+     * @param ValidatorInterface $validator The validator to remove
+     * @throws \TYPO3\CMS\Extbase\Validation\Exception\NoSuchValidatorException
+     * @internal
+     */
+    public function removeValidator(ValidatorInterface $validator)
+    {
+        $this->validator->removeValidator($validator);
     }
 
     /**

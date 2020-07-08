@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Utility;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +15,29 @@ namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Utility;
+
+use Prophecy\Argument;
+use Psr\Container\ContainerInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Yaml\Yaml;
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\NullFrontend;
+use TYPO3\CMS\Core\Configuration\SiteConfiguration;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\CMS\Extensionmanager\Utility\DependencyUtility;
+use TYPO3\CMS\Extensionmanager\Utility\InstallUtility;
+use TYPO3\CMS\Extensionmanager\Utility\ListUtility;
+use TYPO3\CMS\Install\Service\LateBootService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class InstallUtilityTest extends UnitTestCase
 {
     /**
      * @var string
@@ -34,68 +54,79 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     protected $fakedExtensions = [];
 
+    protected $backupEnvironment = true;
+
+    protected $resetSingletonInstances = true;
+
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject|\TYPO3\CMS\Extensionmanager\Utility\InstallUtility|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var \PHPUnit\Framework\MockObject\MockObject|InstallUtility|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $installMock;
 
-    /**
-     */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->extensionKey = 'dummy';
         $this->extensionData = [
-            'key' => $this->extensionKey
+            'key' => $this->extensionKey,
+            'siteRelPath' => '',
         ];
         $this->installMock = $this->getAccessibleMock(
-            \TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class,
+            InstallUtility::class,
             [
                 'isLoaded',
                 'loadExtension',
                 'unloadExtension',
-                'processDatabaseUpdates',
-                'processRuntimeDatabaseUpdates',
+                'updateDatabase',
+                'importStaticSqlFile',
+                'importT3DFile',
                 'reloadCaches',
                 'processCachingFrameworkUpdates',
                 'saveDefaultConfiguration',
                 'getExtensionArray',
                 'enrichExtensionWithDetails',
-                'ensureConfiguredDirectoriesExist',
                 'importInitialFiles',
-                'emitAfterExtensionInstallSignal'
-            ],
-            [],
-            '',
-            false
+            ]
         );
-        $dependencyUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class)->getMock();
+        $eventDispatcherProphecy = $this->prophesize(EventDispatcherInterface::class);
+        $this->installMock->injectEventDispatcher($eventDispatcherProphecy->reveal());
+        $this->installMock->injectLateBootService($this->prophesize(LateBootService::class)->reveal());
+        $containerProphecy = $this->prophesize(ContainerInterface::class);
+        $containerProphecy->get(EventDispatcherInterface::class)->willReturn($eventDispatcherProphecy->reveal());
+        $lateBootServiceProphecy = $this->prophesize(LateBootService::class);
+        $lateBootServiceProphecy->getContainer()->willReturn($containerProphecy->reveal());
+        $lateBootServiceProphecy->makeCurrent(Argument::cetera())->willReturn([]);
+        $this->installMock->injectLateBootService($lateBootServiceProphecy->reveal());
+        $dependencyUtility = $this->getMockBuilder(DependencyUtility::class)->getMock();
         $this->installMock->_set('dependencyUtility', $dependencyUtility);
-        $this->installMock->expects($this->any())
+        $this->installMock->expects(self::any())
             ->method('getExtensionArray')
             ->with($this->extensionKey)
-            ->will($this->returnCallback([$this, 'getExtensionData']));
-        $this->installMock->expects($this->any())
+            ->willReturnCallback([$this, 'getExtensionData']);
+        $this->installMock->expects(self::any())
             ->method('enrichExtensionWithDetails')
             ->with($this->extensionKey)
-            ->will($this->returnCallback([$this, 'getExtensionData']));
+            ->willReturnCallback([$this, 'getExtensionData']);
+
+        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
+        $cacheManagerProphecy->getCache('core')->willReturn(new NullFrontend('core'));
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->fakedExtensions as $fakeExtkey => $fakeExtension) {
+            $this->testFilesToDelete[] = Environment::getVarPath() . '/tests/' . $fakeExtkey;
+        }
+        parent::tearDown();
     }
 
     /**
      * @return array
      */
-    public function getExtensionData()
+    public function getExtensionData(): array
     {
         return $this->extensionData;
-    }
-
-    /**
-     */
-    protected function tearDown()
-    {
-        foreach ($this->fakedExtensions as $fakeExtkey => $fakeExtension) {
-            $this->testFilesToDelete[] = PATH_site . 'typo3temp/var/tests/' . $fakeExtkey;
-        }
-        parent::tearDown();
     }
 
     /**
@@ -104,12 +135,13 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      *
      * @return string The extension key
      */
-    protected function createFakeExtension()
+    protected function createFakeExtension(): string
     {
-        $extKey = strtolower($this->getUniqueId('testing'));
-        $absExtPath = PATH_site . 'typo3temp/var/tests/' . $extKey;
-        $relPath = 'typo3temp/var/tests/' . $extKey . '/';
-        \TYPO3\CMS\Core\Utility\GeneralUtility::mkdir($absExtPath);
+        $extKey = strtolower(StringUtility::getUniqueId('testing'));
+        $absExtPath = Environment::getVarPath() . '/tests/' . $extKey;
+        $relativeVarPath = ltrim(str_replace(Environment::getProjectPath(), '', Environment::getVarPath()), '/');
+        $relPath = $relativeVarPath . '/tests/' . $extKey . '/';
+        GeneralUtility::mkdir($absExtPath);
         $this->fakedExtensions[$extKey] = [
             'siteRelPath' => $relPath
         ];
@@ -119,14 +151,12 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function installCallsProcessRuntimeDatabaseUpdates()
+    public function installCallsUpdateDatabase()
     {
-        $this->installMock->expects($this->once())
-            ->method('processRuntimeDatabaseUpdates')
-            ->with($this->extensionKey);
+        $this->installMock->expects(self::once())->method('updateDatabase');
 
-        $cacheManagerMock = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\CacheManager::class)->getMock();
-        $cacheManagerMock->expects($this->once())->method('flushCachesInGroup');
+        $cacheManagerMock = $this->getMockBuilder(CacheManager::class)->getMock();
+        $cacheManagerMock->expects(self::once())->method('flushCachesInGroup');
         $this->installMock->_set('cacheManager', $cacheManagerMock);
         $this->installMock->install($this->extensionKey);
     }
@@ -136,10 +166,10 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function installCallsLoadExtension()
     {
-        $cacheManagerMock = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\CacheManager::class)->getMock();
-        $cacheManagerMock->expects($this->once())->method('flushCachesInGroup');
+        $cacheManagerMock = $this->getMockBuilder(CacheManager::class)->getMock();
+        $cacheManagerMock->expects(self::once())->method('flushCachesInGroup');
         $this->installMock->_set('cacheManager', $cacheManagerMock);
-        $this->installMock->expects($this->once())->method('loadExtension');
+        $this->installMock->expects(self::once())->method('loadExtension');
         $this->installMock->install($this->extensionKey);
     }
 
@@ -149,8 +179,8 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function installCallsFlushCachesIfClearCacheOnLoadIsSet()
     {
         $this->extensionData['clearcacheonload'] = true;
-        $cacheManagerMock = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\CacheManager::class)->getMock();
-        $cacheManagerMock->expects($this->once())->method('flushCaches');
+        $cacheManagerMock = $this->getMockBuilder(CacheManager::class)->getMock();
+        $cacheManagerMock->expects(self::once())->method('flushCaches');
         $this->installMock->_set('cacheManager', $cacheManagerMock);
         $this->installMock->install($this->extensionKey);
     }
@@ -161,21 +191,9 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function installCallsFlushCachesIfClearCacheOnLoadCamelCasedIsSet()
     {
         $this->extensionData['clearCacheOnLoad'] = true;
-        $cacheManagerMock = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\CacheManager::class)->getMock();
-        $cacheManagerMock->expects($this->once())->method('flushCaches');
+        $cacheManagerMock = $this->getMockBuilder(CacheManager::class)->getMock();
+        $cacheManagerMock->expects(self::once())->method('flushCaches');
         $this->installMock->_set('cacheManager', $cacheManagerMock);
-        $this->installMock->install($this->extensionKey);
-    }
-
-    /**
-     * @test
-     */
-    public function installationOfAnExtensionWillCallEnsureThatDirectoriesExist()
-    {
-        $cacheManagerMock = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\CacheManager::class)->getMock();
-        $cacheManagerMock->expects($this->once())->method('flushCachesInGroup');
-        $this->installMock->_set('cacheManager', $cacheManagerMock);
-        $this->installMock->expects($this->once())->method('ensureConfiguredDirectoriesExist');
         $this->installMock->install($this->extensionKey);
     }
 
@@ -184,11 +202,11 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function installCallsReloadCaches()
     {
-        $cacheManagerMock = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\CacheManager::class)->getMock();
-        $cacheManagerMock->expects($this->once())->method('flushCachesInGroup');
+        $cacheManagerMock = $this->getMockBuilder(CacheManager::class)->getMock();
+        $cacheManagerMock->expects(self::once())->method('flushCachesInGroup');
         $this->installMock->_set('cacheManager', $cacheManagerMock);
-        $this->installMock->expects($this->once())->method('reloadCaches');
-        $this->installMock->install('dummy');
+        $this->installMock->expects(self::once())->method('reloadCaches');
+        $this->installMock->install($this->extensionKey);
     }
 
     /**
@@ -196,11 +214,11 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function installCallsSaveDefaultConfigurationWithExtensionKey()
     {
-        $cacheManagerMock = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\CacheManager::class)->getMock();
-        $cacheManagerMock->expects($this->once())->method('flushCachesInGroup');
+        $cacheManagerMock = $this->getMockBuilder(CacheManager::class)->getMock();
+        $cacheManagerMock->expects(self::once())->method('flushCachesInGroup');
         $this->installMock->_set('cacheManager', $cacheManagerMock);
-        $this->installMock->expects($this->once())->method('saveDefaultConfiguration')->with('dummy');
-        $this->installMock->install('dummy');
+        $this->installMock->expects(self::once())->method('saveDefaultConfiguration')->with($this->extensionKey);
+        $this->installMock->install($this->extensionKey);
     }
 
     /**
@@ -208,97 +226,14 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function uninstallCallsUnloadExtension()
     {
-        $this->installMock->expects($this->once())->method('unloadExtension');
+        $this->installMock->expects(self::once())->method('unloadExtension');
         $this->installMock->uninstall($this->extensionKey);
     }
 
     /**
-     * @test
-     */
-    public function processDatabaseUpdatesCallsUpdateDbWithExtTablesSql()
-    {
-        $extKey = $this->createFakeExtension();
-        $extPath = PATH_site . 'typo3temp/var/tests/' . $extKey . '/';
-        $extTablesFile = $extPath . 'ext_tables.sql';
-        $fileContent = 'DUMMY TEXT TO COMPARE';
-        file_put_contents($extTablesFile, $fileContent);
-        $installMock = $this->getAccessibleMock(
-            \TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class,
-            ['updateDbWithExtTablesSql', 'importStaticSqlFile', 'importT3DFile'],
-            [],
-            '',
-            false
-        );
-        $dependencyUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class)->getMock();
-        $installMock->_set('dependencyUtility', $dependencyUtility);
-
-        $installMock->expects($this->once())->method('updateDbWithExtTablesSql')->with($this->stringStartsWith($fileContent));
-        $installMock->processDatabaseUpdates($this->fakedExtensions[$extKey]);
-    }
-
-    /**
-     * @test
-     */
-    public function processDatabaseUpdatesCallsImportStaticSqlFile()
-    {
-        $extKey = $this->createFakeExtension();
-        $extensionSiteRelPath = 'typo3temp/var/tests/' . $extKey . '/';
-        $installMock = $this->getAccessibleMock(
-            \TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class,
-            ['importStaticSqlFile', 'updateDbWithExtTablesSql', 'importT3DFile'],
-            [],
-            '',
-            false
-        );
-        $dependencyUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class)->getMock();
-        $installMock->_set('dependencyUtility', $dependencyUtility);
-        $installMock->expects($this->once())->method('importStaticSqlFile')->with($extensionSiteRelPath);
-        $installMock->processDatabaseUpdates($this->fakedExtensions[$extKey]);
-    }
-
-    /**
      * @return array
      */
-    public function processDatabaseUpdatesCallsImportFileDataProvider()
-    {
-        return [
-            'T3D file' => [
-                'data.t3d'
-            ],
-            'XML file' => [
-                'data.xml'
-            ]
-        ];
-    }
-
-    /**
-     * @param string $fileName
-     * @test
-     * @dataProvider processDatabaseUpdatesCallsImportFileDataProvider
-     */
-    public function processDatabaseUpdatesCallsImportFile($fileName)
-    {
-        $extKey = $this->createFakeExtension();
-        $absPath = PATH_site . $this->fakedExtensions[$extKey]['siteRelPath'];
-        \TYPO3\CMS\Core\Utility\GeneralUtility::mkdir($absPath . '/Initialisation');
-        file_put_contents($absPath . '/Initialisation/' . $fileName, 'DUMMY');
-        $installMock = $this->getAccessibleMock(
-            \TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class,
-            ['updateDbWithExtTablesSql', 'importStaticSqlFile', 'importT3DFile'],
-            [],
-            '',
-            false
-        );
-        $dependencyUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class)->getMock();
-        $installMock->_set('dependencyUtility', $dependencyUtility);
-        $installMock->expects($this->once())->method('importT3DFile')->with($this->fakedExtensions[$extKey]['siteRelPath']);
-        $installMock->processDatabaseUpdates($this->fakedExtensions[$extKey]);
-    }
-
-    /**
-     * @return array
-     */
-    public function importT3DFileDoesNotImportFileIfAlreadyImportedDataProvider()
+    public function importT3DFileDoesNotImportFileIfAlreadyImportedDataProvider(): array
     {
         return [
             'Import T3D file when T3D was imported before extension to XML' => [
@@ -334,32 +269,154 @@ class InstallUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function importT3DFileDoesNotImportFileIfAlreadyImported($fileName, $registryNameReturnsFalse, $registryNameReturnsTrue)
     {
         $extKey = $this->createFakeExtension();
-        $absPath = PATH_site . $this->fakedExtensions[$extKey]['siteRelPath'];
-        \TYPO3\CMS\Core\Utility\GeneralUtility::mkdir($absPath . 'Initialisation');
+        $absPath = Environment::getProjectPath() . '/' . $this->fakedExtensions[$extKey]['siteRelPath'];
+        GeneralUtility::mkdir($absPath . 'Initialisation');
         file_put_contents($absPath . 'Initialisation/' . $fileName, 'DUMMY');
-        $registryMock = $this->getMockBuilder(\TYPO3\CMS\Core\Registry::class)
+        $registryMock = $this->getMockBuilder(Registry::class)
             ->setMethods(['get', 'set'])
             ->getMock();
         $registryMock
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('get')
-            ->will($this->returnValueMap(
+            ->willReturnMap(
                 [
                     ['extensionDataImport', $this->fakedExtensions[$extKey]['siteRelPath'] . 'Initialisation/' . $registryNameReturnsFalse, null, false],
                     ['extensionDataImport', $this->fakedExtensions[$extKey]['siteRelPath'] . 'Initialisation/' . $registryNameReturnsTrue, null, true],
                 ]
-            ));
+            );
         $installMock = $this->getAccessibleMock(
-            \TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class,
+            InstallUtility::class,
             ['getRegistry', 'getImportExportUtility'],
             [],
             '',
             false
         );
-        $dependencyUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class)->getMock();
+        $dependencyUtility = $this->getMockBuilder(DependencyUtility::class)->getMock();
         $installMock->_set('dependencyUtility', $dependencyUtility);
         $installMock->_set('registry', $registryMock);
-        $installMock->expects($this->never())->method('getImportExportUtility');
-        $installMock->_call('importT3DFile', $this->fakedExtensions[$extKey]['siteRelPath']);
+        $installMock->expects(self::never())->method('getImportExportUtility');
+        $installMock->_call('importT3DFile', $extKey, $this->fakedExtensions[$extKey]['siteRelPath']);
+    }
+
+    /**
+     * @test
+     */
+    public function siteConfigGetsMovedIntoPlace()
+    {
+        // prepare an extension with a shipped site config
+        $extKey = $this->createFakeExtension();
+        $absPath = Environment::getProjectPath() . '/' . $this->fakedExtensions[$extKey]['siteRelPath'];
+        $config = Yaml::dump(['dummy' => true]);
+        $siteIdentifier = 'site_identifier';
+        GeneralUtility::mkdir_deep($absPath . 'Initialisation/Site/' . $siteIdentifier);
+        file_put_contents($absPath . 'Initialisation/Site/' . $siteIdentifier . '/config.yaml', $config);
+
+        GeneralUtility::setSingletonInstance(SiteConfiguration::class, new SiteConfiguration(Environment::getConfigPath() . '/sites'));
+
+        $subject = new InstallUtility();
+        $subject->injectEventDispatcher($this->prophesize(EventDispatcherInterface::class)->reveal());
+        $listUtility = $this->prophesize(ListUtility::class);
+        $listUtility->injectEventDispatcher($this->prophesize(EventDispatcherInterface::class)->reveal());
+        $subject->injectListUtility($listUtility->reveal());
+
+        $availableExtensions = [
+            $extKey => [
+                'siteRelPath' => $this->fakedExtensions[$extKey]['siteRelPath'],
+            ],
+        ];
+        $listUtility->enrichExtensionsWithEmConfInformation($availableExtensions)->willReturn($availableExtensions);
+        $listUtility->getAvailableExtensions()->willReturn($availableExtensions);
+        $registry = $this->prophesize(Registry::class);
+        $registry->get('extensionDataImport', Argument::any())->willReturn('some folder name');
+        $registry->get('siteConfigImport', Argument::any())->willReturn(null);
+        $registry->set('siteConfigImport', Argument::cetera())->shouldBeCalled();
+        $subject->injectRegistry($registry->reveal());
+
+        // provide function result inside test output folder
+        $environment = new Environment();
+        $configDir = $absPath . 'Result/config';
+        if (!file_exists($configDir)) {
+            GeneralUtility::mkdir_deep($configDir);
+        }
+        $environment::initialize(
+            Environment::getContext(),
+            Environment::isCli(),
+            Environment::isComposerMode(),
+            Environment::getProjectPath(),
+            Environment::getPublicPath(),
+            Environment::getVarPath(),
+            $configDir,
+            Environment::getCurrentScript(),
+            'UNIX'
+        );
+        $subject->processExtensionSetup($extKey);
+
+        $registry->set('siteConfigImport', $siteIdentifier, 1)->shouldHaveBeenCalled();
+        $siteConfigFile = $configDir . '/sites/' . $siteIdentifier . '/config.yaml';
+        self::assertFileExists($siteConfigFile);
+        self::assertStringEqualsFile($siteConfigFile, $config);
+    }
+
+    /**
+     * @test
+     */
+    public function siteConfigGetsNotOverriddenIfExistsAlready()
+    {
+        // prepare an extension with a shipped site config
+        $extKey = $this->createFakeExtension();
+        $absPath = Environment::getProjectPath() . '/' . $this->fakedExtensions[$extKey]['siteRelPath'];
+        $siteIdentifier = 'site_identifier';
+        GeneralUtility::mkdir_deep($absPath . 'Initialisation/Site/' . $siteIdentifier);
+        file_put_contents($absPath . 'Initialisation/Site/' . $siteIdentifier . '/config.yaml', Yaml::dump(['dummy' => true]));
+
+        // fake an already existing site config in test output folder
+        $configDir = $absPath . 'Result/config';
+        if (!file_exists($configDir)) {
+            GeneralUtility::mkdir_deep($configDir);
+        }
+        $config = Yaml::dump(['foo' => 'bar']);
+        $existingSiteConfig = 'sites/' . $siteIdentifier . '/config.yaml';
+        GeneralUtility::mkdir_deep($configDir . '/sites/' . $siteIdentifier);
+        file_put_contents($configDir . '/' . $existingSiteConfig, $config);
+
+        GeneralUtility::setSingletonInstance(SiteConfiguration::class, new SiteConfiguration(Environment::getConfigPath() . '/sites'));
+
+        $subject = new InstallUtility();
+        $subject->injectEventDispatcher($this->prophesize(EventDispatcherInterface::class)->reveal());
+        $listUtility = $this->prophesize(ListUtility::class);
+        $listUtility->injectEventDispatcher($this->prophesize(EventDispatcherInterface::class)->reveal());
+        $subject->injectListUtility($listUtility->reveal());
+
+        $availableExtensions = [
+            $extKey => [
+                'siteRelPath' => $this->fakedExtensions[$extKey]['siteRelPath'],
+            ],
+        ];
+        $listUtility->enrichExtensionsWithEmConfInformation($availableExtensions)->willReturn($availableExtensions);
+        $listUtility->getAvailableExtensions()->willReturn($availableExtensions);
+        $registry = $this->prophesize(Registry::class);
+        $registry->get('extensionDataImport', Argument::any())->willReturn('some folder name');
+        $registry->get('siteConfigImport', Argument::any())->willReturn(null);
+        $registry->set('siteConfigImport', Argument::cetera())->shouldNotBeCalled();
+        $subject->injectRegistry($registry->reveal());
+
+        $environment = new Environment();
+
+        $environment::initialize(
+            Environment::getContext(),
+            Environment::isCli(),
+            Environment::isComposerMode(),
+            Environment::getProjectPath(),
+            Environment::getPublicPath(),
+            Environment::getVarPath(),
+            $configDir,
+            Environment::getCurrentScript(),
+            'UNIX'
+        );
+        $subject->processExtensionSetup($extKey);
+
+        $siteConfigFile = $configDir . '/sites/' . $siteIdentifier . '/config.yaml';
+        self::assertFileExists($siteConfigFile);
+        self::assertStringEqualsFile($siteConfigFile, $config);
     }
 }

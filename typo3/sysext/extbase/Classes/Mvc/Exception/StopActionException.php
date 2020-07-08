@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Mvc\Exception;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +15,10 @@ namespace TYPO3\CMS\Extbase\Mvc\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Mvc\Exception;
+
+use TYPO3\CMS\Extbase\Mvc\Exception;
+
 /**
  * This exception is thrown by a controller to stop the execution of the current
  * action and return the control to the dispatcher. The dispatcher catches this
@@ -22,6 +27,6 @@ namespace TYPO3\CMS\Extbase\Mvc\Exception;
  *
  * See the Action Controller's forward() and redirectToUri() methods for more information.
  */
-class StopActionException extends \TYPO3\CMS\Extbase\Mvc\Exception
+class StopActionException extends Exception
 {
 }

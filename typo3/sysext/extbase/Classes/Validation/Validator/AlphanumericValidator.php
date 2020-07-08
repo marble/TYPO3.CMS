@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Validation\Validator;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,10 @@ namespace TYPO3\CMS\Extbase\Validation\Validator;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Validation\Validator;
+
 /**
  * Validator for alphanumeric strings
- *
- * @api
  */
 class AlphanumericValidator extends AbstractValidator
 {
@@ -25,7 +24,6 @@ class AlphanumericValidator extends AbstractValidator
      * The given $value is valid if it is an alphanumeric string, which is defined as [\pL\d]*.
      *
      * @param mixed $value The value that should be validated
-     * @api
      */
     public function isValid($value)
     {

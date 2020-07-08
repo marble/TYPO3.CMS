@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,22 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabasePageLanguageOverlayRows;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabasePageLanguageOverlayRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabasePageLanguageOverlayRowsTest extends UnitTestCase
 {
     /**
-     * @var DatabasePageLanguageOverlayRows|\PHPUnit_Framework_MockObject_MockObject
+     * @var DatabasePageLanguageOverlayRows|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->subject = $this->getMockBuilder(DatabasePageLanguageOverlayRows::class)
             ->setMethods(['getDatabaseRows'])
@@ -49,10 +51,10 @@ class DatabasePageLanguageOverlayRowsTest extends \TYPO3\TestingFramework\Core\U
                 'sys_language_uid' => '2',
             ],
         ];
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getDatabaseRows')
             ->willReturn($expected['pageLanguageOverlayRows']);
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 }

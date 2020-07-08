@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Service;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,50 +15,60 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Unit\Service;
+
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\FileReference;
 use TYPO3\CMS\Core\Resource\ProcessedFile;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Extbase\Service\EnvironmentService;
 use TYPO3\CMS\Extbase\Service\ImageService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class ImageScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ImageScriptServiceTest extends UnitTestCase
 {
+    /**
+     * @var bool Reset singletons created by subject
+     */
+    protected $resetSingletonInstances = true;
+
     /**
      * @var ImageService
      */
     protected $subject;
 
     /**
-     * @var EnvironmentService|\PHPUnit_Framework_MockObject_MockObject
+     * @var EnvironmentService|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $environmentService;
 
     /**
      * Initialize ImageService and environment service mock
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = new ImageService();
+        parent::setUp();
         $this->environmentService = $this->createMock(EnvironmentService::class);
-        $this->inject($this->subject, 'environmentService', $this->environmentService);
-        GeneralUtility::flushInternalRuntimeCaches();
+        $resourceFactory = $this->createMock(ResourceFactory::class);
+        $this->subject = new ImageService($this->environmentService, $resourceFactory);
         $_SERVER['HTTP_HOST'] = 'foo.bar';
     }
 
     /**
      * @test
      */
-    public function fileIsUnwrappedFromReferenceForProcessing()
+    public function fileIsUnwrappedFromReferenceForProcessing(): void
     {
-        $reference = $this->getAccessibleMock(FileReference::class, [], [], '', false);
+        $reference = $this->getMockBuilder(FileReference::class)->disableOriginalConstructor()->getMock();
         $file = $this->createMock(File::class);
-        $file->expects($this->once())->method('process')->willReturn($this->createMock(ProcessedFile::class));
-        $reference->expects($this->once())->method('getOriginalFile')->willReturn($file);
-        $reference->_set('file', $file);
+        $processedFile = $this->createMock(ProcessedFile::class);
+        $file->expects(self::once())->method('process')->willReturn($processedFile);
+        $reference->expects(self::once())->method('getOriginalFile')->willReturn($file);
+        $processedFile->expects(self::once())->method('getOriginalFile')->willReturn($file);
+        $processedFile->expects(self::atLeastOnce())->method('getPublicUrl')->willReturn('https://example.com/foo.png');
 
         $this->subject->applyProcessingInstructions($reference, []);
     }
@@ -65,7 +76,7 @@ class ImageScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
     /**
      * @return array
      */
-    public function prefixIsCorrectlyAppliedToGetImageUriDataProvider()
+    public function prefixIsCorrectlyAppliedToGetImageUriDataProvider(): array
     {
         return [
             'with scheme' => ['http://foo.bar/img.jpg', 'http://foo.bar/img.jpg'],
@@ -78,22 +89,22 @@ class ImageScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
      * @test
      * @dataProvider prefixIsCorrectlyAppliedToGetImageUriDataProvider
      */
-    public function prefixIsCorrectlyAppliedToGetImageUri($imageUri, $expected)
+    public function prefixIsCorrectlyAppliedToGetImageUri($imageUri, $expected): void
     {
-        $this->environmentService->expects($this->any())->method('isEnvironmentInFrontendMode')->willReturn(true);
+        $this->environmentService->expects(self::any())->method('isEnvironmentInFrontendMode')->willReturn(true);
         $GLOBALS['TSFE'] = new \stdClass();
         $GLOBALS['TSFE']->absRefPrefix = '/prefix/';
 
         $file = $this->createMock(File::class);
-        $file->expects($this->once())->method('getPublicUrl')->willReturn($imageUri);
+        $file->expects(self::once())->method('getPublicUrl')->willReturn($imageUri);
 
-        $this->assertSame($expected, $this->subject->getImageUri($file));
+        self::assertSame($expected, $this->subject->getImageUri($file));
     }
 
     /**
      * @return array
      */
-    public function prefixIsCorrectlyAppliedToGetImageUriWithAbsolutePathDataProvider()
+    public function prefixIsCorrectlyAppliedToGetImageUriWithAbsolutePathDataProvider(): array
     {
         return [
             'with scheme' => ['http://foo.bar/img.jpg', 'http://foo.bar/img.jpg'],
@@ -106,15 +117,15 @@ class ImageScriptServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
      * @test
      * @dataProvider prefixIsCorrectlyAppliedToGetImageUriWithAbsolutePathDataProvider
      */
-    public function prefixIsCorrectlyAppliedToGetImageUriWithForcedAbsoluteUrl($imageUri, $expected)
+    public function prefixIsCorrectlyAppliedToGetImageUriWithForcedAbsoluteUrl($imageUri, $expected): void
     {
-        $this->environmentService->expects($this->any())->method('isEnvironmentInFrontendMode')->willReturn(true);
+        $this->environmentService->expects(self::any())->method('isEnvironmentInFrontendMode')->willReturn(true);
         $GLOBALS['TSFE'] = new \stdClass();
         $GLOBALS['TSFE']->absRefPrefix = '/prefix/';
 
         $file = $this->createMock(File::class);
-        $file->expects($this->once())->method('getPublicUrl')->willReturn($imageUri);
+        $file->expects(self::once())->method('getPublicUrl')->willReturn($imageUri);
 
-        $this->assertSame($expected, $this->subject->getImageUri($file, true));
+        self::assertSame($expected, $this->subject->getImageUri($file, true));
     }
 }

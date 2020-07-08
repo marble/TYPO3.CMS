@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,17 +15,12 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
+
 use TYPO3\CMS\Core\Database\Query\Restriction\EndTimeRestriction;
 
 class EndTimeRestrictionTest extends AbstractRestrictionTestCase
 {
-    /**
-     */
-    protected function setUp()
-    {
-        parent::setUp();
-    }
-
     /**
      * @test
      */
@@ -58,6 +53,6 @@ class EndTimeRestrictionTest extends AbstractRestrictionTestCase
 
         $subject = new EndTimeRestriction(42);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('("aTable"."myEndTimeField" = 0) OR ("aTable"."myEndTimeField" > 42)', (string)$expression);
+        self::assertSame('("aTable"."myEndTimeField" = 0) OR ("aTable"."myEndTimeField" > 42)', (string)$expression);
     }
 }

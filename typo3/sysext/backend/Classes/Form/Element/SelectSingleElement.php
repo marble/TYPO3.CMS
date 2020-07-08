@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\Element;
+
 use TYPO3\CMS\Backend\Form\InlineStackProcessor;
 use TYPO3\CMS\Backend\Form\Utility\FormEngineUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -27,6 +28,17 @@ use TYPO3\CMS\Core\Utility\StringUtility;
  */
 class SelectSingleElement extends AbstractFormElement
 {
+    /**
+     * Default field information enabled for this element.
+     *
+     * @var array
+     */
+    protected $defaultFieldInformation = [
+        'tcaDescription' => [
+            'renderType' => 'tcaDescription',
+        ],
+    ];
+
     /**
      * Default field wizards enabled for this element.
      *
@@ -69,6 +81,7 @@ class SelectSingleElement extends AbstractFormElement
         $config = $parameterArray['fieldConf']['config'];
 
         $selectItems = $parameterArray['fieldConf']['config']['items'];
+        $classList = ['form-control', 'form-control-adapt'];
 
         // Check against inline uniqueness
         /** @var InlineStackProcessor $inlineStackProcessor */
@@ -76,16 +89,15 @@ class SelectSingleElement extends AbstractFormElement
         $inlineStackProcessor->initializeByGivenStructure($this->data['inlineStructure']);
         $uniqueIds = null;
         if ($this->data['isInlineChild'] && $this->data['inlineParentUid']) {
+            // @todo: At least parts of this if is dead and/or broken: $uniqueIds is filled but never used.
+            // See InlineControlContainer where 'inlineData' 'unique' 'used' is set. What exactly is
+            // this if supposed to do and when should it kick in and what for?
             $inlineObjectName = $inlineStackProcessor->getCurrentStructureDomObjectIdPrefix($this->data['inlineFirstPid']);
-            $inlineFormName = $inlineStackProcessor->getCurrentStructureFormPrefix();
             if ($this->data['inlineParentConfig']['foreign_table'] === $table
                 && $this->data['inlineParentConfig']['foreign_unique'] === $field
             ) {
+                $classList[] = 't3js-inline-unique';
                 $uniqueIds = $this->data['inlineData']['unique'][$inlineObjectName . '-' . $table]['used'];
-                $parameterArray['fieldChangeFunc']['inlineUnique'] = 'inline.updateUnique(this,'
-                    . GeneralUtility::quoteJSvalue($inlineObjectName . '-' . $table) . ','
-                    . GeneralUtility::quoteJSvalue($inlineFormName) . ','
-                    . GeneralUtility::quoteJSvalue($row['uid']) . ');';
             }
             // hide uid of parent record for symmetric relations
             if ($this->data['inlineParentConfig']['foreign_table'] === $table
@@ -117,8 +129,13 @@ class SelectSingleElement extends AbstractFormElement
         $selectedValue = '';
         $hasIcons = false;
 
+        // In case e.g. "l10n_display" is set to "defaultAsReadonly" only one value (as string) could be handed in
         if (!empty($parameterArray['itemFormElValue'])) {
-            $selectedValue = (string)$parameterArray['itemFormElValue'][0];
+            if (is_array($parameterArray['itemFormElValue'])) {
+                $selectedValue = (string)$parameterArray['itemFormElValue'][0];
+            } else {
+                $selectedValue = (string)$parameterArray['itemFormElValue'];
+            }
         }
 
         foreach ($selectItems as $item) {
@@ -140,7 +157,7 @@ class SelectSingleElement extends AbstractFormElement
                 }
 
                 $selectItemGroups[$selectItemGroupCount]['items'][] = [
-                    'title' => $item[0],
+                    'title' => $this->appendValueToLabelInDebugMode($item[0], $item[1]),
                     'value' => $item[1],
                     'icon' => $icon,
                     'selected' => $selected,
@@ -181,7 +198,7 @@ class SelectSingleElement extends AbstractFormElement
             'id' => $selectId,
             'name' => $parameterArray['itemFormElName'],
             'data-formengine-validation-rules' => $this->getValidationDataAsJsonString($config),
-            'class' => 'form-control form-control-adapt',
+            'class' => implode(' ', $classList),
         ];
         if ($size) {
             $selectAttributes['size'] = $size;
@@ -194,15 +211,17 @@ class SelectSingleElement extends AbstractFormElement
         $fieldInformationHtml = $fieldInformationResult['html'];
         $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
 
+        $fieldControlResult = $this->renderFieldControl();
+        $fieldControlHtml = $fieldControlResult['html'];
+        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldControlResult, false);
+
         $fieldWizardResult = $this->renderFieldWizard();
         $fieldWizardHtml = $fieldWizardResult['html'];
         $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldWizardResult, false);
 
         $html = [];
         $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
-        if (!$disabled) {
-            $html[] = $fieldInformationHtml;
-        }
+        $html[] = $fieldInformationHtml;
         $html[] =   '<div class="form-control-wrap">';
         $html[] =       '<div class="form-wizards-wrap">';
         $html[] =           '<div class="form-wizards-element">';
@@ -219,7 +238,14 @@ class SelectSingleElement extends AbstractFormElement
             $html[] =           '</div>';
         }
         $html[] =           '</div>';
-        if (!$disabled) {
+        if (!$disabled && !empty($fieldControlHtml)) {
+            $html[] =      '<div class="form-wizards-items-aside">';
+            $html[] =          '<div class="btn-group">';
+            $html[] =              $fieldControlHtml;
+            $html[] =          '</div>';
+            $html[] =      '</div>';
+        }
+        if (!$disabled && !empty($fieldWizardHtml)) {
             $html[] =       '<div class="form-wizards-items-bottom">';
             $html[] =           $fieldWizardHtml;
             $html[] =       '</div>';

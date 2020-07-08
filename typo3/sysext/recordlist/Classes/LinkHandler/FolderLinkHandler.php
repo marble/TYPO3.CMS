@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recordlist\LinkHandler;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Recordlist\LinkHandler;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recordlist\LinkHandler;
+
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\LinkHandling\LinkService;
 use TYPO3\CMS\Core\Resource\FileInterface;
@@ -24,6 +25,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Link handler for folder links
+ * @internal This class is a specific LinkHandler implementation and is not part of the TYPO3's Core API.
  */
 class FolderLinkHandler extends FileLinkHandler
 {
@@ -56,9 +58,8 @@ class FolderLinkHandler extends FileLinkHandler
             return [
                 'data-current-link' => GeneralUtility::makeInstance(LinkService::class)->asString(['type' => LinkService::TYPE_FOLDER, 'folder' => $this->linkParts['url']['folder']])
             ];
-        } else {
-            return [];
         }
+        return [];
     }
 
     /**

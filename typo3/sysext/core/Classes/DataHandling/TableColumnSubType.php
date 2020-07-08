@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\DataHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\DataHandling;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\DataHandling;
+
+use TYPO3\CMS\Core\Type\Enumeration;
+
 /**
  * Enumeration object for tca internal type
  */
-class TableColumnSubType extends \TYPO3\CMS\Core\Type\Enumeration
+final class TableColumnSubType extends Enumeration
 {
     const __default = self::DEFAULT_TYPE;
 
@@ -27,8 +30,6 @@ class TableColumnSubType extends \TYPO3\CMS\Core\Type\Enumeration
     const DEFAULT_TYPE = '';
 
     const DB = 'DB';
-    const FILE = 'FILE';
-    const FILE_REFERENCE = 'FILE_REFERENCE';
     const FOLDER = 'FOLDER';
 
     /**

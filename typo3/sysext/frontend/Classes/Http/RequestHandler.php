@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Frontend\Http;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,35 +15,53 @@ namespace TYPO3\CMS\Frontend\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\FrontendBackendUserAuthentication;
-use TYPO3\CMS\Core\Core\Bootstrap;
-use TYPO3\CMS\Core\FrontendEditing\FrontendEditingController;
-use TYPO3\CMS\Core\Http\RequestHandlerInterface;
+namespace TYPO3\CMS\Frontend\Http;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Http\Response;
+use TYPO3\CMS\Core\Information\Typo3Information;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Page\AssetCollector;
+use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Resource\Exception;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
+use TYPO3\CMS\Core\Type\File\ImageInfo;
+use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Core\Utility\MathUtility;
+use TYPO3\CMS\Core\Utility\PathUtility;
+use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
-use TYPO3\CMS\Frontend\Page\PageGenerator;
-use TYPO3\CMS\Frontend\Utility\CompressionUtility;
-use TYPO3\CMS\Frontend\View\AdminPanelView;
+use TYPO3\CMS\Frontend\Event\ModifyHrefLangTagsEvent;
+use TYPO3\CMS\Frontend\Resource\FilePathSanitizer;
 
 /**
- * This is the main entry point of the TypoScript driven standard front-end
+ * This is the main entry point of the TypoScript driven standard front-end.
  *
- * Basically put, this is the script which all requests for TYPO3 delivered pages goes to in the
- * frontend (the website). The script instantiates a $TSFE object, includes libraries and does a little logic here
- * and there in order to instantiate the right classes to create the webpage.
- * Previously, this was called index_ts.php and also included the logic for the lightweight "eID" concept,
- * which is now handled in a separate request handler (EidRequestHandler).
+ * "handle()" is called when all PSR-15 middlewares have been set up the PSR-7 ServerRequest object and the following
+ * things have been evaluated
+ * - correct page ID, page type (typeNum), rootline, MP etc.
+ * - info if is cached content already available
+ * - proper language
+ * - proper TypoScript which should be processed.
+ *
+ * Then, this class is able to render the actual HTTP body part built via TypoScript. Here this is split into two parts:
+ * - Everything included in <body>, done via page.10, page.20 etc.
+ * - Everything around.
+ *
+ * If the content has been built together within the cache (cache_pages), it is fetched directly, and
+ * any so-called "uncached" content is generated again.
+ *
+ * Some further hooks allow to post-processing the content.
+ *
+ * Then the right HTTP response headers are compiled together and sent as well.
  */
 class RequestHandler implements RequestHandlerInterface
 {
-    /**
-     * Instance of the current TYPO3 bootstrap
-     * @var Bootstrap
-     */
-    protected $bootstrap;
-
     /**
      * Instance of the timetracker
      * @var TimeTracker
@@ -50,293 +69,1013 @@ class RequestHandler implements RequestHandlerInterface
     protected $timeTracker;
 
     /**
-     * Instance of the TSFE object
-     * @var TypoScriptFrontendController
+     * @var EventDispatcherInterface
      */
-    protected $controller;
+    protected $eventDispatcher;
 
-    /**
-     * The request handed over
-     * @var \Psr\Http\Message\ServerRequestInterface
-     */
-    protected $request;
-
-    /**
-     * Constructor handing over the bootstrap and the original request
-     *
-     * @param Bootstrap $bootstrap
-     */
-    public function __construct(Bootstrap $bootstrap)
+    public function __construct(EventDispatcherInterface $eventDispatcher)
     {
-        $this->bootstrap = $bootstrap;
+        $this->eventDispatcher = $eventDispatcher;
     }
 
     /**
-     * Handles a frontend request
+     * Sets the global GET and POST to the values, so if people access $_GET and $_POST
+     * Within hooks starting NOW (e.g. cObject), they get the "enriched" data from query params.
      *
-     * @param \Psr\Http\Message\ServerRequestInterface $request
-     * @return NULL|\Psr\Http\Message\ResponseInterface
+     * This needs to be run after the request object has been enriched with modified GET/POST variables.
+     *
+     * @param ServerRequestInterface $request
+     * @internal this safety net will be removed in TYPO3 v10.0.
      */
-    public function handleRequest(\Psr\Http\Message\ServerRequestInterface $request)
+    protected function resetGlobalsToCurrentRequest(ServerRequestInterface $request)
     {
-        $response = null;
-        $this->request = $request;
-        $this->initializeTimeTracker();
-
-        // Hook to preprocess the current request:
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/index_ts.php']['preprocessRequest'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/index_ts.php']['preprocessRequest'] as $hookFunction) {
-                $hookParameters = [];
-                GeneralUtility::callUserFunction($hookFunction, $hookParameters, $hookParameters);
-            }
-            unset($hookFunction);
-            unset($hookParameters);
+        if ($request->getQueryParams() !== $_GET) {
+            $queryParams = $request->getQueryParams();
+            $_GET = $queryParams;
+            $GLOBALS['HTTP_GET_VARS'] = $_GET;
         }
-
-        $this->initializeController();
-
-        if ($GLOBALS['TYPO3_CONF_VARS']['FE']['pageUnavailable_force']
-            && !GeneralUtility::cmpIP(
-                GeneralUtility::getIndpEnv('REMOTE_ADDR'),
-                $GLOBALS['TYPO3_CONF_VARS']['SYS']['devIPmask'])
-        ) {
-            $this->controller->pageUnavailableAndExit('This page is temporarily unavailable.');
-        }
-
-        $this->controller->connectToDB();
-        $this->controller->sendRedirect();
-
-        // Output compression
-        // Remove any output produced until now
-        $this->bootstrap->endOutputBufferingAndCleanPreviousOutput();
-        $this->initializeOutputCompression();
-
-        // Initializing the Frontend User
-        $this->timeTracker->push('Front End user initialized', '');
-        $this->controller->initFEuser();
-        $this->timeTracker->pull();
-
-        // Initializing a possible logged-in Backend User
-        /** @var $GLOBALS['BE_USER'] \TYPO3\CMS\Backend\FrontendBackendUserAuthentication */
-        $GLOBALS['BE_USER'] = $this->controller->initializeBackendUser();
-
-        // Process the ID, type and other parameters.
-        // After this point we have an array, $page in TSFE, which is the page-record
-        // of the current page, $id.
-        $this->timeTracker->push('Process ID', '');
-        // Initialize admin panel since simulation settings are required here:
-        if ($this->controller->isBackendUserLoggedIn()) {
-            $GLOBALS['BE_USER']->initializeAdminPanel();
-            $this->bootstrap
-                    ->initializeBackendRouter()
-                    ->loadExtTables();
-        }
-        $this->controller->checkAlternativeIdMethods();
-        $this->controller->clear_preview();
-        $this->controller->determineId();
-
-        // Now, if there is a backend user logged in and he has NO access to this page,
-        // then re-evaluate the id shown! _GP('ADMCMD_noBeUser') is placed here because
-        // \TYPO3\CMS\Version\Hook\PreviewHook might need to know if a backend user is logged in.
-        if (
-            $this->controller->isBackendUserLoggedIn()
-            && (!$GLOBALS['BE_USER']->extPageReadAccess($this->controller->page) || GeneralUtility::_GP('ADMCMD_noBeUser'))
-        ) {
-            // Remove user
-            unset($GLOBALS['BE_USER']);
-            $this->controller->beUserLogin = false;
-            // Re-evaluate the page-id.
-            $this->controller->checkAlternativeIdMethods();
-            $this->controller->clear_preview();
-            $this->controller->determineId();
-        }
-
-        $this->controller->makeCacheHash();
-        $this->timeTracker->pull();
-
-        // Admin Panel & Frontend editing
-        if ($this->controller->isBackendUserLoggedIn()) {
-            $GLOBALS['BE_USER']->initializeFrontendEdit();
-            if ($GLOBALS['BE_USER']->adminPanel instanceof AdminPanelView) {
-                $this->bootstrap->initializeLanguageObject();
-            }
-            if ($GLOBALS['BE_USER']->frontendEdit instanceof FrontendEditingController) {
-                $GLOBALS['BE_USER']->frontendEdit->initConfigOptions();
+        if ($request->getMethod() === 'POST') {
+            $parsedBody = $request->getParsedBody();
+            if (is_array($parsedBody) && $parsedBody !== $_POST) {
+                $_POST = $parsedBody;
+                $GLOBALS['HTTP_POST_VARS'] = $_POST;
             }
         }
+        $GLOBALS['TYPO3_REQUEST'] = $request;
+    }
 
-        // Starts the template
-        $this->timeTracker->push('Start Template', '');
-        $this->controller->initTemplate();
-        $this->timeTracker->pull();
-        // Get from cache
-        $this->timeTracker->push('Get Page from cache', '');
-        $this->controller->getFromCache();
-        $this->timeTracker->pull();
-        // Get config if not already gotten
-        // After this, we should have a valid config-array ready
-        $this->controller->getConfigArray();
-        // Setting language and locale
-        $this->timeTracker->push('Setting language and locale', '');
-        $this->controller->settingLanguage();
-        $this->controller->settingLocale();
-        $this->timeTracker->pull();
+    /**
+     * Handles a frontend request, after finishing running middlewares
+     *
+     * @param ServerRequestInterface $request
+     * @return ResponseInterface
+     */
+    public function handle(ServerRequestInterface $request): ResponseInterface
+    {
+        // Fetch the initialized time tracker object
+        $this->timeTracker = GeneralUtility::makeInstance(TimeTracker::class);
+        /** @var TypoScriptFrontendController $controller */
+        $controller = $GLOBALS['TSFE'];
 
-        // Convert POST data to utf-8 for internal processing if metaCharset is different
-        $this->controller->convPOSTCharset();
-
-        $this->controller->initializeRedirectUrlHandlers();
-
-        $this->controller->handleDataSubmission();
-
-        // Check for shortcut page and redirect
-        $this->controller->checkPageForShortcutRedirect();
-        $this->controller->checkPageForMountpointRedirect();
+        $this->resetGlobalsToCurrentRequest($request);
 
         // Generate page
-        $this->controller->setUrlIdToken();
-        $this->timeTracker->push('Page generation', '');
-        if ($this->controller->isGeneratePage()) {
-            $this->controller->generatePage_preProcessing();
-            $this->controller->preparePageContentGeneration();
+        if ($controller->isGeneratePage()) {
+            $this->timeTracker->push('Page generation');
+            $controller->generatePage_preProcessing();
+            $controller->preparePageContentGeneration($request);
+
             // Content generation
-            if (!$this->controller->isINTincScript()) {
-                PageGenerator::renderContent();
-                $this->controller->setAbsRefPrefix();
-            }
-            $this->controller->generatePage_postProcessing();
-        } elseif ($this->controller->isINTincScript()) {
-            $this->controller->preparePageContentGeneration();
-        }
-        $this->controller->releaseLocks();
-        $this->timeTracker->pull();
+            $this->timeTracker->incStackPointer();
+            $this->timeTracker->push($controller->sPre, 'PAGE');
 
-        // Render non-cached parts
-        if ($this->controller->isINTincScript()) {
-            $this->timeTracker->push('Non-cached objects', '');
-            $this->controller->INTincScript();
+            $controller->content = $this->generatePageContent($controller, $request);
+
+            $this->timeTracker->pull($this->timeTracker->LR ? $controller->content : '');
+            $this->timeTracker->decStackPointer();
+
+            $controller->generatePage_postProcessing();
+            $this->timeTracker->pull();
+        }
+        $controller->releaseLocks();
+
+        // Render non-cached page parts by replacing placeholders which are taken from cache or added during page generation
+        if ($controller->isINTincScript()) {
+            if (!$controller->isGeneratePage()) {
+                // When page was generated, this was already called. Avoid calling this twice.
+                $controller->preparePageContentGeneration($request);
+            }
+            $this->timeTracker->push('Non-cached objects');
+            $controller->INTincScript();
             $this->timeTracker->pull();
         }
 
-        // Output content
-        $sendTSFEContent = false;
-        if ($this->controller->isOutputting()) {
-            $this->timeTracker->push('Print Content', '');
-            $this->controller->processOutput();
-            $sendTSFEContent = true;
-            $this->timeTracker->pull();
-        }
-        // Store session data for fe_users
-        $this->controller->storeSessionData();
-        // Statistics
-        $GLOBALS['TYPO3_MISC']['microtime_end'] = microtime(true);
-        if ($this->controller->isOutputting()) {
-            if (isset($this->controller->config['config']['debug'])) {
-                $debugParseTime = (bool)$this->controller->config['config']['debug'];
-            } else {
-                $debugParseTime = !empty($GLOBALS['TYPO3_CONF_VARS']['FE']['debug']);
-            }
-            if ($debugParseTime) {
-                $this->controller->content .= LF . '<!-- Parsetime: ' . $this->timeTracker->getParseTime() . 'ms -->';
-            }
-        }
-        $this->controller->redirectToExternalUrl();
-        // Preview info
-        $this->controller->previewInfo();
-        // Hook for end-of-frontend
-        $this->controller->hook_eofe();
-        // Finish timetracking
-        $this->timeTracker->pull();
-
-        // Admin panel
-        if ($this->controller->isBackendUserLoggedIn() && $GLOBALS['BE_USER'] instanceof FrontendBackendUserAuthentication) {
-            if ($GLOBALS['BE_USER']->isAdminPanelVisible()) {
-                $this->controller->content = str_ireplace('</body>', $GLOBALS['BE_USER']->displayAdminPanel() . '</body>', $this->controller->content);
-            }
-        }
-
-        if ($sendTSFEContent) {
-            /** @var \TYPO3\CMS\Core\Http\Response $response */
-            $response = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Http\Response::class);
-            $response->getBody()->write($this->controller->content);
-        }
-        // Debugging Output
-        if (isset($GLOBALS['error']) && is_object($GLOBALS['error']) && @is_callable([$GLOBALS['error'], 'debugOutput'])) {
-            $GLOBALS['error']->debugOutput();
-        }
-        GeneralUtility::devLog('END of FRONTEND session', 'cms', 0, ['_FLUSH' => true]);
+        // Create a default Response object and add headers and body to it
+        $response = new Response();
+        $response = $controller->applyHttpHeadersToResponse($response);
+        $this->displayPreviewInfoMessage($controller);
+        $response->getBody()->write($controller->content);
         return $response;
     }
 
     /**
-     * This request handler can handle any frontend request.
+     * Generates the main body part for the page, and if "config.disableAllHeaderCode" is not active, triggers
+     * pageRenderer to evaluate includeCSS, headTag etc. TypoScript processing to populate the pageRenderer.
      *
-     * @param \Psr\Http\Message\ServerRequestInterface $request
-     * @return bool If the request is not an eID request, TRUE otherwise FALSE
+     * @param TypoScriptFrontendController $controller
+     * @param ServerRequestInterface $request
+     * @return string
      */
-    public function canHandleRequest(\Psr\Http\Message\ServerRequestInterface $request)
+    protected function generatePageContent(TypoScriptFrontendController $controller, ServerRequestInterface $request): string
     {
-        return $request->getQueryParams()['eID'] || $request->getParsedBody()['eID'] ? false : true;
+        // Generate the main content between the <body> tags
+        // This has to be done first, as some additional TSFE-related code could have been written
+        $pageContent = $this->generatePageBodyContent($controller);
+        // If 'disableAllHeaderCode' is set, all the pageRenderer settings are not evaluated
+        if ($controller->config['config']['disableAllHeaderCode'] ?? false) {
+            return $pageContent;
+        }
+        // Now, populate pageRenderer with all additional data
+        $this->processHtmlBasedRenderingSettings($controller, $controller->getLanguage(), $request);
+        $pageRenderer = $this->getPageRenderer();
+        // Add previously generated page content within the <body> tag afterwards
+        $pageRenderer->addBodyContent(LF . $pageContent);
+        if ($controller->isINTincScript()) {
+            // Store the serialized pageRenderer in configuration
+            // @todo: serialize $pageRenderer->getState() in TYPO3 v11
+            $controller->config['INTincScript_ext']['pageRenderer'] = serialize($pageRenderer);
+            // Store the serialized AssetCollector in configuration
+            // @todo: serialize $assetCollector->getState() in TYPO3 v11
+            $controller->config['INTincScript_ext']['assetCollector'] = serialize(GeneralUtility::makeInstance(AssetCollector::class));
+            // Render complete page, keep placeholders for JavaScript and CSS
+            return $pageRenderer->renderPageWithUncachedObjects($controller->config['INTincScript_ext']['divKey']);
+        }
+        // Render complete page
+        return $pageRenderer->render();
     }
 
     /**
-     * Returns the priority - how eager the handler is to actually handle the
-     * request.
+     * Generates the main content part within <body> tags (except JS files/CSS files), this means:
+     * render everything that can be cached, otherwise put placeholders for COA_INT/USER_INT objects
+     * in the content that is processed later-on.
      *
-     * @return int The priority of the request handler.
+     * @param TypoScriptFrontendController $controller
+     * @return string
      */
-    public function getPriority()
+    protected function generatePageBodyContent(TypoScriptFrontendController $controller): string
     {
-        return 50;
+        $pageContent = $controller->cObj->cObjGet($controller->pSetup) ?: '';
+        if ($controller->pSetup['wrap'] ?? false) {
+            $pageContent = $controller->cObj->wrap($pageContent, $controller->pSetup['wrap']);
+        }
+        if ($controller->pSetup['stdWrap.'] ?? false) {
+            $pageContent = $controller->cObj->stdWrap($pageContent, $controller->pSetup['stdWrap.']);
+        }
+        return $pageContent;
     }
 
     /**
-     * Initializes output compression when enabled, could be split up and put into Bootstrap
-     * at a later point
+     * At this point, the cacheable content has just been generated (thus, all content is available but hasn't been added
+     * to PageRenderer yet). The method is called after the "main" page content, since some JS may be inserted at that point
+     * that has been registered by cacheable plugins.
+     * PageRenderer is now populated with all <head> data and additional JavaScript/CSS/FooterData/HeaderData that can be cached.
+     * Once finished, the content is added to the >addBodyContent() functionality.
+     *
+     * @param TypoScriptFrontendController $controller
+     * @param SiteLanguage $siteLanguage
+     * @param ServerRequestInterface $request
      */
-    protected function initializeOutputCompression()
+    protected function processHtmlBasedRenderingSettings(TypoScriptFrontendController $controller, SiteLanguage $siteLanguage, ServerRequestInterface $request): void
     {
-        if ($GLOBALS['TYPO3_CONF_VARS']['FE']['compressionLevel'] && extension_loaded('zlib')) {
-            if (MathUtility::canBeInterpretedAsInteger($GLOBALS['TYPO3_CONF_VARS']['FE']['compressionLevel'])) {
-                @ini_set('zlib.output_compression_level', $GLOBALS['TYPO3_CONF_VARS']['FE']['compressionLevel']);
+        $pageRenderer = $this->getPageRenderer();
+        if ($controller->config['config']['moveJsFromHeaderToFooter'] ?? false) {
+            $pageRenderer->enableMoveJsFromHeaderToFooter();
+        }
+        if ($controller->config['config']['pageRendererTemplateFile'] ?? false) {
+            try {
+                $file = GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($controller->config['config']['pageRendererTemplateFile']);
+                $pageRenderer->setTemplateFile($file);
+            } catch (Exception $e) {
+                // do nothing
             }
-            ob_start([GeneralUtility::makeInstance(CompressionUtility::class), 'compressionOutputHandler']);
+        }
+        $headerComment = trim($controller->config['config']['headerComment'] ?? '');
+        if ($headerComment) {
+            $pageRenderer->addInlineComment("\t" . str_replace(LF, LF . "\t", $headerComment) . LF);
+        }
+        // Setting charset:
+        $theCharset = $controller->metaCharset;
+        $htmlTagAttributes = [];
+        $htmlLang = $siteLanguage->getHreflang() ?: '';
+
+        if ($siteLanguage->getDirection()) {
+            $htmlTagAttributes['dir'] = htmlspecialchars($siteLanguage->getDirection());
+        }
+        // Setting document type:
+        $docTypeParts = [];
+        $xmlDocument = true;
+        // Part 1: XML prologue
+        switch ((string)($controller->config['config']['xmlprologue'] ?? '')) {
+            case 'none':
+                $xmlDocument = false;
+                break;
+            case 'xml_10':
+                $docTypeParts[] = '<?xml version="1.0" encoding="' . $theCharset . '"?>';
+                break;
+            case 'xml_11':
+                $docTypeParts[] = '<?xml version="1.1" encoding="' . $theCharset . '"?>';
+                break;
+            case '':
+                if ($controller->xhtmlVersion) {
+                    $docTypeParts[] = '<?xml version="1.0" encoding="' . $theCharset . '"?>';
+                } else {
+                    $xmlDocument = false;
+                }
+                break;
+            default:
+                $docTypeParts[] = $controller->config['config']['xmlprologue'];
+        }
+        // Part 2: DTD
+        $doctype = $controller->config['config']['doctype'] ?? null;
+        $defaultTypeAttributeForJavaScript = 'text/javascript';
+        if ($doctype) {
+            switch ($doctype) {
+                case 'xhtml_trans':
+                    $docTypeParts[] = '<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">';
+                    break;
+                case 'xhtml_strict':
+                    $docTypeParts[] = '<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">';
+                    break;
+                case 'xhtml_basic':
+                    $docTypeParts[] = '<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML Basic 1.0//EN"
+    "http://www.w3.org/TR/xhtml-basic/xhtml-basic10.dtd">';
+                    break;
+                case 'xhtml_11':
+                    $docTypeParts[] = '<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">';
+                    break;
+                case 'xhtml+rdfa_10':
+                    $docTypeParts[] = '<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML+RDFa 1.0//EN"
+    "http://www.w3.org/MarkUp/DTD/xhtml-rdfa-1.dtd">';
+                    break;
+                case 'html5':
+                    $defaultTypeAttributeForJavaScript = '';
+                    $docTypeParts[] = '<!DOCTYPE html>';
+                    if ($xmlDocument) {
+                        $pageRenderer->setMetaCharsetTag('<meta charset="|" />');
+                    } else {
+                        $pageRenderer->setMetaCharsetTag('<meta charset="|">');
+                    }
+                    break;
+                case 'none':
+                    break;
+                default:
+                    $docTypeParts[] = $doctype;
+            }
+        } else {
+            $docTypeParts[] = '<!DOCTYPE html>';
+            if ($xmlDocument) {
+                $pageRenderer->setMetaCharsetTag('<meta charset="|" />');
+            } else {
+                $pageRenderer->setMetaCharsetTag('<meta charset="|">');
+            }
+            $defaultTypeAttributeForJavaScript = '';
+        }
+        if ($htmlLang) {
+            if ($controller->xhtmlVersion) {
+                $htmlTagAttributes['xml:lang'] = $htmlLang;
+            }
+            if ($controller->xhtmlVersion < 110 || $doctype === 'html5') {
+                $htmlTagAttributes['lang'] = $htmlLang;
+            }
+        }
+        if ($controller->xhtmlVersion || $doctype === 'html5' && $xmlDocument) {
+            // We add this to HTML5 to achieve a slightly better backwards compatibility
+            $htmlTagAttributes['xmlns'] = 'http://www.w3.org/1999/xhtml';
+            if (is_array($controller->config['config']['namespaces.'])) {
+                foreach ($controller->config['config']['namespaces.'] as $prefix => $uri) {
+                    // $uri gets htmlspecialchared later
+                    $htmlTagAttributes['xmlns:' . htmlspecialchars($prefix)] = $uri;
+                }
+            }
+        }
+        // Swap XML and doctype order around (for MSIE / Opera standards compliance)
+        if ($controller->config['config']['doctypeSwitch'] ?? false) {
+            $docTypeParts = array_reverse($docTypeParts);
+        }
+        // Adding doctype parts:
+        if (!empty($docTypeParts)) {
+            $pageRenderer->setXmlPrologAndDocType(implode(LF, $docTypeParts));
+        }
+        // Begin header section:
+        $htmlTag = $this->generateHtmlTag($htmlTagAttributes, $controller->config['config'] ?? [], $controller->cObj);
+        $pageRenderer->setHtmlTag($htmlTag);
+        // Head tag:
+        $headTag = $controller->pSetup['headTag'] ?? '<head>';
+        if (isset($controller->pSetup['headTag.'])) {
+            $headTag = $controller->cObj->stdWrap($headTag, $controller->pSetup['headTag.']);
+        }
+        $pageRenderer->setHeadTag($headTag);
+        // Setting charset meta tag:
+        $pageRenderer->setCharSet($theCharset);
+        $pageRenderer->addInlineComment(GeneralUtility::makeInstance(Typo3Information::class)->getInlineHeaderComment());
+        if ($controller->baseUrl) {
+            $pageRenderer->setBaseUrl($controller->baseUrl);
+        }
+        if ($controller->pSetup['shortcutIcon'] ?? false) {
+            try {
+                $favIcon = GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($controller->pSetup['shortcutIcon']);
+                $iconFileInfo = GeneralUtility::makeInstance(ImageInfo::class, Environment::getPublicPath() . '/' . $favIcon);
+                if ($iconFileInfo->isFile()) {
+                    $iconMimeType = $iconFileInfo->getMimeType();
+                    if ($iconMimeType) {
+                        $iconMimeType = ' type="' . $iconMimeType . '"';
+                        $pageRenderer->setIconMimeType($iconMimeType);
+                    }
+                    $pageRenderer->setFavIcon(PathUtility::getAbsoluteWebPath($controller->absRefPrefix . $favIcon));
+                }
+            } catch (Exception $e) {
+                // do nothing
+            }
+        }
+        // Including CSS files
+        if (is_array($controller->tmpl->setup['plugin.'] ?? null)) {
+            $stylesFromPlugins = '';
+            foreach ($controller->tmpl->setup['plugin.'] as $key => $iCSScode) {
+                if (is_array($iCSScode)) {
+                    if ($iCSScode['_CSS_DEFAULT_STYLE'] && empty($controller->config['config']['removeDefaultCss'])) {
+                        if (isset($iCSScode['_CSS_DEFAULT_STYLE.'])) {
+                            $cssDefaultStyle = $controller->cObj->stdWrap($iCSScode['_CSS_DEFAULT_STYLE'], $iCSScode['_CSS_DEFAULT_STYLE.']);
+                        } else {
+                            $cssDefaultStyle = $iCSScode['_CSS_DEFAULT_STYLE'];
+                        }
+                        $stylesFromPlugins .= '/* default styles for extension "' . substr($key, 0, -1) . '" */' . LF . $cssDefaultStyle . LF;
+                    }
+                    if ($iCSScode['_CSS_PAGE_STYLE'] && empty($controller->config['config']['removePageCss'])) {
+                        $cssPageStyle = implode(LF, $iCSScode['_CSS_PAGE_STYLE']);
+                        if (isset($iCSScode['_CSS_PAGE_STYLE.'])) {
+                            $cssPageStyle = $controller->cObj->stdWrap($cssPageStyle, $iCSScode['_CSS_PAGE_STYLE.']);
+                        }
+                        $cssPageStyle = '/* specific page styles for extension "' . substr($key, 0, -1) . '" */' . LF . $cssPageStyle;
+                        $this->addCssToPageRenderer($controller, $cssPageStyle, true, 'InlinePageCss');
+                    }
+                }
+            }
+            if (!empty($stylesFromPlugins)) {
+                $this->addCssToPageRenderer($controller, $stylesFromPlugins, false, 'InlineDefaultCss');
+            }
+        }
+        /**********************************************************************/
+        /* config.includeCSS / config.includeCSSLibs
+        /**********************************************************************/
+        if (is_array($controller->pSetup['includeCSS.'] ?? null)) {
+            foreach ($controller->pSetup['includeCSS.'] as $key => $CSSfile) {
+                if (!is_array($CSSfile)) {
+                    $cssFileConfig = &$controller->pSetup['includeCSS.'][$key . '.'];
+                    if (isset($cssFileConfig['if.']) && !$controller->cObj->checkIf($cssFileConfig['if.'])) {
+                        continue;
+                    }
+                    if ($cssFileConfig['external']) {
+                        $ss = $CSSfile;
+                    } else {
+                        try {
+                            $ss = GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($CSSfile);
+                        } catch (Exception $e) {
+                            $ss = null;
+                        }
+                    }
+                    if ($ss) {
+                        if ($cssFileConfig['import']) {
+                            if (!$cssFileConfig['external'] && $ss[0] !== '/') {
+                                // To fix MSIE 6 that cannot handle these as relative paths (according to Ben v Ende)
+                                $ss = GeneralUtility::dirname(GeneralUtility::getIndpEnv('SCRIPT_NAME')) . '/' . $ss;
+                            }
+                            $cssMedia = !empty($cssFileConfig['media']) ? ' ' . htmlspecialchars($cssFileConfig['media']) : '';
+                            $pageRenderer->addCssInlineBlock('import_' . $key, '@import url("' . htmlspecialchars($ss) . '")' . $cssMedia . ';', empty($cssFileConfig['disableCompression']), (bool)$cssFileConfig['forceOnTop']);
+                        } else {
+                            $pageRenderer->addCssFile(
+                                $ss,
+                                $cssFileConfig['alternate'] ? 'alternate stylesheet' : 'stylesheet',
+                                $cssFileConfig['media'] ?: 'all',
+                                $cssFileConfig['title'] ?: '',
+                                $cssFileConfig['external']  || (bool)$cssFileConfig['inline'] ? false : empty($cssFileConfig['disableCompression']),
+                                (bool)$cssFileConfig['forceOnTop'],
+                                $cssFileConfig['allWrap'],
+                                (bool)$cssFileConfig['excludeFromConcatenation'] || (bool)$cssFileConfig['inline'],
+                                $cssFileConfig['allWrap.']['splitChar'],
+                                $cssFileConfig['inline']
+                            );
+                            unset($cssFileConfig);
+                        }
+                    }
+                }
+            }
+        }
+        if (is_array($controller->pSetup['includeCSSLibs.'] ?? null)) {
+            foreach ($controller->pSetup['includeCSSLibs.'] as $key => $CSSfile) {
+                if (!is_array($CSSfile)) {
+                    $cssFileConfig = &$controller->pSetup['includeCSSLibs.'][$key . '.'];
+                    if (isset($cssFileConfig['if.']) && !$controller->cObj->checkIf($cssFileConfig['if.'])) {
+                        continue;
+                    }
+                    if ($cssFileConfig['external']) {
+                        $ss = $CSSfile;
+                    } else {
+                        try {
+                            $ss = GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($CSSfile);
+                        } catch (Exception $e) {
+                            $ss = null;
+                        }
+                    }
+                    if ($ss) {
+                        if ($cssFileConfig['import']) {
+                            if (!$cssFileConfig['external'] && $ss[0] !== '/') {
+                                // To fix MSIE 6 that cannot handle these as relative paths (according to Ben v Ende)
+                                $ss = GeneralUtility::dirname(GeneralUtility::getIndpEnv('SCRIPT_NAME')) . '/' . $ss;
+                            }
+                            $cssMedia = !empty($cssFileConfig['media']) ? ' ' . htmlspecialchars($cssFileConfig['media']) : '';
+                            $pageRenderer->addCssInlineBlock('import_' . $key, '@import url("' . htmlspecialchars($ss) . '")' . $cssMedia . ';', empty($cssFileConfig['disableCompression']), (bool)$cssFileConfig['forceOnTop']);
+                        } else {
+                            $pageRenderer->addCssLibrary(
+                                $ss,
+                                $cssFileConfig['alternate'] ? 'alternate stylesheet' : 'stylesheet',
+                                $cssFileConfig['media'] ?: 'all',
+                                $cssFileConfig['title'] ?: '',
+                                $cssFileConfig['external'] || (bool)$cssFileConfig['inline'] ? false : empty($cssFileConfig['disableCompression']),
+                                (bool)$cssFileConfig['forceOnTop'],
+                                $cssFileConfig['allWrap'],
+                                (bool)$cssFileConfig['excludeFromConcatenation'] || (bool)$cssFileConfig['inline'],
+                                $cssFileConfig['allWrap.']['splitChar'],
+                                $cssFileConfig['inline']
+                            );
+                            unset($cssFileConfig);
+                        }
+                    }
+                }
+            }
+        }
+
+        // CSS_inlineStyle from TS
+        $style = trim($controller->pSetup['CSS_inlineStyle'] ?? '');
+        $style .= $controller->cObj->cObjGet($controller->pSetup['cssInline.'] ?? null, 'cssInline.');
+        if (trim($style)) {
+            $this->addCssToPageRenderer($controller, $style, true, 'additionalTSFEInlineStyle');
+        }
+        // JavaScript library files
+        if (is_array($controller->pSetup['includeJSLibs.'] ?? null)) {
+            foreach ($controller->pSetup['includeJSLibs.'] as $key => $JSfile) {
+                if (!is_array($JSfile)) {
+                    if (isset($controller->pSetup['includeJSLibs.'][$key . '.']['if.']) && !$controller->cObj->checkIf($controller->pSetup['includeJSLibs.'][$key . '.']['if.'])) {
+                        continue;
+                    }
+                    if ($controller->pSetup['includeJSLibs.'][$key . '.']['external']) {
+                        $ss = $JSfile;
+                    } else {
+                        try {
+                            $ss = GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($JSfile);
+                        } catch (Exception $e) {
+                            $ss = null;
+                        }
+                    }
+                    if ($ss) {
+                        $jsFileConfig = &$controller->pSetup['includeJSLibs.'][$key . '.'];
+                        $type = $jsFileConfig['type'] ?? $defaultTypeAttributeForJavaScript;
+                        $crossOrigin = $jsFileConfig['crossorigin'];
+                        if (!$crossOrigin && $jsFileConfig['integrity'] && $jsFileConfig['external']) {
+                            $crossOrigin = 'anonymous';
+                        }
+                        $pageRenderer->addJsLibrary(
+                            $key,
+                            $ss,
+                            $type,
+                            $jsFileConfig['external'] ? false : empty($jsFileConfig['disableCompression']),
+                            (bool)$jsFileConfig['forceOnTop'],
+                            $jsFileConfig['allWrap'],
+                            (bool)$jsFileConfig['excludeFromConcatenation'],
+                            $jsFileConfig['allWrap.']['splitChar'],
+                            (bool)$jsFileConfig['async'],
+                            $jsFileConfig['integrity'],
+                            (bool)$jsFileConfig['defer'],
+                            $crossOrigin,
+                            (bool)$jsFileConfig['nomodule']
+                        );
+                        unset($jsFileConfig);
+                    }
+                }
+            }
+        }
+        if (is_array($controller->pSetup['includeJSFooterlibs.'] ?? null)) {
+            foreach ($controller->pSetup['includeJSFooterlibs.'] as $key => $JSfile) {
+                if (!is_array($JSfile)) {
+                    if (isset($controller->pSetup['includeJSFooterlibs.'][$key . '.']['if.']) && !$controller->cObj->checkIf($controller->pSetup['includeJSFooterlibs.'][$key . '.']['if.'])) {
+                        continue;
+                    }
+                    if ($controller->pSetup['includeJSFooterlibs.'][$key . '.']['external']) {
+                        $ss = $JSfile;
+                    } else {
+                        try {
+                            $ss = GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($JSfile);
+                        } catch (Exception $e) {
+                            $ss = null;
+                        }
+                    }
+                    if ($ss) {
+                        $jsFileConfig = &$controller->pSetup['includeJSFooterlibs.'][$key . '.'];
+                        $type = $jsFileConfig['type'] ?? $defaultTypeAttributeForJavaScript;
+                        $crossorigin = $jsFileConfig['crossorigin'];
+                        if (!$crossorigin && $jsFileConfig['integrity'] && $jsFileConfig['external']) {
+                            $crossorigin = 'anonymous';
+                        }
+                        $pageRenderer->addJsFooterLibrary(
+                            $key,
+                            $ss,
+                            $type,
+                            $jsFileConfig['external'] ? false : empty($jsFileConfig['disableCompression']),
+                            (bool)$jsFileConfig['forceOnTop'],
+                            $jsFileConfig['allWrap'],
+                            (bool)$jsFileConfig['excludeFromConcatenation'],
+                            $jsFileConfig['allWrap.']['splitChar'],
+                            (bool)$jsFileConfig['async'],
+                            $jsFileConfig['integrity'],
+                            (bool)$jsFileConfig['defer'],
+                            $crossorigin,
+                            (bool)$jsFileConfig['nomodule']
+                        );
+                        unset($jsFileConfig);
+                    }
+                }
+            }
+        }
+        // JavaScript files
+        if (is_array($controller->pSetup['includeJS.'] ?? null)) {
+            foreach ($controller->pSetup['includeJS.'] as $key => $JSfile) {
+                if (!is_array($JSfile)) {
+                    if (isset($controller->pSetup['includeJS.'][$key . '.']['if.']) && !$controller->cObj->checkIf($controller->pSetup['includeJS.'][$key . '.']['if.'])) {
+                        continue;
+                    }
+                    if ($controller->pSetup['includeJS.'][$key . '.']['external']) {
+                        $ss = $JSfile;
+                    } else {
+                        try {
+                            $ss = GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($JSfile);
+                        } catch (Exception $e) {
+                            $ss = null;
+                        }
+                    }
+                    if ($ss) {
+                        $jsConfig = &$controller->pSetup['includeJS.'][$key . '.'];
+                        $type = $jsConfig['type'] ?? $defaultTypeAttributeForJavaScript;
+                        $crossorigin = $jsConfig['crossorigin'];
+                        if (!$crossorigin && $jsConfig['integrity'] && $jsConfig['external']) {
+                            $crossorigin = 'anonymous';
+                        }
+                        $pageRenderer->addJsFile(
+                            $ss,
+                            $type,
+                            $jsConfig['external'] ? false : empty($jsConfig['disableCompression']),
+                            (bool)$jsConfig['forceOnTop'],
+                            $jsConfig['allWrap'],
+                            (bool)$jsConfig['excludeFromConcatenation'],
+                            $jsConfig['allWrap.']['splitChar'],
+                            (bool)$jsConfig['async'],
+                            $jsConfig['integrity'],
+                            (bool)$jsConfig['defer'],
+                            $crossorigin,
+                            (bool)$jsConfig['nomodule']
+                        );
+                        unset($jsConfig);
+                    }
+                }
+            }
+        }
+        if (is_array($controller->pSetup['includeJSFooter.'] ?? null)) {
+            foreach ($controller->pSetup['includeJSFooter.'] as $key => $JSfile) {
+                if (!is_array($JSfile)) {
+                    if (isset($controller->pSetup['includeJSFooter.'][$key . '.']['if.']) && !$controller->cObj->checkIf($controller->pSetup['includeJSFooter.'][$key . '.']['if.'])) {
+                        continue;
+                    }
+                    if ($controller->pSetup['includeJSFooter.'][$key . '.']['external']) {
+                        $ss = $JSfile;
+                    } else {
+                        try {
+                            $ss = GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($JSfile);
+                        } catch (Exception $e) {
+                            $ss = null;
+                        }
+                    }
+                    if ($ss) {
+                        $jsConfig = &$controller->pSetup['includeJSFooter.'][$key . '.'];
+                        $type = $jsConfig['type'] ?? $defaultTypeAttributeForJavaScript;
+                        $crossorigin = $jsConfig['crossorigin'];
+                        if (!$crossorigin && $jsConfig['integrity'] && $jsConfig['external']) {
+                            $crossorigin = 'anonymous';
+                        }
+                        $pageRenderer->addJsFooterFile(
+                            $ss,
+                            $type,
+                            $jsConfig['external'] ? false : empty($jsConfig['disableCompression']),
+                            (bool)$jsConfig['forceOnTop'],
+                            $jsConfig['allWrap'],
+                            (bool)$jsConfig['excludeFromConcatenation'],
+                            $jsConfig['allWrap.']['splitChar'],
+                            (bool)$jsConfig['async'],
+                            $jsConfig['integrity'],
+                            (bool)$jsConfig['defer'],
+                            $crossorigin,
+                            (bool)$jsConfig['nomodule']
+                        );
+                        unset($jsConfig);
+                    }
+                }
+            }
+        }
+        // Headerdata
+        if (is_array($controller->pSetup['headerData.'] ?? null)) {
+            $pageRenderer->addHeaderData($controller->cObj->cObjGet($controller->pSetup['headerData.'], 'headerData.'));
+        }
+        // Footerdata
+        if (is_array($controller->pSetup['footerData.'] ?? null)) {
+            $pageRenderer->addFooterData($controller->cObj->cObjGet($controller->pSetup['footerData.'], 'footerData.'));
+        }
+        $controller->generatePageTitle();
+
+        // @internal hook for EXT:seo, will be gone soon, do not use it in your own extensions
+        $_params = ['page' => $controller->page];
+        $_ref = null;
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['TYPO3\CMS\Frontend\Page\PageGenerator']['generateMetaTags'] ?? [] as $_funcRef) {
+            GeneralUtility::callUserFunction($_funcRef, $_params, $_ref);
+        }
+
+        $this->generateHrefLangTags($controller, $request);
+        $this->generateMetaTagHtml(
+            $controller->pSetup['meta.'] ?? [],
+            $controller->cObj
+        );
+
+        $controller->INTincScript_loadJSCode();
+        $scriptJsCode = '';
+
+        if ($controller->spamProtectEmailAddresses && $controller->spamProtectEmailAddresses !== 'ascii') {
+            $scriptJsCode = '
+			/* decrypt helper function */
+		function decryptCharcode(n,start,end,offset) {
+			n = n + offset;
+			if (offset > 0 && n > end) {
+				n = start + (n - end - 1);
+			} else if (offset < 0 && n < start) {
+				n = end - (start - n - 1);
+			}
+			return String.fromCharCode(n);
+		}
+			/* decrypt string */
+		function decryptString(enc,offset) {
+			var dec = "";
+			var len = enc.length;
+			for(var i=0; i < len; i++) {
+				var n = enc.charCodeAt(i);
+				if (n >= 0x2B && n <= 0x3A) {
+					dec += decryptCharcode(n,0x2B,0x3A,offset);	/* 0-9 . , - + / : */
+				} else if (n >= 0x40 && n <= 0x5A) {
+					dec += decryptCharcode(n,0x40,0x5A,offset);	/* A-Z @ */
+				} else if (n >= 0x61 && n <= 0x7A) {
+					dec += decryptCharcode(n,0x61,0x7A,offset);	/* a-z */
+				} else {
+					dec += enc.charAt(i);
+				}
+			}
+			return dec;
+		}
+			/* decrypt spam-protected emails */
+		function linkTo_UnCryptMailto(s) {
+			location.href = decryptString(s,' . $controller->spamProtectEmailAddresses * -1 . ');
+		}
+		';
+        }
+        // Javascript inline code
+        $inlineJS = $controller->cObj->cObjGet($controller->pSetup['jsInline.'] ?? null, 'jsInline.');
+        // Javascript inline code for Footer
+        $inlineFooterJs = $controller->cObj->cObjGet($controller->pSetup['jsFooterInline.'] ?? null, 'jsFooterInline.');
+        // Should minify?
+        if ($controller->config['config']['compressJs'] ?? false) {
+            $pageRenderer->enableCompressJavascript();
+            $minifyErrorScript = ($minifyErrorInline = '');
+            $scriptJsCode = GeneralUtility::minifyJavaScript($scriptJsCode, $minifyErrorScript);
+            if ($minifyErrorScript) {
+                $this->timeTracker->setTSlogMessage($minifyErrorScript, 3);
+            }
+            if ($inlineJS) {
+                $inlineJS = GeneralUtility::minifyJavaScript($inlineJS, $minifyErrorInline);
+                if ($minifyErrorInline) {
+                    $this->timeTracker->setTSlogMessage($minifyErrorInline, 3);
+                }
+            }
+            if ($inlineFooterJs) {
+                $inlineFooterJs = GeneralUtility::minifyJavaScript($inlineFooterJs, $minifyErrorInline);
+                if ($minifyErrorInline) {
+                    $this->timeTracker->setTSlogMessage($minifyErrorInline, 3);
+                }
+            }
+        }
+        if (!isset($controller->config['config']['removeDefaultJS']) || !$controller->config['config']['removeDefaultJS']) {
+            // include default and inlineJS
+            if ($scriptJsCode) {
+                $pageRenderer->addJsInlineCode('_scriptCode', $scriptJsCode, $controller->config['config']['compressJs']);
+            }
+            if ($inlineJS) {
+                $pageRenderer->addJsInlineCode('TS_inlineJS', $inlineJS, $controller->config['config']['compressJs']);
+            }
+            if ($inlineFooterJs) {
+                $pageRenderer->addJsFooterInlineCode('TS_inlineFooter', $inlineFooterJs, $controller->config['config']['compressJs']);
+            }
+        } elseif ($controller->config['config']['removeDefaultJS'] === 'external') {
+            /*
+             * This keeps inlineJS from *_INT Objects from being moved to external files.
+             * At this point in frontend rendering *_INT Objects only have placeholders instead
+             * of actual content so moving these placeholders to external files would
+             *     a) break the JS file (syntax errors due to the placeholders)
+             *     b) the needed JS would never get included to the page
+             * Therefore inlineJS from *_INT Objects must not be moved to external files but
+             * kept internal.
+             */
+            $inlineJSint = '';
+            $this->stripIntObjectPlaceholder($inlineJS, $inlineJSint);
+            if ($inlineJSint) {
+                $pageRenderer->addJsInlineCode('TS_inlineJSint', $inlineJSint, $controller->config['config']['compressJs']);
+            }
+            if (trim($scriptJsCode . $inlineJS)) {
+                $pageRenderer->addJsFile(GeneralUtility::writeJavaScriptContentToTemporaryFile($scriptJsCode . $inlineJS), $defaultTypeAttributeForJavaScript, $controller->config['config']['compressJs']);
+            }
+            if ($inlineFooterJs) {
+                $inlineFooterJSint = '';
+                $this->stripIntObjectPlaceholder($inlineFooterJs, $inlineFooterJSint);
+                if ($inlineFooterJSint) {
+                    $pageRenderer->addJsFooterInlineCode('TS_inlineFooterJSint', $inlineFooterJSint, $controller->config['config']['compressJs']);
+                }
+                $pageRenderer->addJsFooterFile(GeneralUtility::writeJavaScriptContentToTemporaryFile($inlineFooterJs), $defaultTypeAttributeForJavaScript, $controller->config['config']['compressJs']);
+            }
+        } else {
+            // Include only inlineJS
+            if ($inlineJS) {
+                $pageRenderer->addJsInlineCode('TS_inlineJS', $inlineJS, $controller->config['config']['compressJs']);
+            }
+            if ($inlineFooterJs) {
+                $pageRenderer->addJsFooterInlineCode('TS_inlineFooter', $inlineFooterJs, $controller->config['config']['compressJs']);
+            }
+        }
+        if (isset($controller->pSetup['inlineLanguageLabelFiles.']) && is_array($controller->pSetup['inlineLanguageLabelFiles.'])) {
+            foreach ($controller->pSetup['inlineLanguageLabelFiles.'] as $key => $languageFile) {
+                if (is_array($languageFile)) {
+                    continue;
+                }
+                $languageFileConfig = &$controller->pSetup['inlineLanguageLabelFiles.'][$key . '.'];
+                if (isset($languageFileConfig['if.']) && !$controller->cObj->checkIf($languageFileConfig['if.'])) {
+                    continue;
+                }
+                $pageRenderer->addInlineLanguageLabelFile(
+                    $languageFile,
+                    $languageFileConfig['selectionPrefix'] ?: '',
+                    $languageFileConfig['stripFromSelectionName'] ?: ''
+                );
+            }
+        }
+        if (isset($controller->pSetup['inlineSettings.']) && is_array($controller->pSetup['inlineSettings.'])) {
+            $pageRenderer->addInlineSettingArray('TS', $controller->pSetup['inlineSettings.']);
+        }
+        // Compression and concatenate settings
+        if ($controller->config['config']['compressCss'] ?? false) {
+            $pageRenderer->enableCompressCss();
+        }
+        if ($controller->config['config']['compressJs'] ?? false) {
+            $pageRenderer->enableCompressJavascript();
+        }
+        if ($controller->config['config']['concatenateCss'] ?? false) {
+            $pageRenderer->enableConcatenateCss();
+        }
+        if ($controller->config['config']['concatenateJs'] ?? false) {
+            $pageRenderer->enableConcatenateJavascript();
+        }
+        // Add header data block
+        if ($controller->additionalHeaderData) {
+            $pageRenderer->addHeaderData(implode(LF, $controller->additionalHeaderData));
+        }
+        // Add footer data block
+        if ($controller->additionalFooterData) {
+            $pageRenderer->addFooterData(implode(LF, $controller->additionalFooterData));
+        }
+        // Header complete, now the body tag is added so the regular content can be applied later-on
+        if ($controller->config['config']['disableBodyTag'] ?? false) {
+            $bodyTag = '';
+        } else {
+            $defBT = (isset($controller->pSetup['bodyTagCObject']) && $controller->pSetup['bodyTagCObject'])
+                ? $controller->cObj->cObjGetSingle($controller->pSetup['bodyTagCObject'], $controller->pSetup['bodyTagCObject.'], 'bodyTagCObject')
+                : '<body>';
+            $bodyTag = (isset($controller->pSetup['bodyTag']) && $controller->pSetup['bodyTag'])
+                ? $controller->pSetup['bodyTag']
+                : $defBT;
+            if (trim($controller->pSetup['bodyTagAdd'] ?? '')) {
+                $bodyTag = preg_replace('/>$/', '', trim($bodyTag)) . ' ' . trim($controller->pSetup['bodyTagAdd']) . '>';
+            }
+        }
+        $pageRenderer->addBodyContent(LF . $bodyTag);
+    }
+
+    /*************************
+     *
+     * Helper functions
+     *
+     *************************/
+
+    /**
+     * Searches for placeholder created from *_INT cObjects, removes them from
+     * $searchString and merges them to $intObjects
+     *
+     * @param string $searchString The String which should be cleaned from int-object markers
+     * @param string $intObjects The String the found int-placeholders are moved to (for further processing)
+     */
+    protected function stripIntObjectPlaceholder(&$searchString, &$intObjects)
+    {
+        $tempArray = [];
+        preg_match_all('/\\<\\!--INT_SCRIPT.[a-z0-9]*--\\>/', $searchString, $tempArray);
+        $searchString = preg_replace('/\\<\\!--INT_SCRIPT.[a-z0-9]*--\\>/', '', $searchString);
+        $intObjects = implode('', $tempArray[0]);
+    }
+
+    /**
+     * Generate meta tags from meta tag TypoScript
+     *
+     * @param array $metaTagTypoScript TypoScript configuration for meta tags (e.g. $GLOBALS['TSFE']->pSetup['meta.'])
+     * @param ContentObjectRenderer $cObj
+     */
+    protected function generateMetaTagHtml(array $metaTagTypoScript, ContentObjectRenderer $cObj)
+    {
+        $pageRenderer = $this->getPageRenderer();
+
+        $typoScriptService = GeneralUtility::makeInstance(TypoScriptService::class);
+        $conf = $typoScriptService->convertTypoScriptArrayToPlainArray($metaTagTypoScript);
+        foreach ($conf as $key => $properties) {
+            $replace = false;
+            if (is_array($properties)) {
+                $nodeValue = $properties['_typoScriptNodeValue'] ?? '';
+                $value = trim((string)$cObj->stdWrap($nodeValue, $metaTagTypoScript[$key . '.']));
+                if ($value === '' && !empty($properties['value'])) {
+                    $value = $properties['value'];
+                    $replace = false;
+                }
+            } else {
+                $value = $properties;
+            }
+
+            $attribute = 'name';
+            if ((is_array($properties) && !empty($properties['httpEquivalent'])) || strtolower($key) === 'refresh') {
+                $attribute = 'http-equiv';
+            }
+            if (is_array($properties) && !empty($properties['attribute'])) {
+                $attribute = $properties['attribute'];
+            }
+            if (is_array($properties) && !empty($properties['replace'])) {
+                $replace = true;
+            }
+
+            if (!is_array($value)) {
+                $value = (array)$value;
+            }
+            foreach ($value as $subValue) {
+                if (trim($subValue ?? '') !== '') {
+                    $pageRenderer->setMetaTag($attribute, $key, $subValue, [], $replace);
+                }
+            }
         }
     }
 
     /**
-     * Timetracking started depending if a Backend User is logged in
+     * @return PageRenderer
      */
-    protected function initializeTimeTracker()
+    protected function getPageRenderer(): PageRenderer
     {
-        $configuredCookieName = trim($GLOBALS['TYPO3_CONF_VARS']['BE']['cookieName']) ?: 'be_typo_user';
-
-        /** @var TimeTracker timeTracker */
-        $this->timeTracker = GeneralUtility::makeInstance(TimeTracker::class, ($this->request->getCookieParams()[$configuredCookieName] ? true : false));
-        $this->timeTracker->start();
+        return GeneralUtility::makeInstance(PageRenderer::class);
     }
 
     /**
-     * Creates an instance of TSFE and sets it as a global variable
+     * Adds inline CSS code, by respecting the inlineStyle2TempFile option
+     *
+     * @param TypoScriptFrontendController $controller
+     * @param string $cssStyles the inline CSS styling
+     * @param bool $excludeFromConcatenation option to see if it should be concatenated
+     * @param string $inlineBlockName the block name to add it
      */
-    protected function initializeController()
+    protected function addCssToPageRenderer(TypoScriptFrontendController $controller, string $cssStyles, bool $excludeFromConcatenation, string $inlineBlockName)
     {
-        $this->controller = GeneralUtility::makeInstance(
-            TypoScriptFrontendController::class,
-            null,
-            GeneralUtility::_GP('id'),
-            GeneralUtility::_GP('type'),
-            GeneralUtility::_GP('no_cache'),
-            GeneralUtility::_GP('cHash'),
-            null,
-            GeneralUtility::_GP('MP'),
-            GeneralUtility::_GP('RDCT')
-        );
-        // setting the global variable for the controller
-        // We have to define this as reference here, because there is code around
-        // which exchanges the TSFE object in the global variable. The reference ensures
-        // that the $controller member always works on the same object as the global variable.
-        // This is a dirty workaround and bypasses the protected access modifier of the controller member.
-        $GLOBALS['TSFE'] = &$this->controller;
+        if (empty($controller->config['config']['inlineStyle2TempFile'] ?? false)) {
+            $this->getPageRenderer()->addCssInlineBlock($inlineBlockName, $cssStyles, !empty($controller->config['config']['compressCss'] ?? false));
+        } else {
+            $this->getPageRenderer()->addCssFile(
+                GeneralUtility::writeStyleSheetContentToTemporaryFile($cssStyles),
+                'stylesheet',
+                'all',
+                '',
+                (bool)($controller->config['config']['compressCss'] ?? false),
+                false,
+                '',
+                $excludeFromConcatenation
+            );
+        }
+    }
+
+    /**
+     * Generates the <html> tag by evaluating TypoScript configuration, usually found via:
+     *
+     * - Adding extra attributes in addition to pre-generated ones (e.g. "dir")
+     *     config.htmlTag.attributes.no-js = 1
+     *     config.htmlTag.attributes.empty-attribute =
+     *
+     * - Adding one full string (no stdWrap!) to the "<html $htmlTagAttributes {config.htmlTag_setParams}>" tag
+     *     config.htmlTag_setParams = string|"none"
+     *
+     *   If config.htmlTag_setParams = none is set, even the pre-generated values are not added at all anymore.
+     *
+     * - "config.htmlTag_stdWrap" always applies over the whole compiled tag.
+     *
+     * @param array $htmlTagAttributes pre-generated attributes by doctype/direction etc. values.
+     * @param array $configuration the TypoScript configuration "config." array
+     * @param ContentObjectRenderer $cObj
+     * @return string the full <html> tag as string
+     */
+    protected function generateHtmlTag(array $htmlTagAttributes, array $configuration, ContentObjectRenderer $cObj): string
+    {
+        if (is_array($configuration['htmlTag.']['attributes.'] ?? null)) {
+            $attributeString = '';
+            foreach ($configuration['htmlTag.']['attributes.'] as $attributeName => $value) {
+                $attributeString .= ' ' . htmlspecialchars($attributeName) . ($value !== '' ? '="' . htmlspecialchars((string)$value) . '"' : '');
+                // If e.g. "htmlTag.attributes.dir" is set, make sure it is not added again with "implodeAttributes()"
+                if (isset($htmlTagAttributes[$attributeName])) {
+                    unset($htmlTagAttributes[$attributeName]);
+                }
+            }
+            $attributeString = ltrim(GeneralUtility::implodeAttributes($htmlTagAttributes) . $attributeString);
+        } elseif (($configuration['htmlTag_setParams'] ?? '') === 'none') {
+            $attributeString = '';
+        } elseif (isset($configuration['htmlTag_setParams'])) {
+            $attributeString = $configuration['htmlTag_setParams'];
+        } else {
+            $attributeString = GeneralUtility::implodeAttributes($htmlTagAttributes);
+        }
+        $htmlTag = '<html' . ($attributeString ? ' ' . $attributeString : '') . '>';
+        if (isset($configuration['htmlTag_stdWrap.'])) {
+            $htmlTag = $cObj->stdWrap($htmlTag, $configuration['htmlTag_stdWrap.']);
+        }
+        return $htmlTag;
+    }
+
+    protected function generateHrefLangTags(TypoScriptFrontendController $controller, ServerRequestInterface $request): void
+    {
+        $hrefLangs = $this->eventDispatcher->dispatch(
+            new ModifyHrefLangTagsEvent($request)
+        )->getHrefLangs();
+        if (count($hrefLangs) > 1) {
+            $data = [];
+            foreach ($hrefLangs as $hrefLang => $href) {
+                $data[] = sprintf('<link %s/>', GeneralUtility::implodeAttributes([
+                    'rel' => 'alternate',
+                    'hreflang' => $hrefLang,
+                    'href' => $href,
+                ], true));
+            }
+            $controller->additionalHeaderData[] = implode(LF, $data);
+        }
+    }
+
+    /**
+     * Include the preview block in case we're looking at a hidden page in the LIVE workspace
+     *
+     * @param TypoScriptFrontendController $controller
+     * @internal this method might get moved to a PSR-15 middleware at some point
+     */
+    protected function displayPreviewInfoMessage(TypoScriptFrontendController $controller)
+    {
+        $isInPreviewMode = $controller->getContext()->hasAspect('frontend.preview')
+            && $controller->getContext()->getPropertyFromAspect('frontend.preview', 'isPreview');
+        if (!$isInPreviewMode || $controller->doWorkspacePreview() || ($controller->config['config']['disablePreviewNotification'] ?? false)) {
+            return;
+        }
+        if ($controller->config['config']['message_preview']) {
+            $message = $controller->config['config']['message_preview'];
+        } else {
+            $label = $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_tsfe.xlf:preview');
+            $styles = [];
+            $styles[] = 'position: fixed';
+            $styles[] = 'top: 15px';
+            $styles[] = 'right: 15px';
+            $styles[] = 'padding: 8px 18px';
+            $styles[] = 'background: #fff3cd';
+            $styles[] = 'border: 1px solid #ffeeba';
+            $styles[] = 'font-family: sans-serif';
+            $styles[] = 'font-size: 14px';
+            $styles[] = 'font-weight: bold';
+            $styles[] = 'color: #856404';
+            $styles[] = 'z-index: 20000';
+            $styles[] = 'user-select: none';
+            $styles[] = 'pointer-events: none';
+            $styles[] = 'text-align: center';
+            $styles[] = 'border-radius: 2px';
+            $message = '<div id="typo3-preview-info" style="' . implode(';', $styles) . '">' . htmlspecialchars($label) . '</div>';
+        }
+        if (!empty($message)) {
+            $controller->content = str_ireplace('</body>', $message . '</body>', $controller->content);
+        }
+    }
+
+    /**
+     * @return LanguageService
+     */
+    protected function getLanguageService()
+    {
+        return $GLOBALS['LANG'];
     }
 }

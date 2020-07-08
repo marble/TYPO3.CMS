@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\LinkHandling\PageLinkHandler;
+namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
 
-class PageLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+use TYPO3\CMS\Core\LinkHandling\PageLinkHandler;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
+class PageLinkHandlerTest extends UnitTestCase
 {
 
     /**
@@ -53,53 +55,6 @@ class PageLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'pageuid' => 13
                 ],
                 't3://page?uid=13'
-            ],
-            'page with alias - cool style' => [
-                [
-                    'alias' => 'alias13'
-                ],
-                [
-                    'pagealias' => 'alias13'
-                ],
-                't3://page?alias=alias13'
-            ],
-            'page with alias and type - cool style' => [
-                [
-                    'alias' => 'alias13',
-                    'type' => 31
-                ],
-                [
-                    'pagealias' => 'alias13',
-                    'pagetype' => '31'
-                ],
-                't3://page?alias=alias13&type=31'
-            ],
-            'page with alias and parameters - cool style' => [
-                [
-                    'alias' => 'alias13',
-                    'my' => 'additional',
-                    'parameter' => 'that',
-                    'are' => 'nice'
-                ],
-                [
-                    'pagealias' => 'alias13',
-                    'parameters' => 'my=additional&parameter=that&are=nice'
-                ],
-                't3://page?alias=alias13&my=additional&parameter=that&are=nice',
-            ],
-            'page with alias and parameters and fragment - cool style' => [
-                [
-                    'alias' => 'alias13',
-                    'my' => 'additional',
-                    'parameter' => 'that',
-                    'are' => 'nice'
-                ],
-                [
-                    'pagealias' => 'alias13',
-                    'parameters' => 'my=additional&parameter=that&are=nice',
-                    'fragment' => 'again'
-                ],
-                't3://page?alias=alias13&my=additional&parameter=that&are=nice#again',
             ]
         ];
     }
@@ -120,7 +75,7 @@ class PageLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         if (isset($expected['fragment'])) {
             unset($expected['fragment']);
         }
-        $this->assertEquals($expected, $subject->resolveHandlerData($input));
+        self::assertEquals($expected, $subject->resolveHandlerData($input));
     }
 
     /**
@@ -135,6 +90,6 @@ class PageLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function splitParametersToUnifiedIdentifier($input, $parameters, $expected)
     {
         $subject = new PageLinkHandler();
-        $this->assertEquals($expected, $subject->asString($parameters));
+        self::assertEquals($expected, $subject->asString($parameters));
     }
 }

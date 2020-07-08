@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Utility\File;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,27 +12,35 @@ namespace TYPO3\CMS\Core\Tests\Unit\Utility\File;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\Utility\File;
+
 use Doctrine\DBAL\Driver\Statement;
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\DefaultRestrictionContainer;
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\Folder;
+use TYPO3\CMS\Core\Utility\File\ExtendedFileUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for class \TYPO3\CMS\Core\Utility\File\ExtendedFileUtility
  */
-class ExtendedFileUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ExtendedFileUtilityTest extends UnitTestCase
 {
     /**
      * Sets up this testcase
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $GLOBALS['LANG'] = $this->getMockBuilder(\TYPO3\CMS\Core\Localization\LanguageService::class)
+        parent::setUp();
+        $GLOBALS['LANG'] = $this->getMockBuilder(LanguageService::class)
+            ->disableOriginalConstructor()
             ->setMethods(['sL'])
             ->getMock();
     }
@@ -48,19 +55,20 @@ class ExtendedFileUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTest
             ->setMethods(['getUid'])
             ->disableOriginalConstructor()
             ->getMock();
-        $file->expects($this->once())->method('getUid')->will($this->returnValue($fileUid));
+        $file->expects(self::once())->method('getUid')->willReturn($fileUid);
 
         $folder = $this->getMockBuilder(Folder::class)
             ->setMethods(['getFiles'])
             ->disableOriginalConstructor()
             ->getMock();
-        $folder->expects($this->once())
+        $folder->expects(self::once())
             ->method('getFiles')->with(0, 0, Folder::FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS, true)
-            ->will($this->returnValue([$file])
-        );
+            ->willReturn(
+                [$file]
+            );
 
         /** @var \TYPO3\CMS\Core\Utility\File\ExtendedFileUtility $subject */
-        $subject = $this->getMockBuilder(\TYPO3\CMS\Core\Utility\File\ExtendedFileUtility::class)
+        $subject = $this->getMockBuilder(ExtendedFileUtility::class)
             ->setMethods(['addFlashMessage'])
             ->getMock();
 
@@ -83,15 +91,15 @@ class ExtendedFileUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTest
         $connectionPoolProphet->getQueryBuilderForTable(Argument::cetera())->willReturn($queryBuilderProphet->reveal());
         GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphet->reveal());
 
-        $GLOBALS['LANG']->expects($this->at(0))->method('sL')
-            ->with('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:message.description.folderNotDeletedHasFilesWithReferences')
-            ->will($this->returnValue('folderNotDeletedHasFilesWithReferences'));
-        $GLOBALS['LANG']->expects($this->at(1))->method('sL')
-            ->with('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:message.header.folderNotDeletedHasFilesWithReferences')
-            ->will($this->returnValue('folderNotDeletedHasFilesWithReferences'));
+        $GLOBALS['LANG']->expects(self::at(0))->method('sL')
+            ->with('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:message.description.folderNotDeletedHasFilesWithReferences')
+            ->willReturn('folderNotDeletedHasFilesWithReferences');
+        $GLOBALS['LANG']->expects(self::at(1))->method('sL')
+            ->with('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:message.header.folderNotDeletedHasFilesWithReferences')
+            ->willReturn('folderNotDeletedHasFilesWithReferences');
 
         $result = $subject->folderHasFilesInUse($folder);
-        $this->assertTrue($result);
+        self::assertTrue($result);
     }
 
     /**
@@ -103,14 +111,14 @@ class ExtendedFileUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTest
             ->setMethods(['getFiles'])
             ->disableOriginalConstructor()
             ->getMock();
-        $folder->expects($this->once())->method('getFiles')->with(0, 0, Folder::FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS, true)->will(
-            $this->returnValue([])
+        $folder->expects(self::once())->method('getFiles')->with(0, 0, Folder::FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS, true)->willReturn(
+            []
         );
 
         /** @var \TYPO3\CMS\Core\Utility\File\ExtendedFileUtility $subject */
-        $subject = $this->getMockBuilder(\TYPO3\CMS\Core\Utility\File\ExtendedFileUtility::class)
+        $subject = $this->getMockBuilder(ExtendedFileUtility::class)
             ->setMethods(['addFlashMessage'])
             ->getMock();
-        $this->assertFalse($subject->folderHasFilesInUse($folder));
+        self::assertFalse($subject->folderHasFilesInUse($folder));
     }
 }

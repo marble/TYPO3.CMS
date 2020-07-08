@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
 
 use TYPO3\CMS\Backend\Clipboard\Clipboard;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
@@ -86,7 +88,7 @@ class AbstractProvider implements ProviderInterface
      * @param string $identifier
      * @param string $context
      */
-    public function __construct(string $table, string $identifier, string $context='')
+    public function __construct(string $table, string $identifier, string $context = '')
     {
         $this->table = $table;
         $this->identifier = $identifier;
@@ -143,8 +145,12 @@ class AbstractProvider implements ProviderInterface
      */
     protected function initDisabledItems()
     {
-        $TSkey = $this->table . ($this->context ?  '.' . $this->context : '');
-        $this->disabledItems = GeneralUtility::trimExplode(',', $this->backendUser->getTSConfigVal('options.contextMenu.table.' . $TSkey . '.disableItems'), true);
+        if ($this->context) {
+            $tsConfigValue = $this->backendUser->getTSConfig()['options.']['contextMenu.']['table.'][$this->table . '.'][$this->context . '.']['disableItems'] ?? '';
+        } else {
+            $tsConfigValue = $this->backendUser->getTSConfig()['options.']['contextMenu.']['table.'][$this->table . '.']['disableItems'] ?? '';
+        }
+        $this->disabledItems = GeneralUtility::trimExplode(',', $tsConfigValue, true);
     }
 
     /**

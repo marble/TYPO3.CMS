@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Template\Components\Buttons;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,14 +13,17 @@ namespace TYPO3\CMS\Backend\Tests\Template\Components\Buttons;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Template\Components\Button;
+
 use TYPO3\CMS\Backend\Template\Components\Buttons\LinkButton;
 use TYPO3\CMS\Backend\Template\Components\Buttons\SplitButton;
 use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Class BackendModuleRequestHandlerTest
  */
-class SplitButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class SplitButtonTest extends UnitTestCase
 {
     /**
      * Try to validate an empty button
@@ -32,7 +34,7 @@ class SplitButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $button = new SplitButton();
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -50,7 +52,7 @@ class SplitButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $button->addItem($primaryAction);
 
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -74,7 +76,7 @@ class SplitButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $button->addItem($anotherPrimaryAction, true);
 
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -98,7 +100,7 @@ class SplitButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $button->addItem($anotherPrimaryAction, true);
 
         $isValid = $button->isValid();
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -120,6 +122,6 @@ class SplitButtonTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $button->addItem($anotherAction);
 
         $isValid = $button->isValid();
-        $this->assertTrue($isValid);
+        self::assertTrue($isValid);
     }
 }

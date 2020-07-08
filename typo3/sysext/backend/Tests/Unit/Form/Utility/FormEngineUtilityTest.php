@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\Utility;
+
 use TYPO3\CMS\Backend\Form\Utility\FormEngineUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FormEngineUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FormEngineUtilityTest extends UnitTestCase
 {
     /**
      * @test
@@ -31,7 +33,7 @@ class FormEngineUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
             'title' => 'aTitle',
         ];
         $expected = $input;
-        $this->assertEquals($expected, FormEngineUtility::databaseRowCompatibility($input));
+        self::assertEquals($expected, FormEngineUtility::databaseRowCompatibility($input));
     }
 
     /**
@@ -48,7 +50,7 @@ class FormEngineUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         ];
         $expected = $input;
         $expected['simpleArray'] = '1,2';
-        $this->assertEquals($expected, FormEngineUtility::databaseRowCompatibility($input));
+        self::assertEquals($expected, FormEngineUtility::databaseRowCompatibility($input));
     }
 
     /**
@@ -71,6 +73,6 @@ class FormEngineUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCa
         ];
         $expected = $input;
         $expected['simpleArray'] = 'aValue,anotherValue';
-        $this->assertEquals($expected, FormEngineUtility::databaseRowCompatibility($input));
+        self::assertEquals($expected, FormEngineUtility::databaseRowCompatibility($input));
     }
 }

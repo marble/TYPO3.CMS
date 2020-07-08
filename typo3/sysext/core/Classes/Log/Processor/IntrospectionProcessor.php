@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Log\Processor;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Log\Processor;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Log\Processor;
 
 use TYPO3\CMS\Core\Log\LogRecord;
 
@@ -54,7 +55,7 @@ class IntrospectionProcessor extends AbstractProcessor
      * Set the number of levels to be shift from the backtrace
      *
      * @param int $shiftBackTraceLevel Numbers of levels to shift
-     * @return \TYPO3\CMS\Core\Log\Writer\AbstractWriter
+     * @return IntrospectionProcessor
      */
     public function setShiftBackTraceLevel($shiftBackTraceLevel)
     {
@@ -66,7 +67,7 @@ class IntrospectionProcessor extends AbstractProcessor
      * Set if the full backtrace should be added to the log or just the last item
      *
      * @param bool $appendFullBackTrace If the full backtrace should be added
-     * @return \TYPO3\CMS\Core\Log\Writer\AbstractWriter
+     * @return IntrospectionProcessor
      */
     public function setAppendFullBackTrace($appendFullBackTrace)
     {
@@ -120,10 +121,10 @@ class IntrospectionProcessor extends AbstractProcessor
             ]);
         } else {
             $logRecord->addData([
-                'file' => isset($trace[0]['file']) ? $trace[0]['file'] : null,
-                'line' => isset($trace[0]['line']) ? $trace[0]['line'] : null,
-                'class' => isset($trace[0]['class']) ? $trace[0]['class'] : null,
-                'function' => isset($trace[0]['function']) ? $trace[0]['function'] : null
+                'file' => $trace[0]['file'] ?? null,
+                'line' => $trace[0]['line'] ?? null,
+                'class' => $trace[0]['class'] ?? null,
+                'function' => $trace[0]['function'] ?? null
             ]);
         }
 

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic;
+
 /**
  * A query settings interface. This interface is NOT part of the TYPO3.Flow API.
  */
@@ -24,7 +25,6 @@ interface QuerySettingsInterface
      *
      * @param bool $respectStoragePage If TRUE the storage page ID will be determined and the statement will be extended accordingly.
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface instance of $this to allow method chaining
-     * @api
      */
     public function setRespectStoragePage($respectStoragePage);
 
@@ -40,7 +40,6 @@ interface QuerySettingsInterface
      *
      * @param array $storagePageIds If TRUE the storage page ID will be determined and the statement will be extended accordingly.
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface instance of $this to allow method chaining
-     * @api
      */
     public function setStoragePageIds(array $storagePageIds);
 
@@ -52,25 +51,24 @@ interface QuerySettingsInterface
     public function getStoragePageIds();
 
     /**
-     * Sets the flag if a translation is chosen and language overlay should be performed.
+     * Sets the flag if record language should be respected when querying.
+     * Other settings defines whether overlay should happen or not.
      *
-     * @param bool $respectSysLanguage TRUE if a translation is chosen and language overlay should be performed.
+     * @param bool $respectSysLanguage TRUE if only record language should be respected when querying
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface instance of $this to allow method chaining
-     * @api
      */
     public function setRespectSysLanguage($respectSysLanguage);
 
     /**
-     * Returns the state, if a language overlay should be performed when a translation is active.
+     * Returns the state, if record language should be checked when querying
      *
-     * @return bool TRUE, if a language overlay should be performed when a translation is active; otherwise FALSE.
+     * @return bool if TRUE record language is checked.
      */
     public function getRespectSysLanguage();
 
     /**
      * @param mixed $languageOverlayMode TRUE, FALSE or "hideNonTranslated"
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface instance of $this to allow method chaining
-     * @api
      */
     public function setLanguageOverlayMode($languageOverlayMode);
 
@@ -80,21 +78,8 @@ interface QuerySettingsInterface
     public function getLanguageOverlayMode();
 
     /**
-     * @param string $languageMode NULL, "content_fallback", "strict" or "ignore"
-     * @return \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface instance of $this to allow method chaining
-     * @api
-     */
-    public function setLanguageMode($languageMode);
-
-    /**
-     * @return string NULL, "content_fallback", "strict" or "ignore"
-     */
-    public function getLanguageMode();
-
-    /**
      * @param int $languageUid
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface instance of $this to allow method chaining
-     * @api
      */
     public function setLanguageUid($languageUid);
 
@@ -111,7 +96,6 @@ interface QuerySettingsInterface
      * @param bool $ignoreEnableFields
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface instance of $this to allow method chaining
      * @see setEnableFieldsToBeIgnored()
-     * @api
      */
     public function setIgnoreEnableFields($ignoreEnableFields);
 
@@ -134,7 +118,6 @@ interface QuerySettingsInterface
      * @param array $enableFieldsToBeIgnored
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface instance of $this to allow method chaining
      * @see setIgnoreEnableFields()
-     * @api
      */
     public function setEnableFieldsToBeIgnored($enableFieldsToBeIgnored);
 
@@ -152,7 +135,6 @@ interface QuerySettingsInterface
      *
      * @param bool $includeDeleted
      * @return \TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface instance of $this to allow method chaining
-     * @api
      */
     public function setIncludeDeleted($includeDeleted);
 

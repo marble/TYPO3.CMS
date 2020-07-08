@@ -1,11 +1,12 @@
 <?php
+
 return [
     'ctrl' => [
         'label' => 'title',
         'descriptionColumn' => 'description',
         'tstamp' => 'tstamp',
         'sortby' => 'sorting',
-        'prependAtCopy' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.prependAtCopy',
+        'prependAtCopy' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.prependAtCopy',
         'title' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:sys_template',
         'versioningWS' => true,
         'origUid' => 't3_origuid',
@@ -26,9 +27,6 @@ return [
         ],
         'searchFields' => 'title,constants,config'
     ],
-    'interface' => [
-        'showRecordFieldList' => 'title,clear,root,basedOn,nextLevel,sitetitle,description,hidden,starttime,endtime'
-    ],
     'columns' => [
         'title' => [
             'label' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:sys_template.title',
@@ -40,41 +38,57 @@ return [
             ]
         ],
         'hidden' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.disable',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.enabled',
             'exclude' => true,
             'config' => [
                 'type' => 'check',
-                'default' => 0
-            ]
+                'renderType' => 'checkboxToggle',
+                'default' => 0,
+                'items' => [
+                    [
+                        0 => '',
+                        1 => '',
+                        'invertStateDisplay' => true,
+                    ],
+                ],
+            ],
         ],
         'starttime' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.starttime',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.starttime',
             'exclude' => true,
             'config' => [
                 'type' => 'input',
                 'renderType' => 'inputDateTime',
-                'eval' => 'datetime',
+                'eval' => 'datetime,int',
                 'default' => 0
             ]
         ],
         'endtime' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.endtime',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.endtime',
             'exclude' => true,
             'config' => [
                 'type' => 'input',
                 'renderType' => 'inputDateTime',
-                'eval' => 'datetime',
+                'eval' => 'datetime,int',
                 'default' => 0,
                 'range' => [
-                    'upper' => mktime(0, 0, 0, 12, 31, 2020)
+                    'upper' => mktime(0, 0, 0, 1, 1, 2038)
                 ]
             ]
         ],
         'root' => [
             'label' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:sys_template.root',
             'config' => [
-                'type' => 'check'
-            ]
+                'type' => 'check',
+                'renderType' => 'checkboxToggle',
+                'default' => 0,
+                'items' => [
+                    [
+                        0 => '',
+                        1 => '',
+                    ],
+                ],
+            ],
         ],
         'clear' => [
             'label' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:sys_template.clear',
@@ -100,24 +114,12 @@ return [
             'config' => [
                 'type' => 'text',
                 'cols' => 48,
-                'rows' => 10,
+                'rows' => 15,
                 'wrap' => 'off',
                 'enableTabulator' => true,
                 'fixedFont' => true,
                 'softref' => 'email[subst],url[subst]'
             ],
-        ],
-        'nextLevel' => [
-            'label' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:sys_template.nextLevel',
-            'config' => [
-                'type' => 'group',
-                'internal_type' => 'db',
-                'allowed' => 'sys_template',
-                'size' => 1,
-                'maxitems' => 1,
-                'minitems' => 0,
-                'default' => '',
-            ]
         ],
         'include_static_file' => [
             'label' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:sys_template.include_static_file',
@@ -127,7 +129,6 @@ return [
                 'size' => 10,
                 'maxitems' => 100,
                 'items' => [],
-                'enableMultiSelectFilterTextfield' => true,
                 'softref' => 'ext_fileref'
             ]
         ],
@@ -163,14 +164,21 @@ return [
             'exclude' => true,
             'config' => [
                 'type' => 'check',
-                'default' => 0
+                'renderType' => 'checkboxToggle',
+                'default' => 0,
+                'items' => [
+                    [
+                        0 => '',
+                        1 => '',
+                    ]
+                ],
             ]
         ],
         'config' => [
             'label' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:sys_template.config',
             'config' => [
                 'type' => 'text',
-                'rows' => 10,
+                'rows' => 15,
                 'cols' => 48,
                 'wrap' => 'off',
                 'enableTabulator' => true,
@@ -199,14 +207,6 @@ return [
                 ],
                 'default' => 0
             ]
-        ],
-        't3ver_label' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.versionLabel',
-            'config' => [
-                'type' => 'input',
-                'size' => 30,
-                'max' => 255
-            ]
         ]
     ],
     'types' => [
@@ -214,7 +214,7 @@ return [
             --div--;LLL:EXT:core/Resources/Private/Language/Form/locallang_tabs.xlf:general,
                 title, sitetitle, constants, config,
             --div--;LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:sys_template.tabs.options,
-                clear, root, nextLevel,
+                clear, root,
             --div--;LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:sys_template.tabs.include,
                 includeStaticAfterBasedOn, include_static_file, basedOn, static_file_mode,
             --div--;LLL:EXT:core/Resources/Private/Language/Form/locallang_tabs.xlf:access,

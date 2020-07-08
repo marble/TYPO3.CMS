@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Cache\Backend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Core\Cache\Backend;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Cache\Backend;
+
+use Doctrine\DBAL\FetchMode;
 use TYPO3\CMS\Core\Cache\Exception;
 use TYPO3\CMS\Core\Cache\Exception\InvalidDataException;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
@@ -24,7 +26,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * A caching backend which stores cache entries in database tables
- * @api
  */
 class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInterface
 {
@@ -61,13 +62,12 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
      * Set cache frontend instance and calculate data and tags table name
      *
      * @param FrontendInterface $cache The frontend for this backend
-     * @api
      */
     public function setCache(FrontendInterface $cache)
     {
         parent::setCache($cache);
-        $this->cacheTable = 'cf_' . $this->cacheIdentifier;
-        $this->tagsTable = 'cf_' . $this->cacheIdentifier . '_tags';
+        $this->cacheTable = 'cache_' . $this->cacheIdentifier;
+        $this->tagsTable = 'cache_' . $this->cacheIdentifier . '_tags';
         $this->maximumLifetime = self::FAKED_UNLIMITED_EXPIRE - $GLOBALS['EXEC_TIME'];
     }
 
@@ -90,7 +90,7 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
                 1236518298
             );
         }
-        if (is_null($lifetime)) {
+        if ($lifetime === null) {
             $lifetime = $this->defaultLifetime;
         }
         if ($lifetime === 0 || $lifetime > $this->maximumLifetime) {
@@ -136,7 +136,7 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
         $this->throwExceptionIfFrontendDoesNotExist();
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable($this->cacheTable);
-        $cacheRow =  $queryBuilder->select('content')
+        $cacheRow = $queryBuilder->select('content')
             ->from($this->cacheTable)
             ->where(
                 $queryBuilder->expr()->eq(
@@ -222,7 +222,6 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
     public function findIdentifiersByTag($tag)
     {
         $this->throwExceptionIfFrontendDoesNotExist();
-        $cacheEntryIdentifiers = [];
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable($this->tagsTable);
         $result = $queryBuilder->select($this->cacheTable . '.identifier')
@@ -239,11 +238,10 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
                     $queryBuilder->createNamedParameter($GLOBALS['EXEC_TIME'], \PDO::PARAM_INT)
                 )
             )
+            ->groupBy($this->cacheTable . '.identifier')
             ->execute();
-        while ($row = $result->fetch()) {
-            $cacheEntryIdentifiers[$row['identifier']] = $row['identifier'];
-        }
-        return $cacheEntryIdentifiers;
+        $identifiers = $result->fetchAll(FetchMode::COLUMN, 0);
+        return array_combine($identifiers, $identifiers);
     }
 
     /**
@@ -291,7 +289,7 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
         }, $tags);
 
         if ($this->isConnectionMysql($connection)) {
-            // Use a optimized query on mysql ... don't use on your own
+            // Use an optimized query on mysql ... don't use on your own
             // * ansi sql does not know about multi table delete
             // * doctrine query builder does not support join on delete()
             $connection->executeQuery(
@@ -309,10 +307,7 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
                 // group by is like DISTINCT and used here to suppress possible duplicate identifiers
                 ->groupBy('identifier')
                 ->execute();
-            $cacheEntryIdentifiers = [];
-            while ($row = $result->fetch()) {
-                $cacheEntryIdentifiers[] = $row['identifier'];
-            }
+            $cacheEntryIdentifiers = $result->fetchAll(FetchMode::COLUMN, 0);
             $quotedIdentifiers = $queryBuilder->createNamedParameter($cacheEntryIdentifiers, Connection::PARAM_STR_ARRAY);
             $queryBuilder->delete($this->cacheTable)
                 ->where($queryBuilder->expr()->in('identifier', $quotedIdentifiers))
@@ -342,7 +337,7 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
         $quotedTag = '\'' . $tag . '\'';
 
         if ($this->isConnectionMysql($connection)) {
-            // Use a optimized query on mysql ... don't use on your own
+            // Use an optimized query on mysql ... don't use on your own
             // * ansi sql does not know about multi table delete
             // * doctrine query builder does not support join on delete()
             $connection->executeQuery(
@@ -360,10 +355,7 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
                 // group by is like DISTINCT and used here to suppress possible duplicate identifiers
                 ->groupBy('identifier')
                 ->execute();
-            $cacheEntryIdentifiers = [];
-            while ($row = $result->fetch()) {
-                $cacheEntryIdentifiers[] = $row['identifier'];
-            }
+            $cacheEntryIdentifiers = $result->fetchAll(FetchMode::COLUMN, 0);
             $quotedIdentifiers = $queryBuilder->createNamedParameter($cacheEntryIdentifiers, Connection::PARAM_STR_ARRAY);
             $queryBuilder->delete($this->cacheTable)
                 ->where($queryBuilder->expr()->in('identifier', $quotedIdentifiers))
@@ -383,7 +375,7 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
 
         $connection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($this->cacheTable);
         if ($this->isConnectionMysql($connection)) {
-            // Use a optimized query on mysql ... don't use on your own
+            // Use an optimized query on mysql ... don't use on your own
             // * ansi sql does not know about multi table delete
             // * doctrine query builder does not support join on delete()
             // First delete all expired rows from cache table and their connected tag rows
@@ -414,10 +406,7 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
                 ->execute();
 
             // Get identifiers of expired cache entries
-            $cacheEntryIdentifiers = [];
-            while ($row = $result->fetch()) {
-                $cacheEntryIdentifiers[] = $row['identifier'];
-            }
+            $cacheEntryIdentifiers = $result->fetchAll(FetchMode::COLUMN, 0);
             if (!empty($cacheEntryIdentifiers)) {
                 // Delete tag rows connected to expired cache entries
                 $quotedIdentifiers = $queryBuilder->createNamedParameter($cacheEntryIdentifiers, Connection::PARAM_STR_ARRAY);
@@ -445,10 +434,8 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
                 ->where($queryBuilder->expr()->isNull('cache.identifier'))
                 ->groupBy('tags.identifier')
                 ->execute();
-            $tagsEntryIdentifiers = [];
-            while ($row = $result->fetch()) {
-                $tagsEntryIdentifiers[] = $row['identifier'];
-            }
+            $tagsEntryIdentifiers = $result->fetchAll(FetchMode::COLUMN, 0);
+
             if (!empty($tagsEntryIdentifiers)) {
                 $quotedIdentifiers = $queryBuilder->createNamedParameter($tagsEntryIdentifiers, Connection::PARAM_STR_ARRAY);
                 $queryBuilder->delete($this->tagsTable)
@@ -495,7 +482,7 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
      * If compression is enabled and this is not set,
      * gzcompress default level will be used
      *
-     * @param int -1 to 9: Compression level
+     * @param int $compressionLevel -1 to 9: Compression level
      */
     public function setCompressionLevel($compressionLevel)
     {

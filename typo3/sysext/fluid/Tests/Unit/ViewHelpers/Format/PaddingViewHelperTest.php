@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Format\PaddingViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 
@@ -27,7 +28,7 @@ class PaddingViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new PaddingViewHelper();
@@ -51,7 +52,7 @@ class PaddingViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('foo       ', $actualResult);
+        self::assertEquals('foo       ', $actualResult);
     }
 
     /**
@@ -72,7 +73,7 @@ class PaddingViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('foo-=-=-=-', $actualResult);
+        self::assertEquals('foo-=-=-=-', $actualResult);
     }
 
     /**
@@ -92,7 +93,7 @@ class PaddingViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('some long string', $actualResult);
+        self::assertEquals('some long string', $actualResult);
     }
 
     /**
@@ -113,7 +114,7 @@ class PaddingViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('12300', $actualResult);
+        self::assertEquals('12300', $actualResult);
     }
 
     /**
@@ -130,6 +131,6 @@ class PaddingViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('foo00', $actualResult);
+        self::assertEquals('foo00', $actualResult);
     }
 }

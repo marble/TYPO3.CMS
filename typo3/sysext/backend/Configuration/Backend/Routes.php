@@ -1,4 +1,5 @@
 <?php
+
 use TYPO3\CMS\Backend\Controller;
 
 /**
@@ -22,6 +23,7 @@ return [
     // Main backend rendering setup (previously called backend.php) for the TYPO3 Backend
     'main' => [
         'path' => '/main',
+        'referrer' => 'required,refresh-always',
         'target' => Controller\BackendController::class . '::mainAction'
     ],
 
@@ -30,11 +32,34 @@ return [
         'path' => '/logout',
         'target' => Controller\LogoutController::class . '::logoutAction'
     ],
+    // Show the password forgotten form for entering the email
+    'password_forget' => [
+        'path' => '/login/password-reset/forget',
+        'access' => 'public',
+        'target' => Controller\LoginController::class . '::forgetPasswordFormAction'
+    ],
+    // Send out the password reset email
+    'password_forget_initiate_reset' => [
+        'path' => '/login/password-reset/initiate-reset',
+        'access' => 'public',
+        'target' => Controller\LoginController::class . '::initiatePasswordResetAction'
+    ],
+    'password_reset_validate' => [
+        'path' => '/login/password-reset/validate',
+        'access' => 'public',
+        'target' => Controller\LoginController::class . '::passwordResetAction'
+    ],
+    'password_reset_finish' => [
+        'path' => '/login/password-reset/finish',
+        'access' => 'public',
+        'target' => Controller\LoginController::class . '::passwordResetFinishAction'
+    ],
 
     // Register login frameset
     'login_frameset' => [
         'path' => '/login/frame',
-        'target' => Controller\LoginFramesetController::class . '::mainAction'
+        'access' => 'public',
+        'target' => Controller\LoginController::class . '::refreshAction'
     ],
 
     /** Wizards */
@@ -65,7 +90,7 @@ return [
     // Register link wizard
     'wizard_link' => [
         'path' => '/wizard/link/browse',
-        'target' => \TYPO3\CMS\Backend\Controller\LinkBrowserController::class . '::mainAction'
+        'target' => Controller\LinkBrowserController::class . '::mainAction'
     ],
 
     /** File- and folder-related routes */
@@ -74,36 +99,6 @@ return [
     'file_navframe' => [
         'path' => '/folder/tree',
         'target' => Controller\FileSystemNavigationFrameController::class . '::mainAction'
-    ],
-
-    // Editing the contents of a file
-    'file_edit' => [
-        'path' => '/file/editcontent',
-        'target' => Controller\File\EditFileController::class . '::mainAction'
-    ],
-
-    // Create a new folder
-    'file_newfolder' => [
-        'path' => '/file/new',
-        'target' => Controller\File\CreateFolderController::class . '::mainAction'
-    ],
-
-    // Rename a file
-    'file_rename' => [
-        'path' => '/file/rename',
-        'target' => Controller\File\RenameFileController::class . '::mainAction'
-    ],
-
-    // Replace a file with a different one
-    'file_replace' => [
-        'path' => '/file/replace',
-        'target' => Controller\File\ReplaceFileController::class . '::mainAction'
-    ],
-
-    // Upload new files
-    'file_upload' => [
-        'path' => '/file/upload',
-        'target' => Controller\File\FileUploadController::class . '::mainAction'
     ],
 
     // Add new online media
@@ -137,10 +132,16 @@ return [
         'target' => Controller\Page\NewMultiplePagesController::class . '::mainAction'
     ],
 
-    // Register new content element module
+    // Register new content element module (as whole document)
     'new_content_element' => [
         'path' => '/record/content/new',
         'target' => Controller\ContentElement\NewContentElementController::class . '::mainAction'
+    ],
+
+    // Register new content element module (in modal)
+    'new_content_element_wizard' => [
+        'path' => '/record/content/wizard/new',
+        'target' => Controller\ContentElement\NewContentElementController::class . '::wizardAction'
     ],
 
     // Register move element module
@@ -153,12 +154,6 @@ return [
     'show_item' => [
         'path' => '/record/info',
         'target' => Controller\ContentElement\ElementInformationController::class . '::mainAction'
-    ],
-
-    // Register browser
-    'browser' => [
-        'path' => '/record/browse',
-        'target' => \TYPO3\CMS\Recordlist\Controller\ElementBrowserFramesetController::class . '::mainAction'
     ],
 
     // Dummy document - displays nothing but background color.
@@ -181,7 +176,7 @@ return [
 
     /**
      * Gateway for TCE (TYPO3 Core Engine) file-handling through POST forms.
-     * This script serves as the fileadministration part of the TYPO3 Core Engine.
+     * This script serves as the file administration part of the TYPO3 Core Engine.
      * Basically it includes two libraries which are used to manipulate files on the server.
      *
      * For syntax and API information, see the document 'TYPO3 Core APIs'
@@ -199,5 +194,11 @@ return [
     'record_edit' => [
         'path' => '/record/edit',
         'target' => Controller\EditDocumentController::class . '::mainAction'
+    ],
+
+    // Thumbnails
+    'thumbnails' => [
+        'path' => '/thumbnails',
+        'target' => Controller\File\ThumbnailController::class . '::render'
     ]
 ];

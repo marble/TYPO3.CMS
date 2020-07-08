@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMany\Modify;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMany\Modify;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMany\Modify;
+
+use TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMany\AbstractActionTestCase;
+
 /**
  * Functional test for the DataHandler
  */
-class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMany\AbstractActionTestCase
+class ActionTest extends AbstractActionTestCase
 {
     /**
      * @var string
@@ -30,7 +33,7 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
 
     /**
      * @test
-     * @see DataSet/addCategoryRelation.csv
+     * See DataSet/addCategoryRelation.csv
      */
     public function addCategoryRelation()
     {
@@ -38,14 +41,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('addCategoryRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category A', 'Category B', 'Category A.A'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteCategoryRelation.csv
+     * See DataSet/deleteCategoryRelation.csv
      */
     public function deleteCategoryRelation()
     {
@@ -53,17 +56,17 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('deleteCategoryRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category A'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category B', 'Category C', 'Category A.A'));
     }
 
     /**
      * @test
-     * @see DataSet/changeCategoryRelationSorting.csv
+     * See DataSet/changeCategoryRelationSorting.csv
      */
     public function changeCategoryRelationSorting()
     {
@@ -71,14 +74,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('changeCategoryRelationSorting');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category A', 'Category B'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyCategoryRecordOfCategoryRelation.csv
+     * See DataSet/modifyCategoryRecordOfCategoryRelation.csv
      */
     public function modifyCategoryOfRelation()
     {
@@ -86,14 +89,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('modifyCategoryOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Testing #1', 'Category B'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyContentRecordOfCategoryRelation.csv
+     * See DataSet/modifyContentRecordOfCategoryRelation.csv
      */
     public function modifyContentOfRelation()
     {
@@ -101,13 +104,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('modifyContentOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/modifyBothRecordsOfCategoryRelation.csv
+     * See DataSet/modifyBothRecordsOfCategoryRelation.csv
      */
     public function modifyBothsOfRelation()
     {
@@ -115,16 +118,16 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('modifyBothsOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Testing #1', 'Category B'));
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteContentRecordOfCategoryRelation.csv
+     * See DataSet/deleteContentRecordOfCategoryRelation.csv
      */
     public function deleteContentOfRelation()
     {
@@ -132,13 +135,13 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('deleteContentOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionDoesNotHaveRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Testing #1'));
     }
 
     /**
      * @test
-     * @see DataSet/deleteCategoryRecordOfCategoryRelation.csv
+     * See DataSet/deleteCategoryRecordOfCategoryRelation.csv
      */
     public function deleteCategoryOfRelation()
     {
@@ -146,14 +149,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('deleteCategoryOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureDoesNotHaveRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category A'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentRecordOfCategoryRelation.csv
+     * See DataSet/copyContentRecordOfCategoryRelation.csv
      */
     public function copyContentOfRelation()
     {
@@ -161,14 +164,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('copyContentOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentId'])->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category B', 'Category C'));
     }
 
     /**
      * @test
-     * @see DataSet/copyCategoryRecordOfCategoryRelation.csv
+     * See DataSet/copyCategoryRecordOfCategoryRelation.csv
      */
     public function copyCategoryOfRelation()
     {
@@ -176,14 +179,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('copyCategoryOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category A', 'Category A (copy 1)'));
     }
 
     /**
      * @test
-     * @see DataSet/copyContentToLanguageOfRelation.csv
+     * See DataSet/copyContentToLanguageOfRelation.csv
      */
     public function copyContentToLanguageOfRelation()
     {
@@ -191,14 +194,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('copyContentToLanguageOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category B', 'Category C'));
     }
 
     /**
      * @test
-     * @see DataSet/copyCategoryToLanguageOfRelation.csv
+     * See DataSet/copyCategoryToLanguageOfRelation.csv
      */
     public function copyCategoryToLanguageOfRelation()
     {
@@ -207,14 +210,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         //in this case the translated element is orphaned (no CE with relation to it, and it has no l10n_parent)
         //so on frontend there is no change.
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category A', 'Category B'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentRecordOfCategoryRelation.csv
+     * See DataSet/localizeContentRecordOfCategoryRelation.csv
      */
     public function localizeContentOfRelation()
     {
@@ -222,14 +225,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('localizeContentOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category B', 'Category C'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentOfRelationWSynchronization.csv
+     * See DataSet/localizeContentOfRelationWSynchronization.csv
      */
     public function localizeContentOfRelationWithLanguageSynchronization()
     {
@@ -237,14 +240,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('localizeContentOfRelationWSynchronization');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category B', 'Category C'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentOfRelationNAddCategoryWSynchronization.csv
+     * See DataSet/localizeContentOfRelationNAddCategoryWSynchronization.csv
      */
     public function localizeContentOfRelationAndAddCategoryWithLanguageSynchronization()
     {
@@ -252,14 +255,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('localizeContentOfRelationNAddCategoryWSynchronization');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category B', 'Category C', 'Category A.A'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeContentChainOfRelationNAddCategoryWSynchronization.csv
+     * See DataSet/localizeContentChainOfRelationNAddCategoryWSynchronization.csv
      */
     public function localizeContentChainOfRelationAndAddCategoryWithLanguageSynchronization()
     {
@@ -267,29 +270,31 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('localizeContentChainOfRelationNAddCategoryWSynchronization');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageIdSecond)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category B', 'Category C', 'Category A.A'));
     }
 
     /**
      * @test
-     * @see DataSet/localizeCategoryRecordOfCategoryRelation.csv
+     * See DataSet/localizeCategoryRecordOfCategoryRelation.csv
      */
     public function localizeCategoryOfRelation()
     {
+        // Create translated page first
+        $this->actionService->copyRecordToLanguage(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         parent::localizeCategoryOfRelation();
         $this->assertAssertionDataSet('localizeCategoryOfRelation');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageId, self::VALUE_LanguageId)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdFirst)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('[Translate to Dansk:] Category A', 'Category B'));
     }
 
     /**
      * @test
-     * @see DataSet/moveContentRecordOfCategoryRelationToDifferentPage.csv
+     * See DataSet/moveContentRecordOfCategoryRelationToDifferentPage.csv
      */
     public function moveContentOfRelationToDifferentPage()
     {
@@ -297,14 +302,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('moveContentOfRelationToDifferentPage');
 
         $responseSections = $this->getFrontendResponse(self::VALUE_PageIdTarget)->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . self::VALUE_ContentIdLast)->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category B', 'Category C'));
     }
 
     /**
      * @test
-     * @see DataSet/copyPage.csv
+     * See DataSet/copyPage.csv
      */
     public function copyPage()
     {
@@ -312,14 +317,14 @@ class ActionTest extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMan
         $this->assertAssertionDataSet('copyPage');
 
         $responseSections = $this->getFrontendResponse($this->recordIds['newPageId'])->getResponseSections();
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Page)->setField('title')->setValues('Relations'));
-        $this->assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionHasRecordConstraint()
             ->setTable(self::TABLE_Content)->setField('header')->setValues('Regular Element #1', 'Regular Element #2'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentIdFirst'])->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category A', 'Category B'));
-        $this->assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
+        self::assertThat($responseSections, $this->getRequestSectionStructureHasRecordConstraint()
             ->setRecordIdentifier(self::TABLE_Content . ':' . $this->recordIds['newContentIdLast'])->setRecordField('categories')
             ->setTable(self::TABLE_Category)->setField('title')->setValues('Category B', 'Category C'));
     }

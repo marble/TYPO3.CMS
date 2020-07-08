@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMany;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMany;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\ManyToMany;
+
+use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase;
+
 /**
  * Functional test for the DataHandler
  */
-abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase
+abstract class AbstractActionTestCase extends AbstractDataHandlerActionTestCase
 {
     const VALUE_PageId = 89;
     const VALUE_PageIdTarget = 90;
@@ -42,14 +45,14 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
     protected $scenarioDataSetDirectory = 'typo3/sysext/core/Tests/Functional/DataHandling/ManyToMany/DataSet/';
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->importScenarioDataSet('LiveDefaultPages');
         $this->importScenarioDataSet('LiveDefaultElements');
 
-        $this->setUpFrontendRootPage(1, ['typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts']);
-        $this->backendUser->workspace = 0;
+        $this->setUpFrontendSite(1, $this->siteLanguageConfiguration);
+        $this->setUpFrontendRootPage(1, ['typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.typoscript']);
     }
 
     /**
@@ -57,41 +60,46 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
 
     /**
-     * @test
-     * @see DataSet/addCategoryRelation.csv
+     * See DataSet/addCategoryRelation.csv
      */
     public function addCategoryRelation()
     {
         $this->actionService->modifyReferences(
-            self::TABLE_Content, self::VALUE_ContentIdFirst, 'categories', [self::VALUE_CategoryIdFirst, self::VALUE_CategoryIdSecond, 31]
+            self::TABLE_Content,
+            self::VALUE_ContentIdFirst,
+            'categories',
+            [self::VALUE_CategoryIdFirst, self::VALUE_CategoryIdSecond, 31]
         );
     }
 
     /**
-     * @test
-     * @see DataSet/deleteCategoryRelation.csv
+     * See DataSet/deleteCategoryRelation.csv
      */
     public function deleteCategoryRelation()
     {
         $this->actionService->modifyReferences(
-            self::TABLE_Content, self::VALUE_ContentIdFirst, 'categories', [self::VALUE_CategoryIdFirst]
+            self::TABLE_Content,
+            self::VALUE_ContentIdFirst,
+            'categories',
+            [self::VALUE_CategoryIdFirst]
         );
     }
 
     /**
-     * @test
-     * @see DataSet/changeCategoryRelationSorting.csv
+     * See DataSet/changeCategoryRelationSorting.csv
      */
     public function changeCategoryRelationSorting()
     {
         $this->actionService->modifyReferences(
-            self::TABLE_Content, self::VALUE_ContentIdFirst, 'categories', [self::VALUE_CategoryIdSecond, self::VALUE_CategoryIdFirst]
+            self::TABLE_Content,
+            self::VALUE_ContentIdFirst,
+            'categories',
+            [self::VALUE_CategoryIdSecond, self::VALUE_CategoryIdFirst]
         );
     }
 
     /**
-     * @test
-     * @see DataSet/modifyCategoryRecordOfCategoryRelation.csv
+     * See DataSet/modifyCategoryRecordOfCategoryRelation.csv
      */
     public function modifyCategoryOfRelation()
     {
@@ -99,8 +107,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/modifyContentRecordOfCategoryRelation.csv
+     * See DataSet/modifyContentRecordOfCategoryRelation.csv
      */
     public function modifyContentOfRelation()
     {
@@ -108,8 +115,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/modifyBothRecordsOfCategoryRelation.csv
+     * See DataSet/modifyBothRecordsOfCategoryRelation.csv
      */
     public function modifyBothsOfRelation()
     {
@@ -118,8 +124,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/deleteContentRecordOfCategoryRelation.csv
+     * See DataSet/deleteContentRecordOfCategoryRelation.csv
      */
     public function deleteContentOfRelation()
     {
@@ -127,8 +132,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/deleteCategoryRecordOfCategoryRelation.csv
+     * See DataSet/deleteCategoryRecordOfCategoryRelation.csv
      */
     public function deleteCategoryOfRelation()
     {
@@ -136,8 +140,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/copyContentRecordOfCategoryRelation.csv
+     * See DataSet/copyContentRecordOfCategoryRelation.csv
      */
     public function copyContentOfRelation()
     {
@@ -146,8 +149,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/copyCategoryRecordOfCategoryRelation.csv
+     * See DataSet/copyCategoryRecordOfCategoryRelation.csv
      */
     public function copyCategoryOfRelation()
     {
@@ -156,8 +158,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/copyContentToLanguageOfRelation.csv
+     * See DataSet/copyContentToLanguageOfRelation.csv
      */
     public function copyContentToLanguageOfRelation()
     {
@@ -165,8 +166,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/copyCategoryToLanguageOfRelation.csv
+     * See DataSet/copyCategoryToLanguageOfRelation.csv
      */
     public function copyCategoryToLanguageOfRelation()
     {
@@ -174,8 +174,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/localizeContentRecordOfCategoryRelation.csv
+     * See DataSet/localizeContentRecordOfCategoryRelation.csv
      */
     public function localizeContentOfRelation()
     {
@@ -220,8 +219,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/localizeCategoryRecordOfCategoryRelation.csv
+     * See DataSet/localizeCategoryRecordOfCategoryRelation.csv
      */
     public function localizeCategoryOfRelation()
     {
@@ -230,8 +228,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/moveContentRecordOfCategoryRelationToDifferentPage.csv
+     * See DataSet/moveContentRecordOfCategoryRelationToDifferentPage.csv
      */
     public function moveContentOfRelationToDifferentPage()
     {
@@ -239,8 +236,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @test
-     * @see DataSet/copyPage.csv
+     * See DataSet/copyPage.csv
      */
     public function copyPage()
     {

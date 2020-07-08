@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Form\InlineStackProcessor;
+namespace TYPO3\CMS\Backend\Form\Element;
+
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -27,6 +27,17 @@ use TYPO3\CMS\Core\Utility\StringUtility;
  */
 class GroupElement extends AbstractFormElement
 {
+    /**
+     * Default field information enabled for this element.
+     *
+     * @var array
+     */
+    protected $defaultFieldInformation = [
+        'tcaDescription' => [
+            'renderType' => 'tcaDescription',
+        ],
+    ];
+
     /**
      * Default field controls for this element.
      *
@@ -66,25 +77,13 @@ class GroupElement extends AbstractFormElement
         'tableList' => [
             'renderType' => 'tableList',
         ],
-        'fileTypeList' => [
-            'renderType' => 'fileTypeList',
-            'after' => [ 'tableList' ],
-        ],
-        'fileThumbnails' => [
-            'renderType' => 'fileThumbnails',
-            'after' => [ 'fileTypeList' ],
-        ],
         'recordsOverview' => [
             'renderType' => 'recordsOverview',
-            'after' => [ 'fileThumbnails' ],
-        ],
-        'fileUpload' => [
-            'renderType' => 'fileUpload',
-            'after' => [ 'recordsOverview' ],
+            'after' => [ 'tableList' ],
         ],
         'localizationStateSelector' => [
             'renderType' => 'localizationStateSelector',
-            'after' => [ 'fileUpload' ],
+            'after' => [ 'recordsOverview' ],
         ],
         'otherLanguageContent' => [
             'renderType' => 'otherLanguageContent',
@@ -134,18 +133,7 @@ class GroupElement extends AbstractFormElement
 
         $listOfSelectedValues = [];
         $selectorOptionsHtml = [];
-        if ($internalType === 'file_reference' || $internalType === 'file') {
-            foreach ($selectedItems as $selectedItem) {
-                $uidOrPath = $selectedItem['uidOrPath'];
-                $listOfSelectedValues[] = $uidOrPath;
-                $title = $selectedItem['title'];
-                $shortenedTitle = GeneralUtility::fixed_lgd_cs($title, $maxTitleLength);
-                $selectorOptionsHtml[] =
-                    '<option value="' . htmlspecialchars($uidOrPath) . '" title="' . htmlspecialchars($title) . '">'
-                        . htmlspecialchars($shortenedTitle)
-                    . '</option>';
-            }
-        } elseif ($internalType === 'folder') {
+        if ($internalType === 'folder') {
             foreach ($selectedItems as $selectedItem) {
                 $folder = $selectedItem['folder'];
                 $listOfSelectedValues[] = $folder;
@@ -160,12 +148,12 @@ class GroupElement extends AbstractFormElement
                 $listOfSelectedValues[] = $tableWithUid;
                 $title = $selectedItem['title'];
                 if (empty($title)) {
-                    $title = '[' . $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.no_title') . ']';
+                    $title = '[' . $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title') . ']';
                 }
                 $shortenedTitle = GeneralUtility::fixed_lgd_cs($title, $maxTitleLength);
                 $selectorOptionsHtml[] =
                     '<option value="' . htmlspecialchars($tableWithUid) . '" title="' . htmlspecialchars($title) . '">'
-                        . htmlspecialchars($shortenedTitle)
+                        . htmlspecialchars($this->appendValueToLabelInDebugMode($shortenedTitle, $tableWithUid))
                     . '</option>';
             }
         } else {
@@ -175,10 +163,15 @@ class GroupElement extends AbstractFormElement
             );
         }
 
+        $fieldInformationResult = $this->renderFieldInformation();
+        $fieldInformationHtml = $fieldInformationResult['html'];
+        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
+
         if (isset($config['readOnly']) && $config['readOnly']) {
             // Return early if element is read only
             $html = [];
             $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
+            $html[] =   $fieldInformationHtml;
             $html[] =   '<div class="form-wizards-wrap">';
             $html[] =       '<div class="form-wizards-element">';
             $html[] =           '<select';
@@ -248,31 +241,13 @@ class GroupElement extends AbstractFormElement
             $showDeleteControl = false;
         }
 
-        if ($maxItems === 1) {
-            // If maxItems==1 then automatically replace the current item in list
-            $parameterArray['fieldChangeFunc']['TBE_EDITOR_fieldChanged'] =
-                'setFormValueManipulate(' . GeneralUtility::quoteJSvalue($elementName) . ', \'Remove\');'
-                . $parameterArray['fieldChangeFunc']['TBE_EDITOR_fieldChanged'];
-        }
-
-        // Check against inline uniqueness - Create some onclick js for delete control and element browser
-        // to override record selection in some FAL scenarios - See 'appearance' docs of group element
-        $inlineStackProcessor = GeneralUtility::makeInstance(InlineStackProcessor::class);
-        $inlineStackProcessor->initializeByGivenStructure($this->data['inlineStructure']);
-        $deleteControlOnClick = '';
-        if ($this->data['isInlineChild']
-            && $this->data['inlineParentUid']
-            && $this->data['inlineParentConfig']['foreign_table'] === $table
-            && $this->data['inlineParentConfig']['foreign_unique'] === $fieldName
-        ) {
-            $objectPrefix = $inlineStackProcessor->getCurrentStructureDomObjectIdPrefix($this->data['inlineFirstPid']) . '-' . $table;
-            $deleteControlOnClick = 'inline.revertUnique(' . GeneralUtility::quoteJSvalue($objectPrefix) . ',null,' . GeneralUtility::quoteJSvalue($row['uid']) . ');';
-        }
+        $fieldId = StringUtility::getUniqueId('tceforms-multiselect-');
 
         $selectorAttributes = [
-            'id' => StringUtility::getUniqueId('tceforms-multiselect-'),
+            'id' => $fieldId,
             'data-formengine-input-name' => htmlspecialchars($elementName),
             'data-formengine-validation-rules' => $this->getValidationDataAsJsonString($config),
+            'data-maxitems' => $maxItems,
             'size' => $size,
         ];
         $selectorClasses = [
@@ -286,10 +261,6 @@ class GroupElement extends AbstractFormElement
         if ($maxItems !== 1 && $size !== 1) {
             $selectorAttributes['multiple'] = 'multiple';
         }
-
-        $fieldInformationResult = $this->renderFieldInformation();
-        $fieldInformationHtml = $fieldInformationResult['html'];
-        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
 
         $fieldControlResult = $this->renderFieldControl();
         $fieldControlHtml = $fieldControlResult['html'];
@@ -311,12 +282,12 @@ class GroupElement extends AbstractFormElement
             $html[] =                   $this->iconFactory->getIcon('actions-search', Icon::SIZE_SMALL)->render();
             $html[] =               '</span>';
             $html[] =               '<input type="search" class="t3-form-suggest form-control"';
-            $html[] =                   ' placeholder="' . $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.findRecord') . '"';
+            $html[] =                   ' placeholder="' . $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.findRecord') . '"';
             $html[] =                   ' data-fieldname="' . htmlspecialchars($fieldName) . '"';
             $html[] =                   ' data-tablename="' . htmlspecialchars($table) . '"';
             $html[] =                   ' data-field="' . htmlspecialchars($elementName) . '"';
             $html[] =                   ' data-uid="' . htmlspecialchars($this->data['databaseRow']['uid']) . '"';
-            $html[] =                   ' data-pid="' . htmlspecialchars($this->data['effectivePid']) . '"';
+            $html[] =                   ' data-pid="' . htmlspecialchars($this->data['parentPageRow']['uid'] ?? 0) . '"';
             $html[] =                   ' data-fieldtype="' . htmlspecialchars($config['type']) . '"';
             $html[] =                   ' data-minchars="' . htmlspecialchars($suggestMinimumCharacters) . '"';
             $html[] =                   ' data-datastructureidentifier="' . htmlspecialchars($dataStructureIdentifier) . '"';
@@ -339,44 +310,44 @@ class GroupElement extends AbstractFormElement
         $html[] =           '<div class="btn-group-vertical">';
         if ($maxItems > 1 && $size >=5 && $showMoveIcons) {
             $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-moveoption-top"';
+            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-moveoption-top"';
             $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.move_to_top')) . '"';
+            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.move_to_top')) . '"';
             $html[] =           '>';
             $html[] =               $this->iconFactory->getIcon('actions-move-to-top', Icon::SIZE_SMALL)->render();
             $html[] =           '</a>';
         }
         if ($maxItems > 1 && $size > 1 && $showMoveIcons) {
             $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-moveoption-up"';
+            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-moveoption-up"';
             $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.move_up')) . '"';
+            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.move_up')) . '"';
             $html[] =           '>';
             $html[] =               $this->iconFactory->getIcon('actions-move-up', Icon::SIZE_SMALL)->render();
             $html[] =           '</a>';
             $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-moveoption-down"';
+            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-moveoption-down"';
             $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.move_down')) . '"';
+            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.move_down')) . '"';
             $html[] =           '>';
             $html[] =               $this->iconFactory->getIcon('actions-move-down', Icon::SIZE_SMALL)->render();
             $html[] =           '</a>';
         }
         if ($maxItems > 1 && $size >= 5 && $showMoveIcons) {
             $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-moveoption-bottom"';
+            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-moveoption-bottom"';
             $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.move_to_bottom')) . '"';
+            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.move_to_bottom')) . '"';
             $html[] =           '>';
             $html[] =               $this->iconFactory->getIcon('actions-move-to-bottom', Icon::SIZE_SMALL)->render();
             $html[] =           '</a>';
         }
         if ($showDeleteControl) {
             $html[] =           '<a href="#"';
-            $html[] =               ' class="btn btn-default t3js-btn-removeoption"';
+            $html[] =               ' class="btn btn-default t3js-btn-option t3js-btn-removeoption t3js-revert-unique"';
             $html[] =               ' data-fieldname="' . htmlspecialchars($elementName) . '"';
-            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.remove_selected')) . '"';
-            $html[] =               ' onClick="' . $deleteControlOnClick . '"';
+            $html[] =               ' data-uid="' . htmlspecialchars($row['uid']) . '"';
+            $html[] =               ' title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.remove_selected')) . '"';
             $html[] =           '>';
             $html[] =               $this->iconFactory->getIcon('actions-selection-delete', Icon::SIZE_SMALL)->render();
             $html[] =           '</a>';
@@ -388,12 +359,20 @@ class GroupElement extends AbstractFormElement
         $html[] =               $fieldControlHtml;
         $html[] =           '</div>';
         $html[] =       '</div>';
-        $html[] =       '<div class="form-wizards-items-bottom">';
-        $html[] =           $fieldWizardHtml;
-        $html[] =       '</div>';
+        if (!empty($fieldWizardHtml)) {
+            $html[] = '<div class="form-wizards-items-bottom">';
+            $html[] = $fieldWizardHtml;
+            $html[] = '</div>';
+        }
         $html[] =   '</div>';
         $html[] =   '<input type="hidden" name="' . htmlspecialchars($elementName) . '" value="' . htmlspecialchars(implode(',', $listOfSelectedValues)) . '" />';
         $html[] = '</div>';
+
+        $resultArray['requireJsModules'][] = ['TYPO3/CMS/Backend/FormEngine/Element/GroupElement' => '
+            function(GroupElement) {
+                new GroupElement(' . GeneralUtility::quoteJSvalue($fieldId) . ');
+            }'
+        ];
 
         $resultArray['html'] = implode(LF, $html);
         return $resultArray;

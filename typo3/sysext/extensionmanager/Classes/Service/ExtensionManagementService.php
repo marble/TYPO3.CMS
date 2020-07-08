@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,38 +13,46 @@ namespace TYPO3\CMS\Extensionmanager\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Service;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Package\Event\BeforePackageActivationEvent;
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
+use TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue;
 use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
+use TYPO3\CMS\Extensionmanager\Utility\DependencyUtility;
+use TYPO3\CMS\Extensionmanager\Utility\DownloadUtility;
+use TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility;
+use TYPO3\CMS\Extensionmanager\Utility\InstallUtility;
 
 /**
  * Service class for managing multiple step processes (dependencies for example)
  */
-class ExtensionManagementService implements \TYPO3\CMS\Core\SingletonInterface
+class ExtensionManagementService implements SingletonInterface
 {
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue
+     * @var DownloadQueue
      */
     protected $downloadQueue;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\DependencyUtility
+     * @var DependencyUtility
      */
     protected $dependencyUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\InstallUtility
+     * @var InstallUtility
      */
     protected $installUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility
+     * @var ExtensionModelUtility
      */
     protected $extensionModelUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\DownloadUtility
+     * @var DownloadUtility
      */
     protected $downloadUtility;
 
@@ -60,41 +67,51 @@ class ExtensionManagementService implements \TYPO3\CMS\Core\SingletonInterface
     protected $skipDependencyCheck = false;
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue $downloadQueue
+     * @var EventDispatcherInterface
      */
-    public function injectDownloadQueue(\TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue $downloadQueue)
+    protected $eventDispatcher;
+
+    public function injectEventDispatcher(EventDispatcherInterface $eventDispatcher)
+    {
+        $this->eventDispatcher = $eventDispatcher;
+    }
+
+    /**
+     * @param DownloadQueue $downloadQueue
+     */
+    public function injectDownloadQueue(DownloadQueue $downloadQueue)
     {
         $this->downloadQueue = $downloadQueue;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\DependencyUtility $dependencyUtility
+     * @param DependencyUtility $dependencyUtility
      */
-    public function injectDependencyUtility(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility $dependencyUtility)
+    public function injectDependencyUtility(DependencyUtility $dependencyUtility)
     {
         $this->dependencyUtility = $dependencyUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\InstallUtility $installUtility
+     * @param InstallUtility $installUtility
      */
-    public function injectInstallUtility(\TYPO3\CMS\Extensionmanager\Utility\InstallUtility $installUtility)
+    public function injectInstallUtility(InstallUtility $installUtility)
     {
         $this->installUtility = $installUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility $extensionModelUtility
+     * @param ExtensionModelUtility $extensionModelUtility
      */
-    public function injectExtensionModelUtility(\TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility $extensionModelUtility)
+    public function injectExtensionModelUtility(ExtensionModelUtility $extensionModelUtility)
     {
         $this->extensionModelUtility = $extensionModelUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\DownloadUtility $downloadUtility
+     * @param DownloadUtility $downloadUtility
      */
-    public function injectDownloadUtility(\TYPO3\CMS\Extensionmanager\Utility\DownloadUtility $downloadUtility)
+    public function injectDownloadUtility(DownloadUtility $downloadUtility)
     {
         $this->downloadUtility = $downloadUtility;
     }
@@ -222,7 +239,10 @@ class ExtensionManagementService implements \TYPO3\CMS\Core\SingletonInterface
         // Attach extension to install queue
         $this->downloadQueue->addExtensionToInstallQueue($extension);
         $installQueue += $this->downloadQueue->resetExtensionInstallStorage();
-        $installedDependencies = $this->installDependencies($installQueue);
+        $installedDependencies = [];
+        if ($this->automaticInstallationEnabled) {
+            $installedDependencies = $this->installDependencies($installQueue);
+        }
 
         return array_merge($downloadedDependencies, $updatedDependencies, $installedDependencies);
     }
@@ -307,7 +327,10 @@ class ExtensionManagementService implements \TYPO3\CMS\Core\SingletonInterface
     protected function setInExtensionRepository($extensionKey)
     {
         $paths = Extension::returnInstallPaths();
-        $path = $paths[$this->downloadUtility->getDownloadPath()];
+        $path = $paths[$this->downloadUtility->getDownloadPath()] ?? '';
+        if (empty($path)) {
+            return;
+        }
         $localExtensionStorage = $path . $extensionKey . '/Initialisation/Extensions/';
         $this->dependencyUtility->setLocalExtensionStorage($localExtensionStorage);
     }
@@ -354,14 +377,14 @@ class ExtensionManagementService implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function installDependencies(array $installQueue)
     {
-        if (!empty($installQueue)) {
-            $this->emitWillInstallExtensionsSignal($installQueue);
+        if (empty($installQueue)) {
+            return [];
         }
+        $this->eventDispatcher->dispatch(new BeforePackageActivationEvent($installQueue));
         $resolvedDependencies = [];
+        $this->installUtility->install(...array_keys($installQueue));
         foreach ($installQueue as $extensionKey => $_) {
-            $this->installUtility->install($extensionKey);
-            $this->emitHasInstalledExtensionSignal($extensionKey);
-            if (!is_array($resolvedDependencies['installed'])) {
+            if (!isset($resolvedDependencies['installed']) || !is_array($resolvedDependencies['installed'])) {
                 $resolvedDependencies['installed'] = [];
             }
             $resolvedDependencies['installed'][$extensionKey] = $extensionKey;
@@ -419,35 +442,5 @@ class ExtensionManagementService implements \TYPO3\CMS\Core\SingletonInterface
         if ($extension->getUid()) {
             $this->downloadUtility->download($extension);
         }
-    }
-
-    /**
-     * @param array $installQueue
-     */
-    protected function emitWillInstallExtensionsSignal(array $installQueue)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'willInstallExtensions', [$installQueue]);
-    }
-
-    /**
-     * @param string $extensionKey
-     */
-    protected function emitHasInstalledExtensionSignal($extensionKey)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'hasInstalledExtensions', [$extensionKey]);
-    }
-
-    /**
-     * Get the SignalSlot dispatcher
-     *
-     * @return Dispatcher
-     */
-    protected function getSignalSlotDispatcher()
-    {
-        if (!isset($this->signalSlotDispatcher)) {
-            $this->signalSlotDispatcher = GeneralUtility::makeInstance(ObjectManager::class)
-                ->get(Dispatcher::class);
-        }
-        return $this->signalSlotDispatcher;
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -31,7 +32,7 @@ class PagesAndTtContentWithImagesTest extends AbstractImportExportTestCase
         'typo3/sysext/impexp/Tests/Functional/Fixtures/Folders/fileadmin/user_upload' => 'fileadmin/user_upload'
     ];
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -58,10 +59,10 @@ class PagesAndTtContentWithImagesTest extends AbstractImportExportTestCase
         $out = $subject->compileMemoryToFileContent('xml');
 
         $errors = $subject->printErrorLog();
-        $this->assertSame('', $errors);
+        self::assertSame('', $errors);
 
-        $this->assertXmlStringEqualsXmlFile(
-            __DIR__ . '/../Fixtures/XmlExports/' . $this->databasePlatform . '/pages-and-ttcontent-with-image.xml',
+        self::assertXmlStringEqualsXmlFile(
+            __DIR__ . '/../Fixtures/XmlExports/pages-and-ttcontent-with-image.xml',
             $out
         );
     }
@@ -81,14 +82,13 @@ class PagesAndTtContentWithImagesTest extends AbstractImportExportTestCase
         $out = $subject->compileMemoryToFileContent('xml');
 
         $expectedErrors = [
-            'File size of 1:/user_upload/typo3_image2.jpg is not up-to-date in index! File added with current size.',
             'File sha1 hash of 1:/user_upload/typo3_image2.jpg is not up-to-date in index! File added on current sha1.'
         ];
         $errors = $subject->errorLog;
-        $this->assertSame($expectedErrors, $errors);
+        self::assertSame($expectedErrors, $errors);
 
-        $this->assertXmlStringEqualsXmlFile(
-            __DIR__ . '/../Fixtures/XmlExports/' . $this->databasePlatform . '/pages-and-ttcontent-with-corrupt-image.xml',
+        self::assertXmlStringEqualsXmlFile(
+            __DIR__ . '/../Fixtures/XmlExports/pages-and-ttcontent-with-corrupt-image.xml',
             $out
         );
     }
@@ -109,13 +109,13 @@ class PagesAndTtContentWithImagesTest extends AbstractImportExportTestCase
 
         $out = $subject->compileMemoryToFileContent('xml');
 
-        $this->assertXmlStringEqualsXmlFile(
-            __DIR__ . '/../Fixtures/XmlExports/' . $this->databasePlatform . '/pages-and-ttcontent-with-image-but-not-included.xml',
+        self::assertXmlStringEqualsXmlFile(
+            __DIR__ . '/../Fixtures/XmlExports/pages-and-ttcontent-with-image-but-not-included.xml',
             $out
         );
 
         $temporaryFilesDirectory = $subject->getTemporaryFilesPathForExport();
-        $this->assertFileEquals(__DIR__ . '/../Fixtures/Folders/fileadmin/user_upload/typo3_image2.jpg', $temporaryFilesDirectory . 'da9acdf1e105784a57bbffec9520969578287797');
+        self::assertFileEquals(__DIR__ . '/../Fixtures/Folders/fileadmin/user_upload/typo3_image2.jpg', $temporaryFilesDirectory . 'da9acdf1e105784a57bbffec9520969578287797');
     }
 
     /**
@@ -207,11 +207,12 @@ class PagesAndTtContentWithImagesTest extends AbstractImportExportTestCase
             'sys_language'
         ];
 
-        $subject->export_addRecord('pages', BackendUtility::getRecord('pages', 1));
-        $subject->export_addRecord('pages', BackendUtility::getRecord('pages', 2));
-        $subject->export_addRecord('tt_content', BackendUtility::getRecord('tt_content', 1));
-        $subject->export_addRecord('sys_language', BackendUtility::getRecord('sys_language', 1));
-        $subject->export_addRecord('sys_file_reference', BackendUtility::getRecord('sys_file_reference', 1));
+        // @todo: Do not rely on BackendUtility::getRecord() in the test case itself
+        $subject->export_addRecord('pages', $this->forceStringsOnRowValues(BackendUtility::getRecord('pages', 1)));
+        $subject->export_addRecord('pages', $this->forceStringsOnRowValues(BackendUtility::getRecord('pages', 2)));
+        $subject->export_addRecord('tt_content', $this->forceStringsOnRowValues(BackendUtility::getRecord('tt_content', 1)));
+        $subject->export_addRecord('sys_language', $this->forceStringsOnRowValues(BackendUtility::getRecord('sys_language', 1)));
+        $subject->export_addRecord('sys_file_reference', $this->forceStringsOnRowValues(BackendUtility::getRecord('sys_file_reference', 1)));
 
         $this->setPageTree($subject, 1, 1);
 

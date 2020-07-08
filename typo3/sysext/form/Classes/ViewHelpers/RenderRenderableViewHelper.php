@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,12 +15,18 @@ namespace TYPO3\CMS\Form\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\ViewHelpers;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3\CMS\Form\Domain\Model\Renderable\RenderableInterface;
 use TYPO3\CMS\Form\Domain\Model\Renderable\RootRenderableInterface;
 use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
@@ -32,7 +36,6 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
  * and return the rendered content.
  *
  * Scope: frontend
- * @api
  */
 class RenderRenderableViewHelper extends AbstractViewHelper
 {
@@ -50,7 +53,6 @@ class RenderRenderableViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('renderable', RootRenderableInterface::class, 'A RenderableInterface instance', true);
     }
 
@@ -59,38 +61,38 @@ class RenderRenderableViewHelper extends AbstractViewHelper
      * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext
      * @return string
-     * @public
+     * @internal
      */
     public static function renderStatic(array $arguments, \Closure $renderChildrenClosure, RenderingContextInterface $renderingContext)
     {
 
         /** @var FormRuntime $formRuntime */
-        $formRuntime =  $renderingContext
+        $formRuntime = $renderingContext
             ->getViewHelperVariableContainer()
             ->get(self::class, 'formRuntime');
 
-        if (
-            isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRendering'])
-            && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRendering'])
-        ) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRendering'] as $className) {
-                $hookObj = GeneralUtility::makeInstance($className);
-                if (method_exists($hookObj, 'beforeRendering')) {
-                    $hookObj->beforeRendering(
-                        $formRuntime,
-                        $arguments['renderable']
-                    );
-                }
+        $renderable = $arguments['renderable'];
+
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRendering'] ?? [] as $className) {
+            $hookObj = GeneralUtility::makeInstance($className);
+            if (method_exists($hookObj, 'beforeRendering')) {
+                $hookObj->beforeRendering(
+                    $formRuntime,
+                    $renderable
+                );
             }
         }
 
-        $content = $renderChildrenClosure();
+        $content = '';
 
-        // Wrap every renderable with a span with a identifier path data attribute if previewMode is active
+        if ($renderable instanceof FormRuntime || $renderable instanceof RenderableInterface && $renderable->isEnabled()) {
+            $content = $renderChildrenClosure();
+        }
+
+        // Wrap every renderable with a span with an identifier path data attribute if previewMode is active
         if (!empty($content)) {
             $renderingOptions = $formRuntime->getRenderingOptions();
             if (isset($renderingOptions['previewMode']) && $renderingOptions['previewMode'] === true) {
-                $renderable = $arguments['renderable'];
                 $path = $renderable->getIdentifier();
                 if ($renderable instanceof RenderableInterface) {
                     while ($renderable = $renderable->getParentRenderable()) {

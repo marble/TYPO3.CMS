@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Html;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +15,23 @@ namespace TYPO3\CMS\Core\Tests\Unit\Html;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Html;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Html\RteHtmlParser;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
- * Testcase for \TYPO3\CMS\Core\Html\RteHtmlParser
+ * Test case
  */
-class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class RteHtmlParserTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Core\Html\RteHtmlParser
+     * @var bool Reset singletons created by subject
      */
-    protected $subject = null;
+    protected $resetSingletonInstances = true;
 
-    protected function setUp()
-    {
-        $this->subject = new \TYPO3\CMS\Core\Html\RteHtmlParser();
-        $this->subject->procOptions = [
-            'allowTagsOutside' => 'hr, address',
-            'overruleMode' => 'default'
-        ];
-    }
+    protected $procOptions = ['overruleMode' => 'default'];
 
     /**
      * Data provider for hrTagCorrectlyTransformedOnWayToDataBase
@@ -108,8 +108,9 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function hrTagCorrectlyTransformedOnWayToDataBase($content, $expectedResult)
     {
-        $thisConfig = ['proc.' => $this->subject->procOptions];
-        $this->assertEquals($expectedResult, $this->subject->RTE_transform($content, [], 'db', $thisConfig));
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $subject = new RteHtmlParser($eventDispatcher);
+        self::assertEquals($expectedResult, $subject->transformTextForPersistence($content, $this->procOptions));
     }
 
     /**
@@ -151,7 +152,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p><br /></p>' . CRLF . '<hr />',
             ],
             'Preserved div followed by hr' => [
-                '<div>Some text</div>' . '<hr />',
+                '<div>Some text</div><hr />',
                 '<div><p>Some text</p></div>' . CRLF . '<hr />',
             ],
             'Preserved div followed by linebreak and hr' => [
@@ -183,35 +184,9 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function hrTagCorrectlyTransformedOnWayToDatabaseAndBackToRte($content, $expectedResult)
     {
-        $thisConfig = ['proc.' => $this->subject->procOptions];
-        $this->assertEquals($expectedResult, $this->subject->RTE_transform($this->subject->RTE_transform($content, [], 'db', $thisConfig), [], 'rte', $thisConfig));
-    }
-
-    /**
-     * Data provider for linkWithAtSignCorrectlyTransformedOnWayToRTE
-     */
-    public static function linkWithAtSignCorrectlyTransformedOnWayToRTEProvider()
-    {
-        return [
-            'external url with @ sign' => [
-                '<link http://www.example.org/at@sign>link text</link>',
-                '<p><a href="http://www.example.org/at@sign">link text</a></p>'
-            ],
-            'email address with @ sign' => [
-                '<link name@example.org - mail "Opens window for sending email">link text</link>',
-                '<p><a href="mailto:name@example.org" class="mail" title="Opens window for sending email">link text</a></p>'
-            ]
-        ];
-    }
-
-    /**
-     * @test
-     * @dataProvider linkWithAtSignCorrectlyTransformedOnWayToRTEProvider
-     */
-    public function linkWithAtSignCorrectlyTransformedOnWayToRTE($content, $expectedResult)
-    {
-        $thisConfig = ['proc.' => $this->subject->procOptions];
-        $this->assertEquals($expectedResult, $this->subject->RTE_transform($content, [], 'rte', $thisConfig));
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $subject = new RteHtmlParser($eventDispatcher);
+        self::assertEquals($expectedResult, $subject->transformTextForRichTextEditor($subject->transformTextForPersistence($content, $this->procOptions), $this->procOptions));
     }
 
     /**
@@ -245,7 +220,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 CRLF,
             ],
             'Double spacing paragraph' => [
-                '<p>&nbsp;</p>' . '<p>&nbsp;</p>',
+                '<p>&nbsp;</p><p>&nbsp;</p>',
                 CRLF . CRLF,
             ],
             'Plain text' => [
@@ -261,7 +236,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>',
             ],
             'Paragraph followed by paragraph' => [
-                '<p>paragraph1</p>' . '<p>paragraph2</p>',
+                '<p>paragraph1</p><p>paragraph2</p>',
                 '<p>paragraph1</p>' . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by paragraph, linebreak-separated' => [
@@ -277,7 +252,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>',
             ],
             'Paragraph followed by spacing paragraph' => [
-                '<p>paragraph</p>' . '<p>&nbsp;</p>',
+                '<p>paragraph</p><p>&nbsp;</p>',
                 '<p>paragraph</p>' . CRLF . CRLF,
             ],
             'Paragraph followed by spacing paragraph, linebreak-separated' => [
@@ -285,7 +260,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . CRLF,
             ],
             'Paragraph followed by double spacing paragraph' => [
-                '<p>paragraph</p>' . '<p>&nbsp;</p>' . '<p>&nbsp;</p>',
+                '<p>paragraph</p><p>&nbsp;</p><p>&nbsp;</p>',
                 '<p>paragraph</p>' . CRLF . CRLF . CRLF,
             ],
             'Paragraph followed by double spacing paragraph, linebreak-separated' => [
@@ -293,7 +268,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . CRLF . CRLF,
             ],
             'Paragraph followed by spacing paragraph and by paragraph' => [
-                '<p>paragraph1</p>' . '<p>&nbsp;</p>' . '<p>paragraph2</p>',
+                '<p>paragraph1</p><p>&nbsp;</p><p>paragraph2</p>',
                 '<p>paragraph1</p>' . CRLF . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by spacing paragraph and by paragraph, linebreak-separated' => [
@@ -301,7 +276,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph1</p>' . CRLF . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by double spacing paragraph and by paragraph' => [
-                '<p>paragraph1</p>' . '<p>&nbsp;</p>' . '<p>&nbsp;</p>' . '<p>paragraph2</p>',
+                '<p>paragraph1</p><p>&nbsp;</p><p>&nbsp;</p><p>paragraph2</p>',
                 '<p>paragraph1</p>' . CRLF . CRLF . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by double spacing paragraph and by paragraph, linebreak-separated' => [
@@ -309,7 +284,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph1</p>' . CRLF . CRLF . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by block' => [
-                '<p>paragraph</p>' . '<h1>block</h1>',
+                '<p>paragraph</p><h1>block</h1>',
                 '<p>paragraph</p>' . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by block, linebreak-separated' => [
@@ -317,7 +292,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by spacing paragraph and block' => [
-                '<p>paragraph</p>' . '<p>&nbsp;</p>' . '<h1>block</h1>',
+                '<p>paragraph</p><p>&nbsp;</p><h1>block</h1>',
                 '<p>paragraph</p>' . CRLF . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by spacing paragraph and block, linebreak-separated' => [
@@ -325,7 +300,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by double spacing paragraph and block' => [
-                '<p>paragraph</p>' . '<p>&nbsp;</p>' . '<p>&nbsp;</p>' . '<h1>block</h1>',
+                '<p>paragraph</p><p>&nbsp;</p><p>&nbsp;</p><h1>block</h1>',
                 '<p>paragraph</p>' . CRLF . CRLF . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by double spacing paragraph and block, linebreak-separated' => [
@@ -333,7 +308,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . CRLF . CRLF . '<h1>block</h1>',
             ],
             'Block followed by block' => [
-                '<h1>block1</h1>' . '<h1>block2</h1>',
+                '<h1>block1</h1><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by block, linebreak-separated' => [
@@ -341,15 +316,15 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<h1>block1</h1>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by empty paragraph and block' => [
-                '<h1>block1</h1>' . '<p></p>' . '<h1>block2</h1>',
+                '<h1>block1</h1><p></p><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . CRLF . '<h1>block2</h1>',
             ],
-            'Block followed by empty paragraph aand block, linebreak-separated' => [
+            'Block followed by empty paragraph and block, linebreak-separated' => [
                 '<h1>block1</h1>' . CRLF . '<p></p>' . CRLF . '<h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by spacing paragraph' => [
-                '<h1>block1</h1>' . '<p>&nbsp;</p>',
+                '<h1>block1</h1><p>&nbsp;</p>',
                 '<h1>block1</h1>' . CRLF . CRLF,
             ],
             'Block followed by spacing paragraph, linebreak-separated' => [
@@ -357,7 +332,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<h1>block1</h1>' . CRLF . CRLF,
             ],
             'Block followed by spacing paragraph and block' => [
-                '<h1>block1</h1>' . '<p>&nbsp;</p>' . '<h1>block2</h1>',
+                '<h1>block1</h1><p>&nbsp;</p><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by spacing paragraph and block, linebreak-separated' => [
@@ -365,7 +340,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<h1>block1</h1>' . CRLF . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by double spacing paragraph and by block' => [
-                '<h1>block1</h1>' . '<p>&nbsp;</p>' . '<p>&nbsp;</p>' . '<h1>block2</h1>',
+                '<h1>block1</h1><p>&nbsp;</p><p>&nbsp;</p><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . CRLF . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by double spacing paragraph and by block, linebreak-separated' => [
@@ -373,7 +348,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<h1>block1</h1>' . CRLF . CRLF . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by paragraph and block' => [
-                '<h1>block1</h1>' . '<p>paragraph</p>' . '<h1>block2</h1>',
+                '<h1>block1</h1><p>paragraph</p><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . '<p>paragraph</p>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by paragraph and block, linebreak-separated' => [
@@ -381,7 +356,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<h1>block1</h1>' . CRLF . '<p>paragraph</p>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by paragraph, spacing paragraph and block' => [
-                '<h1>block1</h1>' . '<p>paragraph</p>' . '<p>&nbsp;</p>' . '<h1>block2</h1>',
+                '<h1>block1</h1><p>paragraph</p><p>&nbsp;</p><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . '<p>paragraph</p>' . CRLF . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by paragraph, spacing paragraph and block, linebreak-separated' => [
@@ -397,8 +372,9 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function paragraphCorrectlyTransformedOnWayToDatabase($content, $expectedResult)
     {
-        $thisConfig = ['proc.' => $this->subject->procOptions];
-        $this->assertEquals($expectedResult, $this->subject->RTE_transform($content, [], 'db', $thisConfig));
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $subject = new RteHtmlParser($eventDispatcher);
+        self::assertEquals($expectedResult, $subject->transformTextForPersistence($content, $this->procOptions));
     }
 
     /**
@@ -452,7 +428,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph1</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by block' => [
-                'paragraph' . '<h1>block</h1>',
+                'paragraph<h1>block</h1>',
                 '<p>paragraph</p>' . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by linebreak and block' => [
@@ -468,7 +444,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block</h1>',
             ],
             'Block followed by block' => [
-                '<h1>block1</h1>' . '<h1>block2</h1>',
+                '<h1>block1</h1><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by single linebreak and block' => [
@@ -496,8 +472,9 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function lineBreakCorrectlyTransformedOnWayToRTE($content, $expectedResult)
     {
-        $thisConfig = ['proc.' => $this->subject->procOptions];
-        $this->assertEquals($expectedResult, $this->subject->RTE_transform($content, [], 'rte', $thisConfig));
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $subject = new RteHtmlParser($eventDispatcher);
+        self::assertEquals($expectedResult, $subject->transformTextForRichTextEditor($content, $this->procOptions));
     }
 
     /**
@@ -531,7 +508,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>plain text </p>',
             ],
             'Plain text followed by paragraph' => [
-                'plain text' . '<p>paragraph</p>',
+                'plain text<p>paragraph</p>',
                 '<p>plain text</p>' . CRLF . '<p>paragraph</p>',
             ],
             'Spacing paragraph' => [
@@ -559,7 +536,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>&nbsp;</p>',
             ],
             'Paragraph followed by paragraph' => [
-                '<p>paragraph1</p>' . '<p>paragraph2</p>',
+                '<p>paragraph1</p><p>paragraph2</p>',
                 '<p>paragraph1</p>' . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by paragraph, linebreak-separated' => [
@@ -567,7 +544,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph1</p>' . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by spacing paragraph and by paragraph' => [
-                '<p>paragraph1</p>' . '<p>&nbsp;</p>' . '<p>paragraph2</p>',
+                '<p>paragraph1</p><p>&nbsp;</p><p>paragraph2</p>',
                 '<p>paragraph1</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by spacing paragraph and by paragraph, linebreak-separated' => [
@@ -575,7 +552,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph1</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by double spacing paragraph and by paragraph' => [
-                '<p>paragraph1</p>' . '<p>&nbsp;</p>' . '<p>&nbsp;</p>' . '<p>paragraph2</p>',
+                '<p>paragraph1</p><p>&nbsp;</p><p>&nbsp;</p><p>paragraph2</p>',
                 '<p>paragraph1</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by double spacing paragraph and by paragraph, linebreak-separated' => [
@@ -583,7 +560,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph1</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>paragraph2</p>',
             ],
             'Paragraph followed by block' => [
-                '<p>paragraph</p>' . '<h1>block</h1>',
+                '<p>paragraph</p><h1>block</h1>',
                 '<p>paragraph</p>' . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by block, linebreak-separated' => [
@@ -591,7 +568,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by spacing paragraph and by block' => [
-                '<p>paragraph</p>' . '<p>&nbsp;</p>' . '<h1>block</h1>',
+                '<p>paragraph</p><p>&nbsp;</p><h1>block</h1>',
                 '<p>paragraph</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by spacing paragraph and by block, linebreak-separated' => [
@@ -599,7 +576,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by double spacing paragraph and by block' => [
-                '<p>paragraph</p>' . '<p>&nbsp;</p>' . '<p>&nbsp;</p>' . '<h1>block</h1>',
+                '<p>paragraph</p><p>&nbsp;</p><p>&nbsp;</p><h1>block</h1>',
                 '<p>paragraph</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block</h1>',
             ],
             'Paragraph followed by double spacing paragraph and by block, linebreak-separated' => [
@@ -607,7 +584,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<p>paragraph</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block</h1>',
             ],
             'Block followed by block' => [
-                '<h1>block1</h1>' . '<h1>block2</h1>',
+                '<h1>block1</h1><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by block, linebreak-separated' => [
@@ -615,7 +592,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<h1>block1</h1>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by empty paragraph and by block' => [
-                '<h1>block1</h1>' . '<p></p>' . '<h1>block2</h1>',
+                '<h1>block1</h1><p></p><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by empty paragraph and by block, linebreak-separated' => [
@@ -623,7 +600,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<h1>block1</h1>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by spacing paragraph and by block' => [
-                '<h1>block1</h1>' . '<p>&nbsp;</p>' . '<h1>block2</h1>',
+                '<h1>block1</h1><p>&nbsp;</p><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by spacing paragraph and by block, linebreak-separated' => [
@@ -631,7 +608,7 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 '<h1>block1</h1>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by double spacing paragraph and by block' => [
-                '<h1>block1</h1>' . '<p>&nbsp;</p>' . '<p>&nbsp;</p>' . '<h1>block2</h1>',
+                '<h1>block1</h1><p>&nbsp;</p><p>&nbsp;</p><h1>block2</h1>',
                 '<h1>block1</h1>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<p>&nbsp;</p>' . CRLF . '<h1>block2</h1>',
             ],
             'Block followed by double spacing paragraph and by block, linebreak-separated' => [
@@ -647,7 +624,84 @@ class RteHtmlParserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function paragraphCorrectlyTransformedOnWayToDatabaseAndBackToRte($content, $expectedResult)
     {
-        $thisConfig = ['proc.' => $this->subject->procOptions];
-        $this->assertEquals($expectedResult, $this->subject->RTE_transform($this->subject->RTE_transform($content, [], 'db', $thisConfig), [], 'rte', $thisConfig));
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $subject = new RteHtmlParser($eventDispatcher);
+        self::assertEquals($expectedResult, $subject->transformTextForRichTextEditor($subject->transformTextForPersistence($content, $this->procOptions), $this->procOptions));
+    }
+
+    /**
+     * Data provider for anchorCorrectlyTransformedOnWayToDatabase
+     */
+    public static function anchorCorrectlyTransformedOnWayToDatabaseProvider()
+    {
+        return [
+            [
+                '<p><a name="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>',
+                '<p><a name="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>'
+            ],
+            [
+                '<p><a id="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>',
+                '<p><a id="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>'
+            ],
+            [
+                '<p><a name="some_anchor" id="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>',
+                '<p><a name="some_anchor" id="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>'
+            ],
+            [
+                '<p><a id="some_anchor">Some text inside the anchor</a></p>',
+                '<p><a id="some_anchor">Some text inside the anchor</a></p>'
+            ]
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider anchorCorrectlyTransformedOnWayToDatabaseProvider
+     * @param $content
+     * @param $expectedResult
+     */
+    public function anchorCorrectlyTransformedOnWayToDatabase($content, $expectedResult)
+    {
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $subject = new RteHtmlParser($eventDispatcher);
+        self::assertEquals($expectedResult, $subject->transformTextForPersistence($content, $this->procOptions));
+    }
+
+    /**
+     * Data provider for anchorCorrectlyTransformedOnWayToDatabaseAndBackToRTE
+     */
+    public static function anchorCorrectlyTransformedOnWayToDatabaseAndBackToRTEProvider()
+    {
+        return [
+            [
+                '<p><a name="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>',
+                '<p><a name="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>'
+            ],
+            [
+                '<p><a id="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>',
+                '<p><a id="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>'
+            ],
+            [
+                '<p><a name="some_anchor" id="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>',
+                '<p><a name="some_anchor" id="some_anchor"></a></p>' . CRLF . '<h3>Some headline here</h3>'
+            ],
+            [
+                '<p><a id="some_anchor">Some text inside the anchor</a></p>',
+                '<p><a id="some_anchor">Some text inside the anchor</a></p>'
+            ]
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider anchorCorrectlyTransformedOnWayToDatabaseAndBackToRTEProvider
+     * @param $content
+     * @param $expectedResult
+     */
+    public function anchorCorrectlyTransformedOnWayToDatabaseAndBackToRTE($content, $expectedResult)
+    {
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $subject = new RteHtmlParser($eventDispatcher);
+        self::assertEquals($expectedResult, $subject->transformTextForRichTextEditor($subject->transformTextForPersistence($content, $this->procOptions), $this->procOptions));
     }
 }

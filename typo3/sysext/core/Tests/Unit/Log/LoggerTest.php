@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Log;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,20 @@ namespace TYPO3\CMS\Core\Tests\Unit\Log;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Log;
+
 use TYPO3\CMS\Core\Log\Logger;
 use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Log\LogRecord;
 use TYPO3\CMS\Core\Log\Processor\NullProcessor;
 use TYPO3\CMS\Core\Log\Writer\NullWriter;
+use TYPO3\CMS\Core\Tests\Unit\Log\Fixtures\WriterFixture;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class LoggerTest extends UnitTestCase
 {
     /**
      * @test
@@ -31,7 +34,7 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getNameGetsLoggerName()
     {
         $logger = new Logger('test.core.log');
-        $this->assertSame('test.core.log', $logger->getName());
+        self::assertSame('test.core.log', $logger->getName());
     }
 
     /**
@@ -40,11 +43,11 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function loggerDoesNotLogRecordsLessCriticalThanLogLevel()
     {
         $logger = new Logger('test.core.log');
-        $writer = new Fixtures\WriterFixture();
+        $writer = new WriterFixture();
         $logger->addWriter(LogLevel::ERROR, $writer);
-            // warning < error, thus must not be logged
+        // warning < error, thus must not be logged
         $logger->log(LogLevel::WARNING, 'test message');
-        $this->assertAttributeEmpty('records', $writer);
+        self::assertEmpty($writer->getRecords());
     }
 
     /**
@@ -53,10 +56,10 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function loggerReturnsItselfAfterLogging()
     {
         $logger = new Logger('test.core.log');
-        $writer = new Fixtures\WriterFixture();
+        $writer = new WriterFixture();
         $logger->addWriter(LogLevel::DEBUG, $writer);
         $returnValue = $logger->log(LogLevel::WARNING, 'test message');
-        $this->assertInstanceOf(Logger::class, $returnValue);
+        self::assertInstanceOf(Logger::class, $returnValue);
     }
 
     /**
@@ -66,7 +69,7 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $logger = new Logger('test.core.log');
         $returnValue = $logger->log(LogLevel::WARNING, 'test message');
-        $this->assertInstanceOf(Logger::class, $returnValue);
+        self::assertInstanceOf(Logger::class, $returnValue);
     }
 
     /**
@@ -75,10 +78,10 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function loggerReturnsItselfAfterLoggingLessCritical()
     {
         $logger = new Logger('test.core.log');
-        $writer = new Fixtures\WriterFixture();
+        $writer = new WriterFixture();
         $logger->addWriter(LogLevel::EMERGENCY, $writer);
         $returnValue = $logger->log(LogLevel::WARNING, 'test message');
-        $this->assertInstanceOf(Logger::class, $returnValue);
+        self::assertInstanceOf(Logger::class, $returnValue);
     }
 
     /**
@@ -90,13 +93,13 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $level = LogLevel::DEBUG;
         $message = 'test';
         $logger = new Logger($component);
-        /** @var $processor \TYPO3\CMS\Core\Log\Processor\ProcessorInterface|\PHPUnit_Framework_MockObject_MockObject */
+        /** @var $processor \TYPO3\CMS\Core\Log\Processor\ProcessorInterface|\PHPUnit\Framework\MockObject\MockObject */
         $processor = $this->getMockBuilder(NullProcessor::class)
             ->setMethods(['processLogRecord'])
             ->getMock();
-        $processor->expects($this->once())->method('processLogRecord')->will($this->returnValue(new LogRecord($component, $level, $message)));
+        $processor->expects(self::once())->method('processLogRecord')->willReturn(new LogRecord($component, $level, $message));
         $logger->addProcessor($level, $processor);
-            // we need a writer, otherwise we will not process log records
+        // we need a writer, otherwise we will not process log records
         $logger->addWriter($level, new NullWriter());
         $logger->warning($message);
     }
@@ -107,11 +110,11 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function loggerLogsRecord()
     {
         $logger = new Logger('test.core.log');
-        /** @var NullWriter|\PHPUnit_Framework_MockObject_MockObject $writer */
+        /** @var NullWriter|\PHPUnit\Framework\MockObject\MockObject $writer */
         $writer = $this->getMockBuilder(NullWriter::class)
             ->setMethods(['writeLog'])
             ->getMock();
-        $writer->expects($this->once())->method('writeLog');
+        $writer->expects(self::once())->method('writeLog');
         $logger->addWriter(LogLevel::DEBUG, $writer);
         $logger->warning('test');
     }
@@ -122,11 +125,11 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function loggerLogsRecordsAtLeastAsCriticalAsLogLevel()
     {
         $logger = new Logger('test.core.log');
-        $writer = new Fixtures\WriterFixture();
+        $writer = new WriterFixture();
         $logger->addWriter(LogLevel::NOTICE, $writer);
-            // notice == notice, thus must be logged
+        // notice == notice, thus must be logged
         $logger->log(LogLevel::NOTICE, 'test message');
-        $this->assertAttributeNotEmpty('records', $writer);
+        self::assertNotEmpty($writer->getRecords());
     }
 
     /**
@@ -154,10 +157,10 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function loggerLogsRecordsThroughShorthandMethod($shorthandMethod)
     {
         $logger = new Logger('test.core.log');
-        $writer = new Fixtures\WriterFixture();
+        $writer = new WriterFixture();
         $logger->addWriter(LogLevel::DEBUG, $writer);
         call_user_func([$logger, $shorthandMethod], 'test message');
-        $this->assertAttributeNotEmpty('records', $writer);
+        self::assertNotEmpty($writer->getRecords());
     }
 
     /**
@@ -166,11 +169,11 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function loggerLogsRecordsMoreCriticalThanLogLevel()
     {
         $logger = new Logger('test.core.log');
-        $writer = new Fixtures\WriterFixture();
+        $writer = new WriterFixture();
         $logger->addWriter(LogLevel::NOTICE, $writer);
-            // warning > notice, thus must be logged
+        // warning > notice, thus must be logged
         $logger->log(LogLevel::WARNING, 'test message');
-        $this->assertAttributeNotEmpty('records', $writer);
+        self::assertNotEmpty($writer->getRecords());
     }
 
     /**
@@ -179,10 +182,10 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addWriterAddsWriterToTheSpecifiedLevel()
     {
         $logger = new Logger('test.core.log');
-        $writer = new Fixtures\WriterFixture();
+        $writer = new WriterFixture();
         $logger->addWriter(LogLevel::NOTICE, $writer);
         $writers = $logger->getWriters();
-        $this->assertContains($writer, $writers[LogLevel::NOTICE]);
+        self::assertContains($writer, $writers[LogLevel::NOTICE]);
     }
 
     /**
@@ -191,9 +194,9 @@ class LoggerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function addWriterAddsWriterAlsoToHigherLevelsThanSpecified()
     {
         $logger = new Logger('test.core.log');
-        $writer = new Fixtures\WriterFixture();
+        $writer = new WriterFixture();
         $logger->addWriter(LogLevel::NOTICE, $writer);
         $writers = $logger->getWriters();
-        $this->assertContains($writer, $writers[LogLevel::EMERGENCY]);
+        self::assertContains($writer, $writers[LogLevel::EMERGENCY]);
     }
 }

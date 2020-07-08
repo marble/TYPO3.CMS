@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Mvc\Validation;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Form\Mvc\Validation;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Mvc\Validation;
+
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Extbase\Domain\Model\FileReference;
 use TYPO3\CMS\Extbase\Validation\Validator\AbstractValidator;
@@ -24,7 +26,6 @@ use TYPO3\CMS\Form\Mvc\Validation\Exception\InvalidValidationOptionsException;
  * Validator for mime types
  *
  * Scope: frontend
- * @api
  */
 class MimeTypeValidator extends AbstractValidator
 {
@@ -36,13 +37,12 @@ class MimeTypeValidator extends AbstractValidator
     ];
 
     /**
-     * The given $value is valid if it is an FileReference of the
-     * configured type (one of the image/* IANA media subtypes)
+     * The given $value is valid if it is a FileReference of the
+     * configured type (one of the IANA media types)
      *
      * Note: a value of NULL or empty string ('') is considered valid
      *
      * @param FileReference|File $resource The resource that should be validated
-     * @api
      */
     public function isValid($resource)
     {
@@ -69,7 +69,8 @@ class MimeTypeValidator extends AbstractValidator
                     'form',
                     [$resource->getMimeType()]
                 ),
-                1471708998
+                1471708998,
+                [$resource->getMimeType()]
             );
         }
     }

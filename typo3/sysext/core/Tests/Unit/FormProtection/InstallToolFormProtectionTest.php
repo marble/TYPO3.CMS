@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\FormProtection;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +13,30 @@ namespace TYPO3\CMS\Core\Tests\Unit\FormProtection;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\FormProtection;
+
+use TYPO3\CMS\Core\FormProtection\InstallToolFormProtection;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Testcase
  */
-class InstallToolFormProtectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class InstallToolFormProtectionTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Core\FormProtection\InstallToolFormProtection|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var \TYPO3\CMS\Core\FormProtection\InstallToolFormProtection|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $subject;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = $this->getAccessibleMock(
-            \TYPO3\CMS\Core\FormProtection\InstallToolFormProtection::class,
+            InstallToolFormProtection::class,
             ['dummy']
         );
     }
@@ -49,13 +55,13 @@ class InstallToolFormProtectionTest extends \TYPO3\TestingFramework\Core\Unit\Un
         $action = 'edit';
         $formInstanceName = '42';
 
-        $tokenId = \TYPO3\CMS\Core\Utility\GeneralUtility::hmac($formName . $action . $formInstanceName . $sessionToken);
+        $tokenId = GeneralUtility::hmac($formName . $action . $formInstanceName . $sessionToken);
 
         $_SESSION['installToolFormToken'] = $sessionToken;
 
         $this->subject->_call('retrieveSessionToken');
 
-        $this->assertTrue(
+        self::assertTrue(
             $this->subject->validateToken($tokenId, $formName, $action, $formInstanceName)
         );
     }
@@ -71,7 +77,7 @@ class InstallToolFormProtectionTest extends \TYPO3\TestingFramework\Core\Unit\Un
 
         $this->subject->persistSessionToken();
 
-        $this->assertEquals(
+        self::assertEquals(
             '881ffea2159ac72182557b79dc0c723f5a8d20136f9fab56cdd4f8b3a1dbcfcd',
             $_SESSION['installToolFormToken']
         );

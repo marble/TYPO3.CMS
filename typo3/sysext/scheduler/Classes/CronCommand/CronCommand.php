@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Scheduler\CronCommand;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,10 @@ namespace TYPO3\CMS\Scheduler\CronCommand;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Scheduler\CronCommand;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * This class provides calculations for the cron command format.
@@ -40,6 +43,7 @@ class CronCommand
      * This value starts with 'now + 1 minute' if not set externally
      * by unit tests. After a call to calculateNextValue() it holds the timestamp of
      * the next execution date which matches the cron command restrictions.
+     * @var int
      */
     protected $timestamp;
 
@@ -48,13 +52,12 @@ class CronCommand
      *
      * @param string $cronCommand The cron command can hold any combination documented as valid
      * @param bool|int $timestamp Optional start time, used in unit tests
-     * @api
      */
     public function __construct($cronCommand, $timestamp = false)
     {
         $cronCommand = NormalizeCommand::normalize($cronCommand);
         // Explode cron command to sections
-        $this->cronCommandSections = \TYPO3\CMS\Core\Utility\GeneralUtility::trimExplode(' ', $cronCommand);
+        $this->cronCommandSections = GeneralUtility::trimExplode(' ', $cronCommand);
         // Initialize the values with the starting time
         // This takes care that the calculated time is always in the future
         if ($timestamp === false) {
@@ -68,7 +71,6 @@ class CronCommand
     /**
      * Calculates the date of the next execution.
      *
-     * @api
      * @throws \RuntimeException
      */
     public function calculateNextValue()
@@ -108,7 +110,6 @@ class CronCommand
     /**
      * Get next timestamp
      *
-     * @api
      * @return int Unix timestamp
      */
     public function getTimestamp()
@@ -121,6 +122,7 @@ class CronCommand
      * a list of comma separated integers or *
      *
      * @return array command sections:
+     * @internal
      */
     public function getCronCommandSections()
     {
@@ -179,8 +181,8 @@ class CronCommand
      * Determine if a given number validates a cron command section. The given cron
      * command must be a 'normalized' list with only comma separated integers or '*'
      *
-     * @param string $commandExpression: cron command
-     * @param int $numberToMatch: number to look up
+     * @param string $commandExpression cron command
+     * @param int $numberToMatch number to look up
      * @return bool TRUE if number is in list
      */
     protected function isInCommandList($commandExpression, $numberToMatch)
@@ -188,7 +190,7 @@ class CronCommand
         if ((string)$commandExpression === '*') {
             $inList = true;
         } else {
-            $inList = \TYPO3\CMS\Core\Utility\GeneralUtility::inList($commandExpression, $numberToMatch);
+            $inList = GeneralUtility::inList($commandExpression, $numberToMatch);
         }
         return $inList;
     }

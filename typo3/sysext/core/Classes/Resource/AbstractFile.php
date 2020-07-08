@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 
@@ -38,7 +40,7 @@ abstract class AbstractFile implements FileInterface
      *
      * @var ResourceStorage
      */
-    protected $storage = null;
+    protected $storage;
 
     /**
      * The identifier of this file to identify it on the storage.
@@ -122,9 +124,8 @@ abstract class AbstractFile implements FileInterface
     {
         if ($this->hasProperty($key)) {
             return $this->properties[$key];
-        } else {
-            return null;
         }
+        return null;
     }
 
     /**
@@ -259,7 +260,7 @@ abstract class AbstractFile implements FileInterface
     {
         $pathinfo = PathUtility::pathinfo($this->getName());
 
-        $extension = strtolower($pathinfo['extension']);
+        $extension = strtolower($pathinfo['extension'] ?? '');
 
         return $extension;
     }
@@ -294,7 +295,7 @@ abstract class AbstractFile implements FileInterface
         // we don't need to make an SQL statement like EXT:media does currently
         if (!$this->properties['type']) {
             $mimeType = $this->getMimeType();
-            list($fileType) = explode('/', $mimeType);
+            [$fileType] = explode('/', $mimeType);
             switch (strtolower($fileType)) {
                 case 'text':
                     $this->properties['type'] = self::FILETYPE_TEXT;
@@ -320,6 +321,33 @@ abstract class AbstractFile implements FileInterface
         return (int)$this->properties['type'];
     }
 
+    /**
+     * Useful to find out if this file can be previewed or resized as image.
+     * @return bool true if File has an image-extension according to $GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext']
+     */
+    public function isImage(): bool
+    {
+        return GeneralUtility::inList(strtolower($GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'] ?? ''), $this->getExtension());
+    }
+
+    /**
+     * Useful to find out if this file has a file extension based on any of the registered media extensions
+     * @return bool true if File is a media-extension according to $GLOBALS['TYPO3_CONF_VARS']['SYS']['mediafile_ext']
+     */
+    public function isMediaFile(): bool
+    {
+        return GeneralUtility::inList(strtolower($GLOBALS['TYPO3_CONF_VARS']['SYS']['mediafile_ext'] ?? ''), $this->getExtension());
+    }
+
+    /**
+     * Useful to find out if this file can be edited.
+     *
+     * @return bool true if File is a text-based file extension according to $GLOBALS['TYPO3_CONF_VARS']['SYS']['textfile_ext']
+     */
+    public function isTextFile(): bool
+    {
+        return GeneralUtility::inList(strtolower($GLOBALS['TYPO3_CONF_VARS']['SYS']['textfile_ext'] ?? ''), $this->getExtension());
+    }
     /******************
      * CONTENTS RELATED
      ******************/
@@ -355,7 +383,7 @@ abstract class AbstractFile implements FileInterface
     }
 
     /****************************************
-     * STORAGE AND MANAGEMENT RELATED METHDOS
+     * STORAGE AND MANAGEMENT RELATED METHODS
      ****************************************/
 
     /**
@@ -423,7 +451,7 @@ abstract class AbstractFile implements FileInterface
      */
     public function getCombinedIdentifier()
     {
-        if (is_array($this->properties) && MathUtility::canBeInterpretedAsInteger($this->properties['storage'])) {
+        if (!empty($this->properties['storage']) && MathUtility::canBeInterpretedAsInteger($this->properties['storage'])) {
             $combinedIdentifier = $this->properties['storage'] . ':' . $this->getIdentifier();
         } else {
             $combinedIdentifier = $this->getStorage()->getUid() . ':' . $this->getIdentifier();
@@ -439,7 +467,15 @@ abstract class AbstractFile implements FileInterface
     public function delete()
     {
         // The storage will mark this file as deleted
-        return $this->getStorage()->deleteFile($this);
+        $wasDeleted = $this->getStorage()->deleteFile($this);
+
+        // Unset all properties when deleting the file, as they will be stale anyway
+        // This needs to happen AFTER the storage deleted the file, because the storage
+        // emits a signal, which passes the file object to the slots, which may need
+        // all file properties of the deleted file.
+        $this->properties = [];
+
+        return $wasDeleted;
     }
 
     /**
@@ -523,15 +559,14 @@ abstract class AbstractFile implements FileInterface
      * web-based authentication. You have to take care of this yourself.
      *
      * @param bool $relativeToCurrentScript Determines whether the URL returned should be relative to the current script, in case it is relative at all (only for the LocalDriver)
-     * @return NULL|string NULL if file is deleted, the generated URL otherwise
+     * @return string|null NULL if file is deleted, the generated URL otherwise
      */
     public function getPublicUrl($relativeToCurrentScript = false)
     {
         if ($this->deleted) {
             return null;
-        } else {
-            return $this->getStorage()->getPublicUrl($this, $relativeToCurrentScript);
         }
+        return $this->getStorage()->getPublicUrl($this, $relativeToCurrentScript);
     }
 
     /**
@@ -558,7 +593,7 @@ abstract class AbstractFile implements FileInterface
     /**
      * Updates properties of this object.
      * This method is used to reconstitute settings from the
-     * database into this object after being intantiated.
+     * database into this object after being instantiated.
      *
      * @param array $properties
      */

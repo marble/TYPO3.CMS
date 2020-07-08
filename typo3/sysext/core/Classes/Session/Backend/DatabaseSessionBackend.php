@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Session\Backend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Session\Backend;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Session\Backend;
 
 use Doctrine\DBAL\DBALException;
 use TYPO3\CMS\Core\Database\Connection;
@@ -51,7 +53,7 @@ class DatabaseSessionBackend implements SessionBackendInterface
      */
     public function initialize(string $identifier, array $configuration)
     {
-        $this->hasAnonymousSessions = (bool)$configuration['has_anonymous'];
+        $this->hasAnonymousSessions = (bool)($configuration['has_anonymous'] ?? false);
         $this->configuration = $configuration;
     }
 
@@ -66,7 +68,7 @@ class DatabaseSessionBackend implements SessionBackendInterface
     {
         if (empty($this->configuration['table'])) {
             throw new \InvalidArgumentException(
-                'The session backend "' . get_class($this) . '" needs a "table" configuration.',
+                'The session backend "' . static::class . '" needs a "table" configuration.',
                 1442996707
             );
         }
@@ -191,7 +193,7 @@ class DatabaseSessionBackend implements SessionBackendInterface
 
         $query->delete($this->configuration['table'])
             ->where($query->expr()->lt('ses_tstamp', (int)($GLOBALS['EXEC_TIME'] - (int)$maximumLifetime)))
-            ->andWhere($this->hasAnonymousSessions ? $query->expr()->eq('ses_anonymous', 0) :' 1 = 1');
+            ->andWhere($this->hasAnonymousSessions ? $query->expr()->eq('ses_anonymous', 0) : ' 1 = 1');
         $query->execute();
 
         if ($maximumAnonymousLifetime > 0 && $this->hasAnonymousSessions) {

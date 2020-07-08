@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Install\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Configuration;
+
 /**
  * Abstract custom preset class implements common preset code
+ * @internal only to be used within EXT:install
  */
 abstract class AbstractCustomPreset extends AbstractPreset
 {

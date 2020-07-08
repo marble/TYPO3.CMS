@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,19 @@ namespace TYPO3\CMS\Extbase\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Domain\Model;
+
+use TYPO3\CMS\Extbase\Annotation as Extbase;
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
+
 /**
  * This model represents a back-end user.
- *
- * @api
  */
-class BackendUser extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
+class BackendUser extends AbstractEntity
 {
     /**
      * @var string
-     * @validate notEmpty
+     * @Extbase\Validate("NotEmpty")
      */
     protected $userName = '';
 
@@ -43,14 +45,14 @@ class BackendUser extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     protected $isDisabled = false;
 
     /**
-     * @var \DateTime|NULL
+     * @var \DateTime|null
      */
-    protected $startDateAndTime = null;
+    protected $startDateAndTime;
 
     /**
-     * @var \DateTime|NULL
+     * @var \DateTime|null
      */
-    protected $endDateAndTime = null;
+    protected $endDateAndTime;
 
     /**
      * @var string
@@ -63,7 +65,7 @@ class BackendUser extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     protected $realName = '';
 
     /**
-     * @var \DateTime|NULL
+     * @var \DateTime|null
      */
     protected $lastLoginDateAndTime;
 
@@ -151,7 +153,7 @@ class BackendUser extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     /**
      * Returns the point in time from which this user is enabled.
      *
-     * @return \DateTime|NULL the start date and time
+     * @return \DateTime|null the start date and time
      */
     public function getStartDateAndTime()
     {
@@ -161,7 +163,7 @@ class BackendUser extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     /**
      * Sets the point in time from which this user is enabled.
      *
-     * @param \DateTime|NULL $dateAndTime the start date and time
+     * @param \DateTime|null $dateAndTime the start date and time
      */
     public function setStartDateAndTime(\DateTime $dateAndTime = null)
     {
@@ -171,7 +173,7 @@ class BackendUser extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     /**
      * Returns the point in time before which this user is enabled.
      *
-     * @return \DateTime|NULL the end date and time
+     * @return \DateTime|null the end date and time
      */
     public function getEndDateAndTime()
     {
@@ -181,7 +183,7 @@ class BackendUser extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     /**
      * Sets the point in time before which this user is enabled.
      *
-     * @param \DateTime|NULL $dateAndTime the end date and time
+     * @param \DateTime|null $dateAndTime the end date and time
      */
     public function setEndDateAndTime(\DateTime $dateAndTime = null)
     {
@@ -291,7 +293,7 @@ class BackendUser extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     /**
      * Gets this user's last login date and time.
      *
-     * @return \DateTime|NULL this user's last login date and time, will be NULL if this user has never logged in before
+     * @return \DateTime|null this user's last login date and time, will be NULL if this user has never logged in before
      */
     public function getLastLoginDateAndTime()
     {
@@ -301,7 +303,7 @@ class BackendUser extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     /**
      * Sets this user's last login date and time.
      *
-     * @param \DateTime|NULL $dateAndTime this user's last login date and time
+     * @param \DateTime|null $dateAndTime this user's last login date and time
      */
     public function setLastLoginDateAndTime(\DateTime $dateAndTime = null)
     {

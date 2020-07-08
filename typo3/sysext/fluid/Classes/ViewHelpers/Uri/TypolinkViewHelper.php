@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Uri;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,36 +12,49 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Uri;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\ViewHelpers\Uri;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\Service\TypoLinkCodecService;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
- * A ViewHelper to create uris from fields supported by the link wizard
+ * A ViewHelper to create uris from fields supported by the link wizard.
  *
- * == Example ==
+ * Example
+ * =======
  *
- * {link} contains "19 - - - &X=y"
- * Please note that due to the nature of typolink you have to provide a
- * full set of parameters if you use the parameter only. Target, class
- * and title will be discarded.
+ * ``{link}`` contains ``19 - - - &X=y``
  *
- * <code title="minimal usage">
- * <f:uri.typolink parameter="{link}" />
- * <output>
- * index.php?id=19&X=y
- * </output>
- * </code>
+ * Please note that due to the nature of typolink you have to provide a full
+ * set of parameters.
+ * If you use the parameter only, then target, class and title will be discarded.
  *
- * <code title="Full parameter usage">
- * <f:uri.typolink parameter="{link}" additionalParams="&u=b" useCacheHash="true" />
- * </code>
- * <output>
- * index.php?id=19&X=y&u=b
- * </output>
+ * Minimal usage
+ * -------------
+ *
+ * ::
+ *
+ *    <f:uri.typolink parameter="{link}" />
+ *
+ * ``/page/path/name.html?X=y``
+ *
+ * Depending on routing and page path configuration.
+ *
+ * Full parameter usage
+ * --------------------
+ *
+ * ::
+ *
+ *    <f:uri.typolink parameter="{link}" additionalParams="&u=b" />
+ *
+ * ``/page/path/name.html?X=y&u=b``
+ *
+ * Depending on routing and page path configuration.
  */
 class TypolinkViewHelper extends AbstractViewHelper
 {
@@ -53,57 +65,83 @@ class TypolinkViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('parameter', 'string', 'stdWrap.typolink style parameter string', true);
         $this->registerArgument('additionalParams', 'string', 'stdWrap.typolink additionalParams', false, '');
-        $this->registerArgument('useCacheHash', 'bool', '', false, false);
+        $this->registerArgument('language', 'string', 'link to a specific language - defaults to the current language, use a language ID or "current" to enforce a specific language', false, null);
+        $this->registerArgument('addQueryString', 'bool', '', false, false);
+        $this->registerArgument('addQueryStringMethod', 'string', '', false, 'GET');
+        $this->registerArgument('addQueryStringExclude', 'string', '', false, '');
+        $this->registerArgument('absolute', 'bool', 'Ensure the resulting URL is an absolute URL', false, false);
     }
 
     /**
      * @param array $arguments
      * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext
-     *
      * @return string
      */
     public static function renderStatic(array $arguments, \Closure $renderChildrenClosure, RenderingContextInterface $renderingContext)
     {
         $parameter = $arguments['parameter'];
-        $additionalParams = $arguments['additionalParams'];
-        $useCacheHash = $arguments['useCacheHash'];
+
+        $typoLinkCodec = GeneralUtility::makeInstance(TypoLinkCodecService::class);
+        $typoLinkConfiguration = $typoLinkCodec->decode($parameter);
+        $mergedTypoLinkConfiguration = static::mergeTypoLinkConfiguration($typoLinkConfiguration, $arguments);
+        $typoLinkParameter = $typoLinkCodec->encode($mergedTypoLinkConfiguration);
 
         $content = '';
         if ($parameter) {
-            $contentObject = GeneralUtility::makeInstance(ContentObjectRenderer::class);
-            $content = $contentObject->typoLink_URL(
-                [
-                    'parameter' => self::createTypolinkParameterFromArguments($parameter, $additionalParams),
-                    'useCacheHash' => $useCacheHash,
-                ]
-            );
+            $content = static::invokeContentObjectRenderer($arguments, $typoLinkParameter);
         }
-
         return $content;
     }
 
-    /**
-     * Transforms ViewHelper arguments to typo3link.parameters.typoscript option as array.
-     *
-     * @param string $parameter Example: 19 _blank - "testtitle with whitespace" &X=y
-     * @param string $additionalParameters
-     *
-     * @return string The final TypoLink string
-     */
-    protected static function createTypolinkParameterFromArguments($parameter, $additionalParameters = '')
+    protected static function invokeContentObjectRenderer(array $arguments, string $typoLinkParameter): string
     {
-        $typoLinkCodec = GeneralUtility::makeInstance(TypoLinkCodecService::class);
-        $typolinkConfiguration = $typoLinkCodec->decode($parameter);
+        $addQueryString = $arguments['addQueryString'] ?? false;
+        $addQueryStringMethod = $arguments['addQueryStringMethod'] ?? 'GET';
+        $addQueryStringExclude = $arguments['addQueryStringExclude'] ?? '';
+        $absolute = $arguments['absolute'] ?? false;
+
+        $instructions = [
+            'parameter' => $typoLinkParameter,
+            'forceAbsoluteUrl' => $absolute,
+        ];
+        if (isset($arguments['language']) && $arguments['language'] !== null) {
+            $instructions['language'] = $arguments['language'];
+        }
+        if ($addQueryString) {
+            $instructions['addQueryString'] = $addQueryString;
+            $instructions['addQueryString.'] = [
+                'method' => $addQueryStringMethod,
+                'exclude' => $addQueryStringExclude,
+            ];
+        }
+
+        $contentObject = GeneralUtility::makeInstance(ContentObjectRenderer::class);
+        return $contentObject->typoLink_URL($instructions);
+    }
+
+    /**
+     * Merges view helper arguments with typolink parts.
+     *
+     * @param array $typoLinkConfiguration
+     * @param array $arguments
+     * @return array
+     */
+    protected static function mergeTypoLinkConfiguration(array $typoLinkConfiguration, array $arguments): array
+    {
+        if ($typoLinkConfiguration === []) {
+            return $typoLinkConfiguration;
+        }
+
+        $additionalParameters = $arguments['additionalParams'] ?? '';
 
         // Combine additionalParams
         if ($additionalParameters) {
-            $typolinkConfiguration['additionalParams'] .= $additionalParameters;
+            $typoLinkConfiguration['additionalParams'] .= $additionalParameters;
         }
 
-        return $typoLinkCodec->encode($typolinkConfiguration);
+        return $typoLinkConfiguration;
     }
 }

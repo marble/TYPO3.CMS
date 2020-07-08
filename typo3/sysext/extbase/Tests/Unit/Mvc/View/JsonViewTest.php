@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Mvc\View;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,39 +15,50 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Mvc\View;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Unit\Mvc\View;
+
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext;
+use TYPO3\CMS\Extbase\Mvc\Response;
 use TYPO3\CMS\Extbase\Mvc\View\JsonView;
+use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
+use TYPO3\CMS\Extbase\Reflection\ReflectionService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for the JSON view
  */
-class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class JsonViewTest extends UnitTestCase
 {
+    protected $resetSingletonInstances = true;
+
     /**
      * @var \TYPO3\CMS\Extbase\Mvc\View\JsonView
      */
     protected $view;
 
     /**
-     * @var \TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext
+     * @var ControllerContext
      */
     protected $controllerContext;
 
     /**
-     * @var \TYPO3\CMS\Extbase\Mvc\Web\Response
+     * @var Response
      */
     protected $response;
 
     /**
      * Sets up this test case
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->view = $this->getMockBuilder(\TYPO3\CMS\Extbase\Mvc\View\JsonView::class)
+        parent::setUp();
+        $this->view = $this->getMockBuilder(JsonView::class)
             ->setMethods(['loadConfigurationFromYamlFile'])
             ->getMock();
-        $this->controllerContext = $this->createMock(\TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext::class);
-        $this->response = $this->createMock(\TYPO3\CMS\Extbase\Mvc\Web\Response::class);
-        $this->controllerContext->expects($this->any())->method('getResponse')->will($this->returnValue($this->response));
+        $this->controllerContext = $this->createMock(ControllerContext::class);
+        $this->response = $this->createMock(Response::class);
+        $this->controllerContext->expects(self::any())->method('getResponse')->willReturn($this->response);
         $this->view->setControllerContext($this->controllerContext);
     }
 
@@ -54,7 +66,7 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * data provider for testTransformValue()
      * @return array
      */
-    public function jsonViewTestData()
+    public function jsonViewTestData(): array
     {
         $output = [];
 
@@ -106,26 +118,41 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $output[] = [$object, $configuration, $expected, 'array of objects should be serialized'];
 
         $properties = ['foo' => 'bar', 'prohibited' => 'xxx'];
-        $nestedObject = $this->getMockBuilder($this->getUniqueId('Test'))
-            ->setMethods(['getName', 'getPath', 'getProperties', 'getOther'])
-            ->getMock();
-        $nestedObject->expects($this->any())->method('getName')->will($this->returnValue('name'));
-        $nestedObject->expects($this->any())->method('getPath')->will($this->returnValue('path'));
-        $nestedObject->expects($this->any())->method('getProperties')->will($this->returnValue($properties));
-        $nestedObject->expects($this->never())->method('getOther');
+        $nestedObject = new class($properties) {
+            private $properties;
+            private $prohibited;
+            public function __construct($properties)
+            {
+                $this->properties = $properties;
+            }
+            public function getName()
+            {
+                return 'name';
+            }
+
+            public function getPath()
+            {
+                return 'path';
+            }
+
+            public function getProperties()
+            {
+                return $this->properties;
+            }
+        };
         $object = $nestedObject;
         $configuration = [
             '_only' => ['name', 'path', 'properties'],
             '_descend' => [
                  'properties' => [
-                      '_exclude' => ['prohibited']
-                 ]
-            ]
+                      '_exclude' => ['prohibited'],
+                 ],
+            ],
         ];
         $expected = [
             'name' => 'name',
             'path' => 'path',
-            'properties' => ['foo' => 'bar']
+            'properties' => ['foo' => 'bar'],
         ];
         $output[] = [$object, $configuration, $expected, 'descending into arrays should be possible'];
 
@@ -146,27 +173,32 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $configuration = [];
         $expected = '2013-08-15T15:25:30-07:00';
         $output[] = [$dateTimeObject, $configuration, $expected, 'DateTime object in America/Los_Angeles time zone could not be serialized.'];
+
         return $output;
     }
 
     /**
      * @test
+     * @param object|array $object
+     * @param array $configuration
+     * @param array|string $expected
+     * @param string $description
      * @dataProvider jsonViewTestData
      */
-    public function testTransformValue($object, $configuration, $expected, $description)
+    public function testTransformValue($object, array $configuration, $expected, string $description): void
     {
-        $jsonView = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Mvc\View\JsonView::class, ['dummy'], [], '', false);
+        $jsonView = $this->getAccessibleMock(JsonView::class, ['dummy'], [], '', false);
 
         $actual = $jsonView->_call('transformValue', $object, $configuration);
 
-        $this->assertEquals($expected, $actual, $description);
+        self::assertSame($expected, $actual, $description);
     }
 
     /**
      * data provider for testTransformValueWithObjectIdentifierExposure()
      * @return array
      */
-    public function objectIdentifierExposureTestData()
+    public function objectIdentifierExposureTestData(): array
     {
         $output = [];
 
@@ -177,9 +209,9 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $configuration = [
             '_descend' => [
                  'value1' => [
-                      '_exposeObjectIdentifier' => true
-                 ]
-            ]
+                      '_exposeObjectIdentifier' => true,
+                 ],
+            ],
         ];
 
         $expected = ['value1' => ['__identity' => $dummyIdentifier]];
@@ -194,58 +226,77 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
     /**
      * @test
+     * @param object $object
+     * @param array $configuration
+     * @param array $expected
+     * @param string $dummyIdentifier
+     * @param string $description
      * @dataProvider objectIdentifierExposureTestData
      */
-    public function testTransformValueWithObjectIdentifierExposure($object, $configuration, $expected, $dummyIdentifier, $description)
-    {
-        $persistenceManagerMock = $this->getMockBuilder(\TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager::class)
+    public function testTransformValueWithObjectIdentifierExposure(
+        object $object,
+        array $configuration,
+        array $expected,
+        string $dummyIdentifier,
+        string $description
+    ): void {
+        $persistenceManagerMock = $this->getMockBuilder(PersistenceManager::class)
+            ->disableOriginalConstructor()
             ->setMethods(['getIdentifierByObject'])
             ->getMock();
-        $jsonView = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Mvc\View\JsonView::class, ['dummy'], [], '', false);
+        $jsonView = $this->getAccessibleMock(JsonView::class, ['dummy'], [], '', false);
         $jsonView->_set('persistenceManager', $persistenceManagerMock);
 
-        $persistenceManagerMock->expects($this->once())->method('getIdentifierByObject')->with($object->value1)->will($this->returnValue($dummyIdentifier));
+        $persistenceManagerMock->expects(self::once())->method('getIdentifierByObject')->with($object->value1)->willReturn($dummyIdentifier);
 
         $actual = $jsonView->_call('transformValue', $object, $configuration);
 
-        $this->assertEquals($expected, $actual, $description);
+        self::assertSame($expected, $actual, $description);
     }
 
     /**
      * A data provider
      */
-    public function exposeClassNameSettingsAndResults()
+    public function exposeClassNameSettingsAndResults(): array
     {
-        $className = $this->getUniqueId('DummyClass');
+        $className = StringUtility::getUniqueId('DummyClass');
         $namespace = 'TYPO3\CMS\Extbase\Tests\Unit\Mvc\View\\' . $className;
         return [
             [
                 JsonView::EXPOSE_CLASSNAME_FULLY_QUALIFIED,
                 $className,
                 $namespace,
-                ['value1' => ['__class' => $namespace . '\\' . $className]]
+                ['value1' => ['__class' => $namespace . '\\' . $className]],
             ],
             [
                 JsonView::EXPOSE_CLASSNAME_UNQUALIFIED,
                 $className,
                 $namespace,
-                ['value1' => ['__class' => $className]]
+                ['value1' => ['__class' => $className]],
             ],
             [
                 null,
                 $className,
                 $namespace,
-                ['value1' => []]
+                ['value1' => []],
             ]
         ];
     }
 
     /**
      * @test
+     * @param int|null $exposeClassNameSetting
+     * @param string $className
+     * @param string $namespace
+     * @param array $expected
      * @dataProvider exposeClassNameSettingsAndResults
      */
-    public function viewExposesClassNameFullyIfConfiguredSo($exposeClassNameSetting, $className, $namespace, $expected)
-    {
+    public function viewExposesClassNameFullyIfConfiguredSo(
+        ?int $exposeClassNameSetting,
+        string $className,
+        string $namespace,
+        array $expected
+    ): void {
         $fullyQualifiedClassName = $namespace . '\\' . $className;
         if (class_exists($fullyQualifiedClassName) === false) {
             eval('namespace ' . $namespace . '; class ' . $className . ' {}');
@@ -256,29 +307,29 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $configuration = [
             '_descend' => [
                 'value1' => [
-                    '_exposeClassName' => $exposeClassNameSetting
-                ]
-            ]
+                    '_exposeClassName' => $exposeClassNameSetting,
+                ],
+            ],
         ];
-        $reflectionService = $this->getMockBuilder(\TYPO3\CMS\Extbase\Reflection\ReflectionService::class)
+        $reflectionService = $this->getMockBuilder(ReflectionService::class)
             ->setMethods([ 'getClassNameByObject' ])
             ->getMock();
-        $reflectionService->expects($this->any())->method('getClassNameByObject')->will($this->returnCallback(function ($object) {
+        $reflectionService->expects(self::any())->method('getClassNameByObject')->willReturnCallback(function ($object) {
             return get_class($object);
-        }));
+        });
 
-        $jsonView = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Mvc\View\JsonView::class, ['dummy'], [], '', false);
-        $this->inject($jsonView, 'reflectionService', $reflectionService);
+        $jsonView = $this->getAccessibleMock(JsonView::class, ['dummy'], [], '', false);
+        $jsonView->injectReflectionService($reflectionService);
         $actual = $jsonView->_call('transformValue', $object, $configuration);
-        $this->assertEquals($expected, $actual);
+        self::assertSame($expected, $actual);
     }
 
     /**
      * @test
      */
-    public function renderSetsContentTypeHeader()
+    public function renderSetsContentTypeHeader(): void
     {
-        $this->response->expects($this->once())->method('setHeader')->with('Content-Type', 'application/json');
+        $this->response->expects(self::once())->method('setHeader')->with('Content-Type', 'application/json');
 
         $this->view->render();
     }
@@ -286,7 +337,7 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function renderReturnsJsonRepresentationOfAssignedObject()
+    public function renderReturnsJsonRepresentationOfAssignedObject(): void
     {
         $object = new \stdClass();
         $object->foo = 'Foo';
@@ -294,52 +345,92 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $expectedResult = '{"foo":"Foo"}';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function renderReturnsJsonRepresentationOfAssignedArray()
+    public function renderReturnsJsonRepresentationOfAssignedArray(): void
     {
         $array = ['foo' => 'Foo', 'bar' => 'Bar'];
         $this->view->assign('value', $array);
 
         $expectedResult = '{"foo":"Foo","bar":"Bar"}';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function renderReturnsJsonRepresentationOfAssignedSimpleValue()
+    public function renderReturnsJsonRepresentationOfAssignedSimpleValue(): void
     {
         $value = 'Foo';
         $this->view->assign('value', $value);
 
         $expectedResult = '"Foo"';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function renderReturnsNullIfNameOfAssignedVariableIsNotEqualToValue()
+    public function renderKeepsUtf8CharactersUnescaped(): void
+    {
+        $value = 'Gürkchen';
+        $this->view->assign('value', $value);
+
+        $actualResult = $this->view->render();
+
+        $expectedResult = '"' . $value . '"';
+        self::assertSame($expectedResult, $actualResult);
+    }
+
+    /**
+     * @return string[][]
+     */
+    public function escapeCharacterDataProvider(): array
+    {
+        return [
+            'backslash' => ['\\'],
+            'double quote' => ['"'],
+        ];
+    }
+
+    /**
+     * @test
+     * @param string $character
+     * @dataProvider escapeCharacterDataProvider
+     */
+    public function renderEscapesEscapeCharacters(string $character): void
+    {
+        $this->view->assign('value', $character);
+
+        $actualResult = $this->view->render();
+
+        $expectedResult = '"\\' . $character . '"';
+        self::assertSame($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function renderReturnsNullIfNameOfAssignedVariableIsNotEqualToValue(): void
     {
         $value = 'Foo';
         $this->view->assign('foo', $value);
 
         $expectedResult = 'null';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function renderOnlyRendersVariableWithTheNameValue()
+    public function renderOnlyRendersVariableWithTheNameValue(): void
     {
         $this->view
             ->assign('value', 'Value')
@@ -347,13 +438,13 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $expectedResult = '"Value"';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function setVariablesToRenderOverridesValueToRender()
+    public function setVariablesToRenderOverridesValueToRender(): void
     {
         $value = 'Foo';
         $this->view->assign('foo', $value);
@@ -361,13 +452,13 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $expectedResult = '"Foo"';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function renderRendersMultipleValuesIfTheyAreSpecifiedAsVariablesToRender()
+    public function renderRendersMultipleValuesIfTheyAreSpecifiedAsVariablesToRender(): void
     {
         $this->view
             ->assign('value', 'Value1')
@@ -377,13 +468,13 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $expectedResult = '{"value":"Value1","secondValue":"Value2"}';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function renderCanRenderMultipleComplexObjects()
+    public function renderCanRenderMultipleComplexObjects(): void
     {
         $array = ['foo' => ['bar' => 'Baz']];
         $object = new \stdClass();
@@ -397,13 +488,13 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
         $expectedResult = '{"array":{"foo":{"bar":"Baz"}},"object":{"foo":"Foo"}}';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function renderCanRenderPlainArray()
+    public function renderCanRenderPlainArray(): void
     {
         $array = [['name' => 'Foo', 'secret' => true], ['name' => 'Bar', 'secret' => true]];
 
@@ -411,20 +502,47 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->view->setConfiguration([
             'value' => [
                 '_descendAll' => [
-                    '_only' => ['name']
-                ]
-            ]
+                    '_only' => ['name'],
+                ],
+            ],
         ]);
 
         $expectedResult = '[{"name":"Foo"},{"name":"Bar"}]';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
      * @test
      */
-    public function descendAllKeepsArrayIndexes()
+    public function renderCanRenderPlainArrayWithNumericKeys(): void
+    {
+        $array = [
+            'items' => [
+                ['name' => 'Foo'],
+                ['name' => 'Bar']
+            ],
+        ];
+
+        $this->view->assign('value', $array);
+        $this->view->setConfiguration([
+            'value' => [
+                'items' => [
+                    // note: this exclude is just here, and should have no effect as the items have numeric keys
+                    '_exclude' => ['secret']
+                ]
+            ],
+        ]);
+
+        $expectedResult = '{"items":[{"name":"Foo"},{"name":"Bar"}]}';
+        $actualResult = $this->view->render();
+        self::assertSame($expectedResult, $actualResult);
+    }
+
+    /**
+     * @test
+     */
+    public function descendAllKeepsArrayIndexes(): void
     {
         $array = [['name' => 'Foo', 'secret' => true], ['name' => 'Bar', 'secret' => true]];
 
@@ -432,13 +550,13 @@ class JsonViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->view->setConfiguration([
             'value' => [
                 '_descendAll' => [
-                    '_descendAll' => []
-                ]
-            ]
+                    '_descendAll' => [],
+                ],
+            ],
         ]);
 
         $expectedResult = '[{"name":"Foo","secret":true},{"name":"Bar","secret":true}]';
         $actualResult = $this->view->render();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 }

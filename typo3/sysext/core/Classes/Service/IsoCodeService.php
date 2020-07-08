@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,12 @@ namespace TYPO3\CMS\Core\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Service;
+
 /**
  * Helper functionality for dealing with ISO codes.
+ *
+ * @internal This class is not part of the TYPO3 Core API.
  */
 class IsoCodeService
 {

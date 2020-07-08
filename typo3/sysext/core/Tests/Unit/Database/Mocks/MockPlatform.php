@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Mocks;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Mocks;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Mocks;
 
 use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
@@ -135,16 +136,6 @@ class MockPlatform extends AbstractPlatform
     public function getBinaryTypeDeclarationSQL(array $field)
     {
         return 'DUMMYBINARY';
-    }
-
-    /**
-     * Gets the default length of a varchar field.
-     *
-     * @return int
-     */
-    public function getVarcharDefaultLength()
-    {
-        return 255;
     }
 
     /**

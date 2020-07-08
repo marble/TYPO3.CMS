@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
@@ -32,13 +33,13 @@ class TcaInlineExpandCollapseState implements FormDataProviderInterface
     public function addData(array $result)
     {
         if (empty($result['inlineExpandCollapseStateArray'])) {
+            $fullInlineState = json_decode($this->getBackendUser()->uc['inlineView'] ?? null, true);
+            if (!is_array($fullInlineState)) {
+                $fullInlineState = [];
+            }
+            $inlineStateForTable = [];
             if (!empty($result['inlineTopMostParentUid']) && !empty($result['inlineTopMostParentTableName'])) {
                 // Happens in inline ajax context, top parent uid and top parent table are set
-                $fullInlineState = unserialize($this->getBackendUser()->uc['inlineView']);
-                if (!is_array($fullInlineState)) {
-                    $fullInlineState = [];
-                }
-                $inlineStateForTable = [];
                 if ($result['command'] !== 'new') {
                     $table = $result['inlineTopMostParentTableName'];
                     $uid = $result['inlineTopMostParentUid'];
@@ -46,14 +47,8 @@ class TcaInlineExpandCollapseState implements FormDataProviderInterface
                         $inlineStateForTable = $fullInlineState[$table][$uid];
                     }
                 }
-                $result['inlineExpandCollapseStateArray'] = $inlineStateForTable;
             } else {
                 // Default case for a single record
-                $fullInlineState = unserialize($this->getBackendUser()->uc['inlineView']);
-                if (!is_array($fullInlineState)) {
-                    $fullInlineState = [];
-                }
-                $inlineStateForTable = [];
                 if ($result['command'] !== 'new') {
                     $table = $result['tableName'];
                     $uid = $result['databaseRow']['uid'];
@@ -61,8 +56,8 @@ class TcaInlineExpandCollapseState implements FormDataProviderInterface
                         $inlineStateForTable = $fullInlineState[$table][$uid];
                     }
                 }
-                $result['inlineExpandCollapseStateArray'] = $inlineStateForTable;
             }
+            $result['inlineExpandCollapseStateArray'] = $inlineStateForTable;
         }
 
         if (!$result['isInlineChildExpanded']) {

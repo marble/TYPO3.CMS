@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -62,13 +63,14 @@ class TcaColumnsProcessFieldLabels implements FormDataProviderInterface
             $aShowItemFieldArray = GeneralUtility::trimExplode(';', $aShowItemFieldString);
             $aShowItemFieldArray = [
                 'fieldName' => $aShowItemFieldArray[0],
-                'fieldLabel' => $aShowItemFieldArray[1] ?: null,
-                'paletteName' => $aShowItemFieldArray[2] ?: null,
+                'fieldLabel' => !empty($aShowItemFieldArray[1]) ? $aShowItemFieldArray[1] : null,
+                'paletteName' => !empty($aShowItemFieldArray[2]) ? $aShowItemFieldArray[2] : null,
             ];
             if ($aShowItemFieldArray['fieldName'] === '--div--') {
                 // tabs are not of interest here
                 continue;
-            } elseif ($aShowItemFieldArray['fieldName'] === '--palette--') {
+            }
+            if ($aShowItemFieldArray['fieldName'] === '--palette--') {
                 // showitem references to a palette field. unpack the palette and process
                 // label overrides that may be in there.
                 if (!isset($result['processedTca']['palettes'][$aShowItemFieldArray['paletteName']]['showitem'])) {

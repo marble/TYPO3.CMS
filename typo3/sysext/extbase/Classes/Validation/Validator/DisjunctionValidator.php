@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Validation\Validator;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,12 @@ namespace TYPO3\CMS\Extbase\Validation\Validator;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Validation\Validator;
+
+use TYPO3\CMS\Extbase\Error\Result;
+
 /**
  * Validator to chain many validators in a disjunction (logical or).
- *
- * @api
  */
 class DisjunctionValidator extends AbstractCompositeValidator
 {
@@ -30,7 +31,6 @@ class DisjunctionValidator extends AbstractCompositeValidator
      *
      * @param mixed $value The value that should be validated
      * @return \TYPO3\CMS\Extbase\Error\Result
-     * @api
      */
     public function validate($value)
     {
@@ -55,7 +55,7 @@ class DisjunctionValidator extends AbstractCompositeValidator
                 }
             }
         } else {
-            $result = new \TYPO3\CMS\Extbase\Error\Result();
+            $result = new Result();
         }
 
         return $result;

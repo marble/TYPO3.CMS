@@ -10,37 +10,4 @@
  *
  * The TYPO3 project - inspiring people to share!
  */
-define(["require", "exports", "jquery"], function (require, exports, $) {
-    "use strict";
-    var ConsumerScope = (function () {
-        function ConsumerScope() {
-            this.consumers = [];
-        }
-        ConsumerScope.prototype.getConsumers = function () {
-            return this.consumers;
-        };
-        ConsumerScope.prototype.hasConsumer = function (consumer) {
-            return this.consumers.indexOf(consumer) !== -1;
-        };
-        ConsumerScope.prototype.attach = function (consumer) {
-            if (!this.hasConsumer(consumer)) {
-                this.consumers.push(consumer);
-            }
-        };
-        ConsumerScope.prototype.detach = function (consumer) {
-            this.consumers = this.consumers.filter(function (currentConsumer) { return currentConsumer !== consumer; });
-        };
-        ConsumerScope.prototype.invoke = function (request) {
-            var deferreds = [];
-            this.consumers.forEach(function (consumer) {
-                var deferred = consumer.consume.call(consumer, request);
-                if (deferred) {
-                    deferreds.push(deferred);
-                }
-            });
-            return $.when.apply($, deferreds);
-        };
-        return ConsumerScope;
-    }());
-    return new ConsumerScope();
-});
+define(["require","exports","jquery"],(function(s,e,r){"use strict";return new class{constructor(){this.consumers=[]}getConsumers(){return this.consumers}hasConsumer(s){return this.consumers.includes(s)}attach(s){this.hasConsumer(s)||this.consumers.push(s)}detach(s){this.consumers=this.consumers.filter(e=>e!==s)}invoke(s){const e=[];return this.consumers.forEach(r=>{const n=r.consume.call(r,s);n&&e.push(n)}),r.when.apply(r,e)}}}));

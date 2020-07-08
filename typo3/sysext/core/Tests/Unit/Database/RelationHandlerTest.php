@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Database;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,30 +13,27 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database;
+
+use TYPO3\CMS\Core\Database\RelationHandler;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case for \TYPO3\CMS\Core\Database\RelationHandler
  */
-class RelationHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class RelationHandlerTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Core\Database\RelationHandler
      */
     protected $subject;
 
-    /**
-     */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = $this->getMockBuilder(\TYPO3\CMS\Core\Database\RelationHandler::class)
+        parent::setUp();
+        $this->subject = $this->getMockBuilder(RelationHandler::class)
             ->setMethods(['purgeVersionedIds', 'purgeLiveVersionedIds'])
             ->getMock();
-    }
-
-    /**
-     */
-    protected function tearDown()
-    {
-        unset($this->subject);
     }
 
     /**
@@ -51,7 +47,7 @@ class RelationHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'sys_category' => [1, 2, 3],
         ];
 
-        $this->assertFalse($this->subject->purgeItemArray(0));
+        self::assertFalse($this->subject->purgeItemArray(0));
     }
 
     /**
@@ -65,11 +61,11 @@ class RelationHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'sys_category' => [1, 2, 3],
         ];
 
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('purgeVersionedIds')
             ->with('sys_category', [1, 2, 3])
-            ->will($this->returnValue([2]));
+            ->willReturn([2]);
 
-        $this->assertTrue($this->subject->purgeItemArray(0));
+        self::assertTrue($this->subject->purgeItemArray(0));
     }
 }

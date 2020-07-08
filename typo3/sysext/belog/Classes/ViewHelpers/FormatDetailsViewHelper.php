@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Belog\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Belog\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Belog\ViewHelpers;
+
 use TYPO3\CMS\Belog\Domain\Model\LogEntry;
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
+use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
@@ -32,7 +34,6 @@ class FormatDetailsViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('logEntry', LogEntry::class, '', true);
     }
 
@@ -62,7 +63,9 @@ class FormatDetailsViewHelper extends AbstractViewHelper
             $substitutes = self::stripPathFromFilenames($substitutes);
         }
         // Substitute
-        $detailString = vsprintf($detailString, $substitutes);
+        if (!empty($substitutes)) {
+            $detailString = vsprintf($detailString, $substitutes);
+        }
         // Remove possible pending other %s
         $detailString = str_replace('%s', '', $detailString);
         return $detailString;
@@ -77,7 +80,7 @@ class FormatDetailsViewHelper extends AbstractViewHelper
     protected static function stripPathFromFilenames(array $files = [])
     {
         foreach ($files as $key => $file) {
-            $files[$key] = basename($file);
+            $files[$key] = PathUtility::basename($file);
         }
         return $files;
     }

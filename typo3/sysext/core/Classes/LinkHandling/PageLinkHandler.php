@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\LinkHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\LinkHandling;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\LinkHandling;
 
 /**
  * Resolves links to pages and the parameters given
@@ -35,14 +37,10 @@ class PageLinkHandler implements LinkHandlingInterface
      */
     public function asString(array $parameters): string
     {
-        $urn = $this->baseUrn;
-        if (isset($parameters['pagealias']) && $parameters['pagealias'] !== 'current') {
-            $urn .= '?alias=' . $parameters['pagealias'];
-        } else {
-            $urn .= '?uid=' . $parameters['pageuid'];
-        }
+        $urn = $this->baseUrn . '?uid=' . $parameters['pageuid'];
         $urn = rtrim($urn, ':');
-        if (!empty($parameters['pagetype'])) {
+        // Page type is set and not empty (= "0" in this case means it is not empty)
+        if (isset($parameters['pagetype']) && strlen((string)$parameters['pagetype']) > 0) {
             $urn .= '&type=' . $parameters['pagetype'];
         }
         if (!empty($parameters['parameters'])) {
@@ -67,10 +65,6 @@ class PageLinkHandler implements LinkHandlingInterface
         if (isset($data['uid'])) {
             $result['pageuid'] = $data['uid'];
             unset($data['uid']);
-        }
-        if (isset($data['alias'])) {
-            $result['pagealias'] = $data['alias'];
-            unset($data['alias']);
         }
         if (isset($data['type'])) {
             $result['pagetype'] = $data['type'];

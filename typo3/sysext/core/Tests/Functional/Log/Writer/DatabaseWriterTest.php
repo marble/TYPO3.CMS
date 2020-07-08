@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\Log\Writer;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,18 @@ namespace TYPO3\CMS\Core\Tests\Functional\Log\Writer;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Core\Bootstrap;
+namespace TYPO3\CMS\Core\Tests\Functional\Log\Writer;
+
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Log\LogRecord;
 use TYPO3\CMS\Core\Log\Writer\DatabaseWriter;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
  * Test case
  */
-class DatabaseWriterTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class DatabaseWriterTest extends FunctionalTestCase
 {
     /**
      * @test
@@ -31,18 +32,19 @@ class DatabaseWriterTest extends \TYPO3\TestingFramework\Core\Functional\Functio
     public function writeLogInsertsLogRecordWithGivenProperties()
     {
         $logRecordData = [
-            'request_id' => Bootstrap::getInstance()->getRequestId(),
+            'request_id' => '5862c0e7838ac',
             'time_micro' => 1469740000.0,
             'component' => 'aComponent',
-            'level' => LogLevel::DEBUG,
+            'level' => LogLevel::normalizeLevel(LogLevel::DEBUG),
             'message' => 'aMessage',
             'data' => ''
         ];
         $logRecord = new LogRecord(
             $logRecordData['component'],
-            $logRecordData['level'],
+            LogLevel::DEBUG,
             $logRecordData['message'],
-            []
+            [],
+            $logRecordData['request_id']
         );
         $logRecord->setCreated($logRecordData['time_micro']);
 
@@ -56,6 +58,6 @@ class DatabaseWriterTest extends \TYPO3\TestingFramework\Core\Functional\Functio
             )
             ->fetch();
 
-        $this->assertEquals($logRecordData, $rowInDatabase);
+        self::assertEquals($logRecordData, $rowInDatabase);
     }
 }

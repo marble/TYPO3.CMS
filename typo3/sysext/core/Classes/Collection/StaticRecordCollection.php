@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Collection;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Collection;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Collection;
 
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -32,7 +33,7 @@ class StaticRecordCollection extends AbstractRecordCollection implements Editabl
      */
     public static function create(array $collectionRecord, $fillItems = false)
     {
-        /** @var $collection StaticRecordCollection */
+        /** @var StaticRecordCollection $collection */
         $collection = GeneralUtility::makeInstance(
             self::class,
             $collectionRecord['table_name']
@@ -158,26 +159,27 @@ class StaticRecordCollection extends AbstractRecordCollection implements Editabl
      */
     protected function getCollectedRecords()
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable(self::$storageTableName);
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getQueryBuilderForTable(self::$storageTableName);
         $queryBuilder->getRestrictions()->removeAll();
         $statement = $queryBuilder->select($this->getItemTableName() . '.*')
             ->from(self::$storageTableName)
             ->join(
                 self::$storageTableName,
                 'sys_collection_entries',
-                'sys_collection_entries_join',
+                'sys_collection_entries',
                 $queryBuilder->expr()->eq(
-                    'sys_collection_entries_join.uid_local',
+                    'sys_collection_entries.uid_local',
                     $queryBuilder->quoteIdentifier(self::$storageTableName . '.uid')
                 )
             )
             ->join(
-                'sys_collection_entries_join',
+                'sys_collection_entries',
                 $this->getItemTableName(),
-                $this->getItemTableName() . '_join',
+                $this->getItemTableName(),
                 $queryBuilder->expr()->eq(
-                    'sys_collection_entries_join.uid_local',
-                    $queryBuilder->quoteIdentifier($this->getItemTableName() . '_join.uid')
+                    'sys_collection_entries.uid_foreign',
+                    $queryBuilder->quoteIdentifier($this->getItemTableName() . '.uid')
                 )
             )
             ->where(

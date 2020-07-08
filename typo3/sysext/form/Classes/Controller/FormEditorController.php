@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,25 +15,39 @@ namespace TYPO3\CMS\Form\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Controller;
+
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
-use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Backend\View\BackendTemplateView;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Mvc\View\JsonView;
 use TYPO3\CMS\Fluid\View\TemplateView;
+use TYPO3\CMS\Form\Domain\Configuration\ArrayProcessing\ArrayProcessing;
+use TYPO3\CMS\Form\Domain\Configuration\ArrayProcessing\ArrayProcessor;
 use TYPO3\CMS\Form\Domain\Configuration\ConfigurationService;
+use TYPO3\CMS\Form\Domain\Configuration\FormDefinitionConversionService;
 use TYPO3\CMS\Form\Domain\Exception\RenderingException;
 use TYPO3\CMS\Form\Domain\Factory\ArrayFormFactory;
+use TYPO3\CMS\Form\Domain\Finishers\EmailFinisher;
+use TYPO3\CMS\Form\Exception;
 use TYPO3\CMS\Form\Mvc\Persistence\Exception\PersistenceManagerException;
 use TYPO3\CMS\Form\Service\TranslationService;
+use TYPO3\CMS\Form\Type\FormDefinitionArray;
 
 /**
  * The form editor controller
  *
  * Scope: backend
+ * @internal
  */
 class FormEditorController extends AbstractBackendController
 {
@@ -41,7 +55,7 @@ class FormEditorController extends AbstractBackendController
     /**
      * Default View Container
      *
-     * @var BackendTemplateView
+     * @var string
      */
     protected $defaultViewObjectName = BackendTemplateView::class;
 
@@ -71,16 +85,24 @@ class FormEditorController extends AbstractBackendController
             throw new PersistenceManagerException('Edit a extension formDefinition is not allowed.', 1478265661);
         }
 
-        $formDefinition = $this->formPersistenceManager->load($formPersistenceIdentifier);
-        $formDefinition = ArrayUtility::stripTagsFromValuesRecursive($formDefinition);
-        if (empty($prototypeName)) {
-            $prototypeName = isset($formDefinition['prototypeName']) ? $formDefinition['prototypeName'] : 'standard';
-        }
-        $formDefinition['prototypeName'] = $prototypeName;
-
         $configurationService = $this->objectManager->get(ConfigurationService::class);
+        $formDefinition = $this->formPersistenceManager->load($formPersistenceIdentifier);
+
+        if ($prototypeName === null) {
+            $prototypeName = $formDefinition['prototypeName'] ?? 'standard';
+        } else {
+            // Loading a form definition with another prototype is currently not implemented but is planned in the future.
+            // This safety check is a preventive measure.
+            $selectablePrototypeNames = $configurationService->getSelectablePrototypeNamesDefinedInFormEditorSetup();
+            if (!in_array($prototypeName, $selectablePrototypeNames, true)) {
+                throw new Exception(sprintf('The prototype name "%s" is not configured within "formManager.selectablePrototypesConfiguration" ', $prototypeName), 1528625039);
+            }
+        }
+
+        $formDefinition['prototypeName'] = $prototypeName;
         $this->prototypeConfiguration = $configurationService->getPrototypeConfiguration($prototypeName);
 
+        $formDefinition = $this->transformFormDefinitionForFormEditor($formDefinition);
         $formEditorDefinitions = $this->getFormEditorDefinitions();
 
         $formEditorAppInitialData = [
@@ -101,25 +123,13 @@ class FormEditorController extends AbstractBackendController
         $this->view->assign('formEditorTemplates', $this->renderFormEditorTemplates($formEditorDefinitions));
         $this->view->assign('dynamicRequireJsModules', $this->prototypeConfiguration['formEditor']['dynamicRequireJsModules']);
 
-        $popupWindowWidth  = 700;
-        $popupWindowHeight = 750;
-        $popupWindowSize = ($this->getBackendUser()->getTSConfigVal('options.popupWindowSize'))
-            ? trim($this->getBackendUser()->getTSConfigVal('options.popupWindowSize'))
-            : null;
-        if (!empty($popupWindowSize)) {
-            list($popupWindowWidth, $popupWindowHeight) = GeneralUtility::intExplode('x', $popupWindowSize);
-        }
+        $this->getPageRenderer()->addInlineLanguageLabelFile('EXT:form/Resources/Private/Language/locallang_formEditor_failSafeErrorHandling_javascript.xlf');
 
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         $addInlineSettings = [
             'FormEditor' => [
-                'typo3WinBrowserUrl' => BackendUtility::getModuleUrl('wizard_element_browser'),
+                'typo3WinBrowserUrl' => (string)$uriBuilder->buildUriFromRoute('wizard_element_browser'),
             ],
-            'Popup' => [
-                'PopupWindow' => [
-                    'width' => $popupWindowWidth,
-                    'height' => $popupWindowHeight
-                ],
-            ]
         ];
 
         $addInlineSettings = array_replace_recursive(
@@ -130,65 +140,122 @@ class FormEditorController extends AbstractBackendController
     }
 
     /**
+     * Initialize the save action.
+     * This action uses the Fluid JsonView::class as view.
+     *
+     * @internal
+     */
+    public function initializeSaveFormAction()
+    {
+        $this->defaultViewObjectName = JsonView::class;
+    }
+
+    /**
      * Save a formDefinition which was build by the form editor.
      *
      * @param string $formPersistenceIdentifier
-     * @param array $formDefinition
-     * @return string
+     * @param FormDefinitionArray $formDefinition
      * @internal
      */
-    public function saveFormAction(string $formPersistenceIdentifier, array $formDefinition): string
+    public function saveFormAction(string $formPersistenceIdentifier, FormDefinitionArray $formDefinition)
     {
-        $formDefinition = ArrayUtility::stripTagsFromValuesRecursive($formDefinition);
-        $formDefinition = $this->convertJsonArrayToAssociativeArray($formDefinition);
+        $formDefinition = $formDefinition->getArrayCopy();
 
-        if (
-            isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeFormSave'])
-            && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeFormSave'])
-        ) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeFormSave'] as $className) {
-                $hookObj = GeneralUtility::makeInstance($className);
-                if (method_exists($hookObj, 'beforeFormSave')) {
-                    $formDefinition = $hookObj->beforeFormSave(
-                        $formPersistenceIdentifier,
-                        $formDefinition
-                    );
-                }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeFormSave'] ?? [] as $className) {
+            $hookObj = GeneralUtility::makeInstance($className);
+            if (method_exists($hookObj, 'beforeFormSave')) {
+                $formDefinition = $hookObj->beforeFormSave(
+                    $formPersistenceIdentifier,
+                    $formDefinition
+                );
             }
         }
 
-        $this->formPersistenceManager->save($formPersistenceIdentifier, $formDefinition);
-        return '';
+        $response = [
+            'status' => 'success',
+        ];
+
+        try {
+            $this->formPersistenceManager->save($formPersistenceIdentifier, $formDefinition);
+            $configurationService = $this->objectManager->get(ConfigurationService::class);
+            $this->prototypeConfiguration = $configurationService->getPrototypeConfiguration($formDefinition['prototypeName']);
+            $formDefinition = $this->transformFormDefinitionForFormEditor($formDefinition);
+            $response['formDefinition'] = $formDefinition;
+        } catch (PersistenceManagerException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ];
+        }
+
+        $this->view->assign('response', $response);
+        // saveFormAction uses the extbase JsonView::class.
+        // That's why we have to set the view variables in this way.
+        $this->view->setVariablesToRender([
+            'response',
+        ]);
     }
 
     /**
      * Render a page from the formDefinition which was build by the form editor.
      * Use the frontend rendering and set the form framework to preview mode.
      *
-     * @param array $formDefinition
+     * @param FormDefinitionArray $formDefinition
      * @param int $pageIndex
      * @param string $prototypeName
      * @return string
      * @internal
      */
-    public function renderFormPageAction(array $formDefinition, int $pageIndex, string $prototypeName = null): string
+    public function renderFormPageAction(FormDefinitionArray $formDefinition, int $pageIndex, string $prototypeName = null): string
     {
-        $formDefinition = ArrayUtility::stripTagsFromValuesRecursive($formDefinition);
-        $formDefinition = $this->convertJsonArrayToAssociativeArray($formDefinition);
-        if (empty($prototypeName)) {
-            $prototypeName = isset($formDefinition['prototypeName']) ? $formDefinition['prototypeName'] : 'standard';
-        }
+        $prototypeName = $prototypeName ?: $formDefinition['prototypeName'] ?? 'standard';
+        $formDefinition = $formDefinition->getArrayCopy();
 
         $formFactory = $this->objectManager->get(ArrayFormFactory::class);
         $formDefinition = $formFactory->build($formDefinition, $prototypeName);
         $formDefinition->setRenderingOption('previewMode', true);
         $form = $formDefinition->bind($this->request, $this->response);
+        $form->setCurrentSiteLanguage($this->buildFakeSiteLanguage(0, 0));
         $form->overrideCurrentPage($pageIndex);
+
         return $form->render();
     }
 
     /**
-     * Prepare the formElements.*.formEditor section from the yaml settings.
+     * Build a SiteLanguage object to render the form preview with a
+     * specific language.
+     *
+     * @param int $pageId
+     * @param int $languageId
+     * @return SiteLanguage
+     */
+    protected function buildFakeSiteLanguage(int $pageId, int $languageId): SiteLanguage
+    {
+        $fakeSiteConfiguration = [
+            'languages' => [
+                [
+                    'languageId' => $languageId,
+                    'title' => 'Dummy',
+                    'navigationTitle' => '',
+                    'typo3Language' => '',
+                    'flag' => '',
+                    'locale' => '',
+                    'iso-639-1' => '',
+                    'hreflang' => '',
+                    'direction' => '',
+                ],
+            ],
+        ];
+
+        /** @var \TYPO3\CMS\Core\Site\Entity\SiteLanguage $currentSiteLanguage */
+        $currentSiteLanguage = GeneralUtility::makeInstance(Site::class, 'form-dummy', $pageId, $fakeSiteConfiguration)
+            ->getLanguageById($languageId);
+        return $currentSiteLanguage;
+    }
+
+    /**
+     * Prepare the formElements.*.formEditor section from the YAML settings.
      * Sort all formElements into groups and add additional data.
      *
      * @param array $formElementsDefinition
@@ -196,7 +263,7 @@ class FormEditorController extends AbstractBackendController
      */
     protected function getInsertRenderablesPanelConfiguration(array $formElementsDefinition): array
     {
-        $formElementGroups = isset($this->prototypeConfiguration['formEditor']['formElementGroups']) ? $this->prototypeConfiguration['formEditor']['formElementGroups'] : [];
+        /** @var array<string, array<string, string>> $formElementsByGroup */
         $formElementsByGroup = [];
 
         foreach ($formElementsDefinition as $formElementName => $formElementConfiguration) {
@@ -209,7 +276,7 @@ class FormEditorController extends AbstractBackendController
 
             $formElementConfiguration = TranslationService::getInstance()->translateValuesRecursive(
                 $formElementConfiguration,
-                $this->prototypeConfiguration['formEditor']['translationFile']
+                $this->prototypeConfiguration['formEditor']['translationFiles'] ?? []
             );
 
             $formElementsByGroup[$formElementConfiguration['group']][] = [
@@ -222,7 +289,7 @@ class FormEditorController extends AbstractBackendController
         }
 
         $formGroups = [];
-        foreach ($formElementGroups as $groupName => $groupConfiguration) {
+        foreach ($this->prototypeConfiguration['formEditor']['formElementGroups'] ?? [] as $groupName => $groupConfiguration) {
             if (!isset($formElementsByGroup[$groupName])) {
                 continue;
             }
@@ -234,7 +301,7 @@ class FormEditorController extends AbstractBackendController
 
             $groupConfiguration = TranslationService::getInstance()->translateValuesRecursive(
                 $groupConfiguration,
-                $this->prototypeConfiguration['formEditor']['translationFile']
+                $this->prototypeConfiguration['formEditor']['translationFiles'] ?? []
             );
 
             $formGroups[] = [
@@ -248,7 +315,7 @@ class FormEditorController extends AbstractBackendController
     }
 
     /**
-     * Reduce the Yaml settings by the 'formEditor' keyword.
+     * Reduce the YAML settings by the 'formEditor' keyword.
      *
      * @return array
      */
@@ -274,7 +341,7 @@ class FormEditorController extends AbstractBackendController
         $formEditorDefinitions = ArrayUtility::reIndexNumericArrayKeysRecursive($formEditorDefinitions);
         $formEditorDefinitions = TranslationService::getInstance()->translateValuesRecursive(
             $formEditorDefinitions,
-            $this->prototypeConfiguration['formEditor']['translationFile']
+            $this->prototypeConfiguration['formEditor']['translationFiles'] ?? []
         );
         return $formEditorDefinitions;
     }
@@ -298,12 +365,14 @@ class FormEditorController extends AbstractBackendController
                 ->setValue('new-page')
                 ->setClasses('t3-form-element-new-page-button hidden')
                 ->setIcon($this->view->getModuleTemplate()->getIconFactory()->getIcon('actions-page-new', Icon::SIZE_SMALL));
+            /** @var UriBuilder $uriBuilder */
+            $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
 
             $closeButton = $buttonBar->makeLinkButton()
                 ->setDataAttributes(['identifier' => 'closeButton'])
-                ->setHref(BackendUtility::getModuleUrl('web_FormFormbuilder'))
+                ->setHref((string)$uriBuilder->buildUriFromRoute('web_FormFormbuilder'))
                 ->setClasses('t3-form-element-close-form-button hidden')
-                ->setTitle($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.closeDoc'))
+                ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.closeDoc'))
                 ->setIcon($this->view->getModuleTemplate()->getIconFactory()->getIcon('actions-close', Icon::SIZE_SMALL));
 
             $saveButton = $buttonBar->makeInputButton()
@@ -330,7 +399,7 @@ class FormEditorController extends AbstractBackendController
                 ->setName('formeditor-undo-form')
                 ->setValue('undo')
                 ->setClasses('t3-form-element-undo-form-button hidden disabled')
-                ->setIcon($this->view->getModuleTemplate()->getIconFactory()->getIcon('actions-view-go-back', Icon::SIZE_SMALL));
+                ->setIcon($this->view->getModuleTemplate()->getIconFactory()->getIcon('actions-edit-undo', Icon::SIZE_SMALL));
 
             $redoButton = $buttonBar->makeInputButton()
                 ->setDataAttributes(['identifier' => 'redoButton'])
@@ -338,7 +407,7 @@ class FormEditorController extends AbstractBackendController
                 ->setName('formeditor-redo-form')
                 ->setValue('redo')
                 ->setClasses('t3-form-element-redo-form-button hidden disabled')
-                ->setIcon($this->view->getModuleTemplate()->getIconFactory()->getIcon('actions-view-go-forward', Icon::SIZE_SMALL));
+                ->setIcon($this->view->getModuleTemplate()->getIconFactory()->getIcon('actions-edit-redo', Icon::SIZE_SMALL));
 
             $buttonBar->addButton($newPageButton, ButtonBar::BUTTON_POSITION_LEFT, 1);
             $buttonBar->addButton($closeButton, ButtonBar::BUTTON_POSITION_LEFT, 2);
@@ -350,42 +419,6 @@ class FormEditorController extends AbstractBackendController
     }
 
     /**
-     * Some data which is build by the form editor needs a transformation before
-     * it can be used by the framework.
-     * Multivalue elements like select elements produce data like:
-     *
-     * [
-     *   _label => 'label'
-     *   _value => 'value'
-     * ]
-     *
-     * This method transform this into:
-     *
-     * [
-     *   'value' => 'label'
-     * ]
-     *
-     * @param array $input
-     * @return array
-     */
-    protected function convertJsonArrayToAssociativeArray(array $input): array
-    {
-        $output = [];
-        foreach ($input as $key => $value) {
-            if (is_int($key) && is_array($value) && isset($value['_label']) && isset($value['_value'])) {
-                $key = $value['_value'];
-                $value = $value['_label'];
-            }
-            if (is_array($value)) {
-                $output[$key] = $this->convertJsonArrayToAssociativeArray($value);
-            } else {
-                $output[$key] = $value;
-            }
-        }
-        return $output;
-    }
-
-    /**
      * Render the "text/x-formeditor-template" templates.
      *
      * @param array $formEditorDefinitions
@@ -393,8 +426,8 @@ class FormEditorController extends AbstractBackendController
      */
     protected function renderFormEditorTemplates(array $formEditorDefinitions): string
     {
-        $fluidConfiguration = $this->prototypeConfiguration['formEditor']['formEditorFluidConfiguration'];
-        $formEditorPartials = $this->prototypeConfiguration['formEditor']['formEditorPartials'];
+        $fluidConfiguration = $this->prototypeConfiguration['formEditor']['formEditorFluidConfiguration'] ?? null;
+        $formEditorPartials = $this->prototypeConfiguration['formEditor']['formEditorPartials'] ?? null;
 
         if (!isset($fluidConfiguration['templatePathAndFilename'])) {
             throw new RenderingException(
@@ -436,6 +469,295 @@ class FormEditorController extends AbstractBackendController
     }
 
     /**
+     * @todo move this to FormDefinitionConversionService
+     * @param array $formDefinition
+     * @return array
+     */
+    protected function transformFormDefinitionForFormEditor(array $formDefinition): array
+    {
+        $multiValueFormElementProperties = [];
+        $multiValueFinisherProperties = [];
+
+        foreach ($this->prototypeConfiguration['formElementsDefinition'] as $type => $configuration) {
+            if (!isset($configuration['formEditor']['editors'])) {
+                continue;
+            }
+            foreach ($configuration['formEditor']['editors'] as $editorConfiguration) {
+                if ($editorConfiguration['templateName'] === 'Inspector-PropertyGridEditor') {
+                    $multiValueFormElementProperties[$type][] = $editorConfiguration['propertyPath'];
+                }
+            }
+        }
+
+        foreach ($this->prototypeConfiguration['formElementsDefinition']['Form']['formEditor']['propertyCollections']['finishers'] ?? [] as $configuration) {
+            if (!isset($configuration['editors'])) {
+                continue;
+            }
+
+            foreach ($configuration['editors'] as $editorConfiguration) {
+                if ($editorConfiguration['templateName'] === 'Inspector-PropertyGridEditor') {
+                    $multiValueFinisherProperties[$configuration['identifier']][] = $editorConfiguration['propertyPath'];
+                }
+            }
+        }
+
+        $formDefinition = $this->filterEmptyArrays($formDefinition);
+        $formDefinition = $this->migrateTranslationFileOptions($formDefinition);
+        $formDefinition = $this->migrateEmailFinisherRecipients($formDefinition);
+        $formDefinition = $this->migrateEmailFormatOption($formDefinition);
+
+        // @todo: replace with rte parsing
+        $formDefinition = ArrayUtility::stripTagsFromValuesRecursive($formDefinition);
+        $formDefinition = $this->transformMultiValuePropertiesForFormEditor(
+            $formDefinition,
+            'type',
+            $multiValueFormElementProperties
+        );
+        $formDefinition = $this->transformMultiValuePropertiesForFormEditor(
+            $formDefinition,
+            'identifier',
+            $multiValueFinisherProperties
+        );
+
+        $formDefinitionConversionService = $this->getFormDefinitionConversionService();
+        $formDefinition = $formDefinitionConversionService->addHmacData($formDefinition);
+
+        return $formDefinition;
+    }
+
+    /**
+     * Some data needs a transformation before it can be used by the
+     * form editor. This rules for multivalue elements like select
+     * elements. To ensure the right sorting if the data goes into
+     * javascript, we need to do transformations:
+     *
+     * [
+     *   '5' => '5',
+     *   '4' => '4',
+     *   '3' => '3'
+     * ]
+     *
+     *
+     * This method transform this into:
+     *
+     * [
+     *   [
+     *     _label => '5'
+     *     _value => 5
+     *   ],
+     *   [
+     *     _label => '4'
+     *     _value => 4
+     *   ],
+     *   [
+     *     _label => '3'
+     *     _value => 3
+     *   ],
+     * ]
+     *
+     * @param array $formDefinition
+     * @param string $identifierProperty
+     * @param array $multiValueProperties
+     * @return array
+     */
+    protected function transformMultiValuePropertiesForFormEditor(
+        array $formDefinition,
+        string $identifierProperty,
+        array $multiValueProperties
+    ): array {
+        $output = $formDefinition;
+        foreach ($formDefinition as $key => $value) {
+            $identifier = $value[$identifierProperty] ?? null;
+
+            if (array_key_exists($identifier, $multiValueProperties)) {
+                $multiValuePropertiesForIdentifier = $multiValueProperties[$identifier];
+
+                foreach ($multiValuePropertiesForIdentifier as $multiValueProperty) {
+                    if (!ArrayUtility::isValidPath($value, $multiValueProperty, '.')) {
+                        continue;
+                    }
+
+                    $multiValuePropertyData = ArrayUtility::getValueByPath($value, $multiValueProperty, '.');
+
+                    if (!is_array($multiValuePropertyData)) {
+                        continue;
+                    }
+
+                    $newMultiValuePropertyData = [];
+
+                    foreach ($multiValuePropertyData as $k => $v) {
+                        $newMultiValuePropertyData[] = [
+                            '_label' => $v,
+                            '_value' => $k,
+                        ];
+                    }
+
+                    $value = ArrayUtility::setValueByPath($value, $multiValueProperty, $newMultiValuePropertyData, '.');
+                }
+            }
+
+            $output[$key] = $value;
+
+            if (is_array($value)) {
+                $output[$key] = $this->transformMultiValuePropertiesForFormEditor(
+                    $value,
+                    $identifierProperty,
+                    $multiValueProperties
+                );
+            }
+        }
+
+        return $output;
+    }
+
+    /**
+     * Remove keys from an array if the key value is an empty array
+     *
+     * @param array $array
+     * @return array
+     */
+    protected function filterEmptyArrays(array $array): array
+    {
+        foreach ($array as $key => $value) {
+            if (!is_array($value)) {
+                continue;
+            }
+            if (empty($value)) {
+                unset($array[$key]);
+                continue;
+            }
+            $array[$key] = $this->filterEmptyArrays($value);
+            if (empty($array[$key])) {
+                unset($array[$key]);
+            }
+        }
+
+        return $array;
+    }
+
+    /**
+     * Migrate singular "translationFile" options to plural "translationFiles"
+     *
+     * @param array $formDefinition
+     * @return array
+     * @deprecated since v10 and will be removed in TYPO3 v11
+     */
+    protected function migrateTranslationFileOptions(array $formDefinition): array
+    {
+        GeneralUtility::makeInstance(ArrayProcessor::class, $formDefinition)->forEach(
+            GeneralUtility::makeInstance(
+                ArrayProcessing::class,
+                'translationFile',
+                '((.+)\.translationFile)(?:\.|$)',
+                function ($key, $value, $matches) use (&$formDefinition) {
+                    [, $singleOptionPath, $parentOptionPath] = $matches;
+
+                    try {
+                        $translationFiles = ArrayUtility::getValueByPath($formDefinition, $singleOptionPath, '.');
+                    } catch (MissingArrayPathException $e) {
+                        // Already migrated by a previous "translationFile.N" entry
+                        return;
+                    }
+
+                    if (is_string($translationFiles)) {
+                        // 10 is usually used by EXT:form
+                        $translationFiles = [20 => $translationFiles];
+                    }
+
+                    $formDefinition = ArrayUtility::setValueByPath(
+                        $formDefinition,
+                        sprintf('%s.translationFiles', $parentOptionPath),
+                        $translationFiles,
+                        '.'
+                    );
+                    $formDefinition = ArrayUtility::removeByPath($formDefinition, $singleOptionPath, '.');
+
+                    return $value;
+                }
+            )
+        );
+
+        return $formDefinition;
+    }
+
+    /**
+     * Migrate single recipient options to their list successors
+     *
+     * @param array $formDefinition
+     * @return array
+     */
+    protected function migrateEmailFinisherRecipients(array $formDefinition): array
+    {
+        foreach ($formDefinition['finishers'] ?? [] as $i => $finisherConfiguration) {
+            if (!in_array($finisherConfiguration['identifier'], ['EmailToSender', 'EmailToReceiver'], true)) {
+                continue;
+            }
+
+            $recipientAddress = $finisherConfiguration['options']['recipientAddress'] ?? '';
+            $recipientName = $finisherConfiguration['options']['recipientName'] ?? '';
+            $carbonCopyAddress = $finisherConfiguration['options']['carbonCopyAddress'] ?? '';
+            $blindCarbonCopyAddress = $finisherConfiguration['options']['blindCarbonCopyAddress'] ?? '';
+
+            if (!empty($recipientAddress)) {
+                $finisherConfiguration['options']['recipients'][$recipientAddress] = $recipientName;
+            }
+
+            if (!empty($carbonCopyAddress)) {
+                $finisherConfiguration['options']['carbonCopyRecipients'][$carbonCopyAddress] = '';
+            }
+
+            if (!empty($blindCarbonCopyAddress)) {
+                $finisherConfiguration['options']['blindCarbonCopyRecipients'][$blindCarbonCopyAddress] = '';
+            }
+
+            unset(
+                $finisherConfiguration['options']['recipientAddress'],
+                $finisherConfiguration['options']['recipientName'],
+                $finisherConfiguration['options']['carbonCopyAddress'],
+                $finisherConfiguration['options']['blindCarbonCopyAddress']
+            );
+            $formDefinition['finishers'][$i] = $finisherConfiguration;
+        }
+
+        return $formDefinition;
+    }
+
+    /**
+     * Migrate email "format" option to "addHtmlPart"
+     *
+     * @param array $formDefinition
+     * @return array
+     * @deprecated since v10 and will be removed in TYPO3 v11
+     */
+    protected function migrateEmailFormatOption(array $formDefinition): array
+    {
+        foreach ($formDefinition['finishers'] ?? [] as $i => $finisherConfiguration) {
+            if (!in_array($finisherConfiguration['identifier'], ['EmailToSender', 'EmailToReceiver'], true)) {
+                continue;
+            }
+
+            $format = $finisherConfiguration['options']['format'] ?? null;
+
+            if (!empty($format)) {
+                $finisherConfiguration['options']['addHtmlPart'] = empty($format) || $format !== EmailFinisher::FORMAT_PLAINTEXT;
+            }
+
+            unset($finisherConfiguration['options']['format']);
+            $formDefinition['finishers'][$i] = $finisherConfiguration;
+        }
+
+        return $formDefinition;
+    }
+
+    /**
+     * @return FormDefinitionConversionService
+     */
+    protected function getFormDefinitionConversionService(): FormDefinitionConversionService
+    {
+        return GeneralUtility::makeInstance(FormDefinitionConversionService::class);
+    }
+
+    /**
      * Returns the current BE user.
      *
      * @return BackendUserAuthentication
@@ -453,5 +775,15 @@ class FormEditorController extends AbstractBackendController
     protected function getLanguageService(): LanguageService
     {
         return $GLOBALS['LANG'];
+    }
+
+    /**
+     * Returns the page renderer
+     *
+     * @return PageRenderer
+     */
+    protected function getPageRenderer(): PageRenderer
+    {
+        return GeneralUtility::makeInstance(PageRenderer::class);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Imaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,20 @@ namespace TYPO3\CMS\Frontend\Imaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Imaging;
+
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Imaging\GraphicalFunctions;
+use TYPO3\CMS\Core\Resource\Exception;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\ProcessedFile;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
-use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\File\BasicFileUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
+use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+use TYPO3\CMS\Frontend\Resource\FilePathSanitizer;
 
 /**
  * GIFBUILDER
@@ -103,11 +107,10 @@ class GifBuilder extends GraphicalFunctions
      * Initialization of the GIFBUILDER objects, in particular TEXT and IMAGE. This includes finding the bounding box, setting dimensions and offset values before the actual rendering is started.
      * Modifies the ->setup, ->objBB internal arrays
      * Should be called after the ->init() function which initializes the parent class functions/variables in general.
-     * The class \TYPO3\CMS\Frontend\ContentObject\Menu\GraphicalMenuContentObject also uses gifbuilder and here there is an interesting use since the function findLargestDims() from that class calls the init() and start() functions to find the total dimensions before starting the rendering of the images.
      *
      * @param array $conf TypoScript properties for the GIFBUILDER session. Stored internally in the variable ->setup
      * @param array $data The current data record from \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer. Stored internally in the variable ->data
-     * @see ContentObjectRenderer::getImgResource(), \TYPO3\CMS\Frontend\ContentObject\Menu\GraphicalMenuContentObject::makeGifs(), \TYPO3\CMS\Frontend\ContentObject\Menu\GraphicalMenuContentObject::findLargestDims()
+     * @see ContentObjectRenderer::getImgResource()
      */
     public function start($conf, $data)
     {
@@ -122,11 +125,10 @@ class GifBuilder extends GraphicalFunctions
             // Let's you pre-process the gifbuilder configuration. for
             // example you can split a string up into lines and render each
             // line as TEXT obj, see extension julle_gifbconf
-            if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_gifbuilder.php']['gifbuilder-ConfPreProcess'])) {
-                foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_gifbuilder.php']['gifbuilder-ConfPreProcess'] as $_funcRef) {
-                    $_params = $this->setup;
-                    $this->setup = GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-                }
+            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_gifbuilder.php']['gifbuilder-ConfPreProcess'] ?? [] as $_funcRef) {
+                $_params = $this->setup;
+                $ref = $this; // introduced for phpstan to not lose type information when passing $this into callUserFunction
+                $this->setup = GeneralUtility::callUserFunction($_funcRef, $_params, $ref);
             }
             // Initializing global Char Range Map
             $this->charRangeMap = [];
@@ -138,7 +140,7 @@ class GifBuilder extends GraphicalFunctions
                         $this->charRangeMap[$cRMkey] = [];
                         $this->charRangeMap[$cRMkey]['charMapConfig'] = $cRMcfg['charMapConfig.'];
                         $this->charRangeMap[$cRMkey]['cfgKey'] = substr($cRMcfgkey, 0, -1);
-                        $this->charRangeMap[$cRMkey]['multiplicator'] = (double) $cRMcfg['fontSizeMultiplicator'];
+                        $this->charRangeMap[$cRMkey]['multiplicator'] = (double)$cRMcfg['fontSizeMultiplicator'];
                         $this->charRangeMap[$cRMkey]['pixelSpace'] = (int)$cRMcfg['pixelSpaceFontSizeRef'];
                     }
                 }
@@ -192,21 +194,28 @@ class GifBuilder extends GraphicalFunctions
                         case 'IMAGE':
                             $fileInfo = $this->getResource($conf['file'], $conf['file.']);
                             if ($fileInfo) {
-                                $this->combinedFileNames[] = preg_replace('/\\.[[:alnum:]]+$/', '', basename($fileInfo[3]));
+                                $this->combinedFileNames[] = preg_replace('/\\.[[:alnum:]]+$/', '', PathUtility::basename($fileInfo[3]));
                                 if ($fileInfo['processedFile'] instanceof ProcessedFile) {
                                     // Use processed file, if a FAL file has been processed by GIFBUILDER (e.g. scaled/cropped)
                                     $this->setup[$theKey . '.']['file'] = $fileInfo['processedFile']->getForLocalProcessing(false);
                                 } elseif (!isset($fileInfo['origFile']) && $fileInfo['originalFile'] instanceof File) {
                                     // Use FAL file with getForLocalProcessing to circumvent problems with umlauts, if it is a FAL file (origFile not set)
-                                    /** @var $originalFile File */
+                                    /** @var File $originalFile */
                                     $originalFile = $fileInfo['originalFile'];
                                     $this->setup[$theKey . '.']['file'] = $originalFile->getForLocalProcessing(false);
                                 } else {
                                     // Use normal path from fileInfo if it is a non-FAL file (even non-FAL files have originalFile set, but only non-FAL files have origFile set)
                                     $this->setup[$theKey . '.']['file'] = $fileInfo[3];
                                 }
-                                $this->setup[$theKey . '.']['BBOX'] = $fileInfo;
-                                $this->objBB[$theKey] = $fileInfo;
+
+                                // only pass necessary parts of fileInfo further down, to not incorporate facts as
+                                // CropScaleMask runs in this request, that may not occur in subsequent calls and change
+                                // the md5 of the generated file name
+                                $essentialFileInfo = $fileInfo;
+                                unset($essentialFileInfo['originalFile'], $essentialFileInfo['processedFile']);
+
+                                $this->setup[$theKey . '.']['BBOX'] = $essentialFileInfo;
+                                $this->objBB[$theKey] = $essentialFileInfo;
                                 if ($conf['mask']) {
                                     $maskInfo = $this->getResource($conf['mask'], $conf['mask.']);
                                     if ($maskInfo) {
@@ -214,7 +223,7 @@ class GifBuilder extends GraphicalFunctions
                                         if ($maskInfo['processedFile'] instanceof ProcessedFile) {
                                             $this->setup[$theKey . '.']['mask'] = $maskInfo['processedFile']->getForLocalProcessing(false);
                                         } elseif (!isset($maskInfo['origFile']) && $maskInfo['originalFile'] instanceof File) {
-                                            /** @var $originalFile File */
+                                            /** @var File $originalFile */
                                             $originalFile = $maskInfo['originalFile'];
                                             $this->setup[$theKey . '.']['mask'] = $originalFile->getForLocalProcessing(false);
                                         } else {
@@ -253,7 +262,7 @@ class GifBuilder extends GraphicalFunctions
             $this->setup['workArea'] = $this->calcOffset($this->setup['workArea']);
             foreach ($sKeyArray as $theKey) {
                 $theValue = $this->setup[$theKey];
-                if ((int)$theKey && ($conf = $this->setup[$theKey . '.'])) {
+                if ((int)$theKey && $this->setup[$theKey . '.']) {
                     switch ($theValue) {
                         case 'TEXT':
 
@@ -337,17 +346,18 @@ class GifBuilder extends GraphicalFunctions
      * Otherwise rendering means calling ->make(), then ->output(), then ->destroy()
      *
      * @return string The filename for the created GIF/PNG file. The filename will be prefixed "GB_
-     * @see make(), fileName()
+     * @see make()
+     * @see fileName()
      */
     public function gifBuild()
     {
         if ($this->setup) {
-            // Relative to PATH_site
+            // Relative to Environment::getPublicPath()
             $gifFileName = $this->fileName('assets/images/');
             // File exists
             if (!file_exists($gifFileName)) {
                 // Create temporary directory if not done:
-                GeneralUtility::mkdir_deep(PATH_site . 'typo3temp/assets/images/');
+                GeneralUtility::mkdir_deep(Environment::getPublicPath() . '/typo3temp/assets/images/');
                 // Create file:
                 $this->make();
                 $this->output($gifFileName);
@@ -364,7 +374,7 @@ class GifBuilder extends GraphicalFunctions
      * Creates a GDlib resource in $this->im and works on that
      * Called by gifBuild()
      *
-     * @access private
+     * @internal
      * @see gifBuild()
      */
     public function make()
@@ -378,7 +388,7 @@ class GifBuilder extends GraphicalFunctions
         $this->w = $XY[0];
         $this->h = $XY[1];
         // Transparent layer as background if set and requirements are met
-        if (!empty($this->setup['backColor']) && $this->setup['backColor'] === 'transparent' && $this->png_truecolor && !$this->setup['reduceColors'] && (empty($this->setup['format']) || $this->setup['format'] === 'png')) {
+        if (!empty($this->setup['backColor']) && $this->setup['backColor'] === 'transparent' && !$this->setup['reduceColors'] && (empty($this->setup['format']) || $this->setup['format'] === 'png')) {
             // Set transparency properties
             imagesavealpha($this->im, true);
             // Fill with a transparent background
@@ -395,7 +405,7 @@ class GifBuilder extends GraphicalFunctions
             $Bcolor = imagecolorallocate($this->im, $BGcols[0], $BGcols[1], $BGcols[2]);
             imagefilledrectangle($this->im, 0, 0, $XY[0], $XY[1], $Bcolor);
         }
-        // Traverse the GIFBUILDER objects an render each one:
+        // Traverse the GIFBUILDER objects and render each one:
         if (is_array($this->setup)) {
             $sKeyArray = ArrayUtility::filterAndSortByNumericKeys($this->setup);
             foreach ($sKeyArray as $theKey) {
@@ -541,7 +551,7 @@ class GifBuilder extends GraphicalFunctions
      *
      * @param array $conf GIFBUILDER object TypoScript properties
      * @return array Modified $conf array IF the "text" property is not blank
-     * @access private
+     * @internal
      */
     public function checkTextObj($conf)
     {
@@ -555,9 +565,12 @@ class GifBuilder extends GraphicalFunctions
                 $isStdWrapped[$parameter] = 1;
             }
         }
-        $conf['fontFile'] = $this->checkFile($conf['fontFile']);
+
+        if (!is_null($conf['fontFile'])) {
+            $conf['fontFile'] = $this->checkFile($conf['fontFile']);
+        }
         if (!$conf['fontFile']) {
-            $conf['fontFile'] = ExtensionManagementUtility::siteRelPath('core') . 'Resources/Private/Font/nimbus.ttf';
+            $conf['fontFile'] = $this->checkFile('EXT:core/Resources/Private/Font/nimbus.ttf');
         }
         if (!$conf['iterations']) {
             $conf['iterations'] = 1;
@@ -565,7 +578,7 @@ class GifBuilder extends GraphicalFunctions
         if (!$conf['fontSize']) {
             $conf['fontSize'] = 12;
         }
-        // If any kind of spacing applys, we cannot use angles!!
+        // If any kind of spacing applies, we cannot use angles!!
         if ($conf['spacing'] || $conf['wordSpacing']) {
             $conf['angle'] = 0;
         }
@@ -585,7 +598,7 @@ class GifBuilder extends GraphicalFunctions
         }
         if ((string)$conf['text'] != '') {
             // Char range map thingie:
-            $fontBaseName = basename($conf['fontFile']);
+            $fontBaseName = PathUtility::basename($conf['fontFile']);
             if (is_array($this->charRangeMap[$fontBaseName])) {
                 // Initialize splitRendering array:
                 if (!is_array($conf['splitRendering.'])) {
@@ -635,7 +648,7 @@ class GifBuilder extends GraphicalFunctions
      *
      * @param string $string The string to resolve/calculate the result of. The string is divided by a comma first and each resulting part is calculated into an integer.
      * @return string The resolved string with each part (separated by comma) returned separated by comma
-     * @access private
+     * @internal
      */
     public function calcOffset($string)
     {
@@ -657,13 +670,13 @@ class GifBuilder extends GraphicalFunctions
      *
      * @param string $file Filename value OR the string "GIFBUILDER", see documentation in TSref for the "datatype" called "imgResource
      * @param array $fileArray TypoScript properties passed to the function. Either GIFBUILDER properties or imgResource properties, depending on the value of $file (whether that is "GIFBUILDER" or a file reference)
-     * @return array|NULL Returns an array with file information from ContentObjectRenderer::getImgResource()
-     * @access private
+     * @return array|null Returns an array with file information from ContentObjectRenderer::getImgResource()
+     * @internal
      * @see ContentObjectRenderer::getImgResource()
      */
     public function getResource($file, $fileArray)
     {
-        if (!GeneralUtility::inList($this->imageFileExt, $fileArray['ext'])) {
+        if (!in_array($fileArray['ext'], $this->imageFileExt, true)) {
             $fileArray['ext'] = $this->gifExtension;
         }
         /** @var ContentObjectRenderer $cObj */
@@ -676,13 +689,17 @@ class GifBuilder extends GraphicalFunctions
      * Returns the reference to a "resource" in TypoScript.
      *
      * @param string $file The resource value.
-     * @return string Returns the relative filepath
-     * @access private
+     * @return string|null Returns the relative filepath or null if it's invalid
+     * @internal
      * @see TemplateService::getFileName()
      */
     public function checkFile($file)
     {
-        return $GLOBALS['TSFE']->tmpl->getFileName($file);
+        try {
+            return GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($file);
+        } catch (Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -692,42 +709,51 @@ class GifBuilder extends GraphicalFunctions
      * something like "GB_MD5HASH_myfilename_is_very_long_and_such.jpg"
      *
      * @param string $pre Filename prefix, eg. "GB_
-     * @return string The relative filepath (relative to PATH_site)
-     * @access private
+     * @return string The filepath, relative to Environment::getPublicPath()
+     * @internal
      */
     public function fileName($pre)
     {
-        /** @var $basicFileFunctions \TYPO3\CMS\Core\Utility\File\BasicFileUtility */
         $basicFileFunctions = GeneralUtility::makeInstance(BasicFileUtility::class);
         $filePrefix = implode('_', array_merge($this->combinedTextStrings, $this->combinedFileNames));
-        $filePrefix = $basicFileFunctions->cleanFileName($filePrefix);
+        $filePrefix = $basicFileFunctions->cleanFileName(ltrim($filePrefix, '.'));
 
         // shorten prefix to avoid overly long file names
         $filePrefix = substr($filePrefix, 0, 100);
 
-        return 'typo3temp/' . $pre . $filePrefix . '_' . GeneralUtility::shortMD5(serialize($this->setup)) . '.' . $this->extension();
+        // Only take relevant parameters to ease the pain for json_encode and make the final string short
+        // so shortMD5 is not as slow. see https://forge.typo3.org/issues/64158
+        $hashInputForFileName = [
+            array_keys($this->setup),
+            $filePrefix,
+            $this->im,
+            $this->w,
+            $this->h,
+            $this->map,
+            $this->workArea,
+            $this->combinedTextStrings,
+            $this->combinedFileNames,
+            $this->data
+        ];
+        return 'typo3temp/' . $pre . $filePrefix . '_' . GeneralUtility::shortMD5(json_encode($hashInputForFileName)) . '.' . $this->extension();
     }
 
     /**
      * Returns the file extension used in the filename
      *
      * @return string Extension; "jpg" or "gif"/"png
-     * @access private
+     * @internal
      */
     public function extension()
     {
         switch (strtolower($this->setup['format'])) {
             case 'jpg':
-
             case 'jpeg':
                 return 'jpg';
-                break;
             case 'png':
                 return 'png';
-                break;
             case 'gif':
                 return 'gif';
-                break;
             default:
                 return $this->gifExtension;
         }
@@ -803,7 +829,7 @@ class GifBuilder extends GraphicalFunctions
      * Calculates the maximum of a set of values defined like "[10.h],[20.h],1000"
      *
      * @param string $string The string to be used to calculate the maximum (e.g. "[10.h],[20.h],1000")
-     * @return int The maxium value of the given comma separated and calculated values
+     * @return int The maximum value of the given comma separated and calculated values
      */
     protected function calculateMaximum($string)
     {

@@ -1,7 +1,5 @@
 <?php
 
-namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
-
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -14,6 +12,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
 
 use TYPO3\CMS\Core\LinkHandling\RecordLinkHandler;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
@@ -30,11 +30,13 @@ class RecordLinkHandlerTest extends UnitTestCase
             'identifier' => 'tx_identifier',
             'uid' => 123
         ];
-        $url = sprintf('t3://record?identifier=%s&uid=%s',
+        $url = sprintf(
+            't3://record?identifier=%s&uid=%s',
             $parameters['identifier'],
-            $parameters['uid']);
+            $parameters['uid']
+        );
 
-        $this->assertEquals($url, $subject->asString($parameters));
+        self::assertEquals($url, $subject->asString($parameters));
     }
 
     /**

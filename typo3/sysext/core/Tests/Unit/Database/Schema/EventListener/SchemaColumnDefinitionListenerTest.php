@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\EventListener;
+
 use Doctrine\DBAL\Event\SchemaColumnDefinitionEventArgs;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Schema\Column;
@@ -26,11 +27,12 @@ use TYPO3\CMS\Core\Database\Schema\EventListener\SchemaColumnDefinitionListener;
 use TYPO3\CMS\Core\Database\Schema\Types\EnumType;
 use TYPO3\CMS\Core\Database\Schema\Types\SetType;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class SchemaColumnDefinitionListenerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class SchemaColumnDefinitionListenerTest extends UnitTestCase
 {
     /**
      * @var SchemaColumnDefinitionListener
@@ -45,7 +47,7 @@ class SchemaColumnDefinitionListenerTest extends \TYPO3\TestingFramework\Core\Un
     /**
      * Set up the test subject
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->subject = GeneralUtility::makeInstance(SchemaColumnDefinitionListener::class);
@@ -55,7 +57,7 @@ class SchemaColumnDefinitionListenerTest extends \TYPO3\TestingFramework\Core\Un
     /**
      * @test
      */
-    public function isInactiveForStandardColumnTypes()
+    public function isInactiveForStandardColumnTypes(): void
     {
         $event = new SchemaColumnDefinitionEventArgs(
             ['Type' => 'int(11)'],
@@ -65,14 +67,14 @@ class SchemaColumnDefinitionListenerTest extends \TYPO3\TestingFramework\Core\Un
         );
 
         $this->subject->onSchemaColumnDefinition($event);
-        $this->assertNotTrue($event->isDefaultPrevented());
-        $this->assertNull($event->getColumn());
+        self::assertNotTrue($event->isDefaultPrevented());
+        self::assertNull($event->getColumn());
     }
 
     /**
      * @test
      */
-    public function buildsColumnForEnumDataType()
+    public function buildsColumnForEnumDataType(): void
     {
         if (Type::hasType('enum')) {
             Type::overrideType('enum', EnumType::class);
@@ -91,16 +93,16 @@ class SchemaColumnDefinitionListenerTest extends \TYPO3\TestingFramework\Core\Un
         );
 
         $this->subject->onSchemaColumnDefinition($event);
-        $this->assertTrue($event->isDefaultPrevented());
-        $this->assertInstanceOf(Column::class, $event->getColumn());
-        $this->assertInstanceOf(EnumType::class, $event->getColumn()->getType());
-        $this->assertSame(['value1', 'value2', 'value3'], $event->getColumn()->getPlatformOption('unquotedValues'));
+        self::assertTrue($event->isDefaultPrevented());
+        self::assertInstanceOf(Column::class, $event->getColumn());
+        self::assertInstanceOf(EnumType::class, $event->getColumn()->getType());
+        self::assertSame(['value1', 'value2', 'value3'], $event->getColumn()->getPlatformOption('unquotedValues'));
     }
 
     /**
      * @test
      */
-    public function buildsColumnForSetDataType()
+    public function buildsColumnForSetDataType(): void
     {
         if (Type::hasType('set')) {
             Type::overrideType('set', SetType::class);
@@ -119,9 +121,9 @@ class SchemaColumnDefinitionListenerTest extends \TYPO3\TestingFramework\Core\Un
         );
 
         $this->subject->onSchemaColumnDefinition($event);
-        $this->assertTrue($event->isDefaultPrevented());
-        $this->assertInstanceOf(Column::class, $event->getColumn());
-        $this->assertInstanceOf(SetType::class, $event->getColumn()->getType());
-        $this->assertSame(['value1', 'value3'], $event->getColumn()->getPlatformOption('unquotedValues'));
+        self::assertTrue($event->isDefaultPrevented());
+        self::assertInstanceOf(Column::class, $event->getColumn());
+        self::assertInstanceOf(SetType::class, $event->getColumn()->getType());
+        self::assertSame(['value1', 'value3'], $event->getColumn()->getPlatformOption('unquotedValues'));
     }
 }

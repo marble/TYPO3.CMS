@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\RecordList;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\RecordList;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\RecordList;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -50,7 +51,7 @@ class ElementBrowserRecordList extends DatabaseRecordList
     public function linkWrapItems($table, $uid, $code, $row)
     {
         if (!$code) {
-            $code = '<i>[' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.no_title')) . ']</i>';
+            $code = '<i>[' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.no_title')) . ']</i>';
         } else {
             $code = BackendUtility::getRecordTitlePrep($code, $this->fixedL);
         }

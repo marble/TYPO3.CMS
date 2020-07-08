@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Lowlevel\Command;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Lowlevel\Command;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Lowlevel\Command;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -52,7 +54,7 @@ class DeletedRecordsCommand extends Command
                 'depth',
                 'd',
                 InputOption::VALUE_REQUIRED,
-                'Setting traversal depth. 0 (zero) will only analyse start page (see --pid), 1 will traverse one level of subpages etc.'
+                'Setting traversal depth. 0 (zero) will only analyze start page (see --pid), 1 will traverse one level of subpages etc.'
             )
             ->addOption(
                 'dry-run',
@@ -67,11 +69,12 @@ class DeletedRecordsCommand extends Command
      *
      * @param InputInterface $input
      * @param OutputInterface $output
+     * @return int
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         // Make sure the _cli_ user is loaded
-        Bootstrap::getInstance()->initializeBackendAuthentication();
+        Bootstrap::initializeBackendAuthentication();
 
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getDescription());
@@ -115,10 +118,11 @@ class DeletedRecordsCommand extends Command
         $this->deleteRecords($deletedRecords, $dryRun, $io);
 
         $io->success('All done!');
+        return 0;
     }
 
     /**
-     * Recursive traversal of page tree to fetch all records marekd as "deleted",
+     * Recursive traversal of page tree to fetch all records marked as "deleted",
      * via option $GLOBALS[TCA][$tableName][ctrl][delete]
      * This also takes deleted versioned records into account.
      *
@@ -137,7 +141,7 @@ class DeletedRecordsCommand extends Command
 
         $pageId = (int)$pageId;
         if ($pageId > 0) {
-            $pageRecordIsDeleted = $queryBuilderForPages
+            $queryBuilderForPages
                 ->select('uid', 'deleted')
                 ->from('pages')
                 ->where(
@@ -150,9 +154,12 @@ class DeletedRecordsCommand extends Command
                     )
                 )
                 ->execute();
-
+            $rowCount = $queryBuilderForPages
+                ->count('uid')
+                ->execute()
+                ->fetchColumn(0);
             // Register if page itself is deleted
-            if ($pageRecordIsDeleted->rowCount() > 0) {
+            if ($rowCount > 0) {
                 $deletedRecords['pages'][$pageId] = $pageId;
             }
         }
@@ -169,9 +176,11 @@ class DeletedRecordsCommand extends Command
             $result = $queryBuilder
                 ->select('uid', $deletedField)
                 ->from($tableName)
-                ->where($queryBuilder->expr()->eq(
-                    'pid',
-                    $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT))
+                ->where(
+                    $queryBuilder->expr()->eq(
+                        'pid',
+                        $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                    )
                 )
                 ->execute();
 
@@ -181,8 +190,13 @@ class DeletedRecordsCommand extends Command
                     $deletedRecords[$tableName][$recordOnPage['uid']] = $recordOnPage['uid'];
                 }
                 // Add any versions of those records
-                $versions = BackendUtility::selectVersionsOfRecord($tableName, $recordOnPage['uid'],
-                    'uid,t3ver_wsid,t3ver_count,' . $deletedField, null, true) ?: [];
+                $versions = BackendUtility::selectVersionsOfRecord(
+                    $tableName,
+                    $recordOnPage['uid'],
+                    'uid,t3ver_wsid,t3ver_count,' . $deletedField,
+                    null,
+                    true
+                ) ?: [];
                 if (is_array($versions)) {
                     foreach ($versions as $verRec) {
                         // Mark as deleted
@@ -240,16 +254,13 @@ class DeletedRecordsCommand extends Command
      */
     protected function getTablesWithDeletedFlags(): array
     {
-        static $tables;
-        if (!is_array($tables)) {
-            $tables = [];
-            foreach ($GLOBALS['TCA'] as $tableName => $configuration) {
-                if ($tableName !== 'pages' && isset($GLOBALS['TCA'][$tableName]['ctrl']['delete'])) {
-                    $tables[$tableName] = $GLOBALS['TCA'][$tableName]['ctrl']['delete'];
-                }
+        $tables = [];
+        foreach ($GLOBALS['TCA'] as $tableName => $configuration) {
+            if ($tableName !== 'pages' && isset($GLOBALS['TCA'][$tableName]['ctrl']['delete'])) {
+                $tables[$tableName] = $GLOBALS['TCA'][$tableName]['ctrl']['delete'];
             }
-            ksort($tables);
         }
+        ksort($tables);
         return $tables;
     }
 

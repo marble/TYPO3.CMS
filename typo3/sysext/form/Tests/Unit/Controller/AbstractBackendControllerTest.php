@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Form\Tests\Unit\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Controller;
+
 use TYPO3\CMS\Form\Controller\AbstractBackendController;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class AbstractBackendControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractBackendControllerTest extends UnitTestCase
 {
 
     /**
@@ -42,6 +44,6 @@ class AbstractBackendControllerTest extends \TYPO3\TestingFramework\Core\Unit\Un
             0 => 'typo3/sysext/form/Resources/Public/Css/form.css'
         ];
 
-        $this->assertSame($expected, $mockController->_call('resolveResourcePaths', $input));
+        self::assertSame($expected, $mockController->_call('resolveResourcePaths', $input));
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
+
 /**
  * Abstract parser for TYPO3's mirror.xml file.
+ * @internal This class is a specific ExtensionManager implementation and is not part of the Public TYPO3 API.
  */
 abstract class AbstractMirrorXmlParser extends AbstractXmlParser
 {
@@ -24,59 +26,36 @@ abstract class AbstractMirrorXmlParser extends AbstractXmlParser
      *
      * @var string
      */
-    protected $country = null;
+    protected $country;
 
     /**
      * Keeps hostname of currently processed mirror.
      *
      * @var string
      */
-    protected $host = null;
+    protected $host;
 
     /**
      * Keeps path to mirrored TER of currently processed mirror.
      *
      * @var string
      */
-    protected $path = null;
-
-    /**
-     * Keeps sponsor link of currently processed mirror.
-     *
-     * @var string
-     */
-    protected $sponsorlink = null;
-
-    /**
-     * Keeps sponsor logo location of currently processed mirror.
-     *
-     * @var string
-     */
-    protected $sponsorlogo = null;
-
-    /**
-     * Keeps sponsor name of currently processed mirror.
-     *
-     * @var string
-     */
-    protected $sponsorname = null;
+    protected $path;
 
     /**
      * Keeps title of currently processed mirror.
      *
      * @var string
      */
-    protected $title = null;
+    protected $title;
 
     /**
      * Returns an associative array of all mirror properties.
      *
      * Valid array keys of returned array are:
-     * country, host, path, sponsorlink, sponsorlogo, sponsorname, title
+     * country, host, path, title
      *
-     * @access public
-     * @return array assoziative array of a mirror's properties
-     * @see $country, $host, $path, $sponsorlink, $sponsorlogo, $sponsorname, $title
+     * @return array associative array of a mirror's properties
      */
     public function getAll()
     {
@@ -85,18 +64,14 @@ abstract class AbstractMirrorXmlParser extends AbstractXmlParser
         $mirrorProperties['host'] = $this->host;
         $mirrorProperties['path'] = $this->path;
         $mirrorProperties['country'] = $this->country;
-        $mirrorProperties['sponsorname'] = $this->sponsorname;
-        $mirrorProperties['sponsorlink'] = $this->sponsorlink;
-        $mirrorProperties['sponsorlogo'] = $this->sponsorlogo;
         return $mirrorProperties;
     }
 
     /**
      * Returns country of currently processed mirror.
      *
-     * @access public
      * @return string name of country a mirror is located in
-     * @see $country, getAll()
+     * @see getAll()
      */
     public function getCountry()
     {
@@ -106,9 +81,8 @@ abstract class AbstractMirrorXmlParser extends AbstractXmlParser
     /**
      * Returns host of currently processed mirror.
      *
-     * @access public
      * @return string host name
-     * @see $host, getAll()
+     * @see getAll()
      */
     public function getHost()
     {
@@ -118,9 +92,8 @@ abstract class AbstractMirrorXmlParser extends AbstractXmlParser
     /**
      * Returns path to mirrored TER of currently processed mirror.
      *
-     * @access public
      * @return string path name
-     * @see $path, getAll()
+     * @see getAll()
      */
     public function getPath()
     {
@@ -128,47 +101,10 @@ abstract class AbstractMirrorXmlParser extends AbstractXmlParser
     }
 
     /**
-     * Returns sponsor link of currently processed mirror.
-     *
-     * @access public
-     * @return string URL of a sponsor's website
-     * @see $sponsorlink, getAll()
-     */
-    public function getSponsorlink()
-    {
-        return $this->sponsorlink;
-    }
-
-    /**
-     * Returns sponsor logo location of currently processed mirror.
-     *
-     * @access public
-     * @return string a sponsor's logo location
-     * @see $sponsorlogo, getAll()
-     */
-    public function getSponsorlogo()
-    {
-        return $this->sponsorlogo;
-    }
-
-    /**
-     * Returns sponsor name of currently processed mirror.
-     *
-     * @access public
-     * @return string name of sponsor
-     * @see $sponsorname, getAll()
-     */
-    public function getSponsorname()
-    {
-        return $this->sponsorname;
-    }
-
-    /**
      * Returns title of currently processed mirror.
      *
-     * @access public
      * @return string title of mirror
-     * @see $title, get All()
+     * @see getAll()
      */
     public function getTitle()
     {
@@ -177,13 +113,9 @@ abstract class AbstractMirrorXmlParser extends AbstractXmlParser
 
     /**
      * Method resets version class properties.
-     *
-     * @access protected
-     * @see $country, $host, $path, $sponsorlink, $sponsorlogo, $sponsorname, $title
      */
     protected function resetProperties()
     {
-        $this->title = $this->host = $this->path = $this->country
-            = $this->sponsorname = $this->sponsorlink = $this->sponsorlogo = null;
+        $this->title = $this->host = $this->path = $this->country = null;
     }
 }

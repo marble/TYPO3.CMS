@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Authentication;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +13,14 @@ namespace TYPO3\CMS\Core\Authentication;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Authentication;
+
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashFactory;
 use TYPO3\CMS\Core\Crypto\Random;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Saltedpasswords\Salt\SaltFactory;
 
 /**
  * TYPO3 backend user authentication on a CLI level
@@ -40,7 +42,7 @@ class CommandLineUserAuthentication extends BackendUserAuthentication
      */
     public function __construct()
     {
-        if (!(TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_CLI)) {
+        if (!Environment::isCli()) {
             throw new \RuntimeException('Creating a CLI-based user object on non-CLI level is not allowed', 1483971165);
         }
         if (!$this->isUserAllowedToLogin()) {
@@ -48,6 +50,27 @@ class CommandLineUserAuthentication extends BackendUserAuthentication
         }
         $this->dontSetCookie = true;
         parent::__construct();
+    }
+
+    /**
+     * Replacement for AbstractUserAuthentication::start()
+     *
+     * We do not need support for sessions, cookies, $_GET-modes, the postUserLookup hook or
+     * a database connection during CLI Bootstrap
+     */
+    public function start()
+    {
+        // do nothing
+    }
+
+    /**
+     * Replacement for AbstractUserAuthentication::checkAuthentication()
+     *
+     * Not required in CLI mode, therefore empty.
+     */
+    public function checkAuthentication()
+    {
+        // do nothing
     }
 
     /**
@@ -147,7 +170,7 @@ class CommandLineUserAuthentication extends BackendUserAuthentication
     {
         $cryptoService = GeneralUtility::makeInstance(Random::class);
         $password = $cryptoService->generateRandomBytes(20);
-        $saltFactory = SaltFactory::getSaltingInstance(null, 'BE');
-        return $saltFactory->getHashedPassword($password);
+        $hashInstance = GeneralUtility::makeInstance(PasswordHashFactory::class)->getDefaultHashInstance('BE');
+        return $hashInstance->getHashedPassword($password);
     }
 }

@@ -1,4 +1,5 @@
 <?php
+
 return [
     'ctrl' => [
         'title' => 'LLL:EXT:indexed_search/Resources/Private/Language/locallang_db.xlf:index_config',
@@ -17,23 +18,28 @@ return [
             'default' => 'mimetypes-x-index_config'
         ]
     ],
-    'interface' => [
-        'showRecordFieldList' => 'hidden,starttime,title,description,type,depth,table2index,alternative_source_pid,get_params,chashcalc,filepath,extensions'
-    ],
     'columns' => [
         'hidden' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.disable',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.enabled',
             'config' => [
                 'type' => 'check',
-                'default' => '1'
-            ]
+                'renderType' => 'checkboxToggle',
+                'default' => 1,
+                'items' => [
+                    [
+                        0 => '',
+                        1 => '',
+                        'invertStateDisplay' => true,
+                    ],
+                ],
+            ],
         ],
         'starttime' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.starttime',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.starttime',
             'config' => [
                 'type' => 'input',
                 'renderType' => 'inputDateTime',
-                'eval' => 'date',
+                'eval' => 'date,int',
                 'default' => 0,
             ]
         ],
@@ -76,11 +82,11 @@ return [
                 'type' => 'select',
                 'renderType' => 'selectSingle',
                 'items' => [
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_0', '0'],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_1', '1'],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_2', '2'],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_3', '3'],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_4', '4']
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_0', '0'],
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_1', '1'],
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_2', '2'],
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_3', '3'],
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_4', '4']
                 ],
                 'size' => 1,
                 'maxitems' => 1
@@ -142,12 +148,6 @@ return [
                 'size' => 30
             ]
         ],
-        'chashcalc' => [
-            'label' => 'LLL:EXT:indexed_search/Resources/Private/Language/locallang_db.xlf:index_config.chashcalc',
-            'config' => [
-                'type' => 'check'
-            ]
-        ],
         'filepath' => [
             'label' => 'LLL:EXT:indexed_search/Resources/Private/Language/locallang_db.xlf:index_config.filepath',
             'config' => [
@@ -174,7 +174,14 @@ return [
             'label' => 'LLL:EXT:indexed_search/Resources/Private/Language/locallang_db.xlf:index_config.records_indexonchange',
             'config' => [
                 'type' => 'check',
-                'default' => 0
+                'renderType' => 'checkboxToggle',
+                'default' => 0,
+                'items' => [
+                    [
+                        0 => '',
+                        1 => '',
+                    ]
+                ],
             ]
         ],
         'timer_next_indexing' => [
@@ -182,7 +189,7 @@ return [
             'config' => [
                 'type' => 'input',
                 'renderType' => 'inputDateTime',
-                'eval' => 'datetime',
+                'eval' => 'datetime,int',
                 'default' => 0,
             ]
         ],
@@ -191,7 +198,7 @@ return [
             'config' => [
                 'type' => 'input',
                 'renderType' => 'inputDateTime',
-                'eval' => 'time',
+                'eval' => 'time,int',
                 'default' => 3600
             ]
         ],
@@ -223,7 +230,8 @@ return [
         'set_id' => [
             'label' => 'LLL:EXT:indexed_search/Resources/Private/Language/locallang_db.xlf:index_config.set_id',
             'config' => [
-                'type' => 'none'
+                'type' => 'input',
+                'readOnly' => true,
             ]
         ]
     ],
@@ -242,7 +250,7 @@ return [
         '1' => [
             'showitem' => '
                 --div--;LLL:EXT:core/Resources/Private/Language/Form/locallang_tabs.xlf:general,
-                    type,title,timer_next_indexing, timer_offset, timer_frequency, set_id, table2index, alternative_source_pid, fieldlist, get_params, chashcalc,recordsbatch,records_indexonchange,
+                    type,title,timer_next_indexing, timer_offset, timer_frequency, set_id, table2index, alternative_source_pid, fieldlist, get_params,recordsbatch,records_indexonchange,
                 --div--;LLL:EXT:core/Resources/Private/Language/Form/locallang_tabs.xlf:access,
                     hidden,starttime,
                 --div--;LLL:EXT:core/Resources/Private/Language/Form/locallang_tabs.xlf:notes,

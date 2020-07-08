@@ -1,5 +1,4 @@
 <?php
-namespace OliverHader\IrreTutorial\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,15 @@ namespace OliverHader\IrreTutorial\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace OliverHader\IrreTutorial\Domain\Model;
+
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+
 /**
  * Content
  */
-class Content extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
+class Content extends AbstractEntity
 {
     /**
      * @var string
@@ -27,14 +31,14 @@ class Content extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     /**
      * @var \TYPO3\CMS\Extbase\Persistence\ObjectStorage<\OliverHader\IrreTutorial\Domain\Model\Hotel>
      */
-    protected $hotels = null;
+    protected $hotels;
 
     /**
      * Initializes this object.
      */
     public function __construct()
     {
-        $this->hotels = new \TYPO3\CMS\Extbase\Persistence\ObjectStorage();
+        $this->hotels = new ObjectStorage();
     }
 
     /**
@@ -54,7 +58,7 @@ class Content extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     }
 
     /**
-     * @return \TYPO3\CMS\Extbase\Persistence\ObjectStorage<\OliverHader\IrreTutorial\Domain\Model\Hotel>
+     * @return \TYPO3\CMS\Extbase\Persistence\ObjectStorage
      */
     public function getHotels()
     {
@@ -62,9 +66,9 @@ class Content extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     }
 
     /**
-     * @param \TYPO3\CMS\Extbase\Persistence\ObjectStorage<\OliverHader\IrreTutorial\Domain\Model\Hotel> $hotels
+     * @param \TYPO3\CMS\Extbase\Persistence\ObjectStorage $hotels
      */
-    public function setHotels(\TYPO3\CMS\Extbase\Persistence\ObjectStorage $hotels)
+    public function setHotels(ObjectStorage $hotels)
     {
         $this->hotels = $hotels;
     }

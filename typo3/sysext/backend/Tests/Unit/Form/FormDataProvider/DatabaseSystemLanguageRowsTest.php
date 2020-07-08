@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,49 +15,29 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
-use Doctrine\DBAL\Driver\Statement;
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use Prophecy\Argument;
-use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseSystemLanguageRows;
-use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
-use TYPO3\CMS\Core\Database\Query\QueryBuilder;
-use TYPO3\CMS\Core\Database\Query\Restriction\QueryRestrictionContainerInterface;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Messaging\FlashMessage;
-use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
-use TYPO3\CMS\Core\Messaging\FlashMessageService;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabaseSystemLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabaseSystemLanguageRowsTest extends UnitTestCase
 {
     /**
-     * @var DatabaseSystemLanguageRows
+     * @test
      */
-    protected $subject;
-
-    /**
-     * @var array A backup of registered singleton instances
-     */
-    protected $singletonInstances = [];
-
-    protected function setUp()
+    public function addDataThrowsExceptionIfSiteObjectIsNotSet()
     {
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-        $languageService = $this->prophesize(LanguageService::class);
-        $GLOBALS['LANG'] = $languageService->reveal();
-        $languageService->sL(Argument::cetera())->willReturnArgument(0);
-        $this->subject = new DatabaseSystemLanguageRows();
-    }
-
-    protected function tearDown()
-    {
-        GeneralUtility::purgeInstances();
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionCode(1534952559);
+        (new DatabaseSystemLanguageRows())->addData([]);
     }
 
     /**
@@ -64,312 +45,58 @@ class DatabaseSystemLanguageRowsTest extends \TYPO3\TestingFramework\Core\Unit\U
      */
     public function addDataSetsDefaultLanguageAndAllEntries()
     {
+        $languageService = $this->prophesize(LanguageService::class);
+        $GLOBALS['LANG'] = $languageService->reveal();
+        $languageService->sL(Argument::cetera())->willReturnArgument(0);
+        $backendUserProphecy = $this->prophesize(BackendUserAuthentication::class);
+        $GLOBALS['BE_USER'] = $backendUserProphecy->reveal();
+
+        $siteProphecy = $this->prophesize(Site::class);
+        $siteLanguageMinusOne = $this->prophesize(SiteLanguage::class);
+        $siteLanguageMinusOne->getLanguageId()->willReturn(-1);
+        $siteLanguageMinusOne->getTitle()->willReturn('All');
+        $siteLanguageMinusOne->getFlagIdentifier()->willReturn('flags-multiple');
+        $siteLanguageZero = $this->prophesize(SiteLanguage::class);
+        $siteLanguageZero->getLanguageId()->willReturn(0);
+        $siteLanguageZero->getTitle()->willReturn('English');
+        $siteLanguageZero->getFlagIdentifier()->willReturn('empty-empty');
+        $siteLanguageOne = $this->prophesize(SiteLanguage::class);
+        $siteLanguageOne->getLanguageId()->willReturn(1);
+        $siteLanguageOne->getTitle()->willReturn('Dutch');
+        $siteLanguageOne->getFlagIdentifier()->willReturn('flag-nl');
+        $siteLanguageOne->getTwoLetterIsoCode()->willReturn('NL');
+        $siteLanguages = [
+            $siteLanguageMinusOne->reveal(),
+            $siteLanguageZero->reveal(),
+            $siteLanguageOne->reveal(),
+        ];
+        $siteProphecy->getAvailableLanguages(Argument::cetera())->willReturn($siteLanguages);
+        $input = [
+            'effectivePid' => 42,
+            'site' => $siteProphecy->reveal(),
+        ];
         $expected = [
             'systemLanguageRows' => [
                 -1 => [
                     'uid' => -1,
-                    'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:multipleLanguages',
+                    'title' => 'All',
                     'iso' => 'DEF',
                     'flagIconIdentifier' => 'flags-multiple',
                 ],
                 0 => [
                     'uid' => 0,
-                    'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:defaultLanguage',
+                    'title' => 'English',
                     'iso' => 'DEF',
                     'flagIconIdentifier' => 'empty-empty',
                 ],
-            ],
-        ];
-
-        // Prophecies and revelations for a lot of the database stack classes
-        $queryBuilderProphecy = $this->prophesize(QueryBuilder::class);
-        $queryBuilderRevelation = $queryBuilderProphecy->reveal();
-        $connectionPoolProphecy = $this->prophesize(ConnectionPool::class);
-        $queryRestrictionContainerProphecy = $this->prophesize(QueryRestrictionContainerInterface::class);
-        $queryRestrictionContainerRevelation = $queryRestrictionContainerProphecy->reveal();
-        $expressionBuilderProphecy = $this->prophesize(ExpressionBuilder::class);
-        $statementProphecy = $this->prophesize(Statement::class);
-
-        // Register connection pool revelation in framework, this is the entry point used by the system during tests
-        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphecy->reveal());
-
-        // Simulate method call flow on database objects and verify correct query is built
-        $connectionPoolProphecy->getQueryBuilderForTable('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryRestrictionContainerProphecy->removeAll()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->getRestrictions()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->select('uid', 'title', 'language_isocode', 'flag')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->from('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->orderBy('sorting')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->expr()->shouldBeCalled()->willReturn($expressionBuilderProphecy->reveal());
-        $expressionBuilderProphecy->eq('pid', 0)->shouldBeCalled()->willReturn('pid = 0');
-        $queryBuilderProphecy->where('pid = 0')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->createNamedParameter(Argument::cetera())->willReturnArgument(0);
-        $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-        $statementProphecy->fetch()->shouldBeCalledTimes(1)->willReturn(false);
-
-        $this->assertSame($expected, $this->subject->addData([]));
-    }
-
-    /**
-     * @test
-     */
-    public function addDataSetsDefaultLanguageTitleFromPageTsConfig()
-    {
-        $input = [
-            'pageTsConfig' => [
-                'mod.' => [
-                    'SHARED.' => [
-                        'defaultLanguageLabel' => 'foo',
-                    ],
+                1 => [
+                    'uid' => 1,
+                    'title' => 'Dutch',
+                    'iso' => 'NL',
+                    'flagIconIdentifier' => 'flag-nl',
                 ]
             ],
         ];
-
-        // Prophecies and revelations for a lot of the database stack classes
-        $queryBuilderProphecy = $this->prophesize(QueryBuilder::class);
-        $queryBuilderRevelation = $queryBuilderProphecy->reveal();
-        $connectionPoolProphecy = $this->prophesize(ConnectionPool::class);
-        $queryRestrictionContainerProphecy = $this->prophesize(QueryRestrictionContainerInterface::class);
-        $queryRestrictionContainerRevelation = $queryRestrictionContainerProphecy->reveal();
-        $expressionBuilderProphecy = $this->prophesize(ExpressionBuilder::class);
-        $statementProphecy = $this->prophesize(Statement::class);
-
-        // Register connection pool revelation in framework, this is the entry point used by the system during tests
-        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphecy->reveal());
-
-        // Simulate method call flow on database objects and verify correct query is built
-        $connectionPoolProphecy->getQueryBuilderForTable('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryRestrictionContainerProphecy->removeAll()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->getRestrictions()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->select('uid', 'title', 'language_isocode', 'flag')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->from('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->orderBy('sorting')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->expr()->shouldBeCalled()->willReturn($expressionBuilderProphecy->reveal());
-        $expressionBuilderProphecy->eq('pid', 0)->shouldBeCalled()->willReturn('pid = 0');
-        $queryBuilderProphecy->where('pid = 0')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->createNamedParameter(Argument::cetera())->willReturnArgument(0);
-        $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-        $statementProphecy->fetch()->shouldBeCalledTimes(1)->willReturn(false);
-
-        $expected = $input;
-        $expected['systemLanguageRows'] = [
-            -1 => [
-                'uid' => -1,
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:multipleLanguages',
-                'iso' => 'DEF',
-                'flagIconIdentifier' => 'flags-multiple',
-            ],
-            0 => [
-                'uid' => 0,
-                'title' => 'foo (LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:defaultLanguage)',
-                'iso' => 'DEF',
-                'flagIconIdentifier' => 'empty-empty',
-            ],
-        ];
-        $this->assertSame($expected, $this->subject->addData($input));
-    }
-
-    /**
-     * @test
-     */
-    public function addDataSetsDefaultLanguageFlagFromPageTsConfig()
-    {
-        $input = [
-            'pageTsConfig' => [
-                'mod.' => [
-                    'SHARED.' => [
-                        'defaultLanguageFlag' => 'uk',
-                    ],
-                ]
-            ],
-        ];
-
-        // Prophecies and revelations for a lot of the database stack classes
-        $queryBuilderProphecy = $this->prophesize(QueryBuilder::class);
-        $queryBuilderRevelation = $queryBuilderProphecy->reveal();
-        $connectionPoolProphecy = $this->prophesize(ConnectionPool::class);
-        $queryRestrictionContainerProphecy = $this->prophesize(QueryRestrictionContainerInterface::class);
-        $queryRestrictionContainerRevelation = $queryRestrictionContainerProphecy->reveal();
-        $expressionBuilderProphecy = $this->prophesize(ExpressionBuilder::class);
-        $statementProphecy = $this->prophesize(Statement::class);
-
-        // Register connection pool revelation in framework, this is the entry point used by the system during tests
-        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphecy->reveal());
-
-        // Simulate method call flow on database objects and verify correct query is built
-        $connectionPoolProphecy->getQueryBuilderForTable('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryRestrictionContainerProphecy->removeAll()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->getRestrictions()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->select('uid', 'title', 'language_isocode', 'flag')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->from('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->orderBy('sorting')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->expr()->shouldBeCalled()->willReturn($expressionBuilderProphecy->reveal());
-        $expressionBuilderProphecy->eq('pid', 0)->shouldBeCalled()->willReturn('pid = 0');
-        $queryBuilderProphecy->where('pid = 0')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->createNamedParameter(Argument::cetera())->willReturnArgument(0);
-        $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-        $statementProphecy->fetch()->shouldBeCalledTimes(1)->willReturn(false);
-
-        $expected = $input;
-        $expected['systemLanguageRows'] = [
-            -1 => [
-                'uid' => -1,
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:multipleLanguages',
-                'iso' => 'DEF',
-                'flagIconIdentifier' => 'flags-multiple',
-            ],
-            0 => [
-                'uid' => 0,
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:defaultLanguage',
-                'iso' => 'DEF',
-                'flagIconIdentifier' => 'flags-uk',
-            ],
-        ];
-        $this->assertSame($expected, $this->subject->addData($input));
-    }
-
-    /**
-     * @test
-     */
-    public function addDataResolvesLanguageIsocodeFromDatabaseField()
-    {
-        $aDatabaseResultRow = [
-            'uid' => 3,
-            'title' => 'french',
-            'language_isocode' => 'fr',
-            'static_lang_isocode' => '',
-            'flag' => 'fr',
-        ];
-
-        // Prophecies and revelations for a lot of the database stack classes
-        $queryBuilderProphecy = $this->prophesize(QueryBuilder::class);
-        $queryBuilderRevelation = $queryBuilderProphecy->reveal();
-        $connectionPoolProphecy = $this->prophesize(ConnectionPool::class);
-        $queryRestrictionContainerProphecy = $this->prophesize(QueryRestrictionContainerInterface::class);
-        $queryRestrictionContainerRevelation = $queryRestrictionContainerProphecy->reveal();
-        $expressionBuilderProphecy = $this->prophesize(ExpressionBuilder::class);
-        $statementProphecy = $this->prophesize(Statement::class);
-
-        // Register connection pool revelation in framework, this is the entry point used by the system during tests
-        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphecy->reveal());
-
-        // Simulate method call flow on database objects and verify correct query is built
-        $connectionPoolProphecy->getQueryBuilderForTable('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryRestrictionContainerProphecy->removeAll()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->orderBy('sorting')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->getRestrictions()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->select('uid', 'title', 'language_isocode', 'flag')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->from('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->expr()->shouldBeCalled()->willReturn($expressionBuilderProphecy->reveal());
-        $expressionBuilderProphecy->eq('pid', 0)->shouldBeCalled()->willReturn('pid = 0');
-        $queryBuilderProphecy->where('pid = 0')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->createNamedParameter(Argument::cetera())->willReturnArgument(0);
-        $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-
-        $statementProphecy->fetch()->shouldBeCalledTimes(2)->willReturn($aDatabaseResultRow, false);
-
-        $expected = [
-            'systemLanguageRows' => [
-                -1 => [
-                    'uid' => -1,
-                    'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:multipleLanguages',
-                    'iso' => 'DEF',
-                    'flagIconIdentifier' => 'flags-multiple',
-                ],
-                0 => [
-                    'uid' => 0,
-                    'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:defaultLanguage',
-                    'iso' => 'DEF',
-                    'flagIconIdentifier' => 'empty-empty',
-                ],
-                3 => [
-                    'uid' => 3,
-                    'title' => 'french',
-                    'flagIconIdentifier' => 'flags-fr',
-                    'iso' => 'fr',
-                ],
-            ],
-        ];
-        $this->assertSame($expected, $this->subject->addData([]));
-    }
-
-    /**
-     * @test
-     */
-    public function addDataAddFlashMessageWithMissingIsoCode()
-    {
-        $aDatabaseResultRow = [
-            'uid' => 3,
-            'title' => 'french',
-            'language_isocode' => '',
-            'static_lang_isocode' => '',
-            'flag' => 'fr',
-        ];
-
-        // Prophecies and revelations for a lot of the database stack classes
-        $queryBuilderProphecy = $this->prophesize(QueryBuilder::class);
-        $queryBuilderRevelation = $queryBuilderProphecy->reveal();
-        $connectionPoolProphecy = $this->prophesize(ConnectionPool::class);
-        $queryRestrictionContainerProphecy = $this->prophesize(QueryRestrictionContainerInterface::class);
-        $queryRestrictionContainerRevelation = $queryRestrictionContainerProphecy->reveal();
-        $expressionBuilderProphecy = $this->prophesize(ExpressionBuilder::class);
-        $statementProphecy = $this->prophesize(Statement::class);
-
-        // Register connection pool revelation in framework, this is the entry point used by the system during tests
-        GeneralUtility::addInstance(ConnectionPool::class, $connectionPoolProphecy->reveal());
-
-        // Simulate method call flow on database objects and verify correct query is built
-        $connectionPoolProphecy->getQueryBuilderForTable('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryRestrictionContainerProphecy->removeAll()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->getRestrictions()->shouldBeCalled()->willReturn($queryRestrictionContainerRevelation);
-        $queryBuilderProphecy->select('uid', 'title', 'language_isocode', 'flag')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->from('sys_language')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->orderBy('sorting')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->expr()->shouldBeCalled()->willReturn($expressionBuilderProphecy->reveal());
-        $expressionBuilderProphecy->eq('pid', 0)->shouldBeCalled()->willReturn('pid = 0');
-        $queryBuilderProphecy->where('pid = 0')->shouldBeCalled()->willReturn($queryBuilderRevelation);
-        $queryBuilderProphecy->createNamedParameter(Argument::cetera())->willReturnArgument(0);
-        $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-
-        $statementProphecy->fetch()->shouldBeCalledTimes(2)->willReturn($aDatabaseResultRow, false);
-
-        // Needed for backendUtility::getRecord()
-        $GLOBALS['TCA']['static_languages'] = [ 'foo' ];
-        $expected = [
-            'systemLanguageRows' => [
-                -1 => [
-                    'uid' => -1,
-                    'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:multipleLanguages',
-                    'iso' => 'DEF',
-                    'flagIconIdentifier' => 'flags-multiple',
-                ],
-                0 => [
-                    'uid' => 0,
-                    'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:defaultLanguage',
-                    'iso' => 'DEF',
-                    'flagIconIdentifier' => 'empty-empty',
-                ],
-                3 => [
-                    'uid' => 3,
-                    'title' => 'french',
-                    'flagIconIdentifier' => 'flags-fr',
-                    'iso' => '',
-                ],
-            ],
-        ];
-
-        /** @var FlashMessage|ObjectProphecy $flashMessage */
-        $flashMessage = $this->prophesize(FlashMessage::class);
-        GeneralUtility::addInstance(FlashMessage::class, $flashMessage->reveal());
-        /** @var FlashMessageService|ObjectProphecy $flashMessageService */
-        $flashMessageService = $this->prophesize(FlashMessageService::class);
-        GeneralUtility::setSingletonInstance(FlashMessageService::class, $flashMessageService->reveal());
-        /** @var FlashMessageQueue|ObjectProphecy $flashMessageQueue */
-        $flashMessageQueue = $this->prophesize(FlashMessageQueue::class);
-        $flashMessageService->getMessageQueueByIdentifier(Argument::cetera())->willReturn($flashMessageQueue->reveal());
-
-        $flashMessageQueue->enqueue($flashMessage)->shouldBeCalled();
-
-        $this->assertSame($expected, $this->subject->addData([]));
+        self::assertSame(array_merge($input, $expected), (new DatabaseSystemLanguageRows())->addData($input));
     }
 }

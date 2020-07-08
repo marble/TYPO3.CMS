@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +13,22 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
+
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Backend\Form\Exception\DatabaseRecordException;
-use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Styleguide\TcaDataGenerator\TableHandler\General;
 
 /**
  * Extended by other provider that fetch records from database
  */
-abstract class AbstractDatabaseRecordProvider
+abstract class AbstractDatabaseRecordProvider implements LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     /**
      * Fetch a record from database. Deleted records will NOT be fetched.
      * Method is similar to BackendUtility::getRecord, but is more picky

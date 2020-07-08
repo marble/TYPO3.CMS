@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +13,30 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Resource;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Resource\Driver\AbstractDriver;
+use TYPO3\CMS\Core\Resource\Driver\DriverRegistry;
+use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
- * Testcase for the factory of FAL
+ * Test case
  */
-class ResourceFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ResourceFactoryTest extends UnitTestCase
 {
     /**
-     * @var array A backup of registered singleton instances
+     * @var bool Reset singletons created by subject
      */
-    protected $singletonInstances = [];
+    protected $resetSingletonInstances = true;
 
     /**
-     * @var \TYPO3\CMS\Core\Resource\ResourceFactory
+     * @var ResourceFactory
      */
     protected $subject;
 
@@ -34,15 +45,20 @@ class ResourceFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     protected $filesCreated = [];
 
-    protected function setUp()
+    /**
+     * Set up
+     */
+    protected function setUp(): void
     {
-        $this->singletonInstances = \TYPO3\CMS\Core\Utility\GeneralUtility::getSingletonInstances();
-        $this->subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Resource\ResourceFactory::class, ['dummy'], [], '', false);
+        parent::setUp();
+        $this->subject = $this->getAccessibleMock(ResourceFactory::class, ['dummy'], [], '', false);
     }
 
-    protected function tearDown()
+    /**
+     * Tear down
+     */
+    protected function tearDown(): void
     {
-        \TYPO3\CMS\Core\Utility\GeneralUtility::resetSingletonInstances($this->singletonInstances);
         foreach ($this->filesCreated as $file) {
             unlink($file);
         }
@@ -57,13 +73,13 @@ class ResourceFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function createStorageCollectionObjectCreatesCollectionWithCorrectArguments()
     {
-        $mockedMount = $this->createMock(\TYPO3\CMS\Core\Resource\ResourceStorage::class);
-        $path = $this->getUniqueId();
-        $name = $this->getUniqueId();
+        $mockedMount = $this->createMock(ResourceStorage::class);
+        $path = StringUtility::getUniqueId('path_');
+        $name = StringUtility::getUniqueId('name_');
         $storageCollection = $this->subject->createFolderObject($mockedMount, $path, $name, 0);
-        $this->assertSame($mockedMount, $storageCollection->getStorage());
-        $this->assertEquals($path, $storageCollection->getIdentifier());
-        $this->assertEquals($name, $storageCollection->getName());
+        self::assertSame($mockedMount, $storageCollection->getStorage());
+        self::assertEquals($path, $storageCollection->getIdentifier());
+        self::assertEquals($name, $storageCollection->getName());
     }
 
     /**********************************
@@ -74,14 +90,14 @@ class ResourceFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getDriverObjectAcceptsDriverClassName()
     {
-        $mockedDriver = $this->getMockForAbstractClass(\TYPO3\CMS\Core\Resource\Driver\AbstractDriver::class);
+        $mockedDriver = $this->getMockForAbstractClass(AbstractDriver::class);
         $driverFixtureClass = get_class($mockedDriver);
-        \TYPO3\CMS\Core\Utility\GeneralUtility::addInstance($driverFixtureClass, $mockedDriver);
-        $mockedRegistry = $this->createMock(\TYPO3\CMS\Core\Resource\Driver\DriverRegistry::class);
-        $mockedRegistry->expects($this->once())->method('getDriverClass')->with($this->equalTo($driverFixtureClass))->will($this->returnValue($driverFixtureClass));
-        \TYPO3\CMS\Core\Utility\GeneralUtility::setSingletonInstance(\TYPO3\CMS\Core\Resource\Driver\DriverRegistry::class, $mockedRegistry);
+        GeneralUtility::addInstance($driverFixtureClass, $mockedDriver);
+        $mockedRegistry = $this->createMock(DriverRegistry::class);
+        $mockedRegistry->expects(self::once())->method('getDriverClass')->with(self::equalTo($driverFixtureClass))->willReturn($driverFixtureClass);
+        GeneralUtility::setSingletonInstance(DriverRegistry::class, $mockedRegistry);
         $obj = $this->subject->getDriverObject($driverFixtureClass, []);
-        $this->assertInstanceOf(\TYPO3\CMS\Core\Resource\Driver\AbstractDriver::class, $obj);
+        self::assertInstanceOf(AbstractDriver::class, $obj);
     }
 
     /***********************************
@@ -93,16 +109,16 @@ class ResourceFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function retrieveFileOrFolderObjectCallsGetFolderObjectFromCombinedIdentifierWithRelativePath()
     {
-        /** @var $subject \PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\TYPO3\CMS\Core\Resource\ResourceFactory */
+        /** @var $subject \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|ResourceFactory */
         $subject = $this->getAccessibleMock(
-            \TYPO3\CMS\Core\Resource\ResourceFactory::class,
+            ResourceFactory::class,
             ['getFolderObjectFromCombinedIdentifier'],
             [],
             '',
             false
         );
         $subject
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('getFolderObjectFromCombinedIdentifier')
             ->with('typo3');
         $subject->retrieveFileOrFolderObject('typo3');
@@ -113,19 +129,19 @@ class ResourceFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function retrieveFileOrFolderObjectCallsGetFolderObjectFromCombinedIdentifierWithAbsolutePath()
     {
-        /** @var $subject \PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\TYPO3\CMS\Core\Resource\ResourceFactory */
+        /** @var $subject \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|ResourceFactory */
         $subject = $this->getAccessibleMock(
-            \TYPO3\CMS\Core\Resource\ResourceFactory::class,
+            ResourceFactory::class,
             ['getFolderObjectFromCombinedIdentifier'],
             [],
             '',
             false
         );
         $subject
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('getFolderObjectFromCombinedIdentifier')
             ->with('typo3');
-        $subject->retrieveFileOrFolderObject(PATH_site . 'typo3');
+        $subject->retrieveFileOrFolderObject(Environment::getPublicPath() . '/typo3');
     }
 
     /**
@@ -133,14 +149,14 @@ class ResourceFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function retrieveFileOrFolderObjectReturnsFileIfPathIsGiven()
     {
-        $this->subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Resource\ResourceFactory::class, ['getFileObjectFromCombinedIdentifier'], [], '', false);
+        $this->subject = $this->getAccessibleMock(ResourceFactory::class, ['getFileObjectFromCombinedIdentifier'], [], '', false);
         $filename = 'typo3temp/var/tests/4711.txt';
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getFileObjectFromCombinedIdentifier')
             ->with($filename);
         // Create and prepare test file
-        \TYPO3\CMS\Core\Utility\GeneralUtility::writeFileToTypo3tempDir(PATH_site . $filename, '42');
-        $this->filesCreated[] = PATH_site . $filename;
+        GeneralUtility::writeFileToTypo3tempDir(Environment::getPublicPath() . '/' . $filename, '42');
+        $this->filesCreated[] = Environment::getPublicPath() . '/' . $filename;
         $this->subject->retrieveFileOrFolderObject($filename);
     }
 
@@ -157,8 +173,12 @@ class ResourceFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function findBestMatchingStorageByLocalPathReturnsDefaultStorageIfNoMatchIsFound(array $storageConfiguration, $path, $expectedStorageId)
     {
-        $this->subject->_set('localDriverStorageCache', $storageConfiguration);
-        $this->assertSame($expectedStorageId, $this->subject->_callRef('findBestMatchingStorageByLocalPath', $path));
+        $resourceFactory = new ResourceFactory($this->prophesize(EventDispatcherInterface::class)->reveal());
+        $mock = \Closure::bind(static function (ResourceFactory $resourceFactory) use (&$path, $storageConfiguration) {
+            $resourceFactory->localDriverStorageCache = $storageConfiguration;
+            return $resourceFactory->findBestMatchingStorageByLocalPath($path);
+        }, null, ResourceFactory::class);
+        self::assertSame($expectedStorageId, $mock($resourceFactory));
     }
 
     /**

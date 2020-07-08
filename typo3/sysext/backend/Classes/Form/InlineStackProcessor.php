@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,9 @@ namespace TYPO3\CMS\Backend\Form;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form;
+
 use TYPO3\CMS\Backend\Form\Utility\FormEngineUtility;
-use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -63,7 +63,7 @@ class InlineStackProcessor
         // Substitute FlexForm addition and make parsing a bit easier
         $domObjectId = str_replace('---', ':', $domObjectId);
         // The starting pattern of an object identifier (e.g. "data-<firstPidValue>-<anything>)
-        $pattern = '/^data' . '-' . '(.+?)' . '-' . '(.+)$/';
+        $pattern = '/^data-(.+?)-(.+)$/';
 
         if (preg_match($pattern, $domObjectId, $match)) {
             $inlineFirstPid = $match[1];
@@ -73,15 +73,14 @@ class InlineStackProcessor
                 if ($i > 0 && $i % 3 == 0) {
                     // Load the TCA configuration of the table field and store it in the stack
                     // @todo: This TCA loading here must fall - config sub-array shouldn't exist at all!
-                    $unstable['config'] = $GLOBALS['TCA'][$unstable['table']]['columns'][$unstable['field']]['config'];
+                    $unstable['config'] = $GLOBALS['TCA'][$unstable['table']]['columns'][$unstable['field']]['config'] ?? [];
                     // Fetch TSconfig:
                     // @todo: aaargs ;)
                     $TSconfig = FormEngineUtility::getTSconfigForTableRow($unstable['table'], ['uid' => $unstable['uid'], 'pid' => $inlineFirstPid], $unstable['field']);
                     // Override TCA field config by TSconfig:
-                    if (!$TSconfig['disabled']) {
+                    if (!isset($TSconfig['disabled']) || !$TSconfig['disabled']) {
                         $unstable['config'] = FormEngineUtility::overrideFieldConf($unstable['config'], $TSconfig);
                     }
-                    $unstable['localizationMode'] = BackendUtility::getInlineLocalizationMode($unstable['table'], $unstable['config']);
 
                     // Extract FlexForm from field part (if any)
                     if (strpos($unstable['field'], ':') !== false) {
@@ -119,10 +118,6 @@ class InlineStackProcessor
         }
         $current = &$this->inlineStructure['stable'][$level];
         $current['config'] = $config;
-        $current['localizationMode'] = BackendUtility::getInlineLocalizationMode(
-            $current['table'],
-            $current['config']
-        );
     }
 
     /**
@@ -164,7 +159,7 @@ class InlineStackProcessor
     /**
      * DOM object-id for this inline level
      *
-     * @param int $inlineFirstPid Pid of top level inline element storage
+     * @param int|string $inlineFirstPid Pid of top level inline element storage or "NEW..."
      * @return string
      */
     public function getCurrentStructureDomObjectIdPrefix($inlineFirstPid)
@@ -173,7 +168,7 @@ class InlineStackProcessor
         $inlineDomObjectId = '';
         // If there are still more inline levels available
         if ($current !== false) {
-            $inlineDomObjectId = 'data' . '-' . $inlineFirstPid . '-' . $this->getStructurePath();
+            $inlineDomObjectId = 'data-' . $inlineFirstPid . '-' . $this->getStructurePath();
         }
         return $inlineDomObjectId;
     }
@@ -193,9 +188,8 @@ class InlineStackProcessor
 
         if ($level !== false) {
             return $this->inlineStructure['stable'][$level];
-        } else {
-            return false;
         }
+        return false;
     }
 
     /**
@@ -222,11 +216,11 @@ class InlineStackProcessor
     protected function calculateStructureLevel($level)
     {
         $result = false;
-        $inlineStructureCount = count($this->inlineStructure['stable']);
+        $structureCount = $this->getStructureDepth();
         if ($level < 0) {
-            $level = $inlineStructureCount + $level;
+            $level = $structureCount + $level;
         }
-        if ($level >= 0 && $level < $inlineStructureCount) {
+        if ($level >= 0 && $level < $structureCount) {
             $result = $level;
         }
         return $result;
@@ -260,6 +254,9 @@ class InlineStackProcessor
      */
     public function getStructureDepth()
     {
+        if (!isset($this->inlineStructure['stable']) || !is_array($this->inlineStructure['stable'])) {
+            return 0;
+        }
         return count($this->inlineStructure['stable']);
     }
 
@@ -287,7 +284,7 @@ class InlineStackProcessor
                     $parts[] = implode('][', $levelData['flexform']);
                 }
                 $name = '[' . implode('][', $parts) . ']';
-                // Use in object id attributes:
+            // Use in object id attributes:
             } else {
                 $name = implode('-', $parts);
 

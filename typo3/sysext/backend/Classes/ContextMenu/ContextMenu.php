@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\ContextMenu;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,10 @@ namespace TYPO3\CMS\Backend\ContextMenu;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\ContextMenu;
+
+use TYPO3\CMS\Backend\ContextMenu\ItemProviders\PageProvider;
+use TYPO3\CMS\Backend\ContextMenu\ItemProviders\RecordProvider;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -29,8 +33,8 @@ class ContextMenu
      * @var array
      */
     protected $itemProviders = [
-        ItemProviders\PageProvider::class,
-        ItemProviders\RecordProvider::class
+        PageProvider::class,
+        RecordProvider::class
     ];
 
     /**
@@ -39,12 +43,12 @@ class ContextMenu
      * @param string $context
      * @return array
      */
-    public function getItems(string $table, string $identifier, string $context=''): array
+    public function getItems(string $table, string $identifier, string $context = ''): array
     {
         $items = [];
         $itemsProviders = $this->getAvailableProviders($table, $identifier, $context);
 
-        /** @var $provider \TYPO3\CMS\Backend\ContextMenu\ItemProviders\ProviderInterface */
+        /** @var \TYPO3\CMS\Backend\ContextMenu\ItemProviders\ProviderInterface $provider */
         foreach ($itemsProviders as $provider) {
             $items = $provider->addItems($items);
         }
@@ -59,11 +63,7 @@ class ContextMenu
      */
     protected function getAvailableProviders(string $table, string $identifier, string $context): array
     {
-        $providers = $this->itemProviders;
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['BE']['ContextMenu']['ItemProviders'])) {
-            $providers = array_merge($this->itemProviders, $GLOBALS['TYPO3_CONF_VARS']['BE']['ContextMenu']['ItemProviders']);
-        }
-
+        $providers = array_merge($this->itemProviders, $GLOBALS['TYPO3_CONF_VARS']['BE']['ContextMenu']['ItemProviders'] ?? []);
         $availableProviders = [];
         foreach ($providers as $providerClass) {
             $provider = GeneralUtility::makeInstance($providerClass, $table, $identifier, $context);

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Frontend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Exception;
+use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Resource\ProcessedFile;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -29,14 +31,18 @@ use TYPO3\CMS\Core\Utility\MathUtility;
  * Picture file and settings is supplied by GET-parameters:
  *
  *  - file = fileUid or Combined Identifier
- *  - encoded in an parameter Array (with weird format - see ContentObjectRenderer about ll. 1500)
+ *  - encoded in a parameter Array (with weird format - see ContentObjectRenderer about ll. 1500)
  *  - width, height = usual width an height, m/c supported
  *  - frame
  *  - bodyTag
  *  - title
+ *
+ * @internal this is a concrete TYPO3 implementation and solely used for EXT:frontend and not part of TYPO3's Core API.
  */
 class ShowImageController
 {
+    protected const ALLOWED_PARAMETER_NAMES = ['width', 'height', 'crop', 'bodyTag', 'title'];
+
     /**
      * @var \Psr\Http\Message\ServerRequestInterface
      */
@@ -106,8 +112,8 @@ EOF;
      */
     public function initialize()
     {
-        $fileUid = isset($this->request->getQueryParams()['file']) ? $this->request->getQueryParams()['file'] : null;
-        $parametersArray = isset($this->request->getQueryParams()['parameters']) ? $this->request->getQueryParams()['parameters'] : null;
+        $fileUid = $this->request->getQueryParams()['file'] ?? null;
+        $parametersArray = $this->request->getQueryParams()['parameters'] ?? null;
 
         // If no file-param or parameters are given, we must exit
         if (!$fileUid || !isset($parametersArray) || !is_array($parametersArray)) {
@@ -118,24 +124,27 @@ EOF;
         $parametersEncoded = implode('', $parametersArray);
 
         /* For backwards compatibility the HMAC is transported within the md5 param */
-        $hmacParameter = isset($this->request->getQueryParams()['md5']) ? $this->request->getQueryParams()['md5'] : null;
+        $hmacParameter = $this->request->getQueryParams()['md5'] ?? null;
         $hmac = GeneralUtility::hmac(implode('|', [$fileUid, $parametersEncoded]));
-        if ($hmac !== $hmacParameter) {
+        if (!is_string($hmacParameter) || !hash_equals($hmac, $hmacParameter)) {
             throw new \InvalidArgumentException('hash does not match', 1476048456);
         }
 
-        // decode the parameters Array
-        $parameters = unserialize(base64_decode($parametersEncoded));
+        // decode the parameters Array - `bodyTag` contains HTML if set and would lead
+        // to a false-positive XSS-detection, that's why parameters are base64-encoded
+        $parameters = json_decode(base64_decode($parametersEncoded), true);
         foreach ($parameters as $parameterName => $parameterValue) {
-            $this->{$parameterName} = $parameterValue;
+            if (in_array($parameterName, static::ALLOWED_PARAMETER_NAMES, true)) {
+                $this->{$parameterName} = $parameterValue;
+            }
         }
 
         if (MathUtility::canBeInterpretedAsInteger($fileUid)) {
-            $this->file = ResourceFactory::getInstance()->getFileObject((int)$fileUid);
+            $this->file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObject((int)$fileUid);
         } else {
-            $this->file = ResourceFactory::getInstance()->retrieveFileOrFolderObject($fileUid);
+            $this->file = GeneralUtility::makeInstance(ResourceFactory::class)->retrieveFileOrFolderObject($fileUid);
         }
-        $this->frame = isset($this->request->getQueryParams()['frame']) ? $this->request->getQueryParams()['frame'] : null;
+        $this->frame = $this->request->getQueryParams()['frame'] ?? null;
     }
 
     /**
@@ -154,7 +163,7 @@ EOF;
         ];
         $this->imageTag = str_replace(array_keys($imageTagMarkers), array_values($imageTagMarkers), $this->imageTag);
         $markerArray = [
-            '###TITLE###' => ($this->file->getProperty('title') ?: $this->title),
+            '###TITLE###' => $this->file->getProperty('title') ?: $this->title,
             '###IMAGE###' => $this->imageTag,
             '###BODY###' => $this->bodyTag
         ];
@@ -169,11 +178,7 @@ EOF;
      */
     protected function processImage()
     {
-        if (strstr($this->width . $this->height, 'm')) {
-            $max = 'm';
-        } else {
-            $max = '';
-        }
+        $max = strpos($this->width . $this->height, 'm') !== false ? 'm' : '';
         $this->height = MathUtility::forceIntegerInRange($this->height, 0);
         $this->width = MathUtility::forceIntegerInRange($this->width, 0) . $max;
 
@@ -190,23 +195,23 @@ EOF;
      * Fetches the content and builds a content file out of it
      *
      * @param ServerRequestInterface $request the current request object
-     * @param ResponseInterface $response the available response
      * @return ResponseInterface the modified response
      */
-    public function processRequest(ServerRequestInterface $request, ResponseInterface $response)
+    public function processRequest(ServerRequestInterface $request): ResponseInterface
     {
         $this->request = $request;
 
         try {
             $this->initialize();
             $this->main();
+            $response = new Response();
             $response->getBody()->write($this->content);
             return $response;
         } catch (\InvalidArgumentException $e) {
             // add a 410 "gone" if invalid parameters given
-            return $response->withStatus(410);
+            return (new Response())->withStatus(410);
         } catch (Exception $e) {
-            return $response->withStatus(404);
+            return (new Response())->withStatus(404);
         }
     }
 }

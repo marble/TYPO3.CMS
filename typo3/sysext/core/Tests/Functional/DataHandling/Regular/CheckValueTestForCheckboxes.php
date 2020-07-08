@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +14,14 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase;
 
 /**
- * Functional Test for DataHandlen::checkValue() concerning checkboxes
+ * Functional Test for DataHandler::checkValue() concerning checkboxes
  */
 class CheckValueTestForCheckboxes extends AbstractDataHandlerActionTestCase
 {
@@ -28,7 +31,7 @@ class CheckValueTestForCheckboxes extends AbstractDataHandlerActionTestCase
      */
     protected $scenarioDataSetDirectory = 'typo3/sysext/core/Tests/Functional/DataHandling/Regular/DataSet/';
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->testExtensionsToLoad[] = 'typo3/sysext/core/Tests/Functional/Fixtures/Extensions/test_datahandler';
 
@@ -49,7 +52,7 @@ class CheckValueTestForCheckboxes extends AbstractDataHandlerActionTestCase
 
         $record = BackendUtility::getRecord('tt_content', $recordUid);
 
-        $this->assertEquals(1, $record['tx_testdatahandler_checkbox']);
+        self::assertEquals(1, $record['tx_testdatahandler_checkbox']);
     }
 
     /**
@@ -65,6 +68,6 @@ class CheckValueTestForCheckboxes extends AbstractDataHandlerActionTestCase
 
         $record = BackendUtility::getRecord('tt_content', $recordUid);
 
-        $this->assertEquals(2, $record['tx_testdatahandler_checkbox']);
+        self::assertEquals(2, $record['tx_testdatahandler_checkbox']);
     }
 }

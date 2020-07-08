@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\FluidStyledContent\ViewHelpers\Link;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,17 +13,18 @@ namespace TYPO3\CMS\FluidStyledContent\ViewHelpers\Link;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\FluidStyledContent\ViewHelpers\Link;
+
 use TYPO3\CMS\Core\Resource\FileInterface;
-use TYPO3\CMS\Core\Resource\FileReference;
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
- * A view helper for creating a link for an image popup.
+ * A ViewHelper for creating a link for an image popup.
  *
  * = Example =
  *
@@ -35,6 +35,8 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
  * <output>
  * <a href="url" onclick="javascript" target="thePicture"><img src=""></a>
  * </output>
+ *
+ * @internal this is not part of TYPO3 Core API.
  */
 class ClickEnlargeViewHelper extends AbstractViewHelper
 {
@@ -50,7 +52,7 @@ class ClickEnlargeViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        $this->registerArgument('image', FileReference::class, 'The original image file', true);
+        $this->registerArgument('image', FileInterface::class, 'The original image file', true);
         $this->registerArgument(
             'configuration',
             'mixed',
@@ -89,12 +91,8 @@ class ClickEnlargeViewHelper extends AbstractViewHelper
     /**
      * @return TypoScriptService
      */
-    protected static function getTypoScriptService()
+    protected static function getTypoScriptService(): TypoScriptService
     {
-        static $typoScriptService;
-        if ($typoScriptService === null) {
-            $typoScriptService = GeneralUtility::makeInstance(TypoScriptService::class);
-        }
-        return $typoScriptService;
+        return GeneralUtility::makeInstance(TypoScriptService::class);
     }
 }

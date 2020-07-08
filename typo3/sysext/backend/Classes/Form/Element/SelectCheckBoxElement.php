@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\Element;
+
 use TYPO3\CMS\Backend\Form\Utility\FormEngineUtility;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -27,6 +28,17 @@ use TYPO3\CMS\Core\Utility\StringUtility;
  */
 class SelectCheckBoxElement extends AbstractFormElement
 {
+    /**
+     * Default field information enabled for this element.
+     *
+     * @var array
+     */
+    protected $defaultFieldInformation = [
+        'tcaDescription' => [
+            'renderType' => 'tcaDescription',
+        ],
+    ];
+
     /**
      * Default field wizards enabled for this element.
      *
@@ -67,8 +79,14 @@ class SelectCheckBoxElement extends AbstractFormElement
 
         $selItems = $config['items'];
         if (!empty($selItems)) {
-            // Get values in an array (and make unique, which is fine because there can be no duplicates anyway):
-            $itemArray = array_flip($parameterArray['itemFormElValue']);
+            // Get values in an array (and make unique, which is fine because there can be no duplicates anyway)
+            // In case e.g. "l10n_display" is set to "defaultAsReadonly" only one value (as string) could be handed in
+            if (is_array($parameterArray['itemFormElValue'])) {
+                $itemArray = $parameterArray['itemFormElValue'];
+            } else {
+                $itemArray = [(string)$parameterArray['itemFormElValue']];
+            }
+            $itemArray = array_flip($itemArray);
 
             // Traverse the Array of selector box items:
             $groups = [];
@@ -92,7 +110,7 @@ class SelectCheckBoxElement extends AbstractFormElement
                         ];
                     } else {
                         // Check if some help text is available
-                        // Since TYPO3 4.5 help text is expected to be an associative array
+                        // Help text is expected to be an associative array
                         // with two key, "title" and "description"
                         // For the sake of backwards compatibility, we test if the help text
                         // is a string and use it as a description (this could happen if items
@@ -145,9 +163,7 @@ class SelectCheckBoxElement extends AbstractFormElement
             $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldWizardResult, false);
 
             $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
-            if (!$disabled) {
-                $html[] = $fieldInformationHtml;
-            }
+            $html[] = $fieldInformationHtml;
             $html[] =   '<div class="form-wizards-wrap">';
             $html[] =       '<div class="form-wizards-element">';
 
@@ -157,10 +173,11 @@ class SelectCheckBoxElement extends AbstractFormElement
             // Building the checkboxes
             foreach ($groups as $groupKey => $group) {
                 $groupId = htmlspecialchars($parameterArray['itemFormElID']) . '-group-' . $groupKey;
-                $html[] = '<div class="panel panel-default">';
+                $groupIdCollapsible = $groupId . '-collapse';
+                $html[] = '<div id="' . $groupId . '" class="panel panel-default">';
                 if (is_array($group['header'])) {
                     $html[] = '<div class="panel-heading">';
-                    $html[] = '<a data-toggle="collapse" href="#' . $groupId . '" aria-expanded="false" aria-controls="' . $groupId . '">';
+                    $html[] = '<a data-toggle="collapse" href="#' . $groupIdCollapsible . '" aria-expanded="false" aria-controls="' . $groupIdCollapsible . '">';
                     $html[] = $group['header']['icon'];
                     $html[] = htmlspecialchars($group['header']['title']);
                     $html[] = '</a>';
@@ -168,7 +185,6 @@ class SelectCheckBoxElement extends AbstractFormElement
                 }
                 if (is_array($group['items']) && !empty($group['items'])) {
                     $tableRows = [];
-                    $resetGroup = [];
 
                     // Render rows
                     foreach ($group['items'] as $item) {
@@ -186,31 +202,29 @@ class SelectCheckBoxElement extends AbstractFormElement
                         $tableRows[] =        '<label class="label-block" for="' . $item['id'] . '">' . $item['icon'] . '</label>';
                         $tableRows[] =    '</td>';
                         $tableRows[] =    '<td class="col-title">';
-                        $tableRows[] =        '<label class="label-block" for="' . $item['id'] . '">' . htmlspecialchars($item['title'], ENT_COMPAT, 'UTF-8', false) . '</label>';
+                        $tableRows[] =        '<label class="label-block nowrap-disabled" for="' . $item['id'] . '">' . htmlspecialchars($this->appendValueToLabelInDebugMode($item['title'], $item['value']), ENT_COMPAT, 'UTF-8', false) . '</label>';
                         $tableRows[] =    '</td>';
                         $tableRows[] =    '<td class="text-right">' . $item['help'] . '</td>';
                         $tableRows[] = '</tr>';
-                        $resetGroup[] = 'document.editform[' . GeneralUtility::quoteJSvalue($item['name']) . '].checked=' . $item['checked'] . ';';
                     }
 
                     // Build reset group button
                     $resetGroupBtn = '';
-                    if (!empty($resetGroup)) {
-                        $resetGroup[] = 'TYPO3.FormEngine.updateCheckboxState(this);';
-                        $title = htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.revertSelection'));
-                        $resetGroupBtn = '<a href="#" '
-                            . 'class="btn btn-default btn-sm" '
-                            . 'onclick="' . implode('', $resetGroup) . ' return false;" '
-                            . 'title="' . $title . '">'
+                    if (!empty($group['items'])) {
+                        $title = htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.revertSelection'));
+                        $resetGroupBtn = '<button type="button" '
+                            . 'class="btn btn-default btn-sm t3js-revert-selection" '
+                            . 'title="' . $title . '"'
+                            . '>'
                             . $this->iconFactory->getIcon('actions-edit-undo', Icon::SIZE_SMALL)->render() . ' '
-                            . $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.revertSelection') . '</a>';
+                            . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.revertSelection') . '</button>';
                     }
 
                     if (is_array($group['header'])) {
-                        $html[] = '<div id="' . $groupId . '" class="panel-collapse collapse" role="tabpanel">';
+                        $html[] = '<div id="' . $groupIdCollapsible . '" class="panel-collapse collapse" role="tabpanel">';
                     }
                     $checkboxId = uniqid($groupId);
-                    $title = htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.toggleall'));
+                    $title = htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.toggleall'));
                     $html[] =    '<div class="table-responsive">';
                     $html[] =        '<table class="table table-transparent table-hover">';
                     $html[] =            '<thead>';
@@ -228,12 +242,18 @@ class SelectCheckBoxElement extends AbstractFormElement
                     if (is_array($group['header'])) {
                         $html[] = '</div>';
                     }
+
+                    $resultArray['requireJsModules'][] = ['TYPO3/CMS/Backend/FormEngine/Element/SelectCheckBoxElement' => '
+                        function(SelectCheckBoxElement) {
+                            new SelectCheckBoxElement(' . GeneralUtility::quoteJSvalue($checkboxId) . ');
+                        }'
+                    ];
                 }
                 $html[] = '</div>';
             }
 
             $html[] =       '</div>';
-            if (!$disabled) {
+            if (!$disabled && !empty($fieldWizardHtml)) {
                 $html[] =   '<div class="form-wizards-items-bottom">';
                 $html[] =       $fieldWizardHtml;
                 $html[] =   '</div>';

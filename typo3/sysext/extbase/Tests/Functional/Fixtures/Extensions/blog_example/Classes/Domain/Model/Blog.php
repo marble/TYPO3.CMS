@@ -1,5 +1,4 @@
 <?php
-namespace ExtbaseTeam\BlogExample\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +13,38 @@ namespace ExtbaseTeam\BlogExample\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace ExtbaseTeam\BlogExample\Domain\Model;
+
+use TYPO3\CMS\Extbase\Annotation as Extbase;
+use TYPO3\CMS\Extbase\Domain\Model\Category;
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+
 /**
  * A blog
  */
-class Blog extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
+class Blog extends AbstractEntity
 {
     /**
      * The blog's title.
      *
      * @var string
-     * @validate StringLength(minimum = 1, maximum = 80)
+     * @Extbase\Validate("StringLength", options={"minimum": 1, "maximum": 80})
      */
     protected $title = '';
+
+    /**
+     * The blog's subtitle
+     *
+     * @var string
+     */
+    protected $subtitle;
 
     /**
      * A short description of the blog
      *
      * @var string
-     * @validate StringLength(maximum = 150)
+     * @Extbase\Validate("StringLength", options={"maximum": 150})
      */
     protected $description = '';
 
@@ -46,30 +59,39 @@ class Blog extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      * The posts of this blog
      *
      * @var \TYPO3\CMS\Extbase\Persistence\ObjectStorage<\ExtbaseTeam\BlogExample\Domain\Model\Post>
-     * @lazy
-     * @cascade remove
+     * @Extbase\ORM\Lazy
+     * @Extbase\ORM\Cascade("remove")
      */
-    protected $posts = null;
+    protected $posts;
 
     /**
      * @var \TYPO3\CMS\Extbase\Persistence\ObjectStorage<\TYPO3\CMS\Extbase\Domain\Model\Category>
      */
-    protected $categories = null;
+    protected $categories;
 
     /**
      * The blog's administrator
      *
      * @var \ExtbaseTeam\BlogExample\Domain\Model\Administrator
-     * @lazy
+     * @Extbase\ORM\Lazy
      */
-    protected $administrator = null;
+    protected $administrator;
 
     /**
      * Constructs a new Blog
      */
     public function __construct()
     {
-        $this->posts = new \TYPO3\CMS\Extbase\Persistence\ObjectStorage();
+        $this->posts = new ObjectStorage();
+        $this->categories = new ObjectStorage();
+    }
+
+    /**
+     * @return string
+     */
+    public function getSubtitle()
+    {
+        return $this->subtitle;
     }
 
     /**
@@ -153,7 +175,7 @@ class Blog extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      */
     public function removeAllPosts()
     {
-        $this->posts = new \TYPO3\CMS\Extbase\Persistence\ObjectStorage();
+        $this->posts = new ObjectStorage();
     }
 
     /**
@@ -171,7 +193,7 @@ class Blog extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      *
      * @param \TYPO3\CMS\Extbase\Domain\Model\Category $category
      */
-    public function addCategory(\TYPO3\CMS\Extbase\Domain\Model\Category $category)
+    public function addCategory(Category $category)
     {
         $this->categories->attach($category);
     }
@@ -201,7 +223,7 @@ class Blog extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      *
      * @param \TYPO3\CMS\Extbase\Domain\Model\Category $category
      */
-    public function removeCategory(\TYPO3\CMS\Extbase\Domain\Model\Category $category)
+    public function removeCategory(Category $category)
     {
         $this->categories->detach($category);
     }
@@ -224,5 +246,13 @@ class Blog extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     public function getAdministrator()
     {
         return $this->administrator;
+    }
+
+    /**
+     * @param ?string $subtitle
+     */
+    public function setSubtitle($subtitle)
+    {
+        $this->subtitle = $subtitle;
     }
 }

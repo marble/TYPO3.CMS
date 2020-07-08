@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Authentication;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,22 @@ namespace TYPO3\CMS\Core\Authentication;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Service\AbstractService;
+namespace TYPO3\CMS\Core\Authentication;
+
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Query\QueryHelper;
+use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Authentication services class
  */
-class AbstractAuthenticationService extends AbstractService
+class AbstractAuthenticationService implements LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     /**
      * User object
      *
@@ -71,11 +79,9 @@ class AbstractAuthenticationService extends AbstractService
     public $writeAttemptLog = false;
 
     /**
-     * If the \TYPO3\CMS\Core\Utility\GeneralUtility::devLog() function should be used
-     *
-     * @var bool
+     * @var array service description array
      */
-    public $writeDevLog = false;
+    public $info = [];
 
     /**
      * Initialize authentication service
@@ -92,23 +98,9 @@ class AbstractAuthenticationService extends AbstractService
         $this->mode = $mode;
         $this->login = $loginData;
         $this->authInfo = $authInfo;
-        $this->db_user = $this->getServiceOption('db_user', $authInfo['db_user'], false);
-        $this->db_groups = $this->getServiceOption('db_groups', $authInfo['db_groups'], false);
-        $this->writeAttemptLog = $this->pObj->writeAttemptLog;
-        $this->writeDevLog = $this->pObj->writeDevLog;
-    }
-
-    /**
-     * Check the login data with the user record data for builtin login methods
-     *
-     * @param array $user User data array
-     * @param array $loginData Login data array
-     * @param string $passwordCompareStrategy Password compare strategy
-     * @return bool TRUE if login data matched
-     */
-    public function compareUident(array $user, array $loginData, $passwordCompareStrategy = '')
-    {
-        return $this->pObj->compareUident($user, $loginData, $passwordCompareStrategy);
+        $this->db_user = $this->getServiceOption('db_user', $authInfo['db_user'] ?? [], false);
+        $this->db_groups = $this->getServiceOption('db_groups', $authInfo['db_groups'] ?? [], false);
+        $this->writeAttemptLog = $this->pObj->writeAttemptLog ?? true;
     }
 
     /**
@@ -142,7 +134,108 @@ class AbstractAuthenticationService extends AbstractService
     public function fetchUserRecord($username, $extraWhere = '', $dbUserSetup = '')
     {
         $dbUser = is_array($dbUserSetup) ? $dbUserSetup : $this->db_user;
-        $user = $this->pObj->fetchUserRecord($dbUser, $username, $extraWhere);
+        $user = false;
+        if ($username || $extraWhere) {
+            $query = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($dbUser['table']);
+            $query->getRestrictions()->removeAll()
+                ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+            $constraints = array_filter([
+                QueryHelper::stripLogicalOperatorPrefix($dbUser['check_pid_clause']),
+                QueryHelper::stripLogicalOperatorPrefix($dbUser['enable_clause']),
+                QueryHelper::stripLogicalOperatorPrefix($extraWhere),
+            ]);
+            if (!empty($username)) {
+                array_unshift(
+                    $constraints,
+                    $query->expr()->eq(
+                        $dbUser['username_column'],
+                        $query->createNamedParameter($username, \PDO::PARAM_STR)
+                    )
+                );
+            }
+            $user = $query->select('*')
+                ->from($dbUser['table'])
+                ->where(...$constraints)
+                ->execute()
+                ->fetch();
+        }
         return $user;
+    }
+
+    /**
+     * Initialization of the service.
+     * This is a stub as needed by GeneralUtility::makeInstanceService()
+     * @internal this is part of the Service API which should be avoided to be used and only used within TYPO3 internally
+     */
+    public function init(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Resets the service.
+     * This is a stub as needed by GeneralUtility::makeInstanceService()
+     * @internal this is part of the Service API which should be avoided to be used and only used within TYPO3 internally
+     */
+    public function reset()
+    {
+        // nothing to do
+    }
+
+    /**
+     * Returns the service key of the service
+     *
+     * @return string Service key
+     * @internal this is part of the Service API which should be avoided to be used and only used within TYPO3 internally
+     */
+    public function getServiceKey()
+    {
+        return $this->info['serviceKey'];
+    }
+
+    /**
+     * Returns the title of the service
+     *
+     * @return string Service title
+     * @internal this is part of the Service API which should be avoided to be used and only used within TYPO3 internally
+     */
+    public function getServiceTitle()
+    {
+        return $this->info['title'];
+    }
+
+    /**
+     * Returns service configuration values from the $TYPO3_CONF_VARS['SVCONF'] array
+     *
+     * @param string $optionName Name of the config option
+     * @param mixed $defaultValue Default configuration if no special config is available
+     * @param bool $includeDefaultConfig If set the 'default' config will be returned if no special config for this service is available (default: TRUE)
+     * @return mixed Configuration value for the service
+     * @internal this is part of the Service API which should be avoided to be used and only used within TYPO3 internally
+     */
+    public function getServiceOption($optionName, $defaultValue = '', $includeDefaultConfig = true)
+    {
+        $config = null;
+        $serviceType = $this->info['serviceType'] ?? '';
+        $serviceKey = $this->info['serviceKey'] ?? '';
+        $svOptions = $GLOBALS['TYPO3_CONF_VARS']['SVCONF'][$serviceType] ?? [];
+        if (isset($svOptions[$serviceKey][$optionName])) {
+            $config = $svOptions[$serviceKey][$optionName];
+        } elseif ($includeDefaultConfig && isset($svOptions['default'][$optionName])) {
+            $config = $svOptions['default'][$optionName];
+        }
+        if (!isset($config)) {
+            $config = $defaultValue;
+        }
+        return $config;
+    }
+
+    /**
+     * @return array
+     * @internal this is part of the Service API which should be avoided to be used and only used within TYPO3 internally
+     */
+    public function getLastErrorArray(): array
+    {
+        return [];
     }
 }

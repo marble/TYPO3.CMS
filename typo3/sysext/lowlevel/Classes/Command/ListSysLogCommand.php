@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Lowlevel\Command;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Lowlevel\Command;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Lowlevel\Command;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -43,6 +44,7 @@ class ListSysLogCommand extends Command
      *
      * @param InputInterface $input
      * @param OutputInterface $output
+     * @return int
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
@@ -92,7 +94,7 @@ class ListSysLogCommand extends Command
             ];
 
             if ($showDetails) {
-                $result[] = str_replace('; ', LF, GeneralUtility::arrayToLogString($row, [
+                $result[] = $this->arrayToLogString($row, [
                     'uid',
                     'userid',
                     'action',
@@ -107,10 +109,30 @@ class ListSysLogCommand extends Command
                     'event_pid',
                     'NEWid',
                     'workspace'
-                ]));
+                ]);
             }
             $content[] = $result;
         }
         $io->table($tableHeaders, $content);
+        return 0;
+    }
+
+    /**
+     * Converts a one dimensional array to a one line string which can be used for logging or debugging output
+     * Example: "loginType: FE; refInfo: Array; HTTP_HOST: www.example.org; REMOTE_ADDR: 192.168.1.5; REMOTE_HOST:; security_level:; showHiddenRecords: 0;"
+     *
+     * @param array $arr Data array which should be outputted
+     * @param array $valueList List of keys which should be listed in the output string.
+     * @return string Output string with key names and their value as string
+     */
+    protected function arrayToLogString(array $arr, array $valueList): string
+    {
+        $str = '';
+        foreach ($arr as $key => $value) {
+            if (in_array($key, $valueList, true)) {
+                $str .= (string)$key . trim(': ' . GeneralUtility::fixed_lgd_cs(str_replace(LF, '|', (string)$value), 20)) . LF;
+            }
+        }
+        return $str;
     }
 }

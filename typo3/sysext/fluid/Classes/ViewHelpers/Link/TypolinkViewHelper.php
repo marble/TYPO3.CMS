@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,42 +12,65 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
-use TYPO3\CMS\Fluid\Core\ViewHelper\Exception;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\Service\TypoLinkCodecService;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
+use TYPO3Fluid\Fluid\Core\ViewHelper\Exception;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
  * A ViewHelper to create links from fields supported by the link wizard
  *
- * == Example ==
+ * Example
+ * =======
  *
- * {link} contains "19 _blank - "testtitle with whitespace" &X=y"
+ * ``{link}`` contains: ``t3://page?uid=2&arg1=val1#9 _blank some-css-class "Title containing Whitespace"``.
  *
- * <code title="minimal usage">
- * <f:link.typolink parameter="{link}">
- * Linktext
- * </f:link.typolink>
- * <output>
- * <a href="index.php?id=19&X=y" title="testtitle with whitespace" target="_blank">
- * Linktext
- * </a>
- * </output>
- * </code>
+ * Or a legacy version from older TYPO3 versions:
+ * ``{link}`` contains: ``9 _blank - "testtitle with whitespace" &X=y``.
  *
- * <code title="Full parameter usage">
- * <f:link.typolink parameter="{link}" target="_blank" class="ico-class" title="some title" additionalParams="&u=b" additionalAttributes="{type:'button'}" useCacheHash="true">
- * Linktext
- * </f:link.typolink>
- * </code>
- * <output>
- * <a href="index.php?id=19&X=y&u=b" title="some title" target="_blank" class="ico-class" type="button">
- * Linktext
- * </a>
- * </output>
+ * Minimal usage
+ * -------------
+ *
+ * ::
+ *
+ *    <f:link.typolink parameter="{link}">
+ *       Linktext
+ *    </f:link.typolink>
+ *
+ * Output::
+ *
+ *    <a href="/page/path/name.html?X=y" title="testtitle with whitespace" target="_blank">
+ *       Linktext
+ *    </a>
+ *
+ * Depending on current page, routing and page path configuration.
+ *
+ * Full parameter usage
+ * --------------------
+ *
+ * ::
+ *
+ *    <f:link.typolink parameter="{link}" additionalParams="&u=b"
+ *        target="_blank"
+ *        class="ico-class" title="some title"
+ *        additionalAttributes="{type:'button'}"
+ *    >
+ *       Linktext
+ *    </f:link.typolink>
+ *
+ * Output::
+ *
+ *    <a href="/page/path/name.html?X=y&u=b" title="some title" target="_blank" class="ico-class" type="button">
+ *        Linktext
+ *    </a>
+ *
+ * Depending on routing and page path configuration.
  */
 class TypolinkViewHelper extends AbstractViewHelper
 {
@@ -66,14 +88,18 @@ class TypolinkViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('parameter', 'string', 'stdWrap.typolink style parameter string', true);
         $this->registerArgument('target', 'string', '', false, '');
         $this->registerArgument('class', 'string', '', false, '');
         $this->registerArgument('title', 'string', '', false, '');
+        $this->registerArgument('language', 'string', 'link to a specific language - defaults to the current language, use a language ID or "current" to enforce a specific language', false, null);
         $this->registerArgument('additionalParams', 'string', '', false, '');
         $this->registerArgument('additionalAttributes', 'array', '', false, []);
-        $this->registerArgument('useCacheHash', 'bool', '', false, false);
+        $this->registerArgument('addQueryString', 'bool', '', false, false);
+        $this->registerArgument('addQueryStringMethod', 'string', '', false, 'GET');
+        $this->registerArgument('addQueryStringExclude', 'string', '', false, '');
+        $this->registerArgument('absolute', 'bool', 'Ensure the resulting URL is an absolute URL', false, false);
+        $this->registerArgument('parts-as', 'string', 'Variable name containing typoLink parts (if any)', false, 'typoLinkParts');
     }
 
     /**
@@ -88,86 +114,104 @@ class TypolinkViewHelper extends AbstractViewHelper
      */
     public static function renderStatic(array $arguments, \Closure $renderChildrenClosure, RenderingContextInterface $renderingContext)
     {
-        $parameter = $arguments['parameter'];
-        $target = $arguments['target'];
-        $class = $arguments['class'];
-        $title = $arguments['title'];
-        $additionalParams = $arguments['additionalParams'];
-        $additionalAttributes = $arguments['additionalAttributes'];
-        $useCacheHash = $arguments['useCacheHash'];
+        $parameter = $arguments['parameter'] ?? '';
+        $partsAs = $arguments['parts-as'] ?? 'typoLinkParts';
 
+        $typoLinkCodec = GeneralUtility::makeInstance(TypoLinkCodecService::class);
+        $typoLinkConfiguration = $typoLinkCodec->decode($parameter);
         // Merge the $parameter with other arguments
-        $typolinkParameter = self::createTypolinkParameterArrayFromArguments($parameter, $target, $class, $title, $additionalParams);
+        $mergedTypoLinkConfiguration = static::mergeTypoLinkConfiguration($typoLinkConfiguration, $arguments);
+        $typoLinkParameter = $typoLinkCodec->encode($mergedTypoLinkConfiguration);
 
-        // array(param1 -> value1, param2 -> value2) --> param1="value1" param2="value2" for typolink.ATagParams
-        $extraAttributes = [];
-        foreach ($additionalAttributes as $attributeName => $attributeValue) {
-            $extraAttributes[] = $attributeName . '="' . htmlspecialchars($attributeValue) . '"';
-        }
-        $aTagParams = implode(' ', $extraAttributes);
-
+        // expose internal typoLink configuration to Fluid child context
+        $variableProvider = $renderingContext->getVariableProvider();
+        $variableProvider->add($partsAs, $typoLinkConfiguration);
         // If no link has to be rendered, the inner content will be returned as such
         $content = (string)$renderChildrenClosure();
+        // clean up exposed variables
+        $variableProvider->remove($partsAs);
 
         if ($parameter) {
-            /** @var ContentObjectRenderer $contentObject */
-            $contentObject = GeneralUtility::makeInstance(ContentObjectRenderer::class);
-            $contentObject->start([], '');
-            $content = $contentObject->stdWrap(
-                $content,
-                [
-                    'typolink.' => [
-                        'parameter' => $typolinkParameter,
-                        'ATagParams' => $aTagParams,
-                        'useCacheHash' => $useCacheHash,
-                    ]
-                ]
-            );
+            $content = static::invokeContentObjectRenderer($arguments, $typoLinkParameter, $content);
         }
-
         return $content;
     }
 
-    /**
-     * Transforms ViewHelper arguments to typo3link.parameters.typoscript option as array.
-     *
-     * @param string $parameter Example: 19 _blank - "testtitle \"with whitespace\"" &X=y
-     * @param string $target
-     * @param string $class
-     * @param string $title
-     * @param string $additionalParams
-     *
-     * @return string The final TypoLink string
-     */
-    protected static function createTypolinkParameterArrayFromArguments($parameter, $target = '', $class = '', $title = '', $additionalParams = '')
+    protected static function invokeContentObjectRenderer(array $arguments, string $typoLinkParameter, string $content): string
     {
-        $typoLinkCodec = GeneralUtility::makeInstance(TypoLinkCodecService::class);
-        $typolinkConfiguration = $typoLinkCodec->decode($parameter);
-        if (empty($typolinkConfiguration)) {
-            return $typolinkConfiguration;
+        $addQueryString = $arguments['addQueryString'] ?? false;
+        $addQueryStringMethod = $arguments['addQueryStringMethod'] ?? 'GET';
+        $addQueryStringExclude = $arguments['addQueryStringExclude'] ?? '';
+        $absolute = $arguments['absolute'] ?? false;
+        $aTagParams = static::serializeTagParameters($arguments);
+
+        $instructions = [
+            'parameter' => $typoLinkParameter,
+            'ATagParams' => $aTagParams,
+            'forceAbsoluteUrl' => $absolute,
+        ];
+        if (isset($arguments['language']) && $arguments['language'] !== null) {
+            $instructions['language'] = $arguments['language'];
         }
+        if ($addQueryString) {
+            $instructions['addQueryString'] = $addQueryString;
+            $instructions['addQueryString.'] = [
+                'method' => $addQueryStringMethod,
+                'exclude' => $addQueryStringExclude,
+            ];
+        }
+
+        $contentObject = GeneralUtility::makeInstance(ContentObjectRenderer::class);
+        return $contentObject->stdWrap($content, ['typolink.' => $instructions]);
+    }
+
+    protected static function serializeTagParameters(array $arguments): string
+    {
+        // array(param1 -> value1, param2 -> value2) --> param1="value1" param2="value2" for typolink.ATagParams
+        $extraAttributes = [];
+        $additionalAttributes = $arguments['additionalAttributes'] ?? [];
+        foreach ($additionalAttributes as $attributeName => $attributeValue) {
+            $extraAttributes[] = $attributeName . '="' . htmlspecialchars($attributeValue) . '"';
+        }
+        return implode(' ', $extraAttributes);
+    }
+
+    /**
+     * Merges view helper arguments with typolink parts.
+     *
+     * @param array $typoLinkConfiguration
+     * @param array $arguments
+     * @return array
+     */
+    protected static function mergeTypoLinkConfiguration(array $typoLinkConfiguration, array $arguments): array
+    {
+        if ($typoLinkConfiguration === []) {
+            return $typoLinkConfiguration;
+        }
+
+        $target = $arguments['target'] ?? '';
+        $class = $arguments['class'] ?? '';
+        $title = $arguments['title'] ?? '';
+        $additionalParams = $arguments['additionalParams'] ?? '';
 
         // Override target if given in target argument
         if ($target) {
-            $typolinkConfiguration['target'] = $target;
+            $typoLinkConfiguration['target'] = $target;
         }
-
         // Combine classes if given in both "parameter" string and "class" argument
         if ($class) {
-            $classes = explode(' ', trim($typolinkConfiguration['class']) . ' ' . trim($class));
-            $typolinkConfiguration['class'] = implode(' ', array_unique(array_filter($classes)));
+            $classes = explode(' ', trim($typoLinkConfiguration['class']) . ' ' . trim($class));
+            $typoLinkConfiguration['class'] = implode(' ', array_unique(array_filter($classes)));
         }
-
         // Override title if given in title argument
         if ($title) {
-            $typolinkConfiguration['title'] = $title;
+            $typoLinkConfiguration['title'] = $title;
         }
-
         // Combine additionalParams
         if ($additionalParams) {
-            $typolinkConfiguration['additionalParams'] .= $additionalParams;
+            $typoLinkConfiguration['additionalParams'] .= $additionalParams;
         }
 
-        return $typoLinkCodec->encode($typolinkConfiguration);
+        return $typoLinkConfiguration;
     }
 }

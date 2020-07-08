@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Http;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Http;
 
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
@@ -32,7 +33,7 @@ class Request extends Message implements RequestInterface
 {
     /**
      * The request-target, if it has been provided or calculated.
-     * @var NULL|string
+     * @var string|null
      */
     protected $requestTarget;
 
@@ -65,7 +66,11 @@ class Request extends Message implements RequestInterface
         'MOVE',
         'PROPFIND',
         'PROPPATCH',
-        'UNLOCK'
+        'REPORT',
+        'UNLOCK',
+        // Custom methods
+        'PURGE',
+        'BAN'
     ];
 
     /**
@@ -77,9 +82,9 @@ class Request extends Message implements RequestInterface
     /**
      * Constructor, the only place to set all parameters of this Request
      *
-     * @param NULL|string $uri URI for the request, if any.
-     * @param NULL|string $method HTTP method for the request, if any.
-     * @param string|resource|StreamInterface $body Message body, if any.
+     * @param string|UriInterface|null $uri URI for the request, if any.
+     * @param string|null $method HTTP method for the request, if any.
+     * @param string|resource|StreamInterface|null $body Message body, if any.
      * @param array $headers Headers for the message, if any.
      * @throws \InvalidArgumentException for any invalid value.
      */
@@ -87,11 +92,11 @@ class Request extends Message implements RequestInterface
     {
 
         // Build a streamable object for the body
-        if (!is_string($body) && !is_resource($body) && !$body instanceof StreamInterface) {
+        if ($body !== null && !is_string($body) && !is_resource($body) && !$body instanceof StreamInterface) {
             throw new \InvalidArgumentException('Body must be a string stream resource identifier, a stream resource, or a StreamInterface instance', 1436717271);
         }
 
-        if (!$body instanceof StreamInterface) {
+        if ($body !== null && !$body instanceof StreamInterface) {
             $body = new Stream($body);
         }
 
@@ -108,7 +113,7 @@ class Request extends Message implements RequestInterface
         $this->method = $method;
         $this->uri    = $uri;
         $this->body   = $body;
-        list($this->lowercasedHeaderNames, $headers) = $this->filterHeaders($headers);
+        [$this->lowercasedHeaderNames, $headers] = $this->filterHeaders($headers);
         $this->assertHeaders($headers);
         $this->headers = $headers;
     }
@@ -229,11 +234,11 @@ class Request extends Message implements RequestInterface
      * immutability of the message, and MUST return an instance that has the
      * changed request target.
      *
-     * @link http://tools.ietf.org/html/rfc7230#section-2.7 (for the various
+     * @link https://tools.ietf.org/html/rfc7230#section-2.7 (for the various
      *     request-target forms allowed in request messages)
      *
      * @param mixed $requestTarget
-     * @return Request
+     * @return static
      */
     public function withRequestTarget($requestTarget)
     {
@@ -267,7 +272,7 @@ class Request extends Message implements RequestInterface
      * changed request method.
      *
      * @param string $method Case-sensitive method.
-     * @return Request
+     * @return static
      * @throws \InvalidArgumentException for invalid HTTP methods.
      */
     public function withMethod($method)
@@ -282,7 +287,7 @@ class Request extends Message implements RequestInterface
      *
      * This method MUST return a UriInterface instance.
      *
-     * @link http://tools.ietf.org/html/rfc3986#section-4.3
+     * @link https://tools.ietf.org/html/rfc3986#section-4.3
      * @return \Psr\Http\Message\UriInterface Returns a UriInterface instance
      *     representing the URI of the request.
      */
@@ -316,11 +321,11 @@ class Request extends Message implements RequestInterface
      * immutability of the message, and MUST return an instance that has the
      * new UriInterface instance.
      *
-     * @link http://tools.ietf.org/html/rfc3986#section-4.3
+     * @link https://tools.ietf.org/html/rfc3986#section-4.3
      *
      * @param \Psr\Http\Message\UriInterface $uri New request URI to use.
      * @param bool $preserveHost Preserve the original state of the Host header.
-     * @return Request
+     * @return static
      */
     public function withUri(UriInterface $uri, $preserveHost = false)
     {
@@ -349,7 +354,7 @@ class Request extends Message implements RequestInterface
     /**
      * Validate the HTTP method, helper function.
      *
-     * @param NULL|string $method
+     * @param string|null $method
      * @throws \InvalidArgumentException on invalid HTTP method.
      */
     protected function validateMethod($method)

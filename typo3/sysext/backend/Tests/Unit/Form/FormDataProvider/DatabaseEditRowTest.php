@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,23 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\Exception\DatabaseRecordException;
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseEditRow;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabaseEditRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabaseEditRowTest extends UnitTestCase
 {
     /**
-     * @var DatabaseEditRow|\PHPUnit_Framework_MockObject_MockObject
+     * @var DatabaseEditRow|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->subject = $this->getMockBuilder(DatabaseEditRow::class)
             ->setMethods(['getDatabaseRow'])
@@ -48,11 +50,11 @@ class DatabaseEditRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'uid' => 10,
             'pid' => 123
         ];
-        $this->subject->expects($this->once())->method('getDatabaseRow')->willReturn($resultRow);
+        $this->subject->expects(self::once())->method('getDatabaseRow')->willReturn($resultRow);
 
         $result = $this->subject->addData($input);
 
-        $this->assertSame($resultRow, $result['databaseRow']);
+        self::assertSame($resultRow, $result['databaseRow']);
     }
 
     /**
@@ -68,7 +70,7 @@ class DatabaseEditRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $resultRow = [
             'uid' => 10,
         ];
-        $this->subject->expects($this->once())->method('getDatabaseRow')->willReturn($resultRow);
+        $this->subject->expects(self::once())->method('getDatabaseRow')->willReturn($resultRow);
 
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1437663061);
@@ -103,7 +105,7 @@ class DatabaseEditRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'command' => 'edit',
             'vanillaUid' => 10,
         ];
-        $this->subject->expects($this->once())->method('getDatabaseRow')->willReturn([]);
+        $this->subject->expects(self::once())->method('getDatabaseRow')->willReturn([]);
 
         $this->expectException(DatabaseRecordException::class);
         $this->expectExceptionCode(1437656081);
@@ -121,13 +123,13 @@ class DatabaseEditRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'command' => 'edit',
             'vanillaUid' => 10,
         ];
-        $this->subject->expects($this->once())->method('getDatabaseRow')->willReturn([]);
+        $this->subject->expects(self::once())->method('getDatabaseRow')->willReturn([]);
 
         try {
             $this->subject->addData($input);
         } catch (DatabaseRecordException $e) {
-            $this->assertSame('tt_content', $e->getTableName());
-            $this->assertSame(10, $e->getUid());
+            self::assertSame('tt_content', $e->getTableName());
+            self::assertSame(10, $e->getUid());
         }
     }
 
@@ -148,10 +150,10 @@ class DatabaseEditRowTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'databaseRow' => $virtualRow
         ];
         $resultRow = $virtualRow;
-        $this->subject->expects($this->never())->method('getDatabaseRow');
+        $this->subject->expects(self::never())->method('getDatabaseRow');
 
         $result = $this->subject->addData($input);
 
-        $this->assertSame($resultRow, $result['databaseRow']);
+        self::assertSame($resultRow, $result['databaseRow']);
     }
 }

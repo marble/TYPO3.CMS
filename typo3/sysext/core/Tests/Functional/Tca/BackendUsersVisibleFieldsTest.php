@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Tca;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +13,14 @@ namespace TYPO3\CMS\Core\Tests\Unit\Tca;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\Tca;
+
 use TYPO3\CMS\Backend\Tests\Functional\Form\FormTestService;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-class BackendUsersVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class BackendUsersVisibleFieldsTest extends FunctionalTestCase
 {
     protected static $backendUserFields = [
         'disable',
@@ -33,14 +35,12 @@ class BackendUsersVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functio
         'lang',
         'userMods',
         'allowed_languages',
-        'workspace_perms',
         'db_mountpoints',
         'options',
         'file_mountpoints',
         'file_permissions',
         'category_perms',
         'lockToDomain',
-        'disableIPlock',
         'TSconfig',
         'starttime',
         'endtime',
@@ -67,13 +67,13 @@ class BackendUsersVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functio
         $formResult = $formEngineTestService->createNewRecordForm('be_users');
 
         foreach (static::$backendUserFields as $expectedField) {
-            $this->assertNotFalse(
+            self::assertNotFalse(
                 strpos($formResult['html'], '[' . $expectedField . ']'),
                 'The field ' . $expectedField . ' is not in the HTML'
             );
         }
 
-        $this->assertNotFalse(
+        self::assertNotFalse(
             strpos($formResult['html'], 'Last login'),
             'The field lastlogin is not in the HTML'
         );
@@ -93,20 +93,20 @@ class BackendUsersVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functio
         $expectedFields = array_diff(static::$backendUserFields, static::$adminHiddenFields);
 
         foreach ($expectedFields as $expectedField) {
-            $this->assertNotFalse(
+            self::assertNotFalse(
                 $formEngineTestService->formHtmlContainsField($expectedField, $formResult['html']),
                 'The field ' . $expectedField . ' is not in the HTML'
             );
         }
 
         foreach (static::$adminHiddenFields as $hiddenField) {
-            $this->assertFalse(
+            self::assertFalse(
                 $formEngineTestService->formHtmlContainsField($hiddenField, $formResult['html']),
                 'The field ' . $hiddenField . ' is in the HTML'
             );
         }
 
-        $this->assertNotFalse(
+        self::assertNotFalse(
             strpos($formResult['html'], 'Last login'),
             'The field lastlogin is not in the HTML'
         );

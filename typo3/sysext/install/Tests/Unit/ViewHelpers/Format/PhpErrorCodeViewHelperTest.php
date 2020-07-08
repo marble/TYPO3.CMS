@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Install\Tests\Unit\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Tests\Unit\ViewHelpers\Format;
+
+use TYPO3\CMS\Install\ViewHelpers\Format\PhpErrorCodeViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 
 /**
@@ -29,10 +31,10 @@ class PhpErrorCodeViewHelperTest extends ViewHelperBaseTestcase
     /**
      * Setup the test case scenario
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
-        $this->viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Install\ViewHelpers\Format\PhpErrorCodeViewHelper::class, ['dummy']);
+        $this->viewHelper = new PhpErrorCodeViewHelper();
         $this->injectDependenciesIntoViewHelper($this->viewHelper);
         $this->viewHelper->initializeArguments();
     }
@@ -40,7 +42,7 @@ class PhpErrorCodeViewHelperTest extends ViewHelperBaseTestcase
     /**
      * @return array
      */
-    public function errorCodesDataProvider()
+    public function errorCodesDataProvider(): array
     {
         return [
             [
@@ -68,12 +70,12 @@ class PhpErrorCodeViewHelperTest extends ViewHelperBaseTestcase
      * @test
      * @dataProvider errorCodesDataProvider
      */
-    public function renderPhpCodesCorrectly($errorCode, $expectedString)
+    public function renderPhpCodesCorrectly($errorCode, $expectedString): void
     {
         $this->viewHelper->setArguments([
             'phpErrorCode' => $errorCode
         ]);
         $actualString = $this->viewHelper->render();
-        $this->assertEquals($expectedString, $actualString);
+        self::assertEquals($expectedString, $actualString);
     }
 }

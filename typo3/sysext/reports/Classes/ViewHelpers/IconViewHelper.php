@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Reports\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Reports\ViewHelpers;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Reports\ViewHelpers;
 
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -79,7 +80,7 @@ class IconViewHelper extends AbstractBackendViewHelper
         }
 
         return '<img src="' . htmlspecialchars(PathUtility::getAbsoluteWebPath($icon))
-               . '" width="16" height="16" title="' . htmlspecialchars($title)
-               . '" alt="' . htmlspecialchars($title) . '" />';
+                . '" width="16" height="16" title="' . htmlspecialchars($title)
+                . '" alt="' . htmlspecialchars($title) . '" />';
     }
 }

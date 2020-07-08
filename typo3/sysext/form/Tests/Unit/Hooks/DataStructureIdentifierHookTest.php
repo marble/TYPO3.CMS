@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Hooks;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,61 +15,72 @@ namespace TYPO3\CMS\Form\Tests\Unit\Hooks;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Hooks;
+
+use Prophecy\Argument;
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Form\Hooks\DataStructureIdentifierHook;
 use TYPO3\CMS\Form\Mvc\Persistence\FormPersistenceManager;
 use TYPO3\CMS\Form\Mvc\Persistence\FormPersistenceManagerInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DataStructureIdentifierHookTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DataStructureIdentifierHookTest extends UnitTestCase
 {
     /**
-     * @var array A backup of registered singleton instances
+     * @var bool Reset singletons created by subject
      */
-    protected $singletonInstances = [];
+    protected $resetSingletonInstances = true;
 
     /**
      * Set up
      */
-    public function setUp()
+    public function setUp(): void
     {
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-    }
-
-    /**
-     * Tear down
-     */
-    public function tearDown()
-    {
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
+        parent::setUp();
+        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
+        $cacheProphecy = $this->prophesize(FrontendInterface::class);
+        $cacheManagerProphecy->getCache('runtime')->willReturn($cacheProphecy->reveal());
+        $cacheProphecy->get(Argument::cetera())->willReturn(false);
+        $cacheProphecy->set(Argument::cetera())->willReturn(false);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierPostProcessReturnsIdentifierForNotMatchingScenario()
+    public function getDataStructureIdentifierPostProcessReturnsIdentifierForNotMatchingScenario(): void
     {
         $givenIdentifier = ['aKey' => 'aValue'];
         $result = (new DataStructureIdentifierHook())->getDataStructureIdentifierPostProcess(
-            [], 'aTable', 'aField', [], $givenIdentifier
+            [],
+            'aTable',
+            'aField',
+            [],
+            $givenIdentifier
         );
-        $this->assertEquals($givenIdentifier, $result);
+        self::assertEquals($givenIdentifier, $result);
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierPostProcessAddDefaultValuesForNewRecord()
+    public function getDataStructureIdentifierPostProcessAddDefaultValuesForNewRecord(): void
     {
         $result = (new DataStructureIdentifierHook())->getDataStructureIdentifierPostProcess(
-            [], 'tt_content', 'pi_flexform', ['CType' => 'form_formframework'], []
+            [],
+            'tt_content',
+            'pi_flexform',
+            ['CType' => 'form_formframework'],
+            []
         );
-        $this->assertEquals(
-            ['ext-form-persistenceIdentifier' => '', 'ext-form-overrideFinishers' => false],
+        self::assertEquals(
+            ['ext-form-persistenceIdentifier' => '', 'ext-form-overrideFinishers' => ''],
             $result
         );
     }
@@ -76,7 +88,7 @@ class DataStructureIdentifierHookTest extends \TYPO3\TestingFramework\Core\Unit\
     /**
      * @test
      */
-    public function getDataStructureIdentifierPostProcessAddsGivenPersistenceIdentifier()
+    public function getDataStructureIdentifierPostProcessAddsGivenPersistenceIdentifier(): void
     {
         $row = [
             'CType' => 'form_formframework',
@@ -100,18 +112,22 @@ class DataStructureIdentifierHookTest extends \TYPO3\TestingFramework\Core\Unit\
         $expected = [
             'aKey' => 'aValue',
             'ext-form-persistenceIdentifier' => '1:user_upload/karl.yml',
-            'ext-form-overrideFinishers' => false,
+            'ext-form-overrideFinishers' => '',
         ];
         $result = (new DataStructureIdentifierHook())->getDataStructureIdentifierPostProcess(
-            [], 'tt_content', 'pi_flexform', $row, $incomingIdentifier
+            [],
+            'tt_content',
+            'pi_flexform',
+            $row,
+            $incomingIdentifier
         );
-        $this->assertEquals($expected, $result);
+        self::assertEquals($expected, $result);
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierPostProcessAddsOverrideFinisherValue()
+    public function getDataStructureIdentifierPostProcessAddsOverrideFinisherValue(): void
     {
         $row = [
             'CType' => 'form_formframework',
@@ -131,49 +147,48 @@ class DataStructureIdentifierHookTest extends \TYPO3\TestingFramework\Core\Unit\
         ];
         $expected = [
             'ext-form-persistenceIdentifier' => '',
-            'ext-form-overrideFinishers' => true,
+            'ext-form-overrideFinishers' => 'enabled',
         ];
         $result = (new DataStructureIdentifierHook())->getDataStructureIdentifierPostProcess(
-            [], 'tt_content', 'pi_flexform', $row, []
+            [],
+            'tt_content',
+            'pi_flexform',
+            $row,
+            []
         );
-        $this->assertEquals($expected, $result);
+        self::assertEquals($expected, $result);
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierPostProcessReturnsDataStructureUnchanged()
+    public function parseDataStructureByIdentifierPostProcessReturnsDataStructureUnchanged(): void
     {
         $dataStructure = ['foo' => 'bar'];
         $expected = $dataStructure;
         $result = (new DataStructureIdentifierHook())->parseDataStructureByIdentifierPostProcess(
-            $dataStructure, []
+            $dataStructure,
+            []
         );
-        $this->assertEquals($expected, $result);
+        self::assertEquals($expected, $result);
     }
 
     /**
      * @test
+     * @dataProvider parseDataStructureByIdentifierPostProcessDataProvider
+     *
+     * @param array $formDefinition
+     * @param array $expectedItem
      */
-    public function parseDataStructureByIdentifierPostProcessAddsExistingFormItems()
+    public function parseDataStructureByIdentifierPostProcessAddsExistingFormItems(array $formDefinition, array $expectedItem): void
     {
-        $objectMangerProphecy = $this->prophesize(ObjectManager::class);
-        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectMangerProphecy->reveal());
+        $objectManagerProphecy = $this->prophesize(ObjectManager::class);
+        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManagerProphecy->reveal());
         $formPersistenceManagerProphecy = $this->prophesize(FormPersistenceManager::class);
-        $objectMangerProphecy->get(FormPersistenceManagerInterface::class)
+        $objectManagerProphecy->get(FormPersistenceManagerInterface::class)
             ->willReturn($formPersistenceManagerProphecy->reveal());
 
-        $existingForms = [
-            [
-                'persistenceIdentifier' => 'hugo1',
-                'name' => 'myHugo1',
-            ],
-            [
-                'persistenceIdentifier' => 'hugo2',
-                'name' => 'myHugo2',
-            ]
-        ];
-        $formPersistenceManagerProphecy->listForms()->shouldBeCalled()->willReturn($existingForms);
+        $formPersistenceManagerProphecy->listForms()->shouldBeCalled()->willReturn([$formDefinition]);
 
         $incomingDataStructure = [
             'sheets' => [
@@ -211,14 +226,7 @@ class DataStructureIdentifierHookTest extends \TYPO3\TestingFramework\Core\Unit\
                                                 0 => 'default, no value',
                                                 1 => '',
                                             ],
-                                            1 => [
-                                                0 => 'myHugo1 (hugo1)',
-                                                1 => 'hugo1',
-                                            ],
-                                            2 => [
-                                                0 => 'myHugo2 (hugo2)',
-                                                1 => 'hugo2',
-                                            ],
+                                            1 => $expectedItem,
                                         ],
                                     ],
                                 ],
@@ -234,85 +242,41 @@ class DataStructureIdentifierHookTest extends \TYPO3\TestingFramework\Core\Unit\
             ['ext-form-persistenceIdentifier' => '']
         );
 
-        $this->assertEquals($expected, $result);
+        self::assertEquals($expected, $result);
     }
 
     /**
-     * Data provider for implodeArrayKeysReturnsString
-     *
      * @return array
      */
-    public function implodeArrayKeysReturnsStringDataProvider()
+    public function parseDataStructureByIdentifierPostProcessDataProvider(): array
     {
         return [
-            'One string' => [
+            'simple' => [
                 [
-                    'a' => 'b',
+                    'persistenceIdentifier' => 'hugo1',
+                    'name' => 'myHugo1',
+                    'location' => 'extension',
                 ],
-                'a'
+                [
+                    'myHugo1 (hugo1)',
+                    'hugo1',
+                    'content-form',
+                ],
             ],
-            'Two strings' => [
+            'invalid' => [
                 [
-                    'a' => [
-                        'b' => 'c'
-                    ],
+                    'persistenceIdentifier' => 'Error.yaml',
+                    'label' => 'Test Error Label',
+                    'name' => 'Test Error Name',
+                    'location' => 'extension',
+                    'invalid' => true,
                 ],
-                'a.b'
-            ],
-            'One integer' => [
                 [
-                    20 => 'a',
+                    'Test Error Name (Error.yaml)',
+                    'Error.yaml',
+                    'overlay-missing',
                 ],
-                '20'
-            ],
-            'Two integers' => [
-                [
-                    20 => [
-                        30 => 'a'
-                    ],
-                ],
-                '20.30'
-            ],
-            'Mixed' => [
-                [
-                    20 => [
-                        'a' => 'b'
-                    ],
-                ],
-                '20.a'
-            ],
-            'Multiple Entries' => [
-                [
-                    1 => [
-                        'a' => 'b',
-                        'b' => 'foo',
-                    ],
-                ],
-                '1.a'
-            ],
-            'four levels' => [
-                [
-                    1 => [
-                        'a' => [
-                            '2' => [
-                                42 => 'foo',
-                            ],
-                        ],
-                        'b' => 22,
-                    ],
-                ],
-                '1.a.2.42',
             ],
         ];
-    }
-
-    /**
-     * @dataProvider implodeArrayKeysReturnsStringDataProvider
-     * @test
-     */
-    public function implodeArrayKeysReturnsString($array, $expectation)
-    {
-        $hookMock = $this->getAccessibleMock(DataStructureIdentifierHook::class, [ 'dummy' ], [], '', false);
-        $this->assertEquals($expectation, $hookMock->_call('implodeArrayKeys', $array));
     }
 }

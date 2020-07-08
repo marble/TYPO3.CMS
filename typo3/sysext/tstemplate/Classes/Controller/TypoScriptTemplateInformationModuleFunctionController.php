@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Tstemplate\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,10 @@ namespace TYPO3\CMS\Tstemplate\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Module\AbstractFunctionModule;
-use TYPO3\CMS\Backend\Utility\BackendUtility;
+namespace TYPO3\CMS\Tstemplate\Controller;
+
+use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\TypoScript\ExtendedTemplateService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -24,20 +25,15 @@ use TYPO3\CMS\Fluid\View\StandaloneView;
 
 /**
  * This class displays the Info/Modify screen of the Web > Template module
+ * @internal This is a specific Backend Controller implementation and is not considered part of the Public TYPO3 API.
  */
-class TypoScriptTemplateInformationModuleFunctionController extends AbstractFunctionModule
+class TypoScriptTemplateInformationModuleFunctionController
 {
-    /**
-     * Indicator for t3editor, whether data is stored
-     *
-     * @var bool
-     */
-    public $tce_processed = false;
 
     /**
      * @var TypoScriptTemplateModuleController
      */
-    public $pObj;
+    protected $pObj;
 
     /**
      * The currently selected sys_template record
@@ -51,6 +47,29 @@ class TypoScriptTemplateInformationModuleFunctionController extends AbstractFunc
     protected $templateService;
 
     /**
+     * @var int GET/POST var 'id'
+     */
+    protected $id;
+
+    /**
+     * @var ServerRequestInterface
+     */
+    protected $request;
+
+    /**
+     * Init, called from parent object
+     *
+     * @param TypoScriptTemplateModuleController $pObj A reference to the parent (calling) object
+     * @param ServerRequestInterface $request
+     */
+    public function init($pObj, ServerRequestInterface $request)
+    {
+        $this->pObj = $pObj;
+        $this->request = $request;
+        $this->id = (int)($request->getParsedBody()['id'] ?? $request->getQueryParams()['id'] ?? 0);
+    }
+
+    /**
      * Gets the data for a row of a HTML table in the fluid template
      *
      * @param string $label The label to be shown (e.g. 'Title:', 'Sitetitle:')
@@ -59,9 +78,10 @@ class TypoScriptTemplateInformationModuleFunctionController extends AbstractFunc
      * @param int $id The field/variable to be sent on clicking the edit icon (e.g. 'title', 'sitetitle')
      * @return array Data for a row of a HTML table
      */
-    public function tableRowData($label, $data, $field, $id)
+    protected function tableRowData($label, $data, $field, $id)
     {
         $urlParameters = [
+            'id' => $this->id,
             'edit' => [
                 'sys_template' => [
                     $id => 'edit'
@@ -71,7 +91,9 @@ class TypoScriptTemplateInformationModuleFunctionController extends AbstractFunc
             'createExtension' => 0,
             'returnUrl' => GeneralUtility::getIndpEnv('REQUEST_URI')
         ];
-        $url = BackendUtility::getModuleUrl('record_edit', $urlParameters);
+        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        $url = (string)$uriBuilder->buildUriFromRoute('record_edit', $urlParameters);
 
         return [
             'url' => $url,
@@ -91,10 +113,9 @@ class TypoScriptTemplateInformationModuleFunctionController extends AbstractFunc
      * @param int $template_uid The uid of the template record to be rendered (only if more than one template on the current page)
      * @return bool Returns TRUE if a template record was found, otherwise FALSE
      */
-    public function initialize_editor($pageId, $template_uid = 0)
+    protected function initialize_editor($pageId, $template_uid = 0)
     {
         $this->templateService = GeneralUtility::makeInstance(ExtendedTemplateService::class);
-        $this->templateService->init();
 
         // Get the row of the first VISIBLE template of the page. where clause like the frontend.
         $this->templateRow = $this->templateService->ext_getFirstTemplate($pageId, $template_uid);
@@ -105,41 +126,35 @@ class TypoScriptTemplateInformationModuleFunctionController extends AbstractFunc
     }
 
     /**
-     * @return LanguageService
-     */
-    protected function getLanguageService()
-    {
-        return $GLOBALS['LANG'];
-    }
-
-    /**
-     * The main processing method if this class
+     * Main, called from parent object
      *
      * @return string Information of the template status or the taken actions as HTML string
      */
     public function main()
     {
         // Checking for more than one template an if, set a menu...
-        $manyTemplatesMenu = $this->pObj->templateMenu();
+        $manyTemplatesMenu = $this->pObj->templateMenu($this->request);
         $template_uid = 0;
         if ($manyTemplatesMenu) {
             $template_uid = $this->pObj->MOD_SETTINGS['templatesOnPage'];
         }
         // Initialize
-        $existTemplate = $this->initialize_editor($this->pObj->id, $template_uid);
+        $existTemplate = $this->initialize_editor($this->id, $template_uid);
         $saveId = 0;
         if ($existTemplate) {
-            $saveId = $this->templateRow['_ORIG_uid'] ? : $this->templateRow['uid'];
+            $saveId = $this->templateRow['_ORIG_uid'] ?: $this->templateRow['uid'];
         }
+        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         // Create extension template
-        $newId = $this->pObj->createTemplate($this->pObj->id, $saveId);
+        $newId = $this->pObj->createTemplate($this->id, (int)$saveId);
         if ($newId) {
             // Switch to new template
             $urlParameters = [
-                'id' => $this->pObj->id,
+                'id' => $this->id,
                 'SET[templatesOnPage]' => $newId
             ];
-            $url = BackendUtility::getModuleUrl('web_ts', $urlParameters);
+            $url = (string)$uriBuilder->buildUriFromRoute('web_ts', $urlParameters);
             HttpUtility::redirect($url);
         }
         $tce = null;
@@ -175,7 +190,7 @@ class TypoScriptTemplateInformationModuleFunctionController extends AbstractFunc
                 'createExtension' => 0,
                 'returnUrl' => GeneralUtility::getIndpEnv('REQUEST_URI')
             ];
-            $assigns['editAllUrl'] = BackendUtility::getModuleUrl('record_edit', $urlParameters);
+            $assigns['editAllUrl'] = (string)$uriBuilder->buildUriFromRoute('record_edit', $urlParameters);
 
             // Rendering of the output via fluid
             $view = GeneralUtility::makeInstance(StandaloneView::class);
@@ -188,5 +203,13 @@ class TypoScriptTemplateInformationModuleFunctionController extends AbstractFunc
             $theOutput = $this->pObj->noTemplate(1);
         }
         return $theOutput;
+    }
+
+    /**
+     * @return LanguageService
+     */
+    protected function getLanguageService(): LanguageService
+    {
+        return $GLOBALS['LANG'];
     }
 }

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Utility;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +15,21 @@ namespace TYPO3\CMS\Extbase\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Utility;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
+
 /**
  * Utilities to simulate a frontend in backend context.
  *
- * ONLY USED INTERNALLY, MIGHT CHANGE WITHOUT NOTICE!
+ * @internal ONLY USED INTERNALLY, MIGHT CHANGE WITHOUT NOTICE!
  */
 class FrontendSimulatorUtility
 {
     /**
-     * @var mixed
+     * @var TypoScriptFrontendController|null
      */
     protected static $tsfeBackup;
 
@@ -30,14 +37,14 @@ class FrontendSimulatorUtility
      * Sets the $TSFE->cObjectDepthCounter in Backend mode
      * This somewhat hacky work around is currently needed because the cObjGetSingle() function of \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer relies on this setting
      *
-     * @param \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer|NULL $cObj
+     * @param ContentObjectRenderer|null $cObj
      */
-    public static function simulateFrontendEnvironment(\TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer $cObj = null)
+    public static function simulateFrontendEnvironment(ContentObjectRenderer $cObj = null): void
     {
-        self::$tsfeBackup = isset($GLOBALS['TSFE']) ? $GLOBALS['TSFE'] : null;
+        self::$tsfeBackup = $GLOBALS['TSFE'] ?? null;
         $GLOBALS['TSFE'] = new \stdClass();
         $GLOBALS['TSFE']->cObjectDepthCounter = 100;
-        $GLOBALS['TSFE']->cObj = $cObj !== null ? $cObj : \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::class);
+        $GLOBALS['TSFE']->cObj = $cObj ?? GeneralUtility::makeInstance(ContentObjectRenderer::class);
     }
 
     /**
@@ -45,9 +52,9 @@ class FrontendSimulatorUtility
      *
      * @see simulateFrontendEnvironment()
      */
-    public static function resetFrontendEnvironment()
+    public static function resetFrontendEnvironment(): void
     {
-        if (!empty(self::$tsfeBackup)) {
+        if (self::$tsfeBackup !== null) {
             $GLOBALS['TSFE'] = self::$tsfeBackup;
         }
     }

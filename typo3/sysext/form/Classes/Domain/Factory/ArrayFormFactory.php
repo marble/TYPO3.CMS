@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Factory;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,10 +15,17 @@ namespace TYPO3\CMS\Form\Domain\Factory;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Factory;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Form\Domain\Configuration\ConfigurationService;
 use TYPO3\CMS\Form\Domain\Exception\IdentifierNotValidException;
+use TYPO3\CMS\Form\Domain\Exception\RenderingException;
 use TYPO3\CMS\Form\Domain\Exception\UnknownCompositRenderableException;
 use TYPO3\CMS\Form\Domain\Model\FormDefinition;
 use TYPO3\CMS\Form\Domain\Model\FormElements\AbstractSection;
@@ -40,14 +45,19 @@ class ArrayFormFactory extends AbstractFormFactory
      * @param array $configuration
      * @param string $prototypeName
      * @return FormDefinition
+     * @throws RenderingException
      * @internal
      */
     public function build(array $configuration, string $prototypeName = null): FormDefinition
     {
         if (empty($prototypeName)) {
-            $prototypeName = isset($configuration['prototypeName']) ? $configuration['prototypeName'] : 'standard';
+            $prototypeName = $configuration['prototypeName'] ?? 'standard';
         }
-        $persistenceIdentifier = (isset($configuration['persistenceIdentifier'])) ? $configuration['persistenceIdentifier'] : null;
+        $persistenceIdentifier = $configuration['persistenceIdentifier'] ?? null;
+
+        if ($configuration['invalid'] === true) {
+            throw new RenderingException($configuration['label'], 1529710560);
+        }
 
         $prototypeConfiguration = GeneralUtility::makeInstance(ObjectManager::class)
             ->get(ConfigurationService::class)
@@ -71,7 +81,6 @@ class ArrayFormFactory extends AbstractFormFactory
         unset($configuration['renderables']);
         unset($configuration['type']);
         unset($configuration['identifier']);
-        unset($configuration['label']);
         $form->setOptions($configuration);
 
         $this->triggerFormBuildingFinished($form);
@@ -113,8 +122,10 @@ class ArrayFormFactory extends AbstractFormFactory
 
         $renderable->setOptions($nestedRenderableConfiguration);
 
-        foreach ($childRenderables as $elementConfiguration) {
-            $this->addNestedRenderable($elementConfiguration, $renderable);
+        if ($renderable instanceof CompositeRenderableInterface) {
+            foreach ($childRenderables as $elementConfiguration) {
+                $this->addNestedRenderable($elementConfiguration, $renderable);
+            }
         }
 
         return $renderable;

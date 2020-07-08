@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Toolbar;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Toolbar;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Toolbar;
+
 /**
  * Interface for classes which hook into \TYPO3\CMS\Backend\Toolbar\ClearCacheToolbarItem and manipulate CacheMenuItems array
  */
@@ -23,8 +24,7 @@ interface ClearCacheActionsHookInterface
      * Modifies CacheMenuItems array
      *
      * @param array $cacheActions Array of CacheMenuItems
-     * @param array $optionValues Array of AccessConfigurations-identifiers (typically  used by userTS with options.clearCache.identifier)
-     * @return
+     * @param array $optionValues Array of AccessConfigurations-identifiers (typically used by userTS with options.clearCache.identifier)
      */
     public function manipulateCacheActions(&$cacheActions, &$optionValues);
 }

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Report;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,90 +15,108 @@ namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Report;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Report;
+
+use Prophecy\Argument;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
+use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
+use TYPO3\CMS\Extensionmanager\Domain\Model\Repository;
+use TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository;
+use TYPO3\CMS\Extensionmanager\Report\ExtensionStatus;
+use TYPO3\CMS\Extensionmanager\Utility\ListUtility;
+use TYPO3\CMS\Reports\Status;
+use TYPO3\CMS\Reports\StatusProviderInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class ExtensionStatusTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ExtensionStatusTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Extbase\Object\ObjectManagerInterface
+     * @var ObjectManagerInterface
      */
     protected $mockObjectManager;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository
+     * @var RepositoryRepository
      */
     protected $mockRepositoryRepository;
 
     /**
-     * @var \TYPO3\CMS\Core\Localization\LanguageService
+     * @var LanguageService
      */
     protected $mockLanguageService;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->mockObjectManager = $this->getMockBuilder(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface::class)->getMock();
-        /** @var $mockRepositoryRepository \TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository|\PHPUnit_Framework_MockObject_MockObject */
-        $this->mockRepositoryRepository = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Repository\RepositoryRepository::class)
+        parent::setUp();
+        $this->mockObjectManager = $this->getMockBuilder(ObjectManager::class)->disableOriginalConstructor()->getMock();
+        /** @var $mockRepositoryRepository RepositoryRepository|\PHPUnit\Framework\MockObject\MockObject */
+        $this->mockRepositoryRepository = $this->getMockBuilder(RepositoryRepository::class)
             ->setConstructorArgs([$this->mockObjectManager])
             ->getMock();
-        $this->mockLanguageService = $this->createMock(\TYPO3\CMS\Core\Localization\LanguageService::class);
+        $this->mockLanguageService = $this->createMock(LanguageService::class);
+        $this->resetSingletonInstances = true;
     }
 
     /**
      * @test
      */
-    public function extensionStatusImplementsStatusProviderInterface()
+    public function extensionStatusImplementsStatusProviderInterface(): void
     {
-        $reportMock = $this->createMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class);
-        $this->assertInstanceOf(\TYPO3\CMS\Reports\StatusProviderInterface::class, $reportMock);
+        $reportMock = $this->createMock(ExtensionStatus::class);
+        self::assertInstanceOf(StatusProviderInterface::class, $reportMock);
     }
 
     /**
      * @test
      */
-    public function getStatusReturnsArray()
+    public function getStatusReturnsArray(): void
     {
-        $report = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class)
-            ->setMethods(['getSecurityStatusOfExtensions', 'getMainRepositoryStatus'])
+        $report = $this->getMockBuilder(ExtensionStatus::class)
+            ->onlyMethods(['getSecurityStatusOfExtensions', 'getMainRepositoryStatus'])
             ->disableOriginalConstructor()
             ->getMock();
-        $this->assertInternalType('array', $report->getStatus());
+        self::assertIsArray($report->getStatus());
     }
 
     /**
      * @test
      */
-    public function getStatusReturnArrayContainsFiveEntries()
+    public function getStatusReturnArrayContainsFiveEntries(): void
     {
-        $report = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class)
-            ->setMethods(['getSecurityStatusOfExtensions', 'getMainRepositoryStatus'])
+        $report = $this->getMockBuilder(ExtensionStatus::class)
+            ->onlyMethods(['getSecurityStatusOfExtensions', 'getMainRepositoryStatus'])
             ->disableOriginalConstructor()
             ->getMock();
-        $this->assertSame(5, count($report->getStatus()));
+        self::assertCount(5, $report->getStatus());
     }
 
     /**
      * @test
      */
-    public function getStatusReturnArrayContainsInstancesOfReportsStatusStatus()
+    public function getStatusReturnArrayContainsInstancesOfReportsStatusStatus(): void
     {
-        $statusObject = $this->getMockBuilder(\TYPO3\CMS\Reports\Status::class)
+        $statusObject = $this->getMockBuilder(Status::class)
             ->setConstructorArgs(['title', 'value'])
             ->getMock();
-        /** @var \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus $report */
-        $report = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class)
-            ->setMethods(['getSecurityStatusOfExtensions', 'getMainRepositoryStatus'])
+        $report = $this->getMockBuilder(ExtensionStatus::class)
+            ->onlyMethods(['getSecurityStatusOfExtensions', 'getMainRepositoryStatus'])
             ->disableOriginalConstructor()
             ->getMock();
-        $report->expects($this->any())->method('getMainRepositoryStatus')->will($this->returnValue($statusObject));
-        $resultStatuses = $report->getStatus();
-        foreach ($resultStatuses as $status) {
+        $report->method('getMainRepositoryStatus')->willReturn($statusObject);
+
+        foreach ($report->getStatus() as $status) {
             if ($status) {
-                $this->assertInstanceOf(\TYPO3\CMS\Reports\Status::class, $status);
+                self::assertInstanceOf(Status::class, $status);
             }
         }
     }
@@ -105,500 +124,178 @@ class ExtensionStatusTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getStatusCallsGetMainRepositoryStatusForMainRepositoryStatusResult()
+    public function getStatusCallsMainRepositoryForMainRepositoryStatusResult(): void
     {
-        /** @var $mockTerObject \TYPO3\CMS\Extensionmanager\Domain\Model\Extension|\PHPUnit_Framework_MockObject_MockObject */
-        $mockTerObject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $mockTerObject
-            ->expects($this->any())
-            ->method('getVersion')
-            ->will($this->returnValue('1.0.6'));
-        $mockTerObject
-            ->expects($this->atLeastOnce())
-            ->method('getReviewState')
-            ->will($this->returnValue(0));
+        [$repositoryRepositoryProphecy] = $this->setUpRepositoryStatusTests();
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $repositoryRepositoryProphecy->findOneTypo3OrgRepository()->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @test
+     */
+    public function getStatusReturnsErrorStatusIfRepositoryIsNotFound(): void
+    {
+        [$repositoryRepositoryProphecy, $objectManagerProphecy] = $this->setUpRepositoryStatusTests(0, true, false);
+
+        $repositoryRepositoryProphecy->findOneTypo3OrgRepository()->willReturn(null);
+
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $objectManagerProphecy->get(Status::class, Argument::any(), Argument::any(), Argument::any(), Status::ERROR)->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @test
+     */
+    public function getStatusReturnsNoticeIfRepositoryUpdateIsLongerThanSevenDaysAgo(): void
+    {
+        [$repositoryRepositoryProphecy, $objectManagerProphecy] = $this->setUpRepositoryStatusTests(0, true, false);
+
+        $repository = new Repository();
+        $repository->setLastUpdate(new \DateTime('-14days'));
+        $repositoryRepositoryProphecy->findOneTypo3OrgRepository()->willReturn($repository);
+
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $objectManagerProphecy->get(Status::class, Argument::any(), Argument::any(), Argument::any(), Status::NOTICE)->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @test
+     */
+    public function getStatusReturnsOkIfUpdatedLessThanSevenDaysAgo(): void
+    {
+        [, $objectManagerProphecy] = $this->setUpRepositoryStatusTests();
+
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $objectManagerProphecy->get(Status::class, Argument::any(), Argument::any(), Argument::any(), Status::OK)->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @test
+     */
+    public function getStatusReturnsOkForLoadedExtensionIfNoInsecureExtensionIsLoaded(): void
+    {
+        [, $objectManagerProphecy] = $this->setUpRepositoryStatusTests();
+
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $objectManagerProphecy->get(Status::class, Argument::any(), Argument::any(), Argument::any(), Status::OK)->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @test
+     */
+    public function getStatusReturnsErrorForLoadedExtensionIfInsecureExtensionIsLoaded(): void
+    {
+        [, $objectManagerProphecy] = $this->setUpRepositoryStatusTests(-1);
+
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $objectManagerProphecy->get(Status::class, Argument::any(), Argument::any(), Argument::any(), Status::ERROR)->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @test
+     */
+    public function getStatusReturnsOkForExistingExtensionIfNoInsecureExtensionExists(): void
+    {
+        [, $objectManagerProphecy] = $this->setUpRepositoryStatusTests(0, false);
+
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $objectManagerProphecy->get(Status::class, Argument::any(), Argument::any(), Argument::any(), Status::OK)->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @test
+     */
+    public function getStatusReturnsWarningForExistingExtensionIfInsecureExtensionExistsButIsNotLoaded(): void
+    {
+        [, $objectManagerProphecy] = $this->setUpRepositoryStatusTests(-1, false);
+
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $objectManagerProphecy->get(Status::class, Argument::any(), Argument::any(), Argument::any(), Status::WARNING)->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @test
+     */
+    public function getStatusReturnsWarningForLoadedExtensionIfOutdatedExtensionIsLoaded(): void
+    {
+        [, $objectManagerProphecy] = $this->setUpRepositoryStatusTests(-2, true);
+
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $objectManagerProphecy->get(Status::class, Argument::any(), Argument::any(), Argument::any(), Status::WARNING)->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @test
+     */
+    public function getStatusReturnsErrorForExistingExtensionIfOutdatedExtensionExists(): void
+    {
+        [, $objectManagerProphecy] = $this->setUpRepositoryStatusTests(-2, false);
+
+        $extensionStatus = new ExtensionStatus();
+        $extensionStatus->getStatus();
+
+        $objectManagerProphecy->get(Status::class, Argument::any(), Argument::any(), Argument::any(), Status::WARNING)->shouldHaveBeenCalled();
+    }
+
+    /**
+     * @param int $reviewState
+     * @param bool $installed
+     * @param bool $setupRepositoryStatusOk
+     * @return array
+     * @throws \TYPO3\CMS\Extbase\Object\Exception
+     */
+    protected function setUpRepositoryStatusTests(int $reviewState = 0, bool $installed = true, bool $setupRepositoryStatusOk = true): array
+    {
+        $mockTerObject = new Extension();
+        $mockTerObject->setVersion('1.0.6');
+        $mockTerObject->setReviewState($reviewState);
+
         $mockExtensionList = [
             'enetcache' => [
-                'installed' => true,
-                'terObject' => $mockTerObject
+                'installed' => $installed,
+                'terObject' => $mockTerObject,
             ],
         ];
-        /** @var $mockListUtility \TYPO3\CMS\Extensionmanager\Utility\ListUtility|\PHPUnit_Framework_MockObject_MockObject */
-        $mockListUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)->getMock();
+        $eventDispatcher = $this->prophesize(EventDispatcherInterface::class)->reveal();
+        /** @var $mockListUtility ListUtility|\PHPUnit\Framework\MockObject\MockObject */
+        $mockListUtility = $this->getMockBuilder(ListUtility::class)->getMock();
+        $mockListUtility->injectEventDispatcher($eventDispatcher);
         $mockListUtility
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('getAvailableAndInstalledExtensionsWithAdditionalInformation')
-            ->will($this->returnValue($mockExtensionList));
+            ->willReturn($mockExtensionList);
 
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['getMainRepositoryStatus'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $mockReport->_set('listUtility', $mockListUtility);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-        $mockReport
-            ->expects($this->once())
-            ->method('getMainRepositoryStatus')
-            ->will($this->returnValue('foo'));
-
-        $result = $mockReport->getStatus();
-        $this->assertSame('foo', $result['mainRepositoryStatus']);
-    }
-
-    /**
-     * @test
-     */
-    public function getMainRepositoryStatusReturnsErrorStatusIfRepositoryIsNotFound()
-    {
-        $this->mockRepositoryRepository
-            ->expects($this->once())
-            ->method('findOneTypo3OrgRepository')
-            ->will($this->returnValue(null));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->once())
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::ERROR)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('repositoryRepository', $this->mockRepositoryRepository);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        $result = $mockReport->_call('getMainRepositoryStatus');
-        $this->assertSame($statusMock, $result);
-    }
-
-    /**
-     * @test
-     */
-    public function getMainRepositoryStatusReturnsNoticeIfRepositoryUpdateIsLongerThanSevenDaysAgo()
-    {
-        /** @var $mockRepositoryRepository \TYPO3\CMS\Extensionmanager\Domain\Model\Repository|\PHPUnit_Framework_MockObject_MockObject */
-        $mockRepository = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Repository::class)->getMock();
-        $mockRepository
-            ->expects($this->once())
-            ->method('getLastUpdate')
-            ->will($this->returnValue(new \DateTime('-8 days')));
-
-        $this->mockRepositoryRepository
-            ->expects($this->once())
-            ->method('findOneTypo3OrgRepository')
-            ->will($this->returnValue($mockRepository));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->once())
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::NOTICE)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('repositoryRepository', $this->mockRepositoryRepository);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        /** @var $result \TYPO3\CMS\Reports\Status */
-        $result = $mockReport->_call('getMainRepositoryStatus');
-        $this->assertSame($statusMock, $result);
-    }
-
-    /**
-     * @test
-     */
-    public function getMainRepositoryStatusReturnsOkIfUpdatedLessThanSevenDaysAgo()
-    {
-        /** @var $mockRepositoryRepository \TYPO3\CMS\Extensionmanager\Domain\Model\Repository|\PHPUnit_Framework_MockObject_MockObject */
-        $mockRepository = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Repository::class)->getMock();
-        $mockRepository
-            ->expects($this->once())
-            ->method('getLastUpdate')
-            ->will($this->returnValue(new \DateTime('-6 days')));
-
-        $this->mockRepositoryRepository
-            ->expects($this->once())
-            ->method('findOneTypo3OrgRepository')
-            ->will($this->returnValue($mockRepository));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->once())
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::OK)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('repositoryRepository', $this->mockRepositoryRepository);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        /** @var $result \TYPO3\CMS\Reports\Status */
-        $result = $mockReport->_call('getMainRepositoryStatus');
-        $this->assertSame($statusMock, $result);
-    }
-
-    /**
-     * @test
-     */
-    public function getSecurityStatusOfExtensionsReturnsOkForLoadedExtensionIfNoInsecureExtensionIsLoaded()
-    {
-        /** @var $mockTerObject \TYPO3\CMS\Extensionmanager\Domain\Model\Extension|\PHPUnit_Framework_MockObject_MockObject */
-        $mockTerObject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $mockTerObject
-            ->expects($this->any())
-            ->method('getVersion')
-            ->will($this->returnValue('1.0.6'));
-        $mockTerObject
-            ->expects($this->atLeastOnce())
-            ->method('getReviewState')
-            ->will($this->returnValue(0));
-        $mockExtensionList = [
-            'enetcache' => [
-                'installed' => true,
-                'terObject' => $mockTerObject
-            ],
-        ];
-        /** @var $mockListUtility \TYPO3\CMS\Extensionmanager\Utility\ListUtility|\PHPUnit_Framework_MockObject_MockObject */
-        $mockListUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)->getMock();
-        $mockListUtility
-            ->expects($this->once())
-            ->method('getAvailableAndInstalledExtensionsWithAdditionalInformation')
-            ->will($this->returnValue($mockExtensionList));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->at(0))
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::OK)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('listUtility', $mockListUtility);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        $result = $mockReport->_call('getSecurityStatusOfExtensions');
-        /** @var $loadedResult \TYPO3\CMS\Reports\Status */
-        $loadedResult = $result->loaded;
-        $this->assertSame($statusMock, $loadedResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getSecurityStatusOfExtensionsReturnsErrorForLoadedExtensionIfInsecureExtensionIsLoaded()
-    {
-        /** @var $mockTerObject \TYPO3\CMS\Extensionmanager\Domain\Model\Extension|\PHPUnit_Framework_MockObject_MockObject */
-        $mockTerObject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $mockTerObject
-            ->expects($this->any())
-            ->method('getVersion')
-            ->will($this->returnValue('1.0.6'));
-        $mockTerObject
-            ->expects($this->atLeastOnce())
-            ->method('getReviewState')
-            ->will($this->returnValue(-1));
-        $mockExtensionList = [
-            'enetcache' => [
-                'installed' => true,
-                'terObject' => $mockTerObject
-            ],
-        ];
-        /** @var $mockListUtility \TYPO3\CMS\Extensionmanager\Utility\ListUtility|\PHPUnit_Framework_MockObject_MockObject */
-        $mockListUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)->getMock();
-        $mockListUtility
-            ->expects($this->once())
-            ->method('getAvailableAndInstalledExtensionsWithAdditionalInformation')
-            ->will($this->returnValue($mockExtensionList));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->at(0))
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::ERROR)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('listUtility', $mockListUtility);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        $result = $mockReport->_call('getSecurityStatusOfExtensions');
-        /** @var $loadedResult \TYPO3\CMS\Reports\Status */
-        $loadedResult = $result->loaded;
-        $this->assertSame($statusMock, $loadedResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getSecurityStatusOfExtensionsReturnsOkForExistingExtensionIfNoInsecureExtensionExists()
-    {
-        /** @var $mockTerObject \TYPO3\CMS\Extensionmanager\Domain\Model\Extension|\PHPUnit_Framework_MockObject_MockObject */
-        $mockTerObject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $mockTerObject
-            ->expects($this->any())
-            ->method('getVersion')
-            ->will($this->returnValue('1.0.6'));
-        $mockTerObject
-            ->expects($this->atLeastOnce())
-            ->method('getReviewState')
-            ->will($this->returnValue(0));
-        $mockExtensionList = [
-            'enetcache' => [
-                'terObject' => $mockTerObject
-            ],
-        ];
-        /** @var $mockListUtility \TYPO3\CMS\Extensionmanager\Utility\ListUtility|\PHPUnit_Framework_MockObject_MockObject */
-        $mockListUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)->getMock();
-        $mockListUtility
-            ->expects($this->once())
-            ->method('getAvailableAndInstalledExtensionsWithAdditionalInformation')
-            ->will($this->returnValue($mockExtensionList));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->at(1))
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::OK)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('listUtility', $mockListUtility);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        $result = $mockReport->_call('getSecurityStatusOfExtensions');
-        /** @var $loadedResult \TYPO3\CMS\Reports\Status */
-        $loadedResult = $result->existing;
-        $this->assertSame($statusMock, $loadedResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getSecurityStatusOfExtensionsReturnsErrorForExistingExtensionIfInsecureExtensionExists()
-    {
-        /** @var $mockTerObject \TYPO3\CMS\Extensionmanager\Domain\Model\Extension|\PHPUnit_Framework_MockObject_MockObject */
-        $mockTerObject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $mockTerObject
-            ->expects($this->any())
-            ->method('getVersion')
-            ->will($this->returnValue('1.0.6'));
-        $mockTerObject
-            ->expects($this->atLeastOnce())
-            ->method('getReviewState')
-            ->will($this->returnValue(-1));
-        $mockExtensionList = [
-            'enetcache' => [
-                'terObject' => $mockTerObject
-            ],
-        ];
-        /** @var $mockListUtility \TYPO3\CMS\Extensionmanager\Utility\ListUtility|\PHPUnit_Framework_MockObject_MockObject */
-        $mockListUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)->getMock();
-        $mockListUtility
-            ->expects($this->once())
-            ->method('getAvailableAndInstalledExtensionsWithAdditionalInformation')
-            ->will($this->returnValue($mockExtensionList));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->at(1))
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::WARNING)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('listUtility', $mockListUtility);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        $result = $mockReport->_call('getSecurityStatusOfExtensions');
-        /** @var $loadedResult \TYPO3\CMS\Reports\Status */
-        $loadedResult = $result->existing;
-        $this->assertSame($statusMock, $loadedResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getSecurityStatusOfExtensionsReturnsOkForLoadedExtensionIfNoOutdatedExtensionIsLoaded()
-    {
-        /** @var $mockTerObject \TYPO3\CMS\Extensionmanager\Domain\Model\Extension|\PHPUnit_Framework_MockObject_MockObject */
-        $mockTerObject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $mockTerObject
-            ->expects($this->any())
-            ->method('getVersion')
-            ->will($this->returnValue('1.0.6'));
-        $mockTerObject
-            ->expects($this->atLeastOnce())
-            ->method('getReviewState')
-            ->will($this->returnValue(0));
-        $mockExtensionList = [
-            'enetcache' => [
-                'installed' => true,
-                'terObject' => $mockTerObject
-            ],
-        ];
-        /** @var $mockListUtility \TYPO3\CMS\Extensionmanager\Utility\ListUtility|\PHPUnit_Framework_MockObject_MockObject */
-        $mockListUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)->getMock();
-        $mockListUtility
-            ->expects($this->once())
-            ->method('getAvailableAndInstalledExtensionsWithAdditionalInformation')
-            ->will($this->returnValue($mockExtensionList));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->at(2))
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::OK)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('listUtility', $mockListUtility);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        $result = $mockReport->_call('getSecurityStatusOfExtensions');
-        /** @var $loadedResult \TYPO3\CMS\Reports\Status */
-        $loadedResult = $result->loadedoutdated;
-        $this->assertSame($statusMock, $loadedResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getSecurityStatusOfExtensionsReturnsErrorForLoadedExtensionIfOutdatedExtensionIsLoaded()
-    {
-        /** @var $mockTerObject \TYPO3\CMS\Extensionmanager\Domain\Model\Extension|\PHPUnit_Framework_MockObject_MockObject */
-        $mockTerObject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $mockTerObject
-            ->expects($this->any())
-            ->method('getVersion')
-            ->will($this->returnValue('1.0.6'));
-        $mockTerObject
-            ->expects($this->atLeastOnce())
-            ->method('getReviewState')
-            ->will($this->returnValue(-2));
-        $mockExtensionList = [
-            'enetcache' => [
-                'installed' => true,
-                'terObject' => $mockTerObject
-            ],
-        ];
-        /** @var $mockListUtility \TYPO3\CMS\Extensionmanager\Utility\ListUtility|\PHPUnit_Framework_MockObject_MockObject */
-        $mockListUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)->getMock();
-        $mockListUtility
-            ->expects($this->once())
-            ->method('getAvailableAndInstalledExtensionsWithAdditionalInformation')
-            ->will($this->returnValue($mockExtensionList));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->at(2))
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::WARNING)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('listUtility', $mockListUtility);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        $result = $mockReport->_call('getSecurityStatusOfExtensions');
-        /** @var $loadedResult \TYPO3\CMS\Reports\Status */
-        $loadedResult = $result->loadedoutdated;
-        $this->assertSame($statusMock, $loadedResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getSecurityStatusOfExtensionsReturnsOkForExistingExtensionIfNoOutdatedExtensionExists()
-    {
-        /** @var $mockTerObject \TYPO3\CMS\Extensionmanager\Domain\Model\Extension|\PHPUnit_Framework_MockObject_MockObject */
-        $mockTerObject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $mockTerObject
-            ->expects($this->any())
-            ->method('getVersion')
-            ->will($this->returnValue('1.0.6'));
-        $mockTerObject
-            ->expects($this->atLeastOnce())
-            ->method('getReviewState')
-            ->will($this->returnValue(0));
-        $mockExtensionList = [
-            'enetcache' => [
-                'terObject' => $mockTerObject
-            ],
-        ];
-        /** @var $mockListUtility \TYPO3\CMS\Extensionmanager\Utility\ListUtility|\PHPUnit_Framework_MockObject_MockObject */
-        $mockListUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)->getMock();
-        $mockListUtility
-            ->expects($this->once())
-            ->method('getAvailableAndInstalledExtensionsWithAdditionalInformation')
-            ->will($this->returnValue($mockExtensionList));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->at(3))
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::OK)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('listUtility', $mockListUtility);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        $result = $mockReport->_call('getSecurityStatusOfExtensions');
-        /** @var $loadedResult \TYPO3\CMS\Reports\Status */
-        $loadedResult = $result->existingoutdated;
-        $this->assertSame($statusMock, $loadedResult);
-    }
-
-    /**
-     * @test
-     */
-    public function getSecurityStatusOfExtensionsReturnsErrorForExistingExtensionIfOutdatedExtensionExists()
-    {
-        /** @var $mockTerObject \TYPO3\CMS\Extensionmanager\Domain\Model\Extension|\PHPUnit_Framework_MockObject_MockObject */
-        $mockTerObject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $mockTerObject
-            ->expects($this->any())
-            ->method('getVersion')
-            ->will($this->returnValue('1.0.6'));
-        $mockTerObject
-            ->expects($this->atLeastOnce())
-            ->method('getReviewState')
-            ->will($this->returnValue(-2));
-        $mockExtensionList = [
-            'enetcache' => [
-                'terObject' => $mockTerObject
-            ],
-        ];
-        /** @var $mockListUtility \TYPO3\CMS\Extensionmanager\Utility\ListUtility|\PHPUnit_Framework_MockObject_MockObject */
-        $mockListUtility = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)->getMock();
-        $mockListUtility
-            ->expects($this->once())
-            ->method('getAvailableAndInstalledExtensionsWithAdditionalInformation')
-            ->will($this->returnValue($mockExtensionList));
-
-        /** @var $mockReport \TYPO3\CMS\Extensionmanager\Report\ExtensionStatus|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $mockReport = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Report\ExtensionStatus::class, ['dummy'], [], '', false);
-        $mockReport->_set('objectManager', $this->mockObjectManager);
-        $statusMock = $this->createMock(\TYPO3\CMS\Reports\Status::class);
-        $this->mockObjectManager
-            ->expects($this->at(3))
-            ->method('get')
-            ->with($this->anything(), $this->anything(), $this->anything(), $this->anything(), \TYPO3\CMS\Reports\Status::WARNING)
-            ->will($this->returnValue($statusMock));
-        $mockReport->_set('listUtility', $mockListUtility);
-        $mockReport->_set('languageService', $this->mockLanguageService);
-
-        $result = $mockReport->_call('getSecurityStatusOfExtensions');
-        /** @var $loadedResult \TYPO3\CMS\Reports\Status */
-        $loadedResult = $result->existingoutdated;
-        $this->assertSame($statusMock, $loadedResult);
+        $repositoryRepositoryProphecy = $this->prophesize(RepositoryRepository::class);
+        $objectManagerProphecy = $this->prophesize(ObjectManager::class);
+        $objectManagerProphecy->get(RepositoryRepository::class)->willReturn($repositoryRepositoryProphecy->reveal());
+        $objectManagerProphecy->get(ListUtility::class)->willReturn($mockListUtility);
+        $objectManagerProphecy->get(LanguageService::class)->willReturn($this->mockLanguageService);
+        $objectManagerProphecy->get(Status::class, Argument::cetera())->willReturn(new Status('test status', 'test status value'));
+        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManagerProphecy->reveal());
+        if ($setupRepositoryStatusOk) {
+            $repository = new Repository();
+            $repository->setLastUpdate(new \DateTime('-4days'));
+            $repositoryRepositoryProphecy->findOneTypo3OrgRepository()->willReturn($repository);
+        }
+        return [$repositoryRepositoryProphecy, $objectManagerProphecy];
     }
 }

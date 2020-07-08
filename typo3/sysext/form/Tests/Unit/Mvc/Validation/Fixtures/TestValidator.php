@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Validation\Fixtures;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,12 @@ namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Validation\Fixtures;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Validation\Fixtures;
+
 use TYPO3\CMS\Extbase\Validation\Validator\AbstractValidator;
 
 /**
- * Validator for unit tetst
- *
- * @api
+ * Validator for unit test
  */
 class TestValidator extends AbstractValidator
 {

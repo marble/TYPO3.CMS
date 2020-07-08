@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Mvc\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,22 @@ namespace TYPO3\CMS\Extbase\Mvc\View;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Mvc\View;
+
+use TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext;
+
 /**
  * An empty view - a special case.
- *
- * @license http://www.gnu.org/licenses/lgpl.html GNU Lesser General Public License, version 3 or later
  */
-class EmptyView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
+class EmptyView implements ViewInterface
 {
     /**
      * Dummy method to satisfy the ViewInterface
      *
      * @param \TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext
+     * @internal
      */
-    public function setControllerContext(\TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext)
+    public function setControllerContext(ControllerContext $controllerContext)
     {
     }
 
@@ -36,7 +38,6 @@ class EmptyView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
      * @param string $key
      * @param mixed $value
      * @return \TYPO3\CMS\Extbase\Mvc\View\EmptyView instance of $this to allow chaining
-     * @api
      */
     public function assign($key, $value)
     {
@@ -48,7 +49,6 @@ class EmptyView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
      *
      * @param array $values
      * @return \TYPO3\CMS\Extbase\Mvc\View\EmptyView instance of $this to allow chaining
-     * @api
      */
     public function assignMultiple(array $values)
     {
@@ -60,9 +60,8 @@ class EmptyView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
      *
      * @param \TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext
      * @return bool TRUE
-     * @api
      */
-    public function canRender(\TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext)
+    public function canRender(ControllerContext $controllerContext)
     {
         return true;
     }
@@ -96,8 +95,6 @@ class EmptyView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
      * Initializes this view.
      *
      * Override this method for initializing your concrete view implementation.
-     *
-     * @api
      */
     public function initializeView()
     {

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\DataHandling\Localization;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\DataHandling\Localization;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\DataHandling\Localization;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -162,32 +163,6 @@ class DataMapItem
     }
 
     /**
-     * Gets the table name used to resolve the language parent record.
-     *
-     * @return string
-     */
-    public function getFromTableName(): string
-    {
-        if ($this->tableName === 'pages_language_overlay') {
-            return 'pages';
-        }
-        return $this->tableName;
-    }
-
-    /**
-     * Gets the table name used to resolve any kind of translations.
-     *
-     * @return string
-     */
-    public function getForTableName(): string
-    {
-        if ($this->tableName === 'pages') {
-            return 'pages_language_overlay';
-        }
-        return $this->tableName;
-    }
-
-    /**
      * Gets the id of this data-map item.
      *
      * @return mixed
@@ -245,7 +220,7 @@ class DataMapItem
     }
 
     /**
-     * @return null|string
+     * @return string|null
      */
     public function getSourceFieldName()
     {
@@ -269,14 +244,14 @@ class DataMapItem
             // implicit: default language, it's a parent
             if ($this->language === 0) {
                 $this->type = static::TYPE_PARENT;
-            // implicit: having source value different to parent value, it's a 2nd or higher level translation
             } elseif (
+                // implicit: having source value different to parent value, it's a 2nd or higher level translation
                 $this->source !== null
                 && $this->source !== $this->parent
             ) {
                 $this->type = static::TYPE_GRAND_CHILD;
-            // implicit: otherwise, it's a 1st level translation
             } else {
+                // implicit: otherwise, it's a 1st level translation
                 $this->type = static::TYPE_DIRECT_CHILD;
             }
         }
@@ -434,17 +409,17 @@ class DataMapItem
     {
         if (MathUtility::canBeInterpretedAsInteger($idValue)) {
             return $idValue;
-        } elseif (strpos($idValue, 'NEW') === 0) {
-            return $idValue;
-        } else {
-            // @todo Handle if $tableName does not match $this->tableName
-            list($tableName, $id) = BackendUtility::splitTable_Uid($idValue);
-            return $id;
         }
+        if (strpos($idValue, 'NEW') === 0) {
+            return $idValue;
+        }
+        // @todo Handle if $tableName does not match $this->tableName
+        [$tableName, $id] = BackendUtility::splitTable_Uid($idValue);
+        return $id;
     }
 
     /**
-     * @return null|State
+     * @return State|null
      */
     protected function buildState()
     {
@@ -454,14 +429,14 @@ class DataMapItem
                 $this->tableName,
                 $this->persistedValues['l10n_state'] ?? null
             );
-        // use provided states for a new and copied element
         } elseif (is_string($this->suggestedValues['l10n_state'] ?? null)) {
+            // use provided states for a new and copied element
             $state = State::fromJSON(
                 $this->tableName,
                 $this->suggestedValues['l10n_state']
             );
-        // provide the default states
         } else {
+            // provide the default states
             $state = State::create($this->tableName);
         }
         // switch "custom" to "source" state for 2nd level translations

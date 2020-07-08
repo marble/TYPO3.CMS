@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +13,26 @@ namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
+
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
+use TYPO3\CMS\Extbase\Service\ExtensionService;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
+use TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormViewHelper;
 
 /**
- * view helper
+ * ViewHelper
  * @internal
  */
-class DownloadExtensionViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormViewHelper
+class DownloadExtensionViewHelper extends AbstractFormViewHelper
 {
     /**
      * @var string
      */
     protected $tagName = 'form';
-
-    /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\ConfigurationUtility
-     */
-    protected $configurationUtility;
 
     /**
      * @var \TYPO3\CMS\Extbase\Service\ExtensionService
@@ -41,17 +42,9 @@ class DownloadExtensionViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\Abst
     /**
      * @param \TYPO3\CMS\Extbase\Service\ExtensionService $extensionService
      */
-    public function injectExtensionService(\TYPO3\CMS\Extbase\Service\ExtensionService $extensionService)
+    public function injectExtensionService(ExtensionService $extensionService)
     {
         $this->extensionService = $extensionService;
-    }
-
-    /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\ConfigurationUtility $configurationUtility
-     */
-    public function injectConfigurationUtility(\TYPO3\CMS\Extensionmanager\Utility\ConfigurationUtility $configurationUtility)
-    {
-        $this->configurationUtility = $configurationUtility;
     }
 
     /**
@@ -82,7 +75,7 @@ class DownloadExtensionViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\Abst
         if (empty($installPaths)) {
             return '';
         }
-        $pathSelector = '<ul class="is-hidden">';
+        $pathSelector = '<ul class="extensionmanager-is-hidden">';
         foreach ($installPaths as $installPathType => $installPath) {
             $pathSelector .= '<li>
 				<input type="radio" id="' . htmlspecialchars($extension->getExtensionKey()) . '-downloadPath-' . htmlspecialchars($installPathType) . '" name="' . htmlspecialchars($this->getFieldNamePrefix()) . '[downloadPath]" class="downloadPath" value="' . htmlspecialchars($installPathType) . '" ' . ($installPathType === 'Local' ? 'checked="checked"' : '') . ' />
@@ -90,7 +83,8 @@ class DownloadExtensionViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\Abst
 			</li>';
         }
         $pathSelector .= '</ul>';
-        $uriBuilder = $this->controllerContext->getUriBuilder();
+        /** @var UriBuilder $uriBuilder */
+        $uriBuilder = $this->renderingContext->getControllerContext()->getUriBuilder();
         $action = 'checkDependencies';
         $uriBuilder->reset();
         $uriBuilder->setFormat('json');
@@ -99,7 +93,7 @@ class DownloadExtensionViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\Abst
         ], 'Download');
         $this->tag->addAttribute('data-href', $uri);
 
-        $automaticInstallation = $this->configurationUtility->getCurrentConfiguration('extensionmanager')['automaticInstallation']['value'];
+        $automaticInstallation = (bool)GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('extensionmanager', 'automaticInstallation');
         $labelKeySuffix = $automaticInstallation ? '' : '.downloadOnly';
         $label = '
 			<div class="btn-group">
@@ -127,9 +121,8 @@ class DownloadExtensionViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\Abst
     {
         if ($this->hasArgument('fieldNamePrefix')) {
             return $this->arguments['fieldNamePrefix'];
-        } else {
-            return $this->getDefaultFieldNamePrefix();
         }
+        return $this->getDefaultFieldNamePrefix();
     }
 
     /**
@@ -139,7 +132,7 @@ class DownloadExtensionViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\Abst
      */
     protected function getDefaultFieldNamePrefix()
     {
-        $request = $this->controllerContext->getRequest();
+        $request = $this->renderingContext->getControllerContext()->getRequest();
         if ($this->hasArgument('extensionName')) {
             $extensionName = $this->arguments['extensionName'];
         } else {
@@ -152,8 +145,7 @@ class DownloadExtensionViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\Abst
         }
         if ($extensionName !== null && $pluginName != null) {
             return $this->extensionService->getPluginNamespace($extensionName, $pluginName);
-        } else {
-            return '';
         }
+        return '';
     }
 }

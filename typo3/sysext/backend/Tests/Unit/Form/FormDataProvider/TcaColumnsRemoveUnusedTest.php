@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,24 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaColumnsRemoveUnused;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaColumnsRemoveUnusedTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaColumnsRemoveUnusedTest extends UnitTestCase
 {
     /**
      * @var TcaColumnsRemoveUnused
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = new TcaColumnsRemoveUnused();
     }
 
@@ -62,6 +65,6 @@ class TcaColumnsRemoveUnusedTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
         $expected = $input;
         unset($expected['processedTca']['columns']['aField']);
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 }

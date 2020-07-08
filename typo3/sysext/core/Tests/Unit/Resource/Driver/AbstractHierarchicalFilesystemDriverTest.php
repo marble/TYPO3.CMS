@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource\Driver;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource\Driver;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Resource\Driver;
+
 use TYPO3\CMS\Core\Resource\Driver\AbstractHierarchicalFilesystemDriver;
 use TYPO3\CMS\Core\Tests\Unit\Resource\BaseTestCase;
 
@@ -23,11 +24,11 @@ use TYPO3\CMS\Core\Tests\Unit\Resource\BaseTestCase;
 class AbstractHierarchicalFilesystemDriverTest extends BaseTestCase
 {
     /**
-     * @var AbstractHierarchicalFilesystemDriver|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var AbstractHierarchicalFilesystemDriver|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
-    protected $subject = null;
+    protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->subject = $this->getAccessibleMockForAbstractClass(AbstractHierarchicalFilesystemDriver::class, [], '', false);
@@ -41,7 +42,7 @@ class AbstractHierarchicalFilesystemDriverTest extends BaseTestCase
      */
     public function canonicalizeAndCheckFileIdentifierCanonicalizesPath($expectedPath, $fileIdentifier)
     {
-        $this->assertSame($expectedPath, $this->subject->_callRef('canonicalizeAndCheckFileIdentifier', $fileIdentifier));
+        self::assertSame($expectedPath, $this->subject->_call('canonicalizeAndCheckFileIdentifier', $fileIdentifier));
     }
 
     /**
@@ -93,7 +94,7 @@ class AbstractHierarchicalFilesystemDriverTest extends BaseTestCase
      */
     public function canonicalizeAndCheckFolderIdentifierCanonicalizesFolderIdentifier($expectedPath, $identifier)
     {
-        $this->assertSame($expectedPath, $this->subject->_callRef('canonicalizeAndCheckFolderIdentifier', $identifier));
+        self::assertSame($expectedPath, $this->subject->_call('canonicalizeAndCheckFolderIdentifier', $identifier));
     }
 
     /**

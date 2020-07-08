@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Report;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,22 +13,25 @@ namespace TYPO3\CMS\Install\Report;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Backend\Utility\BackendUtility;
+namespace TYPO3\CMS\Install\Report;
+
+use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Install\Service\Exception;
+use TYPO3\CMS\Install\Service\CoreVersionService;
+use TYPO3\CMS\Install\Service\Exception\RemoteFetchException;
+use TYPO3\CMS\Install\Service\UpgradeWizardsService;
 use TYPO3\CMS\Reports\Status;
+use TYPO3\CMS\Reports\StatusProviderInterface;
 
 /**
  * Provides an installation status report.
+ * @internal This class is only meant to be used within EXT:install and is not part of the TYPO3 Core API.
  */
-class InstallStatusReport implements \TYPO3\CMS\Reports\StatusProviderInterface
+class InstallStatusReport implements StatusProviderInterface
 {
-    /**
-     * @var string
-     */
-    protected $reportList = 'FileSystem,RemainingUpdates,NewVersion';
-
     /**
      * Compiles a collection of system status checks as a status report.
      *
@@ -37,12 +39,11 @@ class InstallStatusReport implements \TYPO3\CMS\Reports\StatusProviderInterface
      */
     public function getStatus()
     {
-        $reports = [];
-        $reportMethods = explode(',', $this->reportList);
-        foreach ($reportMethods as $reportMethod) {
-            $reports[$reportMethod] = $this->{'get' . $reportMethod . 'Status'}();
-        }
-        return $reports;
+        return [
+            'FileSystem' => $this->getFileSystemStatus(),
+            'RemainingUpdates' => $this->getRemainingUpdatesStatus(),
+            'NewVersion' => $this->getNewVersionStatus(),
+        ];
     }
 
     /**
@@ -59,42 +60,47 @@ class InstallStatusReport implements \TYPO3\CMS\Reports\StatusProviderInterface
         // Requirement level
         // -1 = not required, but if it exists may be writable or not
         //  0 = not required, if it exists the dir should be writable
-        //  1 = required, don't has to be writable
+        //  1 = required, doesn't have to be writable
         //  2 = required, has to be writable
+        $varPath = Environment::getVarPath();
+        $sitePath = Environment::getPublicPath();
+        $rootPath = Environment::getProjectPath();
         $checkWritable = [
-            'typo3temp/' => 2,
-            'typo3temp/assets/' => 2,
-            'typo3temp/assets/compressed/' => 2,
+            $sitePath . '/typo3temp/' => 2,
+            $sitePath . '/typo3temp/assets/' => 2,
+            $sitePath . '/typo3temp/assets/compressed/' => 2,
             // only needed when GraphicalFunctions is used
-            'typo3temp/assets/images/' => 0,
+            $sitePath . '/typo3temp/assets/images/' => 0,
             // used in PageGenerator (inlineStyle2Temp) and Backend + Language JS files
-            'typo3temp/assets/css/' => 2,
-            'typo3temp/assets/js/' => 2,
+            $sitePath . '/typo3temp/assets/css/' => 2,
+            $sitePath . '/typo3temp/assets/js/' => 2,
             // fallback storage of FAL
-            'typo3temp/assets/_processed_/' => 0,
-            'typo3temp/var/' => 2,
-            'typo3temp/var/transient/' => 2,
-            'typo3temp/var/charset/' => 2,
-            'typo3temp/var/locks/' => 2,
-            'typo3conf/' => 2,
-            'typo3conf/ext/' => 0,
-            'typo3conf/l10n/' => 0,
-            'uploads/' => 2,
-            'uploads/media/' => 0,
-            $GLOBALS['TYPO3_CONF_VARS']['BE']['fileadminDir'] => -1,
-            $GLOBALS['TYPO3_CONF_VARS']['BE']['fileadminDir'] . '_temp_/' => 0,
+            $sitePath . '/typo3temp/assets/_processed_/' => 0,
+            $varPath => 2,
+            $varPath . '/transient/' => 2,
+            $varPath . '/charset/' => 2,
+            $varPath . '/lock/' => 2,
+            $sitePath . '/typo3conf/' => 2,
+            Environment::getLabelsPath() => 0,
+            $sitePath . '/' . $GLOBALS['TYPO3_CONF_VARS']['BE']['fileadminDir'] => -1,
+            $sitePath . '/' . $GLOBALS['TYPO3_CONF_VARS']['BE']['fileadminDir'] . '_temp_/' => 0,
         ];
 
-        if ($GLOBALS['TYPO3_CONF_VARS']['EXT']['allowGlobalInstall']) {
-            $checkWritable[TYPO3_mainDir . 'ext/'] = -1;
+        // Check for writable extension folder files in non-composer mode only
+        if (!Environment::isComposerMode()) {
+            $checkWritable[Environment::getExtensionsPath()] = 0;
+            if ($GLOBALS['TYPO3_CONF_VARS']['EXT']['allowGlobalInstall']) {
+                $checkWritable[Environment::getBackendPath() . '/ext/'] = -1;
+            }
         }
 
-        foreach ($checkWritable as $relPath => $requirementLevel) {
-            if (!@is_dir(PATH_site . $relPath)) {
+        foreach ($checkWritable as $path => $requirementLevel) {
+            $relPath = substr($path, strlen($rootPath) + 1);
+            if (!@is_dir($path)) {
                 // If the directory is missing, try to create it
-                GeneralUtility::mkdir(PATH_site . $relPath);
+                GeneralUtility::mkdir($path);
             }
-            if (!@is_dir(PATH_site . $relPath)) {
+            if (!@is_dir($path)) {
                 if ($requirementLevel > 0) {
                     // directory is required
                     $value = $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_missingDirectory');
@@ -112,10 +118,13 @@ class InstallStatusReport implements \TYPO3\CMS\Reports\StatusProviderInterface
                     }
                 }
             } else {
-                if (!is_writable((PATH_site . $relPath))) {
+                if (!is_writable($path)) {
                     switch ($requirementLevel) {
                         case 0:
-                            $message .= sprintf($languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_directoryShouldBeWritable'), (PATH_site . $relPath)) . '<br />';
+                            $message .= sprintf(
+                                $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_directoryShouldBeWritable'),
+                                $path
+                            ) . '<br />';
                             if ($severity < Status::WARNING) {
                                 $value = $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_recommendedWritableDirectory');
                                 $severity = Status::WARNING;
@@ -123,7 +132,10 @@ class InstallStatusReport implements \TYPO3\CMS\Reports\StatusProviderInterface
                             break;
                         case 2:
                             $value = $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_requiredWritableDirectory');
-                            $message .= sprintf($languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_directoryMustBeWritable'), (PATH_site . $relPath)) . '<br />';
+                            $message .= sprintf(
+                                $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_directoryMustBeWritable'),
+                                $path
+                            ) . '<br />';
                             $severity = Status::ERROR;
                             break;
                         default:
@@ -132,6 +144,27 @@ class InstallStatusReport implements \TYPO3\CMS\Reports\StatusProviderInterface
             }
         }
         return GeneralUtility::makeInstance(Status::class, $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_fileSystem'), $value, $message, $severity);
+    }
+
+    /**
+     * Returns all incomplete update wizards.
+     *
+     * Fetches all wizards that are not marked "done" in the registry and filters out
+     * the ones that should not be rendered (= no upgrade required).
+     *
+     * @return array
+     */
+    protected function getIncompleteWizards(): array
+    {
+        $upgradeWizardsService = GeneralUtility::makeInstance(UpgradeWizardsService::class);
+        $incompleteWizards = $upgradeWizardsService->getUpgradeWizardsList();
+        $incompleteWizards = array_filter(
+            $incompleteWizards,
+            function ($wizard) {
+                return $wizard['shouldRenderWizard'];
+            }
+        );
+        return $incompleteWizards;
     }
 
     /**
@@ -145,21 +178,16 @@ class InstallStatusReport implements \TYPO3\CMS\Reports\StatusProviderInterface
         $value = $languageService->getLL('status_updateComplete');
         $message = '';
         $severity = Status::OK;
-
+        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         // check if there are update wizards left to perform
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/install']['update'])) {
-            $versionAsInt = \TYPO3\CMS\Core\Utility\VersionNumberUtility::convertVersionNumberToInteger(TYPO3_version);
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/install']['update'] as $identifier => $className) {
-                $updateObject = GeneralUtility::makeInstance($className, $identifier, $versionAsInt, null, $this);
-                if ($updateObject->shouldRenderWizard()) {
-                    // at least one wizard was found
-                    $value = $languageService->getLL('status_updateIncomplete');
-                    $severity = Status::WARNING;
-                    $url = BackendUtility::getModuleUrl('system_extinstall');
-                    $message = sprintf($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:warning.install_update'), '<a href="' . htmlspecialchars($url) . '">', '</a>');
-                    break;
-                }
-            }
+        $incompleteWizards = $this->getIncompleteWizards();
+        if (count($incompleteWizards)) {
+            // At least one incomplete wizard was found
+            $value = $languageService->getLL('status_updateIncomplete');
+            $severity = Status::WARNING;
+            $url = (string)$uriBuilder->buildUriFromRoute('tools_toolsupgrade');
+            $message = sprintf($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:warning.install_update'), '<a href="' . htmlspecialchars($url) . '">', '</a>');
         }
 
         return GeneralUtility::makeInstance(Status::class, $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_remainingUpdates'), $value, $message, $severity);
@@ -172,27 +200,29 @@ class InstallStatusReport implements \TYPO3\CMS\Reports\StatusProviderInterface
      */
     protected function getNewVersionStatus()
     {
+        $typoVersion = GeneralUtility::makeInstance(Typo3Version::class);
         $languageService = $this->getLanguageService();
         /** @var \TYPO3\CMS\Install\Service\CoreVersionService $coreVersionService */
-        $coreVersionService = GeneralUtility::makeInstance(\TYPO3\CMS\Install\Service\CoreVersionService::class);
+        $coreVersionService = GeneralUtility::makeInstance(CoreVersionService::class);
 
         // No updates for development versions
         if (!$coreVersionService->isInstalledVersionAReleasedVersion()) {
-            return GeneralUtility::makeInstance(Status::class, 'TYPO3', TYPO3_version, $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_isDevelopmentVersion'), Status::NOTICE);
-        }
-
-        // If fetching version matrix fails we can not do anything except print out the current version
-        try {
-            $coreVersionService->updateVersionMatrix();
-        } catch (Exception\RemoteFetchException $remoteFetchException) {
-            return GeneralUtility::makeInstance(Status::class, 'TYPO3', TYPO3_version, $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_remoteFetchException'), Status::NOTICE);
+            return GeneralUtility::makeInstance(Status::class, 'TYPO3', $typoVersion->getVersion(), $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_isDevelopmentVersion'), Status::NOTICE);
         }
 
         try {
             $isUpdateAvailable = $coreVersionService->isYoungerPatchReleaseAvailable();
             $isMaintainedVersion = $coreVersionService->isVersionActivelyMaintained();
-        } catch (Exception\CoreVersionServiceException $coreVersionServiceException) {
-            return GeneralUtility::makeInstance(Status::class, 'TYPO3', TYPO3_version, $languageService->sL('LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_patchLevelNotFoundInReleaseMatrix'), Status::WARNING);
+        } catch (RemoteFetchException $remoteFetchException) {
+            return GeneralUtility::makeInstance(
+                Status::class,
+                'TYPO3',
+                $typoVersion->getVersion(),
+                $languageService->sL(
+                    'LLL:EXT:install/Resources/Private/Language/Report/locallang.xlf:status_remoteFetchException'
+                ),
+                Status::NOTICE
+            );
         }
 
         if (!$isUpdateAvailable && $isMaintainedVersion) {
@@ -215,7 +245,7 @@ class InstallStatusReport implements \TYPO3\CMS\Reports\StatusProviderInterface
             $status = Status::ERROR;
         }
 
-        return GeneralUtility::makeInstance(Status::class, 'TYPO3', TYPO3_version, $message, $status);
+        return GeneralUtility::makeInstance(Status::class, 'TYPO3', $typoVersion->getVersion(), $message, $status);
     }
 
     /**

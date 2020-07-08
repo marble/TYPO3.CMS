@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaInlineIsOnSymmetricSide;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaInlineIsOnSymmetricSideTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaInlineIsOnSymmetricSideTest extends UnitTestCase
 {
     /**
      * @var TcaInlineIsOnSymmetricSide
@@ -29,8 +31,9 @@ class TcaInlineIsOnSymmetricSideTest extends \TYPO3\TestingFramework\Core\Unit\U
     /**
      * Initializes the mock object.
      */
-    public function setUp()
+    public function setUp(): void
     {
+        parent::setUp();
         $this->subject = new TcaInlineIsOnSymmetricSide();
     }
 
@@ -54,6 +57,6 @@ class TcaInlineIsOnSymmetricSideTest extends \TYPO3\TestingFramework\Core\Unit\U
         ];
         $expected = $input;
         $expected['isOnSymmetricSide'] = true;
-        $this->assertEquals($expected, $this->subject->addData($input));
+        self::assertEquals($expected, $this->subject->addData($input));
     }
 }

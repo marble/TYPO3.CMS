@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Page;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,33 +13,37 @@ namespace TYPO3\CMS\Core\Page;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Page;
+
 use TYPO3\CMS\Backend\Routing\Router;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Cache\CacheManager;
-use TYPO3\CMS\Core\Cache\Frontend\VariableFrontend;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Localization\LocalizationFactory;
+use TYPO3\CMS\Core\MetaTag\MetaTagManagerRegistry;
+use TYPO3\CMS\Core\Package\PackageManager;
+use TYPO3\CMS\Core\Resource\ResourceCompressor;
 use TYPO3\CMS\Core\Service\MarkerBasedTemplateService;
-use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
+use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
-use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 /**
- * TYPO3 pageRender class (new in TYPO3 4.3.0)
+ * TYPO3 pageRender class
  * This class render the HTML of a webpage, usable for BE and FE
  */
-class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
+class PageRenderer implements SingletonInterface
 {
     // Constants for the part to be rendered
     const PART_COMPLETE = 0;
     const PART_HEADER = 1;
     const PART_FOOTER = 2;
-    // jQuery Core version that is shipped with TYPO3
-    const JQUERY_VERSION_LATEST = '3.2.1';
-    // jQuery namespace options
-    const JQUERY_NAMESPACE_NONE = 'none';
-    const JQUERY_NAMESPACE_DEFAULT = 'jQuery';
-    const JQUERY_NAMESPACE_DEFAULT_NOCONFLICT = 'defaultNoConflict';
+
+    const REQUIREJS_SCOPE_CONFIG = 'config';
+    const REQUIREJS_SCOPE_RESOLVE = 'resolve';
 
     /**
      * @var bool
@@ -60,11 +63,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * @var bool
      */
-    protected $concatenateFiles = false;
-
-    /**
-     * @var bool
-     */
     protected $concatenateJavascript = false;
 
     /**
@@ -78,12 +76,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     protected $moveJsFromHeaderToFooter = false;
 
     /**
-     * @var \TYPO3\CMS\Core\Charset\CharsetConverter
-     */
-    protected $csConvObj;
-
-    /**
-     * @var \TYPO3\CMS\Core\Localization\Locales
+     * @var Locales
      */
     protected $locales;
 
@@ -104,7 +97,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     protected $languageDependencies = [];
 
     /**
-     * @var \TYPO3\CMS\Core\Resource\ResourceCompressor
+     * @var ResourceCompressor
      */
     protected $compressor;
 
@@ -243,11 +236,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * @var array
      */
-    protected $extOnReadyCode = [];
-
-    /**
-     * @var array
-     */
     protected $cssInline = [];
 
     /**
@@ -260,11 +248,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected $templateFile;
 
-    /**
-     * @var array
-     */
-    protected $jsLibraryNames = ['extjs'];
-
     // Paths to contributed libraries
 
     /**
@@ -273,59 +256,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected $requireJsPath = 'EXT:core/Resources/Public/JavaScript/Contrib/';
 
-    /**
-     * @var string
-     */
-    protected $extJsPath = 'EXT:core/Resources/Public/JavaScript/Contrib/extjs/';
-
-    /**
-     * The local directory where one can find jQuery versions and plugins
-     *
-     * @var string
-     */
-    protected $jQueryPath = 'EXT:core/Resources/Public/JavaScript/Contrib/jquery/';
-
     // Internal flags for JS-libraries
-    /**
-     * This array holds all jQuery versions that should be included in the
-     * current page.
-     * Each version is described by "source", "version" and "namespace"
-     *
-     * The namespace of every particular version is the key
-     * of that array, because only one version per namespace can exist.
-     *
-     * The type "source" describes where the jQuery core should be included from
-     * currently, TYPO3 supports "local" (make use of jQuery path), "google",
-     * "jquery", "msn" and "cloudflare".
-     *
-     * Currently there are downsides to "local" which supports only the latest/shipped
-     * jQuery core out of the box.
-     *
-     * @var array
-     */
-    protected $jQueryVersions = [];
-
-    /**
-     * Array of jQuery version numbers shipped with the core
-     *
-     * @var array
-     */
-    protected $availableLocalJqueryVersions = [
-        self::JQUERY_VERSION_LATEST
-    ];
-
-    /**
-     * Array of jQuery CDNs with placeholders
-     *
-     * @var array
-     */
-    protected $jQueryCdnUrls = [
-        'google' => 'https://ajax.googleapis.com/ajax/libs/jquery/%1$s/jquery%2$s.js',
-        'msn' => 'https://ajax.aspnetcdn.com/ajax/jQuery/jquery-%1$s%2$s.js',
-        'jquery' => 'https://code.jquery.com/jquery-%1$s%2$s.js',
-        'cloudflare' => 'https://cdnjs.cloudflare.com/ajax/libs/jquery/%1$s/jquery%2$s.js'
-    ];
-
     /**
      * if set, the requireJS library is included
      * @var bool
@@ -333,40 +264,22 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     protected $addRequireJs = false;
 
     /**
-     * inline configuration for requireJS
+     * Inline configuration for requireJS (internal)
      * @var array
      */
     protected $requireJsConfig = [];
 
     /**
-     * @var bool
+     * Module names of internal requireJS 'paths'
+     * @var array
      */
-    protected $addExtJS = false;
+    protected $internalRequireJsPathModuleNames = [];
 
     /**
-     * @var bool
+     * Inline configuration for requireJS (public)
+     * @var array
      */
-    protected $extDirectCodeAdded = false;
-
-    /**
-     * @var bool
-     */
-    protected $enableExtJsDebug = false;
-
-    /**
-     * @var bool
-     */
-    protected $enableJqueryDebug = false;
-
-    /**
-     * @var bool
-     */
-    protected $extJStheme = true;
-
-    /**
-     * @var bool
-     */
-    protected $extJScss = true;
+    protected $publicRequireJsConfig = [];
 
     /**
      * @var array
@@ -408,13 +321,22 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     protected $endingSlash = '';
 
     /**
+     * @var MetaTagManagerRegistry
+     */
+    protected $metaTagRegistry;
+
+    /**
+     * @var FrontendInterface
+     */
+    protected static $cache = null;
+
+    /**
      * @param string $templateFile Declare the used template file. Omit this parameter will use default template
      */
     public function __construct($templateFile = '')
     {
         $this->reset();
-        $this->csConvObj = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Charset\CharsetConverter::class);
-        $this->locales = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Localization\Locales::class);
+        $this->locales = GeneralUtility::makeInstance(Locales::class);
         if ($templateFile !== '') {
             $this->templateFile = $templateFile;
         }
@@ -426,6 +348,59 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             '<style type="text/css">' . LF . '/*<![CDATA[*/' . LF . '<!-- ' . LF,
             '-->' . LF . '/*]]>*/' . LF . '</style>' . LF
         ];
+
+        $this->metaTagRegistry = GeneralUtility::makeInstance(MetaTagManagerRegistry::class);
+        $this->setMetaTag('name', 'generator', 'TYPO3 CMS');
+    }
+
+    /**
+     * @param array $newState
+     * @internal
+     */
+    public function updateState(array $newState): void
+    {
+        foreach ($newState as $var => $value) {
+            switch ($var) {
+            case 'locales':
+                break;
+            case 'metaTagRegistry':
+                $this->metaTagRegistry->updateState($value);
+                break;
+            default:
+                $this->{$var} = $value;
+                break;
+            }
+        }
+    }
+
+    /**
+     * @return array
+     * @internal
+     */
+    public function getState(): array
+    {
+        $state = [];
+        foreach (get_object_vars($this) as $var => $value) {
+            switch ($var) {
+            case 'locales':
+                break;
+            case 'metaTagRegistry':
+                $state[$var] = $this->metaTagRegistry->getState();
+                break;
+            default:
+                $state[$var] = $value;
+                break;
+            }
+        }
+        return $state;
+    }
+
+    /**
+     * @param FrontendInterface $cache
+     */
+    public static function setCache(FrontendInterface $cache)
+    {
+        static::$cache = $cache;
     }
 
     /**
@@ -445,8 +420,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         $this->inlineComments = [];
         $this->headerData = [];
         $this->footerData = [];
-        $this->extOnReadyCode = [];
-        $this->jQueryVersions = [];
     }
 
     /*****************************************************/
@@ -605,13 +578,31 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Sets Path for ExtJs library (relative to typo3 directory)
-     *
-     * @param string $path
+     * @param string $scope
+     * @return array
      */
-    public function setExtJsPath($path)
+    public function getRequireJsConfig(string $scope = null): array
     {
-        $this->extJsPath = $path;
+        // return basic RequireJS configuration without shim, paths and packages
+        if ($scope === static::REQUIREJS_SCOPE_CONFIG) {
+            return array_replace_recursive(
+                $this->publicRequireJsConfig,
+                $this->filterArrayKeys(
+                    $this->requireJsConfig,
+                    ['shim', 'paths', 'packages'],
+                    false
+                )
+            );
+        }
+        // return RequireJS configuration for resolving only shim, paths and packages
+        if ($scope === static::REQUIREJS_SCOPE_RESOLVE) {
+            return $this->filterArrayKeys(
+                $this->requireJsConfig,
+                ['shim', 'paths', 'packages'],
+                true
+            );
+        }
+        return [];
     }
 
     /*****************************************************/
@@ -666,22 +657,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     public function disableCompressCss()
     {
         $this->compressCss = false;
-    }
-
-    /**
-     * Enables concatenation of js and css files
-     */
-    public function enableConcatenateFiles()
-    {
-        $this->concatenateFiles = true;
-    }
-
-    /**
-     * Disables concatenation of js and css files
-     */
-    public function disableConcatenateFiles()
-    {
-        $this->concatenateFiles = false;
     }
 
     /**
@@ -740,10 +715,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     {
         $this->compressJavascript = false;
         $this->compressCss = false;
-        $this->concatenateFiles = false;
+        $this->concatenateCss = false;
+        $this->concatenateJavascript = false;
         $this->removeLineBreaksFromTemplate = false;
-        $this->enableExtJsDebug = true;
-        $this->enableJqueryDebug = true;
     }
 
     /*****************************************************/
@@ -893,16 +867,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Gets concatenate of js and css files
-     *
-     * @return bool
-     */
-    public function getConcatenateFiles()
-    {
-        return $this->concatenateFiles;
-    }
-
-    /**
      * Gets concatenate of js files
      *
      * @return bool
@@ -943,16 +907,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Gets Path for ExtJs library (relative to typo3 directory)
-     *
-     * @return string
-     */
-    public function getExtJsPath()
-    {
-        return $this->extJsPath;
-    }
-
-    /**
      * Gets the inline language labels.
      *
      * @return array The inline language labels
@@ -978,16 +932,73 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /*                                                   */
     /*                                                   */
     /*****************************************************/
+
     /**
-     * Adds meta data
+     * Sets a given meta tag
      *
-     * @param string $meta Meta data (complete metatag)
+     * @param string $type The type of the meta tag. Allowed values are property, name or http-equiv
+     * @param string $name The name of the property to add
+     * @param string $content The content of the meta tag
+     * @param array $subProperties Subproperties of the meta tag (like e.g. og:image:width)
+     * @param bool $replace Replace earlier set meta tag
+     * @throws \InvalidArgumentException
      */
-    public function addMetaTag($meta)
+    public function setMetaTag(string $type, string $name, string $content, array $subProperties = [], $replace = true)
     {
-        if (!in_array($meta, $this->metaTags)) {
-            $this->metaTags[] = $meta;
+        // Lowercase all the things
+        $type = strtolower($type);
+        $name = strtolower($name);
+        if (!in_array($type, ['property', 'name', 'http-equiv'], true)) {
+            throw new \InvalidArgumentException(
+                'When setting a meta tag the only types allowed are property, name or http-equiv. "' . $type . '" given.',
+                1496402460
+            );
         }
+        $manager = $this->metaTagRegistry->getManagerForProperty($name);
+        $manager->addProperty($name, $content, $subProperties, $replace, $type);
+    }
+
+    /**
+     * Returns the requested meta tag
+     *
+     * @param string $type
+     * @param string $name
+     *
+     * @return array
+     */
+    public function getMetaTag(string $type, string $name): array
+    {
+        // Lowercase all the things
+        $type = strtolower($type);
+        $name = strtolower($name);
+
+        $manager = $this->metaTagRegistry->getManagerForProperty($name);
+        $propertyContent = $manager->getProperty($name, $type);
+
+        if (!empty($propertyContent[0])) {
+            return [
+                'type' => $type,
+                'name' => $name,
+                'content' => $propertyContent[0]['content']
+            ];
+        }
+        return [];
+    }
+
+    /**
+     * Unset the requested meta tag
+     *
+     * @param string $type
+     * @param string $name
+     */
+    public function removeMetaTag(string $type, string $name)
+    {
+        // Lowercase all the things
+        $type = strtolower($type);
+        $name = strtolower($name);
+
+        $manager = $this->metaTagRegistry->getManagerForProperty($name);
+        $manager->removeProperty($name, $type);
     }
 
     /**
@@ -1039,12 +1050,12 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $splitChar The char used to split the allWrap value, default is "|"
      * @param bool $async Flag if property 'async="async"' should be added to JavaScript tags
      * @param string $integrity Subresource Integrity (SRI)
+     * @param bool $defer Flag if property 'defer="defer"' should be added to JavaScript tags
+     * @param string $crossorigin CORS settings attribute
+     * @param bool $nomodule Flag if property 'nomodule="nomodule"' should be added to JavaScript tags
      */
-    public function addJsLibrary($name, $file, $type = 'text/javascript', $compress = false, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '')
+    public function addJsLibrary($name, $file, $type = 'text/javascript', $compress = false, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '', $nomodule = false)
     {
-        if (!$type) {
-            $type = 'text/javascript';
-        }
         if (!in_array(strtolower($name), $this->jsLibs)) {
             $this->jsLibs[strtolower($name)] = [
                 'file' => $file,
@@ -1057,6 +1068,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
                 'splitChar' => $splitChar,
                 'async' => $async,
                 'integrity' => $integrity,
+                'defer' => $defer,
+                'crossorigin' => $crossorigin,
+                'nomodule' => $nomodule,
             ];
         }
     }
@@ -1074,12 +1088,13 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $splitChar The char used to split the allWrap value, default is "|"
      * @param bool $async Flag if property 'async="async"' should be added to JavaScript tags
      * @param string $integrity Subresource Integrity (SRI)
+     * @param bool $defer Flag if property 'defer="defer"' should be added to JavaScript tags
+     * @param string $crossorigin CORS settings attribute
+     * @param bool $nomodule Flag if property 'nomodule="nomodule"' should be added to JavaScript tags
      */
-    public function addJsFooterLibrary($name, $file, $type = 'text/javascript', $compress = false, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '')
+    public function addJsFooterLibrary($name, $file, $type = 'text/javascript', $compress = false, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '', $nomodule = false)
     {
-        if (!$type) {
-            $type = 'text/javascript';
-        }
+        $name .= '_jsFooterLibrary';
         if (!in_array(strtolower($name), $this->jsLibs)) {
             $this->jsLibs[strtolower($name)] = [
                 'file' => $file,
@@ -1092,6 +1107,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
                 'splitChar' => $splitChar,
                 'async' => $async,
                 'integrity' => $integrity,
+                'defer' => $defer,
+                'crossorigin' => $crossorigin,
+                'nomodule' => $nomodule,
             ];
         }
     }
@@ -1108,12 +1126,12 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $splitChar The char used to split the allWrap value, default is "|"
      * @param bool $async Flag if property 'async="async"' should be added to JavaScript tags
      * @param string $integrity Subresource Integrity (SRI)
+     * @param bool $defer Flag if property 'defer="defer"' should be added to JavaScript tags
+     * @param string $crossorigin CORS settings attribute
+     * @param bool $nomodule Flag if property 'nomodule="nomodule"' should be added to JavaScript tags
      */
-    public function addJsFile($file, $type = 'text/javascript', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '')
+    public function addJsFile($file, $type = 'text/javascript', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '', $nomodule = false)
     {
-        if (!$type) {
-            $type = 'text/javascript';
-        }
         if (!isset($this->jsFiles[$file])) {
             $this->jsFiles[$file] = [
                 'file' => $file,
@@ -1126,6 +1144,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
                 'splitChar' => $splitChar,
                 'async' => $async,
                 'integrity' => $integrity,
+                'defer' => $defer,
+                'crossorigin' => $crossorigin,
+                'nomodule' => $nomodule,
             ];
         }
     }
@@ -1142,12 +1163,12 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $splitChar The char used to split the allWrap value, default is "|"
      * @param bool $async Flag if property 'async="async"' should be added to JavaScript tags
      * @param string $integrity Subresource Integrity (SRI)
+     * @param bool $defer Flag if property 'defer="defer"' should be added to JavaScript tags
+     * @param string $crossorigin CORS settings attribute
+     * @param bool $nomodule Flag if property 'nomodule="nomodule"' should be added to JavaScript tags
      */
-    public function addJsFooterFile($file, $type = 'text/javascript', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '')
+    public function addJsFooterFile($file, $type = 'text/javascript', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '', $nomodule = false)
     {
-        if (!$type) {
-            $type = 'text/javascript';
-        }
         if (!isset($this->jsFiles[$file])) {
             $this->jsFiles[$file] = [
                 'file' => $file,
@@ -1160,6 +1181,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
                 'splitChar' => $splitChar,
                 'async' => $async,
                 'integrity' => $integrity,
+                'defer' => $defer,
+                'crossorigin' => $crossorigin,
+                'nomodule' => $nomodule,
             ];
         }
     }
@@ -1205,144 +1229,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Adds Ext.onready code, which will be wrapped in Ext.onReady(function() {...});
-     *
-     * @param string $block Javascript code
-     * @param bool $forceOnTop Position of the javascript code (TRUE for putting it on top, default is FALSE = bottom)
-     */
-    public function addExtOnReadyCode($block, $forceOnTop = false)
-    {
-        if (!in_array($block, $this->extOnReadyCode)) {
-            if ($forceOnTop) {
-                array_unshift($this->extOnReadyCode, $block);
-            } else {
-                $this->extOnReadyCode[] = $block;
-            }
-        }
-    }
-
-    /**
-     * Adds the ExtDirect code
-     *
-     * @param array $filterNamespaces Limit the output to defined namespaces. If empty, all namespaces are generated
-     */
-    public function addExtDirectCode(array $filterNamespaces = [])
-    {
-        if ($this->extDirectCodeAdded) {
-            return;
-        }
-        $this->extDirectCodeAdded = true;
-        if (empty($filterNamespaces)) {
-            $filterNamespaces = ['TYPO3'];
-        }
-
-        // Add language labels for ExtDirect
-        $this->addInlineLanguageLabelArray([
-            'extDirect_timeoutHeader'  => 'LLL:EXT:lang/Resources/Private/Language/locallang_misc.xlf:extDirect_timeoutHeader',
-            'extDirect_timeoutMessage' => 'LLL:EXT:lang/Resources/Private/Language/locallang_misc.xlf:extDirect_timeoutMessage'
-        ], true);
-
-        $token = ($api = '');
-        if (TYPO3_MODE === 'BE') {
-            $formprotection = \TYPO3\CMS\Core\FormProtection\FormProtectionFactory::get();
-            $token = $formprotection->generateToken('extDirect');
-
-            // Debugger Console strings
-            $this->addInlineLanguageLabelFile('EXT:core/Resources/Private/Language/debugger.xlf');
-
-            $this->addInlineLanguageLabelFile('EXT:core/Resources/Private/Language/wizard.xlf');
-        }
-        /** @var $extDirect \TYPO3\CMS\Core\ExtDirect\ExtDirectApi */
-        $extDirect = GeneralUtility::makeInstance(\TYPO3\CMS\Core\ExtDirect\ExtDirectApi::class);
-        $api = $extDirect->getApiPhp($filterNamespaces);
-        if ($api) {
-            $this->addJsInlineCode('TYPO3ExtDirectAPI', $api, false);
-        }
-        // Note: we need to iterate through the object, because the addProvider method
-        // does this only with multiple arguments
-        $this->addExtOnReadyCode('
-			(function() {
-				TYPO3.ExtDirectToken = "' . $token . '";
-				for (var api in Ext.app.ExtDirectAPI) {
-					var provider = Ext.Direct.addProvider(Ext.app.ExtDirectAPI[api]);
-					provider.on("beforecall", function(provider, transaction, meta) {
-						if (transaction.data) {
-							transaction.data[transaction.data.length] = TYPO3.ExtDirectToken;
-						} else {
-							transaction.data = [TYPO3.ExtDirectToken];
-						}
-					});
-
-					provider.on("call", function(provider, transaction, meta) {
-						if (transaction.isForm) {
-							transaction.params.securityToken = TYPO3.ExtDirectToken;
-						}
-					});
-				}
-			})();
-
-			var extDirectDebug = function(message, header, group) {
-				var DebugConsole = null;
-
-				if (top && top.TYPO3 && typeof top.TYPO3.DebugConsole === "object") {
-					DebugConsole = top.TYPO3.DebugConsole;
-				} else if (typeof TYPO3 === "object" && typeof TYPO3.DebugConsole === "object") {
-					DebugConsole = TYPO3.DebugConsole;
-				}
-
-				if (DebugConsole !== null) {
-					DebugConsole.add(message, header, group);
-				} else if (typeof console === "object") {
-					console.log(message);
-				} else {
-					document.write(message);
-				}
-			};
-
-			Ext.Direct.on("exception", function(event) {
-				if (event.code === Ext.Direct.exceptions.TRANSPORT && !event.where) {
-					top.TYPO3.Notification.error(
-						TYPO3.l10n.localize("extDirect_timeoutHeader"),
-						TYPO3.l10n.localize("extDirect_timeoutMessage")
-					);
-				} else {
-					var backtrace = "";
-					if (event.code === "parse") {
-						extDirectDebug(
-							"<p>" + event.xhr.responseText + "<\\/p>",
-							event.type,
-							"ExtDirect - Exception"
-						);
-					} else if (event.code === "router") {
-						top.TYPO3.Notification.error(
-							event.code,
-							event.message
-						);
-					} else if (event.where) {
-						backtrace = "<p style=\\"margin-top: 20px;\\">" +
-							"<strong>Backtrace:<\\/strong><br \\/>" +
-							event.where.replace(/#/g, "<br \\/>#") +
-							"<\\/p>";
-						extDirectDebug(
-							"<p>" + event.message + "<\\/p>" + backtrace,
-							event.method,
-							"ExtDirect - Exception"
-						);
-					}
-
-
-				}
-			});
-
-			Ext.Direct.on("event", function(event, provider) {
-				if (typeof event.debug !== "undefined" && event.debug !== "") {
-					extDirectDebug(event.debug, event.method, "ExtDirect - Debug");
-				}
-			});
-			', true);
-    }
-
-    /**
      * Adds CSS file
      *
      * @param string $file
@@ -1354,8 +1240,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $allWrap
      * @param bool $excludeFromConcatenation
      * @param string $splitChar The char used to split the allWrap value, default is "|"
+     * @param bool $inline
      */
-    public function addCssFile($file, $rel = 'stylesheet', $media = 'all', $title = '', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|')
+    public function addCssFile($file, $rel = 'stylesheet', $media = 'all', $title = '', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $inline = false)
     {
         if (!isset($this->cssFiles[$file])) {
             $this->cssFiles[$file] = [
@@ -1367,7 +1254,8 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
                 'forceOnTop' => $forceOnTop,
                 'allWrap' => $allWrap,
                 'excludeFromConcatenation' => $excludeFromConcatenation,
-                'splitChar' => $splitChar
+                'splitChar' => $splitChar,
+                'inline' => $inline
             ];
         }
     }
@@ -1384,8 +1272,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $allWrap
      * @param bool $excludeFromConcatenation
      * @param string $splitChar The char used to split the allWrap value, default is "|"
+     * @param bool $inline
      */
-    public function addCssLibrary($file, $rel = 'stylesheet', $media = 'all', $title = '', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|')
+    public function addCssLibrary($file, $rel = 'stylesheet', $media = 'all', $title = '', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $inline = false)
     {
         if (!isset($this->cssLibs[$file])) {
             $this->cssLibs[$file] = [
@@ -1397,7 +1286,8 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
                 'forceOnTop' => $forceOnTop,
                 'allWrap' => $allWrap,
                 'excludeFromConcatenation' => $excludeFromConcatenation,
-                'splitChar' => $splitChar
+                'splitChar' => $splitChar,
+                'inline' => $inline
             ];
         }
     }
@@ -1422,36 +1312,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Call this function if you need to include the jQuery library
-     *
-     * @param null|string $version The jQuery version that should be included, either "latest" or any available version
-     * @param null|string $source The location of the jQuery source, can be "local", "google", "msn", "jquery" or just an URL to your jQuery lib
-     * @param string $namespace The namespace in which the jQuery object of the specific version should be stored.
-     * @throws \UnexpectedValueException
-     */
-    public function loadJquery($version = null, $source = null, $namespace = self::JQUERY_NAMESPACE_DEFAULT)
-    {
-        // Set it to the version that is shipped with the TYPO3 core
-        if ($version === null || $version === 'latest') {
-            $version = self::JQUERY_VERSION_LATEST;
-        }
-        // Check if the source is set, otherwise set it to "default"
-        if ($source === null) {
-            $source = 'local';
-        }
-        if ($source === 'local' && !in_array($version, $this->availableLocalJqueryVersions)) {
-            throw new \UnexpectedValueException('The requested jQuery version is not available in the local filesystem.', 1341505305);
-        }
-        if (!preg_match('/^[a-zA-Z0-9]+$/', $namespace)) {
-            throw new \UnexpectedValueException('The requested namespace contains non alphanumeric characters.', 1341571604);
-        }
-        $this->jQueryVersions[$namespace] = [
-            'version' => $version,
-            'source' => $source
-        ];
-    }
-
-    /**
      * Call function if you need the requireJS library
      * this automatically adds the JavaScript path of all loaded extensions in the requireJS path option
      * so it resolves names like TYPO3/CMS/MyExtension/MyJsFile to EXT:MyExtension/Resources/Public/JavaScript/MyJsFile.js
@@ -1460,22 +1320,26 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     public function loadRequireJs()
     {
         $this->addRequireJs = true;
-        if (!empty($this->requireJsConfig)) {
+        if (!empty($this->requireJsConfig) && !empty($this->publicRequireJsConfig)) {
             return;
         }
 
-        $loadedExtensions = ExtensionManagementUtility::getLoadedExtensionListArray();
-        $isDevelopment = GeneralUtility::getApplicationContext()->isDevelopment();
-        $cacheIdentifier = 'requireJS_' . md5(implode(',', $loadedExtensions) . ($isDevelopment ? ':dev' : '') . GeneralUtility::getIndpEnv('TYPO3_REQUEST_SCRIPT'));
-        /** @var VariableFrontend $cache */
-        $cache = GeneralUtility::makeInstance(CacheManager::class)->getCache('assets');
-        $this->requireJsConfig = $cache->get($cacheIdentifier);
+        $packages = GeneralUtility::makeInstance(PackageManager::class)->getActivePackages();
+        $isDevelopment = Environment::getContext()->isDevelopment();
+        $cacheIdentifier = 'requireJS_' . md5(implode(',', array_keys($packages)) . ($isDevelopment ? ':dev' : '') . GeneralUtility::getIndpEnv('TYPO3_REQUEST_SCRIPT'));
+        /** @var FrontendInterface $cache */
+        $cache = static::$cache ?? GeneralUtility::makeInstance(CacheManager::class)->getCache('assets');
+        $requireJsConfig = $cache->get($cacheIdentifier);
 
         // if we did not get a configuration from the cache, compute and store it in the cache
-        if (empty($this->requireJsConfig)) {
-            $this->requireJsConfig = $this->computeRequireJsConfig($isDevelopment, $loadedExtensions);
-            $cache->set($cacheIdentifier, $this->requireJsConfig);
+        if (!isset($requireJsConfig['internal']) || !isset($requireJsConfig['public'])) {
+            $requireJsConfig = $this->computeRequireJsConfig($isDevelopment, $packages);
+            $cache->set($cacheIdentifier, $requireJsConfig);
         }
+
+        $this->requireJsConfig = $requireJsConfig['internal'];
+        $this->publicRequireJsConfig = $requireJsConfig['public'];
+        $this->internalRequireJsPathModuleNames = $requireJsConfig['internalNames'];
     }
 
     /**
@@ -1483,26 +1347,24 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * resource folders plus some additional generic configuration.
      *
      * @param bool $isDevelopment
-     * @param array $loadedExtensions
+     * @param array $packages
      * @return array The RequireJS configuration
      */
-    protected function computeRequireJsConfig($isDevelopment, array $loadedExtensions)
+    protected function computeRequireJsConfig($isDevelopment, array $packages)
     {
         // load all paths to map to package names / namespaces
-        $requireJsConfig = [];
+        $requireJsConfig = [
+            'public' => [],
+            'internal' => [],
+            'internalNames' => [],
+        ];
 
-        // In order to avoid browser caching of JS files, adding a GET parameter to the files loaded via requireJS
-        if ($isDevelopment) {
-            $requireJsConfig['urlArgs'] = 'bust=' . $GLOBALS['EXEC_TIME'];
-        } else {
-            $requireJsConfig['urlArgs'] = 'bust=' . GeneralUtility::hmac(TYPO3_version . PATH_site);
-        }
-        $corePath = ExtensionManagementUtility::extPath('core', 'Resources/Public/JavaScript/Contrib/');
+        $corePath = $packages['core']->getPackagePath() . 'Resources/Public/JavaScript/Contrib/';
         $corePath = PathUtility::getAbsoluteWebPath($corePath);
         // first, load all paths for the namespaces, and configure contrib libs.
-        $requireJsConfig['paths'] = [
+        $requireJsConfig['public']['paths'] = [
+            'jquery' => $corePath . '/jquery/jquery',
             'jquery-ui' => $corePath . 'jquery-ui',
-            'datatables' => $corePath . 'jquery.dataTables',
             'nprogress' => $corePath . 'nprogress',
             'moment' => $corePath . 'moment',
             'cropper' => $corePath . 'cropper.min',
@@ -1511,23 +1373,55 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             'twbs/bootstrap-datetimepicker' => $corePath . 'bootstrap-datetimepicker',
             'autosize' => $corePath . 'autosize',
             'taboverride' => $corePath . 'taboverride.min',
-            'twbs/bootstrap-slider' => $corePath . 'bootstrap-slider.min',
             'jquery/autocomplete' => $corePath . 'jquery.autocomplete',
-            'd3' => $corePath . 'd3/d3'
+            'd3' => $corePath . 'd3/d3',
+            'Sortable' => $corePath . 'Sortable.min',
+            'tablesort' => $corePath . 'tablesort',
+            'tablesort.dotsep' => $corePath . 'tablesort.dotsep',
+            'broadcastchannel' => $corePath . '/broadcastchannel-polyfill',
         ];
-
-        foreach ($loadedExtensions as $packageName) {
-            $fullJsPath = 'EXT:' . $packageName . '/Resources/Public/JavaScript/';
-            $fullJsPath = GeneralUtility::getFileAbsFileName($fullJsPath);
-            $fullJsPath = PathUtility::getAbsoluteWebPath($fullJsPath);
+        $requireJsConfig['public']['shim'] = [
+            'tablesort.dotsep' => ['deps' => ['tablesort']],
+        ];
+        $requireJsConfig['public']['waitSeconds'] = 30;
+        $requireJsConfig['public']['typo3BaseUrl'] = false;
+        $publicPackageNames = ['core', 'frontend', 'backend'];
+        $requireJsExtensionVersions = [];
+        foreach ($packages as $packageName => $package) {
+            $absoluteJsPath = $package->getPackagePath() . 'Resources/Public/JavaScript/';
+            $fullJsPath = PathUtility::getAbsoluteWebPath($absoluteJsPath);
             $fullJsPath = rtrim($fullJsPath, '/');
-            if ($fullJsPath) {
-                $requireJsConfig['paths']['TYPO3/CMS/' . GeneralUtility::underscoredToUpperCamelCase($packageName)] = $fullJsPath;
+            if (!empty($fullJsPath) && file_exists($absoluteJsPath)) {
+                $type = in_array($packageName, $publicPackageNames, true) ? 'public' : 'internal';
+                $requireJsConfig[$type]['paths']['TYPO3/CMS/' . GeneralUtility::underscoredToUpperCamelCase($packageName)] = $fullJsPath;
+                $requireJsExtensionVersions[] = $package->getPackageKey() . ':' . $package->getPackageMetadata()->getVersion();
             }
+        }
+        // sanitize module names in internal 'paths'
+        $internalPathModuleNames = array_keys($requireJsConfig['internal']['paths'] ?? []);
+        $sanitizedInternalPathModuleNames = array_map(
+            function ($moduleName) {
+                // trim spaces and slashes & add ending slash
+                return trim($moduleName, ' /') . '/';
+            },
+            $internalPathModuleNames
+        );
+        $requireJsConfig['internalNames'] = array_combine(
+            $sanitizedInternalPathModuleNames,
+            $internalPathModuleNames
+        );
+
+        // Add a GET parameter to the files loaded via requireJS in order to avoid browser caching of JS files
+        if ($isDevelopment) {
+            $requireJsConfig['public']['urlArgs'] = 'bust=' . $GLOBALS['EXEC_TIME'];
+        } else {
+            $requireJsConfig['public']['urlArgs'] = 'bust=' . GeneralUtility::hmac(
+                Environment::getProjectPath() . implode('|', $requireJsExtensionVersions)
+            );
         }
 
         // check if additional AMD modules need to be loaded if a single AMD module is initialized
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['RequireJS']['postInitializationModules'])) {
+        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['RequireJS']['postInitializationModules'] ?? false)) {
             $this->addInlineSettingArray(
                 'RequireJS.PostInitializationModules',
                 $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['RequireJS']['postInitializationModules']
@@ -1555,7 +1449,71 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             // Load RequireJS in backend context at first. Doing this in FE could break the output
             $this->loadRequireJs();
         }
-        \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($this->requireJsConfig, $configuration);
+        $this->requireJsConfig = array_merge_recursive($this->requireJsConfig, $configuration);
+    }
+
+    /**
+     * Generates RequireJS loader HTML markup.
+     *
+     * @return string
+     * @throws \TYPO3\CMS\Backend\Routing\Exception\RouteNotFoundException
+     */
+    protected function getRequireJsLoader(): string
+    {
+        $html = '';
+        $backendRequest = TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_BE;
+        $backendUserLoggedIn = !empty($GLOBALS['BE_USER']->user['uid']);
+
+        // no backend request - basically frontend
+        if (!$backendRequest) {
+            $requireJsConfig = $this->getRequireJsConfig(static::REQUIREJS_SCOPE_CONFIG);
+            $requireJsConfig['typo3BaseUrl'] = GeneralUtility::getIndpEnv('TYPO3_SITE_PATH') . '?eID=requirejs';
+        // backend request, but no backend user logged in
+        } elseif (!$backendUserLoggedIn) {
+            $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+            $requireJsConfig = $this->getRequireJsConfig(static::REQUIREJS_SCOPE_CONFIG);
+            $requireJsConfig['typo3BaseUrl'] = (string)$uriBuilder->buildUriFromRoute('ajax_core_requirejs');
+        // backend request, having backend user logged in
+        } else {
+            $requireJsConfig = array_replace_recursive(
+                $this->publicRequireJsConfig,
+                $this->requireJsConfig
+            );
+        }
+
+        // add (probably filtered) RequireJS configuration
+        $html .= GeneralUtility::wrapJS('var require = ' . json_encode($requireJsConfig)) . LF;
+        // directly after that, include the require.js file
+        $html .= '<script src="'
+            . $this->processJsFile($this->requireJsPath . 'require.js')
+            . '"></script>' . LF;
+
+        if (!empty($requireJsConfig['typo3BaseUrl'])) {
+            $html .= '<script src="'
+                . $this->processJsFile(
+                    'EXT:core/Resources/Public/JavaScript/requirejs-loader.js'
+                )
+                . '"></script>' . LF;
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param array $array
+     * @param string[] $keys
+     * @param bool $keep
+     * @return array
+     */
+    protected function filterArrayKeys(array $array, array $keys, bool $keep = true): array
+    {
+        return array_filter(
+            $array,
+            function (string $key) use ($keys, $keep) {
+                return in_array($key, $keys, true) === $keep;
+            },
+            ARRAY_FILTER_USE_KEY
+        );
     }
 
     /**
@@ -1579,7 +1537,13 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         $inlineCodeKey = $mainModuleName;
         // make sure requireJS is initialized
         $this->loadRequireJs();
-
+        // move internal module path definition to public module definition
+        // (since loading a module ends up disclosing the existence anyway)
+        $baseModuleName = $this->findRequireJsBaseModuleName($mainModuleName);
+        if ($baseModuleName !== null && isset($this->requireJsConfig['paths'][$baseModuleName])) {
+            $this->publicRequireJsConfig['paths'][$baseModuleName] = $this->requireJsConfig['paths'][$baseModuleName];
+            unset($this->requireJsConfig['paths'][$baseModuleName]);
+        }
         // execute the main module, and load a possible callback function
         $javaScriptCode = 'require(["' . $mainModuleName . '"]';
         if ($callBackFunction !== null) {
@@ -1591,30 +1555,26 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * call this function if you need the extJS library
+     * Determines requireJS base module name (if defined).
      *
-     * @param bool $css Flag, if set the ext-css will be loaded
-     * @param bool $theme Flag, if set the ext-theme "grey" will be loaded
+     * @param string $moduleName
+     * @return string|null
      */
-    public function loadExtJS($css = true, $theme = true)
+    protected function findRequireJsBaseModuleName(string $moduleName)
     {
-        $this->addExtJS = true;
-        $this->extJStheme = $theme;
-        $this->extJScss = $css;
-    }
-
-    /**
-     * Call this function to load debug version of ExtJS. Use this for development only
-     */
-    public function enableExtJsDebug()
-    {
-        $this->enableExtJsDebug = true;
+        // trim spaces and slashes & add ending slash
+        $sanitizedModuleName = trim($moduleName, ' /') . '/';
+        foreach ($this->internalRequireJsPathModuleNames as $sanitizedBaseModuleName => $baseModuleName) {
+            if (strpos($sanitizedModuleName, $sanitizedBaseModuleName) === 0) {
+                return $baseModuleName;
+            }
+        }
+        return null;
     }
 
     /**
      * Adds Javascript Inline Label. This will occur in TYPO3.lang - object
      * The label can be used in scripts with TYPO3.lang.<key>
-     * Need extJs loaded
      *
      * @param string $key
      * @param string $value
@@ -1628,23 +1588,11 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * Adds Javascript Inline Label Array. This will occur in TYPO3.lang - object
      * The label can be used in scripts with TYPO3.lang.<key>
      * Array will be merged with existing array.
-     * Need extJs loaded
      *
      * @param array $array
-     * @param bool $parseWithLanguageService
      */
-    public function addInlineLanguageLabelArray(array $array, $parseWithLanguageService = false)
+    public function addInlineLanguageLabelArray(array $array)
     {
-        if ($parseWithLanguageService === true) {
-            foreach ($array as $key => $value) {
-                if (TYPO3_MODE === 'FE') {
-                    $array[$key] = $this->getTypoScriptFrontendController()->sL($value);
-                } else {
-                    $array[$key] = $this->getLanguageService()->sL($value);
-                }
-            }
-        }
-
         $this->inlineLanguageLabels = array_merge($this->inlineLanguageLabels, $array);
     }
 
@@ -1670,11 +1618,10 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Adds Javascript Inline Setting. This will occur in TYPO3.settings - object
      * The label can be used in scripts with TYPO3.setting.<key>
-     * Need extJs loaded
      *
      * @param string $namespace
      * @param string $key
-     * @param string $value
+     * @param mixed $value
      */
     public function addInlineSetting($namespace, $key, $value)
     {
@@ -1698,7 +1645,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * Adds Javascript Inline Setting. This will occur in TYPO3.settings - object
      * The label can be used in scripts with TYPO3.setting.<key>
      * Array will be merged with existing array.
-     * Need extJs loaded
      *
      * @param string $namespace
      * @param array $array
@@ -1745,8 +1691,8 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     public function render($part = self::PART_COMPLETE)
     {
         $this->prepareRendering();
-        list($jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs) = $this->renderJavaScriptAndCss();
-        $metaTags = implode(LF, $this->metaTags);
+        [$jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs] = $this->renderJavaScriptAndCss();
+        $metaTags = implode(LF, array_merge($this->metaTags, $this->renderMetaTagsFromAPI()));
         $markerArray = $this->getPreparedMarkerArray($jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs, $metaTags);
         $template = $this->getTemplateForPart($part);
 
@@ -1759,10 +1705,29 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
+     * Renders metaTags based on tags added via the API
+     *
+     * @return array
+     */
+    protected function renderMetaTagsFromAPI()
+    {
+        $metaTags = [];
+        $metaTagManagers = $this->metaTagRegistry->getAllManagers();
+
+        foreach ($metaTagManagers as $manager => $managerObject) {
+            $properties = $managerObject->renderAllProperties();
+            if (!empty($properties)) {
+                $metaTags[] = $properties;
+            }
+        }
+        return $metaTags;
+    }
+
+    /**
      * Render the page but not the JavaScript and CSS Files
      *
-     * @param string $substituteHash The hash that is used for the placehoder markers
-     * @access private
+     * @param string $substituteHash The hash that is used for the placeholder markers
+     * @internal
      * @return string Content of rendered section
      */
     public function renderPageWithUncachedObjects($substituteHash)
@@ -1779,14 +1744,14 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      * of uncached content objects (USER_INT, COA_INT)
      *
      * @param string $cachedPageContent
-     * @param string $substituteHash The hash that is used for the placehoder markers
-     * @access private
+     * @param string $substituteHash The hash that is used for the variables
+     * @internal
      * @return string
      */
     public function renderJavaScriptAndCssForProcessingOfUncachedContentObjects($cachedPageContent, $substituteHash)
     {
         $this->prepareRendering();
-        list($jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs) = $this->renderJavaScriptAndCss();
+        [$jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs] = $this->renderJavaScriptAndCss();
         $title = $this->title ? str_replace('|', htmlspecialchars($this->title), $this->titleTag) : '';
         $markerArray = [
             '<!-- ###TITLE' . $substituteHash . '### -->' => $title,
@@ -1796,7 +1761,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             '<!-- ###JS_INLINE' . $substituteHash . '### -->' => $jsInline,
             '<!-- ###JS_INCLUDE' . $substituteHash . '### -->' => $jsFiles,
             '<!-- ###JS_LIBS' . $substituteHash . '### -->' => $jsLibs,
-            '<!-- ###META' . $substituteHash . '### -->' => implode(LF, $this->metaTags),
+            '<!-- ###META' . $substituteHash . '### -->' => implode(LF, array_merge($this->metaTags, $this->renderMetaTagsFromAPI())),
             '<!-- ###HEADERDATA' . $substituteHash . '### -->' => implode(LF, $this->headerData),
             '<!-- ###FOOTERDATA' . $substituteHash . '### -->' => implode(LF, $this->footerData),
             '<!-- ###JS_LIBS_FOOTER' . $substituteHash . '### -->' => $jsFooterLibs,
@@ -1830,13 +1795,13 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Renders all JavaScript and CSS
      *
-     * @return array<string>
+     * @return array|string[]
      */
     protected function renderJavaScriptAndCss()
     {
         $this->executePreRenderHook();
         $mainJsLibs = $this->renderMainJavaScriptLibraries();
-        if ($this->concatenateFiles || $this->concatenateJavascript || $this->concatenateCss) {
+        if ($this->concatenateJavascript || $this->concatenateCss) {
             // Do the file concatenation
             $this->doConcatenate();
         }
@@ -1848,9 +1813,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         $cssLibs = $this->renderCssLibraries();
         $cssFiles = $this->renderCssFiles();
         $cssInline = $this->renderCssInline();
-        list($jsLibs, $jsFooterLibs) = $this->renderAdditionalJavaScriptLibraries();
-        list($jsFiles, $jsFooterFiles) = $this->renderJavaScriptFiles();
-        list($jsInline, $jsFooterInline) = $this->renderInlineJavaScript();
+        [$jsLibs, $jsFooterLibs] = $this->renderAdditionalJavaScriptLibraries();
+        [$jsFiles, $jsFooterFiles] = $this->renderJavaScriptFiles();
+        [$jsInline, $jsFooterInline] = $this->renderInlineJavaScript();
         $jsLibs = $mainJsLibs . $jsLibs;
         if ($this->moveJsFromHeaderToFooter) {
             $jsFooterLibs = $jsLibs . LF . $jsFooterLibs;
@@ -1860,6 +1825,18 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             $jsFooterInline = $jsInline . LF . $jsFooterInline;
             $jsInline = '';
         }
+        // Use AssetRenderer to inject all JavaScripts and CSS files
+        $assetRenderer = GeneralUtility::makeInstance(AssetRenderer::class);
+        $jsInline .= $assetRenderer->renderInlineJavaScript(true);
+        $jsFooterInline .= $assetRenderer->renderInlineJavaScript();
+        $jsFiles .= $assetRenderer->renderJavaScript(true);
+        $jsFooterFiles .= $assetRenderer->renderJavaScript();
+        $cssInline .= $assetRenderer->renderInlineStyleSheets(true);
+        // append inline CSS to footer (as there is no cssFooterInline)
+        $jsFooterFiles .= $assetRenderer->renderInlineStyleSheets();
+        $cssLibs .= $assetRenderer->renderStyleSheets(true, $this->endingSlash);
+        $cssFiles .= $assetRenderer->renderStyleSheets(false, $this->endingSlash);
+
         $this->executePostRenderHook($jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs);
         return [$jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs];
     }
@@ -1867,16 +1844,16 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Fills the marker array with the given strings and trims each value
      *
-     * @param $jsLibs string
-     * @param $jsFiles string
-     * @param $jsFooterFiles string
-     * @param $cssLibs string
-     * @param $cssFiles string
-     * @param $jsInline string
-     * @param $cssInline string
-     * @param $jsFooterInline string
-     * @param $jsFooterLibs string
-     * @param $metaTags string
+     * @param string $jsLibs
+     * @param string $jsFiles
+     * @param string $jsFooterFiles
+     * @param string $cssLibs
+     * @param string $cssFiles
+     * @param string $jsInline
+     * @param string $cssInline
+     * @param string $jsFooterInline
+     * @param string $jsFooterLibs
+     * @param string $metaTags
      * @return array Marker array
      */
     protected function getPreparedMarkerArray($jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs, $metaTags)
@@ -1911,7 +1888,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Fills the marker array with the given strings and trims each value
      *
-     * @param string $substituteHash The hash that is used for the placehoder markers
+     * @param string $substituteHash The hash that is used for the placeholder markers
      * @return array Marker array
      */
     protected function getPreparedMarkerArrayForPageWithUncachedObjects($substituteHash)
@@ -1969,7 +1946,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
 
     /**
      * Helper function for render the main JavaScript libraries,
-     * currently: RequireJS, jQuery, ExtJS
+     * currently: RequireJS
      *
      * @return string Content with JavaScript libraries
      */
@@ -1979,100 +1956,52 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
 
         // Include RequireJS
         if ($this->addRequireJs) {
-            // load the paths of the requireJS configuration
-            $out .= GeneralUtility::wrapJS('var require = ' . json_encode($this->requireJsConfig)) . LF;
-                // directly after that, include the require.js file
-            $out .= '<script src="' . $this->processJsFile($this->requireJsPath . 'require.js') . '" type="text/javascript"></script>' . LF;
+            $out .= $this->getRequireJsLoader();
         }
 
-        // Include jQuery Core for each namespace, depending on the version and source
-        if (!empty($this->jQueryVersions)) {
-            foreach ($this->jQueryVersions as $namespace => $jQueryVersion) {
-                $out .= $this->renderJqueryScriptTag($jQueryVersion['version'], $jQueryVersion['source'], $namespace);
-            }
-        }
-
-        // Include extJS
-        if ($this->addExtJS) {
-            // Use the base adapter all the time
-            $out .= '<script src="' . $this->processJsFile($this->extJsPath . 'adapter/ext-base' . ($this->enableExtJsDebug ? '-debug' : '') . '.js') . '" type="text/javascript"></script>' . LF;
-            $out .= '<script src="' . $this->processJsFile($this->extJsPath . 'ext-all' . ($this->enableExtJsDebug ? '-debug' : '') . '.js') . '" type="text/javascript"></script>' . LF;
-            // Add extJS localization
-            // Load standard ISO mapping and modify for use with ExtJS
-            $localeMap = $this->locales->getIsoMapping();
-            $localeMap[''] = 'en';
-            $localeMap['default'] = 'en';
-            // Greek
-            $localeMap['gr'] = 'el_GR';
-            // Norwegian Bokmaal
-            $localeMap['no'] = 'no_BO';
-            // Swedish
-            $localeMap['se'] = 'se_SV';
-            $extJsLang = isset($localeMap[$this->lang]) ? $localeMap[$this->lang] : $this->lang;
-            $extJsLocaleFile = $this->extJsPath . 'locale/ext-lang-' . $extJsLang . '.js';
-            if (file_exists(PATH_site . $extJsLocaleFile)) {
-                $out .= '<script src="' . $this->processJsFile($extJsLocaleFile) . '" type="text/javascript" charset="utf-8"></script>' . LF;
-            }
-            // Remove extjs from JScodeLibArray
-            unset($this->jsFiles[$this->extJsPath . 'ext-all.js'], $this->jsFiles[$this->extJsPath . 'ext-all-debug.js']);
-        }
         $this->loadJavaScriptLanguageStrings();
         if (TYPO3_MODE === 'BE') {
-            $this->addAjaxUrlsToInlineSettings();
+            $noBackendUserLoggedIn = empty($GLOBALS['BE_USER']->user['uid']);
+            $this->addAjaxUrlsToInlineSettings($noBackendUserLoggedIn);
         }
-        $inlineSettings = $this->inlineLanguageLabels ? 'TYPO3.lang = ' . json_encode($this->inlineLanguageLabels) . ';' : '';
+        $inlineSettings = '';
+        $languageLabels = $this->parseLanguageLabelsForJavaScript();
+        if (!empty($languageLabels)) {
+            $inlineSettings .= 'TYPO3.lang = ' . json_encode($languageLabels) . ';';
+        }
         $inlineSettings .= $this->inlineSettings ? 'TYPO3.settings = ' . json_encode($this->inlineSettings) . ';' : '';
-        if ($this->addExtJS) {
-            // Set clear.gif, move it on top, add handler code
-            $code = '';
-            if (!empty($this->extOnReadyCode)) {
-                foreach ($this->extOnReadyCode as $block) {
-                    $code .= $block;
-                }
-            }
-            $clearGifPath = GeneralUtility::getFileAbsFileName('EXT:backend/Resources/Public/Images/clear.gif');
-            $clearGifPath = htmlspecialchars(PathUtility::getAbsoluteWebPath($clearGifPath));
-            $out .= $this->inlineJavascriptWrap[0] . '
-				Ext.ns("TYPO3");
-				Ext.BLANK_IMAGE_URL = "' . $clearGifPath . '";
-				Ext.SSL_SECURE_URL = "' . $clearGifPath . '";' . LF
-                . $inlineSettings
-                . 'Ext.onReady(function() {'
-                    . $code
-                . ' });'
-                . $this->inlineJavascriptWrap[1];
-            $this->extOnReadyCode = [];
-            // Include TYPO3.l10n object
-            if (TYPO3_MODE === 'BE') {
-                $out .= '<script src="' . $this->processJsFile('EXT:lang/Resources/Public/JavaScript/Typo3Lang.js') . '" type="text/javascript" charset="utf-8"></script>' . LF;
-            }
-            if ($this->extJScss) {
-                if (isset($GLOBALS['TBE_STYLES']['extJS']['all'])) {
-                    $this->addCssLibrary($GLOBALS['TBE_STYLES']['extJS']['all'], 'stylesheet', 'all', '', true);
-                } else {
-                    $this->addCssLibrary($this->extJsPath . 'resources/css/ext-all-notheme.css', 'stylesheet', 'all', '', true);
-                }
-            }
-            if ($this->extJStheme) {
-                if (isset($GLOBALS['TBE_STYLES']['extJS']['theme'])) {
-                    $this->addCssLibrary($GLOBALS['TBE_STYLES']['extJS']['theme'], 'stylesheet', 'all', '', true);
-                } else {
-                    $this->addCssLibrary($this->extJsPath . 'resources/css/xtheme-blue.css', 'stylesheet', 'all', '', true);
-                }
-            }
-        } else {
-            // no extJS loaded, but still inline settings
-            if ($inlineSettings !== '') {
-                // make sure the global TYPO3 is available
-                $inlineSettings = 'var TYPO3 = TYPO3 || {};' . CRLF . $inlineSettings;
-                $out .= $this->inlineJavascriptWrap[0] . $inlineSettings . $this->inlineJavascriptWrap[1];
-                // Add language module only if also jquery is guaranteed to be there
-                if (TYPO3_MODE === 'BE' && !empty($this->jQueryVersions)) {
-                    $this->loadRequireJsModule('TYPO3/CMS/Lang/Lang');
-                }
+
+        if ($inlineSettings !== '') {
+            // make sure the global TYPO3 is available
+            $inlineSettings = 'var TYPO3 = TYPO3 || {};' . CRLF . $inlineSettings;
+            $out .= $this->inlineJavascriptWrap[0] . $inlineSettings . $this->inlineJavascriptWrap[1];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Converts the language labels for usage in JavaScript
+     *
+     * @return array
+     */
+    protected function parseLanguageLabelsForJavaScript(): array
+    {
+        if (empty($this->inlineLanguageLabels)) {
+            return [];
+        }
+
+        $labels = [];
+        foreach ($this->inlineLanguageLabels as $key => $translationUnit) {
+            if (is_array($translationUnit)) {
+                $translationUnit = current($translationUnit);
+                $labels[$key] = $translationUnit['target'] ?? $translationUnit['source'];
+            } else {
+                $labels[$key] = $translationUnit;
             }
         }
-        return $out;
+
+        return $labels;
     }
 
     /**
@@ -2111,8 +2040,10 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
 
     /**
      * Make URLs to all backend ajax handlers available as inline setting.
+     *
+     * @param bool $publicRoutesOnly
      */
-    protected function addAjaxUrlsToInlineSettings()
+    protected function addAjaxUrlsToInlineSettings(bool $publicRoutesOnly = false)
     {
         $ajaxUrls = [];
         // Add the ajax-based routes
@@ -2122,6 +2053,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         $router = GeneralUtility::makeInstance(Router::class);
         $routes = $router->getRoutes();
         foreach ($routes as $routeIdentifier => $route) {
+            if ($publicRoutesOnly && $route->getOption('access') !== 'public') {
+                continue;
+            }
             if ($route->getOption('ajax')) {
                 $uri = (string)$uriBuilder->buildUriFromRoute($routeIdentifier);
                 // use the shortened value in order to use this in JavaScript
@@ -2134,54 +2068,6 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Renders the HTML script tag for the given jQuery version.
-     *
-     * @param string $version The jQuery version that should be included, either "latest" or any available version
-     * @param string $source The location of the jQuery source, can be "local", "google", "msn" or "jquery
-     * @param string $namespace The namespace in which the jQuery object of the specific version should be stored
-     * @return string
-     */
-    protected function renderJqueryScriptTag($version, $source, $namespace)
-    {
-        switch (true) {
-            case isset($this->jQueryCdnUrls[$source]):
-                if ($this->enableJqueryDebug) {
-                    $minifyPart = '';
-                } else {
-                    $minifyPart = '.min';
-                }
-                $jQueryFileName = sprintf($this->jQueryCdnUrls[$source], $version, $minifyPart);
-                break;
-            case $source === 'local':
-                $jQueryFileName = $this->jQueryPath . 'jquery-' . rawurlencode($version);
-                if ($this->enableJqueryDebug) {
-                    $jQueryFileName .= '.js';
-                } else {
-                    $jQueryFileName .= '.min.js';
-                }
-                $jQueryFileName = $this->processJsFile($jQueryFileName);
-                break;
-            default:
-                $jQueryFileName = $source;
-        }
-        // Include the jQuery Core
-        $scriptTag = '<script src="' . htmlspecialchars($jQueryFileName) . '" type="text/javascript"></script>' . LF;
-        // Set the noConflict mode to be available via "TYPO3.jQuery" in all installations
-        switch ($namespace) {
-            case self::JQUERY_NAMESPACE_DEFAULT_NOCONFLICT:
-                $scriptTag .= GeneralUtility::wrapJS('jQuery.noConflict();') . LF;
-                break;
-            case self::JQUERY_NAMESPACE_NONE:
-                break;
-            case self::JQUERY_NAMESPACE_DEFAULT:
-
-            default:
-                $scriptTag .= GeneralUtility::wrapJS('var TYPO3 = TYPO3 || {}; TYPO3.' . $namespace . ' = jQuery.noConflict(true); var $ = TYPO3.' . $namespace . ';') . LF;
-        }
-        return $scriptTag;
-    }
-
-    /**
      * Render CSS library files
      *
      * @return string
@@ -2191,17 +2077,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         $cssFiles = '';
         if (!empty($this->cssLibs)) {
             foreach ($this->cssLibs as $file => $properties) {
-                $file = $this->getStreamlinedFileName($file);
-                $tag = '<link rel="' . htmlspecialchars($properties['rel'])
-                    . '" type="text/css" href="' . htmlspecialchars($file)
-                    . '" media="' . htmlspecialchars($properties['media']) . '"'
-                    . ($properties['title'] ? ' title="' . htmlspecialchars($properties['title']) . '"' : '')
-                    . $this->endingSlash . '>';
-                if ($properties['allWrap']) {
-                    $wrapArr = explode($properties['splitChar'] ?: '|', $properties['allWrap'], 2);
-                    $tag = $wrapArr[0] . $tag . $wrapArr[1];
-                }
-                $tag .= LF;
+                $tag = $this->createCssTag($properties, $file);
                 if ($properties['forceOnTop']) {
                     $cssFiles = $tag . $cssFiles;
                 } else {
@@ -2222,17 +2098,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         $cssFiles = '';
         if (!empty($this->cssFiles)) {
             foreach ($this->cssFiles as $file => $properties) {
-                $file = $this->getStreamlinedFileName($file);
-                $tag = '<link rel="' . htmlspecialchars($properties['rel'])
-                    . '" type="text/css" href="' . htmlspecialchars($file)
-                    . '" media="' . htmlspecialchars($properties['media']) . '"'
-                    . ($properties['title'] ? ' title="' . htmlspecialchars($properties['title']) . '"' : '')
-                    . $this->endingSlash . '>';
-                if ($properties['allWrap']) {
-                    $wrapArr = explode($properties['splitChar'] ?: '|', $properties['allWrap'], 2);
-                    $tag = $wrapArr[0] . $tag . $wrapArr[1];
-                }
-                $tag .= LF;
+                $tag = $this->createCssTag($properties, $file);
                 if ($properties['forceOnTop']) {
                     $cssFiles = $tag . $cssFiles;
                 } else {
@@ -2241,6 +2107,34 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             }
         }
         return $cssFiles;
+    }
+
+    /**
+     * Create link (inline=0) or style (inline=1) tag
+     *
+     * @param array $properties
+     * @param string $file
+     * @return string
+     */
+    private function createCssTag(array $properties, string $file): string
+    {
+        if ($properties['inline'] && @is_file($file)) {
+            $tag = $this->createInlineCssTagFromFile($file, $properties);
+        } else {
+            $href = $this->getStreamlinedFileName($file);
+            $tag = '<link rel="' . htmlspecialchars($properties['rel'])
+                . '" type="text/css" href="' . htmlspecialchars($href)
+                . '" media="' . htmlspecialchars($properties['media']) . '"'
+                . ($properties['title'] ? ' title="' . htmlspecialchars($properties['title']) . '"' : '')
+                . $this->endingSlash . '>';
+        }
+        if ($properties['allWrap']) {
+            $wrapArr = explode($properties['splitChar'] ?: '|', $properties['allWrap'], 2);
+            $tag = $wrapArr[0] . $tag . $wrapArr[1];
+        }
+        $tag .= LF;
+
+        return $tag;
     }
 
     /**
@@ -2266,9 +2160,9 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Render JavaScipt libraries
+     * Render JavaScript libraries
      *
-     * @return array<string> jsLibs and jsFooterLibs strings
+     * @return array|string[] jsLibs and jsFooterLibs strings
      */
     protected function renderAdditionalJavaScriptLibraries()
     {
@@ -2277,9 +2171,12 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         if (!empty($this->jsLibs)) {
             foreach ($this->jsLibs as $properties) {
                 $properties['file'] = $this->getStreamlinedFileName($properties['file']);
-                $async = ($properties['async']) ? ' async="async"' : '';
-                $integrity = ($properties['integrity']) ? ' integrity="' . htmlspecialchars($properties['integrity']) . '" crossorigin="anonymous"' : '';
-                $tag = '<script src="' . htmlspecialchars($properties['file']) . '" type="' . htmlspecialchars($properties['type']) . '"' . $async . $integrity . '></script>';
+                $async = $properties['async'] ? ' async="async"' : '';
+                $defer = $properties['defer'] ? ' defer="defer"' : '';
+                $nomodule = $properties['nomodule'] ? ' nomodule="nomodule"' : '';
+                $integrity = $properties['integrity'] ? ' integrity="' . htmlspecialchars($properties['integrity']) . '"' : '';
+                $crossorigin = $properties['crossorigin'] ? ' crossorigin="' . htmlspecialchars($properties['crossorigin']) . '"' : '';
+                $tag = '<script src="' . htmlspecialchars($properties['file']) . '" type="' . htmlspecialchars($properties['type']) . '"' . $async . $defer . $integrity . $crossorigin . $nomodule . '></script>';
                 if ($properties['allWrap']) {
                     $wrapArr = explode($properties['splitChar'] ?: '|', $properties['allWrap'], 2);
                     $tag = $wrapArr[0] . $tag . $wrapArr[1];
@@ -2310,7 +2207,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Render JavaScript files
      *
-     * @return array<string> jsFiles and jsFooterFiles strings
+     * @return array|string[] jsFiles and jsFooterFiles strings
      */
     protected function renderJavaScriptFiles()
     {
@@ -2319,9 +2216,13 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         if (!empty($this->jsFiles)) {
             foreach ($this->jsFiles as $file => $properties) {
                 $file = $this->getStreamlinedFileName($file);
-                $async = ($properties['async']) ? ' async="async"' : '';
-                $integrity = ($properties['integrity']) ? ' integrity="' . htmlspecialchars($properties['integrity']) . '" crossorigin="anonymous"' : '';
-                $tag = '<script src="' . htmlspecialchars($file) . '" type="' . htmlspecialchars($properties['type']) . '"' . $async . $integrity . '></script>';
+                $type = $properties['type'] ? ' type="' . htmlspecialchars($properties['type']) . '"' : '';
+                $async = $properties['async'] ? ' async="async"' : '';
+                $defer = $properties['defer'] ? ' defer="defer"' : '';
+                $nomodule = $properties['nomodule'] ? ' nomodule="nomodule"' : '';
+                $integrity = $properties['integrity'] ? ' integrity="' . htmlspecialchars($properties['integrity']) . '"' : '';
+                $crossorigin = $properties['crossorigin'] ? ' crossorigin="' . htmlspecialchars($properties['crossorigin']) . '"' : '';
+                $tag = '<script src="' . htmlspecialchars($file) . '"' . $type . $async . $defer . $integrity . $crossorigin . $nomodule . '></script>';
                 if ($properties['allWrap']) {
                     $wrapArr = explode($properties['splitChar'] ?: '|', $properties['allWrap'], 2);
                     $tag = $wrapArr[0] . $tag . $wrapArr[1];
@@ -2352,7 +2253,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Render inline JavaScript
      *
-     * @return array<string> jsInline and jsFooterInline string
+     * @return array|string[] jsInline and jsFooterInline string
      */
     protected function renderInlineJavaScript()
     {
@@ -2432,7 +2333,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function readLLfile($fileRef)
     {
-        /** @var $languageFactory LocalizationFactory */
+        /** @var LocalizationFactory $languageFactory */
         $languageFactory = GeneralUtility::makeInstance(LocalizationFactory::class);
 
         if ($this->lang !== 'default') {
@@ -2456,7 +2357,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
             if ($this->lang !== 'default' && isset($tempLL[$language])) {
                 // Merge current language labels onto labels from previous language
                 // This way we have a labels with fall back applied
-                \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($localLanguage[$this->lang], $tempLL[$language], true, false);
+                ArrayUtility::mergeRecursiveWithOverrule($localLanguage[$this->lang], $tempLL[$language], true, false);
             }
         }
 
@@ -2483,7 +2384,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function doConcatenateJavaScript()
     {
-        if ($this->concatenateFiles || $this->concatenateJavascript) {
+        if ($this->concatenateJavascript) {
             if (!empty($GLOBALS['TYPO3_CONF_VARS'][TYPO3_MODE]['jsConcatenateHandler'])) {
                 // use external concatenation routine
                 $params = [
@@ -2507,7 +2408,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function doConcatenateCss()
     {
-        if ($this->concatenateFiles || $this->concatenateCss) {
+        if ($this->concatenateCss) {
             if (!empty($GLOBALS['TYPO3_CONF_VARS'][TYPO3_MODE]['cssConcatenateHandler'])) {
                 // use external concatenation routine
                 $params = [
@@ -2518,12 +2419,8 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
                 ];
                 GeneralUtility::callUserFunction($GLOBALS['TYPO3_CONF_VARS'][TYPO3_MODE]['cssConcatenateHandler'], $params, $this);
             } else {
-                $cssOptions = [];
-                if (TYPO3_MODE === 'BE') {
-                    $cssOptions = ['baseDirectories' => $GLOBALS['TBE_TEMPLATE']->getSkinStylesheetDirectories()];
-                }
-                $this->cssLibs = $this->getCompressor()->concatenateCssFiles($this->cssLibs, $cssOptions);
-                $this->cssFiles = $this->getCompressor()->concatenateCssFiles($this->cssFiles, $cssOptions);
+                $this->cssLibs = $this->getCompressor()->concatenateCssFiles($this->cssLibs);
+                $this->cssFiles = $this->getCompressor()->concatenateCssFiles($this->cssFiles);
             }
         }
     }
@@ -2601,12 +2498,12 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Returns instance of \TYPO3\CMS\Core\Resource\ResourceCompressor
      *
-     * @return \TYPO3\CMS\Core\Resource\ResourceCompressor
+     * @return ResourceCompressor
      */
     protected function getCompressor()
     {
         if ($this->compressor === null) {
-            $this->compressor = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Resource\ResourceCompressor::class);
+            $this->compressor = GeneralUtility::makeInstance(ResourceCompressor::class);
         }
         return $this->compressor;
     }
@@ -2627,7 +2524,7 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         } elseif (TYPO3_MODE === 'FE') {
             $filename = GeneralUtility::createVersionNumberedFilename($filename);
         }
-        return PathUtility::getAbsoluteWebPath($filename);
+        return $this->getAbsoluteWebPath($filename);
     }
 
     /**
@@ -2654,29 +2551,26 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
         }
         if ($prepareForOutput) {
             $file = GeneralUtility::createVersionNumberedFilename($file);
-            $file = PathUtility::getAbsoluteWebPath($file);
+            $file = $this->getAbsoluteWebPath($file);
         }
         return $file;
     }
 
     /**
-     * Returns global frontend controller
+     * Gets absolute web path of filename for backend disposal.
+     * Resolving the absolute path in the frontend with conflict with
+     * applying config.absRefPrefix in frontend rendering process.
      *
-     * @return TypoScriptFrontendController
+     * @param string $file
+     * @return string
+     * @see \TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController::setAbsRefPrefix()
      */
-    protected function getTypoScriptFrontendController()
+    protected function getAbsoluteWebPath(string $file): string
     {
-        return $GLOBALS['TSFE'];
-    }
-
-    /**
-     * Returns global language service instance
-     *
-     * @return \TYPO3\CMS\Core\Localization\LanguageService
-     */
-    protected function getLanguageService()
-    {
-        return $GLOBALS['LANG'];
+        if (TYPO3_MODE === 'FE') {
+            return $file;
+        }
+        return PathUtility::getAbsoluteWebPath($file);
     }
 
     /*****************************************************/
@@ -2689,23 +2583,25 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function executePreRenderHook()
     {
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_pagerenderer.php']['render-preProcess'])) {
-            $params = [
-                'jsLibs' => &$this->jsLibs,
-                'jsFooterLibs' => &$this->jsFooterLibs,
-                'jsFiles' => &$this->jsFiles,
-                'jsFooterFiles' => &$this->jsFooterFiles,
-                'cssLibs' => &$this->cssLibs,
-                'cssFiles' => &$this->cssFiles,
-                'headerData' => &$this->headerData,
-                'footerData' => &$this->footerData,
-                'jsInline' => &$this->jsInline,
-                'jsFooterInline' => &$this->jsFooterInline,
-                'cssInline' => &$this->cssInline
-            ];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_pagerenderer.php']['render-preProcess'] as $hook) {
-                GeneralUtility::callUserFunction($hook, $params, $this);
-            }
+        $hooks = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_pagerenderer.php']['render-preProcess'] ?? false;
+        if (!$hooks) {
+            return;
+        }
+        $params = [
+            'jsLibs' => &$this->jsLibs,
+            'jsFooterLibs' => &$this->jsFooterLibs,
+            'jsFiles' => &$this->jsFiles,
+            'jsFooterFiles' => &$this->jsFooterFiles,
+            'cssLibs' => &$this->cssLibs,
+            'cssFiles' => &$this->cssFiles,
+            'headerData' => &$this->headerData,
+            'footerData' => &$this->footerData,
+            'jsInline' => &$this->jsInline,
+            'jsFooterInline' => &$this->jsFooterInline,
+            'cssInline' => &$this->cssInline
+        ];
+        foreach ($hooks as $hook) {
+            GeneralUtility::callUserFunction($hook, $params, $this);
         }
     }
 
@@ -2714,73 +2610,97 @@ class PageRenderer implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function executeRenderPostTransformHook()
     {
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_pagerenderer.php']['render-postTransform'])) {
-            $params = [
-                'jsLibs' => &$this->jsLibs,
-                'jsFooterLibs' => &$this->jsFooterLibs,
-                'jsFiles' => &$this->jsFiles,
-                'jsFooterFiles' => &$this->jsFooterFiles,
-                'cssLibs' => &$this->cssLibs,
-                'cssFiles' => &$this->cssFiles,
-                'headerData' => &$this->headerData,
-                'footerData' => &$this->footerData,
-                'jsInline' => &$this->jsInline,
-                'jsFooterInline' => &$this->jsFooterInline,
-                'cssInline' => &$this->cssInline
-            ];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_pagerenderer.php']['render-postTransform'] as $hook) {
-                GeneralUtility::callUserFunction($hook, $params, $this);
-            }
+        $hooks = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_pagerenderer.php']['render-postTransform'] ?? false;
+        if (!$hooks) {
+            return;
+        }
+        $params = [
+            'jsLibs' => &$this->jsLibs,
+            'jsFooterLibs' => &$this->jsFooterLibs,
+            'jsFiles' => &$this->jsFiles,
+            'jsFooterFiles' => &$this->jsFooterFiles,
+            'cssLibs' => &$this->cssLibs,
+            'cssFiles' => &$this->cssFiles,
+            'headerData' => &$this->headerData,
+            'footerData' => &$this->footerData,
+            'jsInline' => &$this->jsInline,
+            'jsFooterInline' => &$this->jsFooterInline,
+            'cssInline' => &$this->cssInline
+        ];
+        foreach ($hooks as $hook) {
+            GeneralUtility::callUserFunction($hook, $params, $this);
         }
     }
 
     /**
      * Execute postRenderHook for possible manipulation
      *
-     * @param $jsLibs string
-     * @param $jsFiles string
-     * @param $jsFooterFiles string
-     * @param $cssLibs string
-     * @param $cssFiles string
-     * @param $jsInline string
-     * @param $cssInline string
-     * @param $jsFooterInline string
-     * @param $jsFooterLibs string
+     * @param string $jsLibs
+     * @param string $jsFiles
+     * @param string $jsFooterFiles
+     * @param string $cssLibs
+     * @param string $cssFiles
+     * @param string $jsInline
+     * @param string $cssInline
+     * @param string $jsFooterInline
+     * @param string $jsFooterLibs
      */
     protected function executePostRenderHook(&$jsLibs, &$jsFiles, &$jsFooterFiles, &$cssLibs, &$cssFiles, &$jsInline, &$cssInline, &$jsFooterInline, &$jsFooterLibs)
     {
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_pagerenderer.php']['render-postProcess'])) {
-            $params = [
-                'jsLibs' => &$jsLibs,
-                'jsFiles' => &$jsFiles,
-                'jsFooterFiles' => &$jsFooterFiles,
-                'cssLibs' => &$cssLibs,
-                'cssFiles' => &$cssFiles,
-                'headerData' => &$this->headerData,
-                'footerData' => &$this->footerData,
-                'jsInline' => &$jsInline,
-                'cssInline' => &$cssInline,
-                'xmlPrologAndDocType' => &$this->xmlPrologAndDocType,
-                'htmlTag' => &$this->htmlTag,
-                'headTag' => &$this->headTag,
-                'charSet' => &$this->charSet,
-                'metaCharsetTag' => &$this->metaCharsetTag,
-                'shortcutTag' => &$this->shortcutTag,
-                'inlineComments' => &$this->inlineComments,
-                'baseUrl' => &$this->baseUrl,
-                'baseUrlTag' => &$this->baseUrlTag,
-                'favIcon' => &$this->favIcon,
-                'iconMimeType' => &$this->iconMimeType,
-                'titleTag' => &$this->titleTag,
-                'title' => &$this->title,
-                'metaTags' => &$this->metaTags,
-                'jsFooterInline' => &$jsFooterInline,
-                'jsFooterLibs' => &$jsFooterLibs,
-                'bodyContent' => &$this->bodyContent
-            ];
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_pagerenderer.php']['render-postProcess'] as $hook) {
-                GeneralUtility::callUserFunction($hook, $params, $this);
-            }
+        $hooks = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['t3lib/class.t3lib_pagerenderer.php']['render-postProcess'] ?? false;
+        if (!$hooks) {
+            return;
         }
+        $params = [
+            'jsLibs' => &$jsLibs,
+            'jsFiles' => &$jsFiles,
+            'jsFooterFiles' => &$jsFooterFiles,
+            'cssLibs' => &$cssLibs,
+            'cssFiles' => &$cssFiles,
+            'headerData' => &$this->headerData,
+            'footerData' => &$this->footerData,
+            'jsInline' => &$jsInline,
+            'cssInline' => &$cssInline,
+            'xmlPrologAndDocType' => &$this->xmlPrologAndDocType,
+            'htmlTag' => &$this->htmlTag,
+            'headTag' => &$this->headTag,
+            'charSet' => &$this->charSet,
+            'metaCharsetTag' => &$this->metaCharsetTag,
+            'shortcutTag' => &$this->shortcutTag,
+            'inlineComments' => &$this->inlineComments,
+            'baseUrl' => &$this->baseUrl,
+            'baseUrlTag' => &$this->baseUrlTag,
+            'favIcon' => &$this->favIcon,
+            'iconMimeType' => &$this->iconMimeType,
+            'titleTag' => &$this->titleTag,
+            'title' => &$this->title,
+            'metaTags' => &$this->metaTags,
+            'jsFooterInline' => &$jsFooterInline,
+            'jsFooterLibs' => &$jsFooterLibs,
+            'bodyContent' => &$this->bodyContent
+        ];
+        foreach ($hooks as $hook) {
+            GeneralUtility::callUserFunction($hook, $params, $this);
+        }
+    }
+
+    /**
+     * Creates a CSS inline tag
+     *
+     * @param string $file the filename to process
+     * @param array $properties
+     * @return string
+     */
+    protected function createInlineCssTagFromFile(string $file, array $properties): string
+    {
+        $cssInline = file_get_contents($file);
+
+        return '<style type="text/css"'
+            . ' media="' . htmlspecialchars($properties['media']) . '"'
+            . ($properties['title'] ? ' title="' . htmlspecialchars($properties['title']) . '"' : '')
+            . '>' . LF
+            . '/*<![CDATA[*/' . LF . '<!-- ' . LF
+            . $cssInline
+            . '-->' . LF . '/*]]>*/' . LF . '</style>' . LF;
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,25 +12,29 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
+
+use TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form\Fixtures\EmptySyntaxTreeNode;
+use TYPO3\CMS\Fluid\ViewHelpers\Form\PasswordViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder;
 
 /**
  * Test for the "Password" Form view helper
  */
-class PasswordViewHelperTest extends \TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form\FormFieldViewHelperBaseTestcase
+class PasswordViewHelperTest extends FormFieldViewHelperBaseTestcase
 {
     /**
-     * @var \TYPO3\CMS\Fluid\ViewHelpers\Form\TextboxViewHelper
+     * @var \TYPO3\CMS\Fluid\ViewHelpers\Form\PasswordViewHelper
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
-        $this->viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\Form\PasswordViewHelper::class, ['setErrorClassAttribute', 'registerFieldNameForFormTokenGeneration']);
+        $this->viewHelper = $this->getAccessibleMock(PasswordViewHelper::class, ['setErrorClassAttribute', 'registerFieldNameForFormTokenGeneration']);
         $this->arguments['name'] = '';
         $this->injectDependenciesIntoViewHelper($this->viewHelper);
-        $this->viewHelper->initializeArguments();
     }
 
     /**
@@ -43,11 +46,9 @@ class PasswordViewHelperTest extends \TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\For
             ->setMethods(['setTagName'])
             ->disableOriginalConstructor()
             ->getMock();
-        $mockTagBuilder->expects($this->once())->method('setTagName')->with('input');
-        $this->viewHelper->_set('tag', $mockTagBuilder);
-
-        $this->viewHelper->initialize();
-        $this->viewHelper->render();
+        $mockTagBuilder->expects(self::atLeastOnce())->method('setTagName')->with('input');
+        $this->viewHelper->setTagBuilder($mockTagBuilder);
+        $this->viewHelper->initializeArgumentsAndRender();
     }
 
     /**
@@ -59,12 +60,12 @@ class PasswordViewHelperTest extends \TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\For
             ->setMethods(['addAttribute', 'setContent', 'render'])
             ->disableOriginalConstructor()
             ->getMock();
-        $mockTagBuilder->expects($this->at(0))->method('addAttribute')->with('type', 'password');
-        $mockTagBuilder->expects($this->at(1))->method('addAttribute')->with('name', 'NameOfTextbox');
-        $this->viewHelper->expects($this->once())->method('registerFieldNameForFormTokenGeneration')->with('NameOfTextbox');
-        $mockTagBuilder->expects($this->at(2))->method('addAttribute')->with('value', 'Current value');
-        $mockTagBuilder->expects($this->once())->method('render');
-        $this->viewHelper->_set('tag', $mockTagBuilder);
+        $mockTagBuilder->expects(self::at(0))->method('addAttribute')->with('type', 'password');
+        $mockTagBuilder->expects(self::at(1))->method('addAttribute')->with('name', 'NameOfTextbox');
+        $this->viewHelper->expects(self::once())->method('registerFieldNameForFormTokenGeneration')->with('NameOfTextbox');
+        $mockTagBuilder->expects(self::at(2))->method('addAttribute')->with('value', 'Current value');
+        $mockTagBuilder->expects(self::once())->method('render');
+        $this->viewHelper->setTagBuilder($mockTagBuilder);
 
         $arguments = [
             'name' => 'NameOfTextbox',
@@ -72,9 +73,8 @@ class PasswordViewHelperTest extends \TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\For
         ];
         $this->viewHelper->setArguments($arguments);
 
-        $this->viewHelper->setViewHelperNode(new \TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form\Fixtures\EmptySyntaxTreeNode());
-        $this->viewHelper->initialize();
-        $this->viewHelper->render();
+        $this->viewHelper->setViewHelperNode(new EmptySyntaxTreeNode());
+        $this->viewHelper->initializeArgumentsAndRender();
     }
 
     /**
@@ -82,7 +82,7 @@ class PasswordViewHelperTest extends \TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\For
      */
     public function renderCallsSetErrorClassAttribute()
     {
-        $this->viewHelper->expects($this->once())->method('setErrorClassAttribute');
+        $this->viewHelper->expects(self::once())->method('setErrorClassAttribute');
         $this->viewHelper->render();
     }
 }

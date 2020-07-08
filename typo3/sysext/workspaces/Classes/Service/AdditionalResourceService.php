@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,17 @@ namespace TYPO3\CMS\Workspaces\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Workspaces\Service;
+
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\PathUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
 
 /**
  * Service for additional columns in GridPanel
  */
-class AdditionalResourceService implements \TYPO3\CMS\Core\SingletonInterface
+class AdditionalResourceService implements SingletonInterface
 {
     /**
      * @var array
@@ -37,19 +41,19 @@ class AdditionalResourceService implements \TYPO3\CMS\Core\SingletonInterface
     protected $localizationResources = [];
 
     /**
-     * @return \TYPO3\CMS\Workspaces\Service\AdditionalResourceService
+     * @return AdditionalResourceService
      */
     public static function getInstance()
     {
-        return self::getObjectManager()->get(\TYPO3\CMS\Workspaces\Service\AdditionalResourceService::class);
+        return self::getObjectManager()->get(AdditionalResourceService::class);
     }
 
     /**
-     * @return \TYPO3\CMS\Extbase\Object\ObjectManager
+     * @return ObjectManager
      */
     public static function getObjectManager()
     {
-        return GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
+        return GeneralUtility::makeInstance(ObjectManager::class);
     }
 
     /**
@@ -107,14 +111,14 @@ class AdditionalResourceService implements \TYPO3\CMS\Core\SingletonInterface
      * Resolve path
      *
      * @param string $resourcePath
-     * @return NULL|string
+     * @return string|null
      */
     protected function resolvePath($resourcePath)
     {
         $absoluteFilePath = GeneralUtility::getFileAbsFileName($resourcePath);
-        $absolutePath = dirname($absoluteFilePath);
-        $fileName = basename($absoluteFilePath);
+        $absolutePath = PathUtility::dirname($absoluteFilePath);
+        $fileName = PathUtility::basename($absoluteFilePath);
 
-        return \TYPO3\CMS\Core\Utility\PathUtility::getRelativePathTo($absolutePath) . $fileName;
+        return PathUtility::getRelativePathTo($absolutePath) . $fileName;
     }
 }

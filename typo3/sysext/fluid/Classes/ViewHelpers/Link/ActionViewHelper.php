@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,29 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\ViewHelpers\Link;
+
+use TYPO3\CMS\Core\Utility\MathUtility;
+use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractTagBasedViewHelper;
+
 /**
- * A view helper for creating links to extbase actions.
+ * A ViewHelper for creating links to extbase actions.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="link to the show-action of the current controller">
- * <f:link.action action="show">action link</f:link.action>
- * </code>
- * <output>
- * <a href="index.php?id=123&tx_myextension_plugin[action]=show&tx_myextension_plugin[controller]=Standard&cHash=xyz">action link</f:link.action>
- * (depending on the current page and your TS configuration)
- * </output>
+ * link to the show-action of the current controller::
+ *
+ *    <f:link.action action="show">action link</f:link.action>
+ *
+ * Output::
+ *
+ *    <a href="index.php?id=123&tx_myextension_plugin[action]=show&tx_myextension_plugin[controller]=Standard&cHash=xyz">action link</a>
+ *
+ * Depending on the current page and your TypoScript configuration.
  */
-class ActionViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractTagBasedViewHelper
+class ActionViewHelper extends AbstractTagBasedViewHelper
 {
     /**
      * @var string
@@ -52,7 +60,6 @@ class ActionViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractTagBased
         $this->registerArgument('pageUid', 'int', 'Target page. See TypoLink destination');
         $this->registerArgument('pageType', 'int', 'Type of the target page. See typolink.parameter');
         $this->registerArgument('noCache', 'bool', 'Set this to disable caching for the target page. You should not need this.');
-        $this->registerArgument('noCacheHash', 'bool', 'Set this to suppress the cHash query parameter created by TypoLink. You should not need this.');
         $this->registerArgument('section', 'string', 'The anchor to be added to the URI');
         $this->registerArgument('format', 'string', 'The requested format, e.g. ".html');
         $this->registerArgument('linkAccessRestrictedPages', 'bool', 'If set, links pointing to access restricted pages will still link to the page even though the page cannot be accessed.');
@@ -76,7 +83,6 @@ class ActionViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractTagBased
         $pageUid = (int)$this->arguments['pageUid'] ?: null;
         $pageType = (int)$this->arguments['pageType'];
         $noCache = (bool)$this->arguments['noCache'];
-        $noCacheHash = (bool)$this->arguments['useCacheHash'];
         $section = (string)$this->arguments['section'];
         $format = (string)$this->arguments['format'];
         $linkAccessRestrictedPages = (bool)$this->arguments['linkAccessRestrictedPages'];
@@ -86,13 +92,12 @@ class ActionViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractTagBased
         $argumentsToBeExcludedFromQueryString = (array)$this->arguments['argumentsToBeExcludedFromQueryString'];
         $addQueryStringMethod = $this->arguments['addQueryStringMethod'];
         $parameters = $this->arguments['arguments'];
+        /** @var UriBuilder $uriBuilder */
         $uriBuilder = $this->renderingContext->getControllerContext()->getUriBuilder();
-        $uri = $uriBuilder
+        $uriBuilder
             ->reset()
-            ->setTargetPageUid($pageUid)
             ->setTargetPageType($pageType)
             ->setNoCache($noCache)
-            ->setUseCacheHash(!$noCacheHash)
             ->setSection($section)
             ->setFormat($format)
             ->setLinkAccessRestrictedPages($linkAccessRestrictedPages)
@@ -100,8 +105,20 @@ class ActionViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractTagBased
             ->setCreateAbsoluteUri($absolute)
             ->setAddQueryString($addQueryString)
             ->setArgumentsToBeExcludedFromQueryString($argumentsToBeExcludedFromQueryString)
-            ->setAddQueryStringMethod($addQueryStringMethod)
-            ->uriFor($action, $parameters, $controller, $extensionName, $pluginName);
+        ;
+
+        if (MathUtility::canBeInterpretedAsInteger($pageUid)) {
+            $uriBuilder->setTargetPageUid((int)$pageUid);
+        }
+
+        if (is_string($addQueryStringMethod)) {
+            $uriBuilder->setAddQueryStringMethod($addQueryStringMethod);
+        }
+
+        $uri = $uriBuilder->uriFor($action, $parameters, $controller, $extensionName, $pluginName);
+        if ($uri === '') {
+            return $this->renderChildren();
+        }
         $this->tag->addAttribute('href', $uri);
         $this->tag->setContent($this->renderChildren());
         $this->tag->forceClosingTag(true);

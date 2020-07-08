@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Functional\Session\Backend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Functional\Session\Backend;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\Session\Backend;
+
 use TYPO3\CMS\Core\Session\Backend\Exception\SessionNotCreatedException;
 use TYPO3\CMS\Core\Session\Backend\Exception\SessionNotFoundException;
 use TYPO3\CMS\Core\Session\Backend\Exception\SessionNotUpdatedException;
@@ -23,6 +25,8 @@ use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
  * Test case
+ *
+ * @requires extension redis
  */
 class RedisSessionBackendTest extends FunctionalTestCase
 {
@@ -44,22 +48,25 @@ class RedisSessionBackendTest extends FunctionalTestCase
     /**
      * Set configuration for RedisSessionBackend
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
-        if (!extension_loaded('redis')) {
-            $this->markTestSkipped('redis extension was not available');
+        if (!getenv('typo3TestingRedisHost')) {
+            self::markTestSkipped('environment variable "typo3TestingRedisHost" must be set to run this test');
         }
-        try {
-            if (!@fsockopen('127.0.0.1', 6379)) {
-                $this->markTestSkipped('redis server not reachable');
-            }
-        } catch (\Exception $e) {
-            $this->markTestSkipped('redis server not reachable');
-        }
+        // Note we assume that if that typo3TestingRedisHost env is set, we can use that for testing,
+        // there is no test to see if the daemon is actually up and running. Tests will fail if env
+        // is set but daemon is down.
+
+        // We know this env is set, otherwise setUp() would skip the tests
+        $redisHost = getenv('typo3TestingRedisHost');
+        // If typo3TestingRedisPort env is set, use it, otherwise fall back to standard port
+        $env = getenv('typo3TestingRedisPort');
+        $redisPort = is_string($env) ? (int)$env : 6379;
+
         $redis = new \Redis();
-        $redis->connect('127.0.0.1');
+        $redis->connect($redisHost, $redisPort);
         $redis->select(0);
         // Clear db to ensure no sessions exist currently
         $redis->flushDB();
@@ -69,8 +76,8 @@ class RedisSessionBackendTest extends FunctionalTestCase
             'default',
             [
                 'database' => 0,
-                'port' => 6379,
-                'hostname' => 'localhost',
+                'port' => $redisPort,
+                'hostname' => $redisHost
             ]
         );
     }
@@ -103,8 +110,9 @@ class RedisSessionBackendTest extends FunctionalTestCase
 
         $expected = array_merge($this->testSessionRecord, ['ses_tstamp' => $GLOBALS['EXEC_TIME']]);
 
-        $this->assertEquals($record, $expected);
-        $this->assertArraySubset($expected, $this->subject->get('randomSessionId'));
+        self::assertEquals($record, $expected);
+        $result = $this->subject->get('randomSessionId');
+        self::assertSame($expected, $result);
     }
 
     /**
@@ -116,8 +124,8 @@ class RedisSessionBackendTest extends FunctionalTestCase
 
         $expected = array_merge($this->testSessionRecord, ['ses_anonymous' => 1, 'ses_tstamp' => $GLOBALS['EXEC_TIME']]);
 
-        $this->assertEquals($record, $expected);
-        $this->assertArraySubset($expected, $this->subject->get('randomSessionId'));
+        self::assertEquals($record, $expected);
+        self::assertSame($expected, $this->subject->get('randomSessionId'));
     }
 
     /**
@@ -146,7 +154,7 @@ class RedisSessionBackendTest extends FunctionalTestCase
         $expectedMergedData = array_merge($this->testSessionRecord, $updateData);
         $this->subject->update('randomSessionId', $updateData);
         $fetchedRecord = $this->subject->get('randomSessionId');
-        $this->assertArraySubset($expectedMergedData, $fetchedRecord);
+        self::assertSame($expectedMergedData, $fetchedRecord);
     }
 
     /**
@@ -196,7 +204,7 @@ class RedisSessionBackendTest extends FunctionalTestCase
         $this->subject->set('randomSessionId', $this->testSessionRecord);
 
         // Remove session
-        $this->assertTrue($this->subject->remove('randomSessionId'));
+        self::assertTrue($this->subject->remove('randomSessionId'));
 
         // Check if session was really removed
         $this->expectException(SessionNotFoundException::class);
@@ -214,7 +222,7 @@ class RedisSessionBackendTest extends FunctionalTestCase
         $this->subject->set('randomSessionId2', $this->testSessionRecord);
 
         // Check if session was really removed
-        $this->assertEquals(2, count($this->subject->getAll()));
+        self::assertEquals(2, count($this->subject->getAll()));
     }
 
     /**
@@ -230,15 +238,20 @@ class RedisSessionBackendTest extends FunctionalTestCase
         $this->subject->set('anonymousSession', $anonymousSession);
 
         // Assert that we set authenticated session correctly
-        $this->assertArraySubset(
-            $authenticatedSession,
-            $this->subject->get('authenticatedSession')
+        self::assertSame(
+            $authenticatedSession['ses_data'],
+            $this->subject->get('authenticatedSession')['ses_data']
+        );
+        self::assertSame(
+            $authenticatedSession['ses_userid'],
+            $this->subject->get('authenticatedSession')['ses_userid']
         );
 
         // assert that we set anonymous session correctly
-        $this->assertArraySubset(
-            $anonymousSession,
-            $this->subject->get('anonymousSession'));
+        self::assertSame(
+            $anonymousSession['ses_data'],
+            $this->subject->get('anonymousSession')['ses_data']
+        );
 
         // Run the garbage collection
         $GLOBALS['EXEC_TIME'] = 200;
@@ -246,9 +259,14 @@ class RedisSessionBackendTest extends FunctionalTestCase
         $this->subject->collectGarbage(60, 10);
 
         // Authenticated session should still be there
-        $this->assertArraySubset(
-            $authenticatedSession,
-            $this->subject->get('authenticatedSession'));
+        self::assertSame(
+            $authenticatedSession['ses_data'],
+            $this->subject->get('authenticatedSession')['ses_data']
+        );
+        self::assertSame(
+            $authenticatedSession['ses_userid'],
+            $this->subject->get('authenticatedSession')['ses_userid']
+        );
 
         // Non-authenticated session should be removed
         $this->expectException(SessionNotFoundException::class);
@@ -268,6 +286,6 @@ class RedisSessionBackendTest extends FunctionalTestCase
         $sessionId = 'randomSessionId';
         $this->subject->set($sessionId, $this->testSessionRecord);
         $this->subject->update($sessionId, []);
-        $this->assertArraySubset($updatedRecord, $this->subject->get($sessionId));
+        self::assertSame($updatedRecord, $this->subject->get($sessionId));
     }
 }

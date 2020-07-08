@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Runtime\Exception;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,14 +15,14 @@ namespace TYPO3\CMS\Form\Domain\Runtime\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Domain\Runtime\Exception;
+
 use TYPO3\CMS\Form\Domain\Exception;
 
 /**
  * This Exception is thrown in the FormRuntime if the PropertyMapper throws
  * a \TYPO3\CMS\Extbase\Property\Exception. It adds some more Information to
  * better understand why the PropertyMapper failed to map the properties
- *
- * @api
  */
 class PropertyMappingException extends Exception
 {

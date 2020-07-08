@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Finishers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,7 +15,11 @@ namespace TYPO3\CMS\Form\Domain\Finishers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Domain\Finishers;
+
+use Symfony\Component\Mime\Address;
 use TYPO3\CMS\Core\Mail\MailMessage;
+use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Extbase\Domain\Model\FileReference;
 use TYPO3\CMS\Fluid\View\StandaloneView;
 use TYPO3\CMS\Form\Domain\Finishers\Exception\FinisherException;
@@ -35,18 +39,17 @@ use TYPO3\CMS\Form\ViewHelpers\RenderRenderableViewHelper;
  * - variables: associative array of variables which are available inside the Fluid template
  *
  * The following options control the mail sending. In all of them, placeholders in the form
- * of {...} are replaced with the corresponding form value; i.e. {email} as recipientAddress
+ * of {...} are replaced with the corresponding form value; i.e. {email} as senderAddress
  * makes the recipient address configurable.
  *
  * - subject (mandatory): Subject of the email
- * - recipientAddress (mandatory): Email address of the recipient
- * - recipientName: Human-readable name of the recipient
+ * - recipients (mandatory): Email addresses and human-readable names of the recipients
  * - senderAddress (mandatory): Email address of the sender
  * - senderName: Human-readable name of the sender
- * - replyToAddress: Email address of to be used as reply-to email (use multiple addresses with an array)
- * - carbonCopyAddress: Email address of the copy recipient (use multiple addresses with an array)
- * - blindCarbonCopyAddress: Email address of the blind copy recipient (use multiple addresses with an array)
- * - format: format of the email (one of the FORMAT_* constants). By default mails are sent as HTML
+ * - replyToRecipients: Email addresses and human-readable names of the reply-to recipients
+ * - carbonCopyRecipients: Email addresses and human-readable names of the copy recipients
+ * - blindCarbonCopyRecipients: Email addresses and human-readable names of the blind copy recipients
+ * - format: Format of the email (one of the FORMAT_* constants). By default mails are sent as HTML.
  *
  * Scope: frontend
  */
@@ -61,8 +64,8 @@ class EmailFinisher extends AbstractFinisher
     protected $defaultOptions = [
         'recipientName' => '',
         'senderName' => '',
-        'format' => self::FORMAT_HTML,
-        'attachUploads' => true
+        'addHtmlPart' => true,
+        'attachUploads' => true,
     ];
 
     /**
@@ -73,35 +76,31 @@ class EmailFinisher extends AbstractFinisher
      */
     protected function executeInternal()
     {
-        $formRuntime = $this->finisherContext->getFormRuntime();
-        $standaloneView = $this->initializeStandaloneView($formRuntime);
-
-        $translationService = TranslationService::getInstance();
-        if (isset($this->options['translation']['language']) && !empty($this->options['translation']['language'])) {
-            $languageBackup = $translationService->getLanguage();
-            $translationService->setLanguage($this->options['translation']['language']);
-        }
-        $message = $standaloneView->render();
-        if (!empty($languageBackup)) {
-            $translationService->setLanguage($languageBackup);
+        $languageBackup = null;
+        // Flexform overrides write strings instead of integers so
+        // we need to cast the string '0' to false.
+        if (
+            isset($this->options['addHtmlPart'])
+            && $this->options['addHtmlPart'] === '0'
+        ) {
+            $this->options['addHtmlPart'] = false;
         }
 
         $subject = $this->parseOption('subject');
-        $recipientAddress = $this->parseOption('recipientAddress');
-        $recipientName = $this->parseOption('recipientName');
+        $recipients = $this->getRecipients('recipients', 'recipientAddress', 'recipientName');
         $senderAddress = $this->parseOption('senderAddress');
         $senderName = $this->parseOption('senderName');
-        $replyToAddress = $this->parseOption('replyToAddress');
-        $carbonCopyAddress = $this->parseOption('carbonCopyAddress');
-        $blindCarbonCopyAddress = $this->parseOption('blindCarbonCopyAddress');
-        $format = $this->parseOption('format');
+        $replyToRecipients = $this->getRecipients('replyToRecipients', 'replyToAddress');
+        $carbonCopyRecipients = $this->getRecipients('carbonCopyRecipients', 'carbonCopyAddress');
+        $blindCarbonCopyRecipients = $this->getRecipients('blindCarbonCopyRecipients', 'blindCarbonCopyAddress');
+        $addHtmlPart = $this->isHtmlPartAdded();
         $attachUploads = $this->parseOption('attachUploads');
 
         if (empty($subject)) {
             throw new FinisherException('The option "subject" must be set for the EmailFinisher.', 1327060320);
         }
-        if (empty($recipientAddress)) {
-            throw new FinisherException('The option "recipientAddress" must be set for the EmailFinisher.', 1327060200);
+        if (empty($recipients)) {
+            throw new FinisherException('The option "recipients" must be set for the EmailFinisher.', 1327060200);
         }
         if (empty($senderAddress)) {
             throw new FinisherException('The option "senderAddress" must be set for the EmailFinisher.', 1327060210);
@@ -109,26 +108,57 @@ class EmailFinisher extends AbstractFinisher
 
         $mail = $this->objectManager->get(MailMessage::class);
 
-        $mail->setFrom([$senderAddress => $senderName])
-            ->setTo([$recipientAddress => $recipientName])
-            ->setSubject($subject);
+        $mail->from(new Address($senderAddress, $senderName))
+            ->to(...$recipients)
+            ->subject($subject);
 
-        if (!empty($replyToAddress)) {
-            $mail->setReplyTo($replyToAddress);
+        if (!empty($replyToRecipients)) {
+            $mail->replyTo(...$replyToRecipients);
         }
 
-        if (!empty($carbonCopyAddress)) {
-            $mail->setCc($carbonCopyAddress);
+        if (!empty($carbonCopyRecipients)) {
+            $mail->cc(...$carbonCopyRecipients);
         }
 
-        if (!empty($blindCarbonCopyAddress)) {
-            $mail->setBcc($blindCarbonCopyAddress);
+        if (!empty($blindCarbonCopyRecipients)) {
+            $mail->bcc(...$blindCarbonCopyRecipients);
         }
 
-        if ($format === self::FORMAT_PLAINTEXT) {
-            $mail->setBody($message, 'text/plain');
-        } else {
-            $mail->setBody($message, 'text/html');
+        $formRuntime = $this->finisherContext->getFormRuntime();
+
+        $translationService = TranslationService::getInstance();
+        if (isset($this->options['translation']['language']) && !empty($this->options['translation']['language'])) {
+            $languageBackup = $translationService->getLanguage();
+            $translationService->setLanguage($this->options['translation']['language']);
+        }
+
+        $parts = [
+            [
+                'format' => 'Plaintext',
+                'contentType' => 'text/plain',
+            ],
+        ];
+
+        if ($addHtmlPart) {
+            $parts[] = [
+                'format' => 'Html',
+                'contentType' => 'text/html',
+            ];
+        }
+
+        foreach ($parts as $i => $part) {
+            $standaloneView = $this->initializeStandaloneView($formRuntime, $part['format']);
+            $message = $standaloneView->render();
+
+            if ($part['contentType'] === 'text/plain') {
+                $mail->text($message);
+            } else {
+                $mail->html($message);
+            }
+        }
+
+        if (!empty($languageBackup)) {
+            $translationService->setLanguage($languageBackup);
         }
 
         $elements = $formRuntime->getFormDefinition()->getRenderablesRecursively();
@@ -144,7 +174,7 @@ class EmailFinisher extends AbstractFinisher
                         $file = $file->getOriginalResource();
                     }
 
-                    $mail->attach(\Swift_Attachment::newInstance($file->getContents(), $file->getName(), $file->getMimeType()));
+                    $mail->attach($file->getContents(), $file->getName(), $file->getMimeType());
                 }
             }
         }
@@ -154,24 +184,36 @@ class EmailFinisher extends AbstractFinisher
 
     /**
      * @param FormRuntime $formRuntime
+     * @param string $format
      * @return StandaloneView
      * @throws FinisherException
      */
-    protected function initializeStandaloneView(FormRuntime $formRuntime): StandaloneView
+    protected function initializeStandaloneView(FormRuntime $formRuntime, string $format): StandaloneView
     {
-        if (!isset($this->options['templatePathAndFilename'])) {
-            throw new FinisherException('The option "templatePathAndFilename" must be set for the EmailFinisher.', 1327058829);
+        $standaloneView = $this->objectManager->get(StandaloneView::class);
+
+        if (isset($this->options['templatePathAndFilename'])) {
+            $this->options['templatePathAndFilename'] = strtr($this->options['templatePathAndFilename'], [
+                '{@format}' => $format
+            ]);
+            $standaloneView->setTemplatePathAndFilename($this->options['templatePathAndFilename']);
+        } else {
+            if (!isset($this->options['templateName'])) {
+                throw new FinisherException('The option "templateName" must be set for the EmailFinisher.', 1327058829);
+            }
+            // Use local variable instead of augmenting the options to
+            // keep the format intact when sending multi-format mails
+            $templateName = strtr($this->options['templateName'], [
+                '{@format}' => $format
+            ]);
+            $standaloneView->setTemplate($templateName);
         }
 
-        $format = ucfirst($this->parseOption('format'));
-
-        $this->options['templatePathAndFilename'] = strtr($this->options['templatePathAndFilename'], [
-            '{@format}' => $format
-        ]);
-
-        $standaloneView = $this->objectManager->get(StandaloneView::class);
-        $standaloneView->setTemplatePathAndFilename($this->options['templatePathAndFilename']);
         $standaloneView->assign('finisherVariableProvider', $this->finisherContext->getFinisherVariableProvider());
+
+        if (isset($this->options['templateRootPaths']) && is_array($this->options['templateRootPaths'])) {
+            $standaloneView->setTemplateRootPaths($this->options['templateRootPaths']);
+        }
 
         if (isset($this->options['partialRootPaths']) && is_array($this->options['partialRootPaths'])) {
             $standaloneView->setPartialRootPaths($this->options['partialRootPaths']);
@@ -191,5 +233,87 @@ class EmailFinisher extends AbstractFinisher
             ->addOrUpdate(RenderRenderableViewHelper::class, 'formRuntime', $formRuntime);
 
         return $standaloneView;
+    }
+
+    /**
+     * Get mail recipients
+     *
+     * @param string $listOption List option name
+     * @param string $singleAddressOption Single address option
+     * @param string|null $singleAddressNameOption Single address name
+     * @return array
+     *
+     * @deprecated since TYPO3 v10.0, will be removed in TYPO3 v11.0.
+     */
+    protected function getRecipients(
+        string $listOption,
+        string $singleAddressOption,
+        string $singleAddressNameOption = null
+    ): array {
+        $recipients = $this->parseOption($listOption);
+        $singleAddress = $this->parseOption($singleAddressOption);
+        $singleAddressName = '';
+
+        $recipients = $recipients ?? [];
+
+        if (!empty($singleAddress)) {
+            trigger_error(sprintf(
+                'EmailFinisher option "%s" is deprecated and will be removed in TYPO3 v11.0. Use "%s" instead.',
+                $singleAddressOption,
+                $listOption
+            ), E_USER_DEPRECATED);
+
+            if (!empty($singleAddressNameOption)) {
+                trigger_error(sprintf(
+                    'EmailFinisher option "%s" is deprecated and will be removed in TYPO3 v11.0. Use "%s" instead.',
+                    $singleAddressNameOption,
+                    $listOption
+                ), E_USER_DEPRECATED);
+                $singleAddressName = $this->parseOption($singleAddressNameOption);
+            }
+
+            $recipients[$singleAddress] = $singleAddressName ?: '';
+        }
+
+        $addresses = [];
+        foreach ($recipients as $address => $name) {
+            if (MathUtility::canBeInterpretedAsInteger($address)) {
+                $address = $name;
+                $name = '';
+            }
+            // Drop entries without mail address
+            if (empty($address)) {
+                continue;
+            }
+            $addresses[] = new Address($address, $name);
+        }
+        return $addresses;
+    }
+
+    /**
+     * Get plaintext preference
+     *
+     * @return bool
+     *
+     * @deprecated since TYPO3 v10.0, will be removed in TYPO3 v11.0.
+     */
+    protected function isHtmlPartAdded(): bool
+    {
+        $format = $this->parseOption('format');
+
+        if ($format !== null) {
+            trigger_error(
+                'Usage of format option in form email finisher is deprecated - use addHtmlPart instead.',
+                E_USER_DEPRECATED
+            );
+        }
+
+        // FORMAT_HTML was the default value for "format", so
+        // FORMAT_PLAINTEXT must have been set intentionally
+        if ($format === self::FORMAT_PLAINTEXT) {
+            return false;
+        }
+
+        return $this->parseOption('addHtmlPart') ? true : false;
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,7 +12,11 @@ namespace TYPO3\CMS\Core\Resource;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource;
+
 use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Representation of a specific usage of a file with possibilities to override certain
@@ -35,15 +38,6 @@ class FileReference implements FileInterface
      * @var array
      */
     protected $propertiesOfFileReference;
-
-    /**
-     * The identifier of this file to identify it on the storage.
-     * On some drivers, this is the path to the file, but drivers could also just
-     * provide any other unique identifier for this file on the specific storage.
-     *
-     * @var string
-     */
-    protected $uidOfFileReference;
 
     /**
      * The file name of this file. It's either the fileName of the original underlying file,
@@ -76,8 +70,8 @@ class FileReference implements FileInterface
      * @param array $fileReferenceData
      * @param ResourceFactory $factory
      *
-     * @throws \RuntimeException
      * @throws \InvalidArgumentException
+     * @throws Exception\FileDoesNotExistException
      */
     public function __construct(array $fileReferenceData, $factory = null)
     {
@@ -85,18 +79,23 @@ class FileReference implements FileInterface
         if (!$fileReferenceData['uid_local']) {
             throw new \InvalidArgumentException('Incorrect reference to original file given for FileReference.', 1300098528);
         }
-        if (!$factory) {
-            /** @var $factory ResourceFactory */
-            $factory = ResourceFactory::getInstance();
-        }
-        $this->originalFile = $factory->getFileObject($fileReferenceData['uid_local']);
-        if (!is_object($this->originalFile)) {
-            throw new \RuntimeException(
-                'Original file not found for FileReference. UID given: "' . $fileReferenceData['uid_local'] . '"',
-                1300098529
-            );
-        }
+        $this->originalFile = $this->getFileObject((int)$fileReferenceData['uid_local'], $factory);
         $this->name = $fileReferenceData['name'] !== '' ? $fileReferenceData['name'] : $this->originalFile->getName();
+    }
+
+    /**
+     * @param int $uidLocal
+     * @param ResourceFactory|null $factory
+     * @return FileInterface
+     *
+     * @throws Exception\FileDoesNotExistException
+     */
+    private function getFileObject(int $uidLocal, ResourceFactory $factory = null): FileInterface
+    {
+        if ($factory === null) {
+            $factory = GeneralUtility::makeInstance(ResourceFactory::class);
+        }
+        return $factory->getFileObject($uidLocal);
     }
 
     /*******************************
@@ -372,7 +371,7 @@ class FileReference implements FileInterface
     }
 
     /****************************************
-     * STORAGE AND MANAGEMENT RELATED METHDOS
+     * STORAGE AND MANAGEMENT RELATED METHODS
      ****************************************/
     /**
      * Get the storage the original file is located in
@@ -409,7 +408,6 @@ class FileReference implements FileInterface
      * (database table sys_file_reference) but leaves the original file untouched.
      *
      * @throws \BadMethodCallException
-     * @return bool TRUE if deletion succeeded
      */
     public function delete()
     {
@@ -424,7 +422,6 @@ class FileReference implements FileInterface
      *
      * @param string $newName The new name
      * @param string $conflictMode
-     * @return FileReference
      */
     public function rename($newName, $conflictMode = DuplicationBehavior::RENAME)
     {
@@ -444,7 +441,7 @@ class FileReference implements FileInterface
      * some web-based authentication. You have to take care of this yourself.
      *
      * @param bool  $relativeToCurrentScript   Determines whether the URL returned should be relative to the current script, in case it is relative at all (only for the LocalDriver)
-     * @return string
+     * @return string|null NULL if file is missing or deleted, the generated url otherwise
      */
     public function getPublicUrl($relativeToCurrentScript = false)
     {
@@ -517,5 +514,25 @@ class FileReference implements FileInterface
     public function getParentFolder()
     {
         return $this->originalFile->getParentFolder();
+    }
+
+    /**
+     * Avoids exporting original file object which contains
+     * singleton dependencies that must not be serialized.
+     *
+     * @return string[]
+     */
+    public function __sleep(): array
+    {
+        $keys = get_object_vars($this);
+        unset($keys['originalFile']);
+        return array_keys($keys);
+    }
+
+    public function __wakeup(): void
+    {
+        $this->originalFile = $this->getFileObject(
+            (int)$this->propertiesOfFileReference['uid_local']
+        );
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recordlist\LinkHandler;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Recordlist\LinkHandler;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recordlist\LinkHandler;
+
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Link handler for email links
+ * @internal This class is a specific LinkHandler implementation and is not part of the TYPO3's Core API.
  */
 class MailLinkHandler extends AbstractLinkHandler implements LinkHandlerInterface
 {

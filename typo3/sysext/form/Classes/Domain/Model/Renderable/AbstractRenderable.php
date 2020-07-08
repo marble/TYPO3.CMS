@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Model\Renderable;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,6 +15,13 @@ namespace TYPO3\CMS\Form\Domain\Model\Renderable;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Model\Renderable;
+
+use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
@@ -33,7 +38,7 @@ use TYPO3\CMS\Form\Domain\Model\FormDefinition;
  * **This class is NOT meant to be sub classed by developers.**
  * @internal
  */
-abstract class AbstractRenderable implements RenderableInterface
+abstract class AbstractRenderable implements RenderableInterface, VariableRenderableInterface
 {
 
     /**
@@ -88,10 +93,16 @@ abstract class AbstractRenderable implements RenderableInterface
     protected $templateName = '';
 
     /**
+     * associative array of rendering variants
+     *
+     * @var array
+     */
+    protected $variants = [];
+
+    /**
      * Get the type of the renderable
      *
      * @return string
-     * @api
      */
     public function getType(): string
     {
@@ -102,7 +113,6 @@ abstract class AbstractRenderable implements RenderableInterface
      * Get the identifier of the element
      *
      * @return string
-     * @api
      */
     public function getIdentifier(): string
     {
@@ -113,7 +123,6 @@ abstract class AbstractRenderable implements RenderableInterface
      * Set the identifier of the element
      *
      * @param string $identifier
-     * @api
      */
     public function setIdentifier(string $identifier)
     {
@@ -126,9 +135,9 @@ abstract class AbstractRenderable implements RenderableInterface
      * the passed $options array.
      *
      * @param array $options
-     * @api
+     * @param bool $resetValidators
      */
-    public function setOptions(array $options)
+    public function setOptions(array $options, bool $resetValidators = false)
     {
         if (isset($options['label'])) {
             $this->setLabel($options['label']);
@@ -146,25 +155,45 @@ abstract class AbstractRenderable implements RenderableInterface
 
         if (isset($options['renderingOptions'])) {
             foreach ($options['renderingOptions'] as $key => $value) {
-                if (is_array($value)) {
-                    $currentValue = isset($this->getRenderingOptions()[$key]) ? $this->getRenderingOptions()[$key] : [];
-                    ArrayUtility::mergeRecursiveWithOverrule($currentValue, $value);
-                    $this->setRenderingOption($key, $currentValue);
-                } else {
-                    $this->setRenderingOption($key, $value);
-                }
+                $this->setRenderingOption($key, $value);
             }
         }
 
         if (isset($options['validators'])) {
+            $runtimeCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('runtime');
+            $configurationHashes = $runtimeCache->get('formAbstractRenderableConfigurationHashes') ?: [];
+
+            if ($resetValidators) {
+                $processingRule = $this->getRootForm()->getProcessingRule($this->getIdentifier());
+                foreach ($this->getValidators() as $validator) {
+                    $processingRule->removeValidator($validator);
+                }
+                $configurationHashes = [];
+            }
+
             foreach ($options['validators'] as $validatorConfiguration) {
-                $this->createValidator($validatorConfiguration['identifier'], isset($validatorConfiguration['options']) ? $validatorConfiguration['options'] : []);
+                $configurationHash = md5(
+                    spl_object_hash($this) .
+                    json_encode($validatorConfiguration)
+                );
+                if (in_array($configurationHash, $configurationHashes)) {
+                    continue;
+                }
+                $this->createValidator($validatorConfiguration['identifier'], $validatorConfiguration['options'] ?? []);
+                $configurationHashes[] = $configurationHash;
+                $runtimeCache->set('formAbstractRenderableConfigurationHashes', $configurationHashes);
+            }
+        }
+
+        if (isset($options['variants'])) {
+            foreach ($options['variants'] as $variantConfiguration) {
+                $this->createVariant($variantConfiguration);
             }
         }
 
         ArrayUtility::assertAllArrayKeysAreValid(
             $options,
-            ['label', 'defaultValue', 'properties', 'renderingOptions', 'validators', 'formEditor']
+            ['label', 'defaultValue', 'properties', 'renderingOptions', 'validators', 'formEditor', 'variants']
         );
     }
 
@@ -175,14 +204,13 @@ abstract class AbstractRenderable implements RenderableInterface
      * @param array $options
      * @return mixed
      * @throws ValidatorPresetNotFoundException
-     * @api
      */
     public function createValidator(string $validatorIdentifier, array $options = [])
     {
         $validatorsDefinition = $this->getRootForm()->getValidatorsDefinition();
         if (isset($validatorsDefinition[$validatorIdentifier]) && is_array($validatorsDefinition[$validatorIdentifier]) && isset($validatorsDefinition[$validatorIdentifier]['implementationClassName'])) {
             $implementationClassName = $validatorsDefinition[$validatorIdentifier]['implementationClassName'];
-            $defaultOptions = isset($validatorsDefinition[$validatorIdentifier]['options']) ? $validatorsDefinition[$validatorIdentifier]['options'] : [];
+            $defaultOptions = $validatorsDefinition[$validatorIdentifier]['options'] ?? [];
 
             ArrayUtility::mergeRecursiveWithOverrule($defaultOptions, $options);
 
@@ -190,16 +218,14 @@ abstract class AbstractRenderable implements RenderableInterface
                 ->get($implementationClassName, $defaultOptions);
             $this->addValidator($validator);
             return $validator;
-        } else {
-            throw new ValidatorPresetNotFoundException('The validator preset identified by "' . $validatorIdentifier . '" could not be found, or the implementationClassName was not specified.', 1328710202);
         }
+        throw new ValidatorPresetNotFoundException('The validator preset identified by "' . $validatorIdentifier . '" could not be found, or the implementationClassName was not specified.', 1328710202);
     }
 
     /**
      * Add a validator to the element
      *
      * @param ValidatorInterface $validator
-     * @api
      */
     public function addValidator(ValidatorInterface $validator)
     {
@@ -223,7 +249,6 @@ abstract class AbstractRenderable implements RenderableInterface
      * Set the datatype
      *
      * @param string $dataType
-     * @api
      */
     public function setDataType(string $dataType)
     {
@@ -235,7 +260,6 @@ abstract class AbstractRenderable implements RenderableInterface
      * Get the classname of the renderer
      *
      * @return string
-     * @api
      */
     public function getRendererClassName(): string
     {
@@ -246,7 +270,6 @@ abstract class AbstractRenderable implements RenderableInterface
      * Get all rendering options
      *
      * @return array
-     * @api
      */
     public function getRenderingOptions(): array
     {
@@ -259,18 +282,23 @@ abstract class AbstractRenderable implements RenderableInterface
      * @param string $key
      * @param mixed $value
      * @return mixed
-     * @api
      */
     public function setRenderingOption(string $key, $value)
     {
-        $this->renderingOptions[$key] = $value;
+        if (is_array($value) && isset($this->renderingOptions[$key]) && is_array($this->renderingOptions[$key])) {
+            ArrayUtility::mergeRecursiveWithOverrule($this->renderingOptions[$key], $value);
+            $this->renderingOptions[$key] = ArrayUtility::removeNullValuesRecursive($this->renderingOptions[$key]);
+        } elseif ($value === null) {
+            unset($this->renderingOptions[$key]);
+        } else {
+            $this->renderingOptions[$key] = $value;
+        }
     }
 
     /**
      * Get the parent renderable
      *
-     * @return null|CompositeRenderableInterface
-     * @api
+     * @return CompositeRenderableInterface|null
      */
     public function getParentRenderable()
     {
@@ -281,7 +309,6 @@ abstract class AbstractRenderable implements RenderableInterface
      * Set the parent renderable
      *
      * @param CompositeRenderableInterface $parentRenderable
-     * @api
      */
     public function setParentRenderable(CompositeRenderableInterface $parentRenderable)
     {
@@ -294,7 +321,6 @@ abstract class AbstractRenderable implements RenderableInterface
      *
      * @return FormDefinition
      * @throws FormDefinitionConsistencyException
-     * @api
      */
     public function getRootForm(): FormDefinition
     {
@@ -330,17 +356,12 @@ abstract class AbstractRenderable implements RenderableInterface
      */
     public function onRemoveFromParentRenderable()
     {
-        if (
-            isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRemoveFromParentRenderable'])
-            && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRemoveFromParentRenderable'])
-        ) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRemoveFromParentRenderable'] as $className) {
-                $hookObj = GeneralUtility::makeInstance($className);
-                if (method_exists($hookObj, 'beforeRemoveFromParentRenderable')) {
-                    $hookObj->beforeRemoveFromParentRenderable(
-                        $this
-                    );
-                }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRemoveFromParentRenderable'] ?? [] as $className) {
+            $hookObj = GeneralUtility::makeInstance($className);
+            if (method_exists($hookObj, 'beforeRemoveFromParentRenderable')) {
+                $hookObj->beforeRemoveFromParentRenderable(
+                    $this
+                );
             }
         }
 
@@ -378,7 +399,6 @@ abstract class AbstractRenderable implements RenderableInterface
      * Get the label of the renderable
      *
      * @return string
-     * @api
      */
     public function getLabel(): string
     {
@@ -389,23 +409,88 @@ abstract class AbstractRenderable implements RenderableInterface
      * Set the label which shall be displayed next to the form element
      *
      * @param string $label
-     * @api
      */
     public function setLabel(string $label)
     {
         $this->label = $label;
     }
 
+    public function setDefaultValue($defaultValue)
+    {
+        // todo: this method must either be abstract and implemented in sub classes or get a proper method body.
+    }
+
+    public function setProperty(string $key, $value)
+    {
+        // todo: this method must either be abstract and implemented in sub classes or get a proper method body.
+    }
+
     /**
      * Get the templateName name of the renderable
      *
      * @return string
-     * @api
      */
     public function getTemplateName(): string
     {
         return empty($this->renderingOptions['templateName'])
             ? $this->type
             : $this->renderingOptions['templateName'];
+    }
+
+    /**
+     * Returns whether this renderable is enabled
+     *
+     * @return bool
+     */
+    public function isEnabled(): bool
+    {
+        return !isset($this->renderingOptions['enabled']) || (bool)$this->renderingOptions['enabled'] === true;
+    }
+
+    /**
+     * Get all rendering variants
+     *
+     * @return RenderableVariantInterface[]
+     */
+    public function getVariants(): array
+    {
+        return $this->variants;
+    }
+
+    /**
+     * @param array $options
+     * @return RenderableVariantInterface
+     */
+    public function createVariant(array $options): RenderableVariantInterface
+    {
+        $identifier = $options['identifier'] ?? '';
+        unset($options['identifier']);
+
+        $variant = GeneralUtility::makeInstance(ObjectManager::class)
+            ->get(RenderableVariant::class, $identifier, $options, $this);
+
+        $this->addVariant($variant);
+        return $variant;
+    }
+
+    /**
+     * Adds the specified variant to this form element
+     *
+     * @param RenderableVariantInterface $variant
+     */
+    public function addVariant(RenderableVariantInterface $variant)
+    {
+        $this->variants[$variant->getIdentifier()] = $variant;
+    }
+
+    /**
+     * Apply the specified variant to this form element
+     * regardless of their conditions
+     *
+     * @param RenderableVariantInterface $variant
+     */
+    public function applyVariant(RenderableVariantInterface $variant)
+    {
+        $variant->apply();
     }
 }

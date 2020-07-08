@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,15 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Form\FormDataCompiler;
 use TYPO3\CMS\Backend\Form\FormDataGroup\TcaDatabaseRecord;
 use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
+use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
@@ -34,10 +37,9 @@ class FormFlexAjaxController extends AbstractFormEngineAjaxController
      * Render a single flex form section container to add it to the DOM
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function containerAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    public function containerAdd(ServerRequestInterface $request): ResponseInterface
     {
         $queryParameters = $request->getParsedBody();
 
@@ -79,7 +81,7 @@ class FormFlexAjaxController extends AbstractFormEngineAjaxController
         ];
         // A new container on a new record needs the 'NEW123' uid here, see comment
         // in DatabaseUniqueUidNewRow for more information on that.
-        // @todo: Resolve, maybe with a redifinition of vanillaUid to transport the information more clean through this var?
+        // @todo: Resolve, maybe with a redefinition of vanillaUid to transport the information more clean through this var?
         // @see issue #80100 for a series of changes in this area
         if ($command === 'new') {
             $formDataCompilerInput['databaseRow']['uid'] = $databaseRowUid;
@@ -96,7 +98,7 @@ class FormFlexAjaxController extends AbstractFormEngineAjaxController
         $formData['flexFormContainerIdentifier'] = $flexFormContainerIdentifier;
         $formData['flexFormContainerElementCollapsed'] = false;
 
-        $formData['flexFormFormPrefix'] = '[data][' . $flexFormSheetName . '][lDEF]' . '[' . $flexFormFieldName . ']' . '[el]';
+        $formData['flexFormFormPrefix'] = '[data][' . $flexFormSheetName . '][lDEF][' . $flexFormFieldName . '][el]';
 
         // Set initialized data of that section container from compiler to the array part used
         // by flexFormElementContainer which prepares parameterArray. Important for initialized
@@ -106,7 +108,8 @@ class FormFlexAjaxController extends AbstractFormEngineAjaxController
                 ['lDEF'][$flexFormFieldName]
                 ['el'][$flexFormContainerIdentifier][$flexFormContainerName]['el']
             )
-            && is_array($formData['databaseRow'][$fieldName]
+            && is_array(
+                $formData['databaseRow'][$fieldName]
                 ['data'][$flexFormSheetName]
                 ['lDEF'][$flexFormFieldName]
                 ['el'][$flexFormContainerIdentifier][$flexFormContainerName]['el']
@@ -143,11 +146,6 @@ class FormFlexAjaxController extends AbstractFormEngineAjaxController
             'scriptCall' => [],
         ];
 
-        if (!empty($newContainerResult['additionalJavaScriptSubmit'])) {
-            $additionalJavaScriptSubmit = implode('', $newContainerResult['additionalJavaScriptSubmit']);
-            $additionalJavaScriptSubmit = str_replace([CR, LF], '', $additionalJavaScriptSubmit);
-            $jsonResult['scriptCall'][] = 'TBE_EDITOR.addActionChecks("submit", "' . addslashes($additionalJavaScriptSubmit) . '");';
-        }
         foreach ($newContainerResult['additionalJavaScriptPost'] as $singleAdditionalJavaScriptPost) {
             $jsonResult['scriptCall'][] = $singleAdditionalJavaScriptPost;
         }
@@ -179,8 +177,6 @@ class FormFlexAjaxController extends AbstractFormEngineAjaxController
         $requireJsModule = $this->createExecutableStringRepresentationOfRegisteredRequireJsModules($newContainerResult);
         $jsonResult['scriptCall'] = array_merge($requireJsModule, $jsonResult['scriptCall']);
 
-        $response->getBody()->write(json_encode($jsonResult));
-
-        return $response;
+        return new JsonResponse($jsonResult);
     }
 }

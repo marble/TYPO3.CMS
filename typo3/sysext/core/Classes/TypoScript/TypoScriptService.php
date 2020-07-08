@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\TypoScript;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\TypoScript;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\TypoScript;
 
 /**
  * Utilities to manage and convert TypoScript
@@ -29,13 +31,14 @@ class TypoScriptService
      *
      * @param array $typoScriptArray The TypoScript array (e.g. array('foo' => 'TEXT', 'foo.' => array('bar' => 'baz')))
      * @return array e.g. array('foo' => array('_typoScriptNodeValue' => 'TEXT', 'bar' => 'baz'))
+     * @internal
      */
     public function convertTypoScriptArrayToPlainArray(array $typoScriptArray): array
     {
         foreach ($typoScriptArray as $key => $value) {
             if (substr((string)$key, -1) === '.') {
                 $keyWithoutDot = substr((string)$key, 0, -1);
-                $typoScriptNodeValue = isset($typoScriptArray[$keyWithoutDot]) ? $typoScriptArray[$keyWithoutDot] : null;
+                $typoScriptNodeValue = $typoScriptArray[$keyWithoutDot] ?? null;
                 if (is_array($value)) {
                     $typoScriptArray[$keyWithoutDot] = $this->convertTypoScriptArrayToPlainArray($value);
                     if ($typoScriptNodeValue !== null) {
@@ -58,9 +61,8 @@ class TypoScriptService
      * However, if you want to call legacy TypoScript objects, you somehow need the "old" syntax (because this is what TYPO3 is used to).
      * With this method, you can convert the extbase TypoScript to classical TYPO3 TypoScript which is understood by the rest of TYPO3.
      *
-     * @param array $plainArray An TypoScript Array with Extbase Syntax (without dot but with _typoScriptNodeValue)
-     * @return array array with TypoScript as usual (with dot)
-     * @api
+     * @param array $plainArray A TypoScript Array with Extbase Syntax (without dot but with _typoScriptNodeValue)
+     * @return array Array with TypoScript as usual (with dot)
      */
     public function convertPlainArrayToTypoScriptArray(array $plainArray): array
     {
@@ -73,7 +75,7 @@ class TypoScriptService
                 }
                 $typoScriptArray[$key . '.'] = $this->convertPlainArrayToTypoScriptArray($value);
             } else {
-                $typoScriptArray[$key] = $value === null ? '' : $value;
+                $typoScriptArray[$key] = $value ?? '';
             }
         }
         return $typoScriptArray;
@@ -90,6 +92,7 @@ class TypoScriptService
      * @param array $originalConfiguration A TypoScript array
      * @param int $splitCount The number of items for which to generated individual TypoScript arrays
      * @return array The individualized TypoScript array.
+     * @internal
      */
     public function explodeConfigurationForOptionSplit(array $originalConfiguration, int $splitCount): array
     {
@@ -110,7 +113,7 @@ class TypoScriptService
                 }
             } elseif (is_string($val)) {
                 // Splitting of all values on this level of the TypoScript object tree:
-                if ($cKey === 'noTrimWrap' || (!strstr($val, '|*|') && !strstr($val, '||'))) {
+                if ($cKey === 'noTrimWrap' || (strpos($val, '|*|') === false && strpos($val, '||') === false)) {
                     for ($aKey = 0; $aKey < $splitCount; $aKey++) {
                         $finalConfiguration[$aKey][$cKey] = $val;
                     }
@@ -124,13 +127,13 @@ class TypoScriptService
                         $firstC = count($first);
                     }
                     $middle = [];
-                    if ($main[1]) {
+                    if (!empty($main[1])) {
                         $middle = explode('||', $main[1]);
                         $middleC = count($middle);
                     }
                     $last = [];
                     $value = '';
-                    if ($main[2]) {
+                    if (!empty($main[2])) {
                         $last = explode('||', $main[2]);
                         $lastC = count($last);
                         $value = $last[0];

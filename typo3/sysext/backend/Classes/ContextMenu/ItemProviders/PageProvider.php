@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,8 +15,14 @@ namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
+
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Routing\UnableToLinkToPageException;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Context menu item provider for pages table
@@ -33,22 +39,22 @@ class PageProvider extends RecordProvider
      */
     protected $itemsConfiguration = [
         'view' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.view',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.view',
             'iconIdentifier' => 'actions-view-page',
             'callbackAction' => 'viewRecord'
         ],
         'edit' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.edit',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.edit',
             'iconIdentifier' => 'actions-page-open',
             'callbackAction' => 'editRecord'
         ],
         'new' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.new',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.new',
             'iconIdentifier' => 'actions-page-new',
             'callbackAction' => 'newRecord'
         ],
         'info' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.info',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.info',
             'iconIdentifier' => 'actions-document-info',
             'callbackAction' => 'openInfoPopUp'
         ],
@@ -56,32 +62,32 @@ class PageProvider extends RecordProvider
             'type' => 'divider'
         ],
         'copy' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.copy',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.copy',
             'iconIdentifier' => 'actions-edit-copy',
             'callbackAction' => 'copy'
         ],
         'copyRelease' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.copy',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.copy',
             'iconIdentifier' => 'actions-edit-copy-release',
             'callbackAction' => 'clipboardRelease'
         ],
         'cut' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.cut',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.cut',
             'iconIdentifier' => 'actions-edit-cut',
             'callbackAction' => 'cut'
         ],
         'cutRelease' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.cut',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.cutrelease',
             'iconIdentifier' => 'actions-edit-cut-release',
             'callbackAction' => 'clipboardRelease'
         ],
         'pasteAfter' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.pasteafter',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.pasteafter',
             'iconIdentifier' => 'actions-document-paste-after',
             'callbackAction' => 'pasteAfter'
         ],
         'pasteInto' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.pasteinto',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.pasteinto',
             'iconIdentifier' => 'actions-document-paste-into',
             'callbackAction' => 'pasteInto'
         ],
@@ -90,12 +96,12 @@ class PageProvider extends RecordProvider
         ],
         'more' => [
             'type' => 'submenu',
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.more',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.more',
             'iconIdentifier' => '',
             'callbackAction' => 'openSubmenu',
             'childItems' => [
                 'newWizard' => [
-                    'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_misc.xlf:CM_newWizard',
+                    'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_misc.xlf:CM_newWizard',
                     'iconIdentifier' => 'actions-page-new',
                     'callbackAction' => 'newPageWizard',
                 ],
@@ -110,14 +116,24 @@ class PageProvider extends RecordProvider
                     'callbackAction' => 'pagesNewMultiple',
                 ],
                 'openListModule' => [
-                    'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_misc.xlf:CM_db_list',
+                    'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_misc.xlf:CM_db_list',
                     'iconIdentifier' => 'actions-system-list-open',
                     'callbackAction' => 'openListModule',
                 ],
                 'mountAsTreeRoot' => [
-                    'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.tempMountPoint',
+                    'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.tempMountPoint',
                     'iconIdentifier' => 'actions-pagetree-mountroot',
                     'callbackAction' => 'mountAsTreeRoot',
+                ],
+                'showInMenus' => [
+                    'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_misc.xlf:CM_showInMenus',
+                    'iconIdentifier' => 'actions-view',
+                    'callbackAction' => 'showInMenus',
+                ],
+                'hideInMenus' => [
+                    'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_misc.xlf:CM_hideInMenus',
+                    'iconIdentifier' => 'actions-ban',
+                    'callbackAction' => 'hideInMenus',
                 ],
             ],
         ],
@@ -125,31 +141,36 @@ class PageProvider extends RecordProvider
             'type' => 'divider'
         ],
         'enable' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_common.xlf:enable',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:enable',
             'iconIdentifier' => 'actions-edit-unhide',
             'callbackAction' => 'enableRecord',
         ],
         'disable' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_common.xlf:disable',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:disable',
             'iconIdentifier' => 'actions-edit-hide',
             'callbackAction' => 'disableRecord',
         ],
         'delete' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:cm.delete',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:cm.delete',
             'iconIdentifier' => 'actions-edit-delete',
             'callbackAction' => 'deleteRecord',
         ],
         'history' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_misc.xlf:CM_history',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_misc.xlf:CM_history',
             'iconIdentifier' => 'actions-document-history-open',
             'callbackAction' => 'openHistoryPopUp',
         ],
         'clearCache' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.clear_cache',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.clear_cache',
             'iconIdentifier' => 'actions-system-cache-clear',
             'callbackAction' => 'clearCache',
         ],
     ];
+
+    /**
+     * @var bool
+     */
+    protected $languageAccess = false;
 
     /**
      * Checks if the provider can add items to the menu
@@ -204,6 +225,12 @@ class PageProvider extends RecordProvider
             case 'disable':
                 $canRender = $this->canBeDisabled();
                 break;
+            case 'showInMenus':
+                $canRender = $this->canBeToggled('nav_hide', 1);
+                break;
+            case 'hideInMenus':
+                $canRender = $this->canBeToggled('nav_hide', 0);
+                break;
             case 'delete':
                 $canRender = $this->canBeDeleted();
                 break;
@@ -226,7 +253,7 @@ class PageProvider extends RecordProvider
                 $canRender = $this->isRecordInClipboard('copy');
                 break;
             case 'cut':
-                $canRender = $this->canBeCut();
+                $canRender = $this->canBeCut() && !$this->isRecordInClipboard('cut');
                 break;
             case 'cutRelease':
                 $canRender = $this->isRecordInClipboard('cut');
@@ -250,6 +277,7 @@ class PageProvider extends RecordProvider
     protected function initPermissions()
     {
         $this->pagePermissions = $this->backendUser->calcPerms($this->record);
+        $this->languageAccess = $this->hasLanguageAccess();
     }
 
     /**
@@ -259,6 +287,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBeCreated(): bool
     {
+        if (!$this->backendUser->checkLanguageAccess(0)) {
+            return false;
+        }
         return $this->hasPagePermission(Permission::PAGE_NEW);
     }
 
@@ -269,6 +300,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBeEdited(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         if ($this->isRoot()) {
             return false;
         }
@@ -301,6 +335,14 @@ class PageProvider extends RecordProvider
      */
     protected function canBeCut(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
+        if (isset($GLOBALS['TCA'][$this->table]['ctrl']['languageField'])
+            && !in_array($this->record[$GLOBALS['TCA'][$this->table]['ctrl']['languageField']], [0, -1])
+        ) {
+            return false;
+        }
         return !$this->isWebMount()
             && $this->canBeEdited()
             && !$this->isDeletePlaceholder();
@@ -313,6 +355,14 @@ class PageProvider extends RecordProvider
      */
     protected function canBeCopied(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
+        if (isset($GLOBALS['TCA'][$this->table]['ctrl']['languageField'])
+            && !in_array($this->record[$GLOBALS['TCA'][$this->table]['ctrl']['languageField']], [0, -1])
+        ) {
+            return false;
+        }
         return !$this->isRoot()
             && !$this->isWebMount()
             && !$this->isRecordInClipboard('copy')
@@ -327,6 +377,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBePastedInto(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         $clipboardElementCount = count($this->clipboard->elFromTable($this->table));
 
         return $clipboardElementCount
@@ -341,6 +394,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBePastedAfter(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         $clipboardElementCount = count($this->clipboard->elFromTable($this->table));
         return $clipboardElementCount
             && $this->canBeCreated()
@@ -354,6 +410,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBeSorted(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         return $this->backendUser->check('tables_modify', $this->table)
             && $this->hasPagePermission(Permission::CONTENT_EDIT)
             && !$this->isDeletePlaceholder()
@@ -365,10 +424,14 @@ class PageProvider extends RecordProvider
      *
      * @return bool
      */
-    protected function canBeRemoved(): bool
+    protected function canBeDeleted(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         return !$this->isDeletePlaceholder()
             && !$this->isRecordLocked()
+            && !$this->isDeletionDisabledInTS()
             && $this->hasPagePermission(Permission::PAGE_DELETE);
     }
 
@@ -400,7 +463,7 @@ class PageProvider extends RecordProvider
     protected function canClearCache(): bool
     {
         return !$this->isRoot()
-            && ($this->backendUser->isAdmin() || $this->backendUser->getTSConfigVal('options.clearCache.pages'));
+            && ($this->backendUser->isAdmin() || $this->backendUser->getTSConfig()['options.']['clearCache.']['pages'] ?? false);
     }
 
     /**
@@ -443,6 +506,9 @@ class PageProvider extends RecordProvider
         if ($itemName === 'view') {
             $attributes += $this->getViewAdditionalAttributes();
         }
+        if ($itemName === 'enable' || $itemName === 'disable') {
+            $attributes += $this->getEnableDisableAdditionalAttributes();
+        }
         if ($itemName === 'delete') {
             $attributes += $this->getDeleteAdditionalAttributes();
         }
@@ -453,13 +519,20 @@ class PageProvider extends RecordProvider
             $attributes += $this->getPasteAdditionalAttributes('after');
         }
         if ($itemName === 'pagesSort') {
+            $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
             $attributes += [
-                'data-pages-sort-url' => BackendUtility::getModuleUrl('pages_sort', ['id' => $this->record['uid']]),
+                'data-pages-sort-url' => (string)$uriBuilder->buildUriFromRoute('pages_sort', ['id' => $this->record['uid']]),
             ];
         }
         if ($itemName === 'pagesNewMultiple') {
+            $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
             $attributes += [
-                'data-pages-new-multiple-url' => BackendUtility::getModuleUrl('pages_new', ['id' => $this->record['uid']]),
+                'data-pages-new-multiple-url' => (string)$uriBuilder->buildUriFromRoute('pages_new', ['id' => $this->record['uid']]),
+            ];
+        }
+        if ($itemName === 'edit') {
+            $attributes = [
+                'data-pages-language-uid' => $this->record['sys_language_uid']
             ];
         }
         return $attributes;
@@ -470,6 +543,71 @@ class PageProvider extends RecordProvider
      */
     protected function getPreviewPid(): int
     {
-        return (int)$this->record['uid'];
+        return (int)$this->record['sys_language_uid'] === 0 ? (int)$this->record['uid'] : (int)$this->record['l10n_parent'];
+    }
+
+    /**
+     * Returns the view link
+     *
+     * @return string
+     */
+    protected function getViewLink(): string
+    {
+        $language = (int)$this->record['sys_language_uid'];
+        $additionalParams = ($language > 0) ? '&L=' . $language : '';
+
+        try {
+            return BackendUtility::getPreviewUrl(
+                $this->getPreviewPid(),
+                '',
+                null,
+                '',
+                '',
+                $additionalParams
+            );
+        } catch (UnableToLinkToPageException $e) {
+            return '';
+        }
+    }
+
+    /**
+     * Checks if user has access to this column
+     * and the page doktype is lower than 200 (exclude sys_folder, ...)
+     * and it contains given value
+     *
+     * @param string $fieldName
+     * @param int $value
+     * @return bool
+     */
+    protected function canBeToggled(string $fieldName, int $value): bool
+    {
+        if (!$this->languageAccess) {
+            return false;
+        }
+        if (!empty($GLOBALS['TCA'][$this->table]['columns'][$fieldName]['exclude'])
+            && $this->record['doktype'] <= PageRepository::DOKTYPE_SPACER
+            && $this->backendUser->check('non_exclude_fields', $this->table . ':' . $fieldName)
+        ) {
+            return (int)$this->record[$fieldName] === $value;
+        }
+        return false;
+    }
+
+    /**
+     * Returns true if a current user has access to the language of the record
+     *
+     * @see BackendUserAuthentication::checkLanguageAccess()
+     * @return bool
+     */
+    protected function hasLanguageAccess(): bool
+    {
+        if ($this->backendUser->isAdmin()) {
+            return true;
+        }
+        $languageField = $GLOBALS['TCA'][$this->table]['ctrl']['languageField'] ?? '';
+        if ($languageField !== '' && isset($this->record[$languageField])) {
+            return $this->backendUser->checkLanguageAccess((int)$this->record[$languageField]);
+        }
+        return true;
     }
 }

@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Imaging\ImageManipulation;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Imaging\ImageManipulation;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Imaging\ImageManipulation;
+
 use TYPO3\CMS\Core\Imaging\ImageManipulation\Area;
 use TYPO3\CMS\Core\Imaging\ImageManipulation\Ratio;
 use TYPO3\CMS\Core\Resource\File;
@@ -26,7 +28,7 @@ class AreaTest extends UnitTestCase
     /**
      * @test
      */
-    public function makeRelativeToFileReducesSizes()
+    public function makeRelativeToFileReducesSizes(): void
     {
         $imageArea = new Area(50.0, 50.0, 100.0, 100.0);
         $imageFixture = new File(
@@ -41,10 +43,10 @@ class AreaTest extends UnitTestCase
             'width' => 1.0,
             'height' => 0.5,
         ];
-        $this->assertSame($expectedResult, $relativeArea->asArray());
+        self::assertSame($expectedResult, $relativeArea->asArray());
     }
 
-    public function applyRatioRestrictsAreaToRespectRatioDataProvider()
+    public function applyRatioRestrictsAreaToRespectRatioDataProvider(): array
     {
         return [
             [
@@ -72,22 +74,22 @@ class AreaTest extends UnitTestCase
      * @test
      * @dataProvider applyRatioRestrictsAreaToRespectRatioDataProvider
      */
-    public function applyRatioRestrictsAreaToRespectRatio(array $areaSize, $ratio)
+    public function applyRatioRestrictsAreaToRespectRatio(array $areaSize, $ratio): void
     {
         $area = new Area(...$areaSize);
         $ratioFixture = new Ratio('dummy', 'dummy', $ratio);
         $areaData = $area->applyRatioRestriction($ratioFixture)->asArray();
-        $this->assertSame($areaData['width'] / $areaData['height'], $ratio);
+        self::assertSame($areaData['width'] / $areaData['height'], $ratio);
     }
 
     /**
      * @test
      */
-    public function applyRatioDoesNothingForFreeRatio()
+    public function applyRatioDoesNothingForFreeRatio(): void
     {
         $area = new Area(0.1, 0.1, 0.2, 0.4);
         $ratioFixture = new Ratio('dummy', 'dummy', 0.0);
         $croppedArea = $area->applyRatioRestriction($ratioFixture);
-        $this->assertSame($area, $croppedArea);
+        self::assertSame($area, $croppedArea);
     }
 }

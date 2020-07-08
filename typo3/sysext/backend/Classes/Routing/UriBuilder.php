@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Routing;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,17 @@ namespace TYPO3\CMS\Backend\Routing;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Routing;
+
+use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Routing\Exception\RouteNotFoundException;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
+use TYPO3\CMS\Core\Http\NormalizedParams;
 use TYPO3\CMS\Core\Http\Uri;
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 
 /**
@@ -28,7 +34,7 @@ use TYPO3\CMS\Core\Utility\PathUtility;
  * Currently only available and useful when called from Router->generate() as the information
  * about possible routes needs to be handed over.
  */
-class UriBuilder
+class UriBuilder implements SingletonInterface
 {
     /**
      * Generates an absolute URL
@@ -41,17 +47,41 @@ class UriBuilder
     const ABSOLUTE_PATH = 'absolute';
 
     /**
-     * @var Route[]
+     * @var Router
      */
-    protected $routes;
+    protected $router;
 
     /**
-     * Fetches the available routes from the Router to be used for generating routes
+     * @var array
      */
-    protected function loadBackendRoutes()
+    protected $generated = [];
+
+    /**
+     * Loads the router to fetch the available routes from the Router to be used for generating routes
+     * @param Router|null $router
+     */
+    public function __construct(Router $router = null)
+    {
+        $this->router = $router ?? GeneralUtility::makeInstance(Router::class);
+    }
+
+    /**
+     * Generates a URL or path for a specific route based on the given route.
+     * Currently used to link to the current script, it is encouraged to use "buildUriFromRoute" if possible.
+     *
+     * If there is no route with the given name, the generator throws the RouteNotFoundException.
+     *
+     * @param string $pathInfo The path to the route
+     * @param array $parameters An array of parameters
+     * @param string $referenceType The type of reference to be generated (one of the constants)
+     * @return Uri The generated Uri
+     * @throws RouteNotFoundException If the named route doesn't exist
+     */
+    public function buildUriFromRoutePath($pathInfo, $parameters = [], $referenceType = self::ABSOLUTE_PATH)
     {
         $router = GeneralUtility::makeInstance(Router::class);
-        $this->routes = $router->getRoutes();
+        $route = $router->match($pathInfo);
+        return $this->buildUriFromRoute($route->getOption('_identifier'), $parameters, $referenceType);
     }
 
     /**
@@ -68,64 +98,34 @@ class UriBuilder
      */
     public function buildUriFromRoute($name, $parameters = [], $referenceType = self::ABSOLUTE_PATH)
     {
-        $this->loadBackendRoutes();
-        if (!isset($this->routes[$name])) {
+        $cacheIdentifier = 'route' . $name . serialize($parameters) . $referenceType;
+        if (isset($this->generated[$cacheIdentifier])) {
+            return $this->generated[$cacheIdentifier];
+        }
+        if (!isset($this->router->getRoutes()[$name])) {
             throw new RouteNotFoundException('Unable to generate a URL for the named route "' . $name . '" because this route was not found.', 1476050190);
         }
 
-        $route = $this->routes[$name];
+        $route = $this->router->getRoutes()[$name];
         $parameters = array_merge(
             $route->getOptions()['parameters'] ?? [],
             $parameters
         );
 
-        // The Route is an AJAX route, so the parameters are different in order
-        // for the AjaxRequestHandler to be triggered
-        if ($route->getOption('ajax')) {
-            // If the route has the "public" option set, no token is generated.
-            if ($route->getOption('access') !== 'public') {
-                $parameters = [
-                    'ajaxToken' => FormProtectionFactory::get('backend')->generateToken('ajaxCall', $name)
-                ] + $parameters;
-            }
-
-            // Add the Route path as &ajaxID=XYZ
+        // If the route has the "public" option set, no token is generated.
+        if ($route->getOption('access') !== 'public') {
             $parameters = [
-                'ajaxID' => $route->getPath()
-            ] + $parameters;
-        } else {
-            // If the route has the "public" option set, no token is generated.
-            if ($route->getOption('access') !== 'public') {
-                $parameters = [
-                    'token' => FormProtectionFactory::get('backend')->generateToken('route', $name)
-                ] + $parameters;
-            }
-
-            // Add the Route path as &route=XYZ
-            $parameters = [
-                'route' => $route->getPath()
+                'token' => FormProtectionFactory::get('backend')->generateToken('route', $name)
             ] + $parameters;
         }
 
-        return $this->buildUri($parameters, $referenceType);
-    }
-
-    /**
-     * Generate a URI for a backend module, does not check if a module is available though
-     *
-     * @param string $moduleName The name of the module
-     * @param array $parameters An array of parameters
-     * @param string $referenceType The type of reference to be generated (one of the constants)
-     *
-     * @return Uri The generated Uri
-     */
-    public function buildUriFromModule($moduleName, $parameters = [], $referenceType = self::ABSOLUTE_PATH)
-    {
+        // Add the Route path as &route=XYZ
         $parameters = [
-            'M' => $moduleName,
-            'moduleToken' => FormProtectionFactory::get('backend')->generateToken('moduleCall', $moduleName)
+            'route' => $route->getPath()
         ] + $parameters;
-        return $this->buildUri($parameters, $referenceType);
+
+        $this->generated[$cacheIdentifier] = $this->buildUri($parameters, $referenceType);
+        return $this->generated[$cacheIdentifier];
     }
 
     /**
@@ -138,11 +138,17 @@ class UriBuilder
      */
     protected function buildUri($parameters, $referenceType)
     {
-        $uri = 'index.php?' . ltrim(GeneralUtility::implodeArrayForUrl('', $parameters, '', false, true), '&');
+        $uri = 'index.php' . HttpUtility::buildQueryString($parameters, '?');
         if ($referenceType === self::ABSOLUTE_PATH) {
-            $uri = PathUtility::getAbsoluteWebPath(PATH_typo3 . $uri);
+            $uri = PathUtility::getAbsoluteWebPath(Environment::getBackendPath() . '/' . $uri);
         } else {
-            $uri = GeneralUtility::getIndpEnv('TYPO3_REQUEST_DIR') . $uri;
+            if (isset($GLOBALS['TYPO3_REQUEST'])
+                && $GLOBALS['TYPO3_REQUEST'] instanceof ServerRequestInterface
+                && $GLOBALS['TYPO3_REQUEST']->getAttribute('normalizedParams') instanceof NormalizedParams) {
+                $uri = $GLOBALS['TYPO3_REQUEST']->getAttribute('normalizedParams')->getRequestDir() . $uri;
+            } else {
+                $uri = GeneralUtility::getIndpEnv('TYPO3_REQUEST_DIR') . $uri;
+            }
         }
         return GeneralUtility::makeInstance(Uri::class, $uri);
     }

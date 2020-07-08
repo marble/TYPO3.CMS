@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\DataProcessing;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\DataProcessing;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\DataProcessing;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentDataProcessor;
@@ -31,7 +32,7 @@ use TYPO3\CMS\Frontend\ContentObject\DataProcessorInterface;
  *   table = tt_address
  *   pidInList = 123
  *   where = company="Acme" AND first_name="Ralph"
- *   order = RAND()
+ *   orderBy = RAND()
  *   as = addresses
  *   dataProcessing {
  *     10 = TYPO3\CMS\Frontend\DataProcessing\FilesProcessor

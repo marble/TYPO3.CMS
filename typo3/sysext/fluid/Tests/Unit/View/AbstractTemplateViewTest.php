@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,15 +12,19 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\View;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\Tests\Unit\View;
+
 use TYPO3\CMS\Fluid\Core\Rendering\RenderingContext;
 use TYPO3\CMS\Fluid\View\AbstractTemplateView;
 use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 use TYPO3Fluid\Fluid\Core\ViewHelper\ViewHelperVariableContainer;
 
 /**
  * Test case
  */
-class AbstractTemplateViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractTemplateViewTest extends UnitTestCase
 {
     /**
      * @var AbstractTemplateView|AccessibleObjectInterface
@@ -29,27 +32,29 @@ class AbstractTemplateViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     protected $view;
 
     /**
-     * @var RenderingContext|\PHPUnit_Framework_MockObject_MockObject
+     * @var RenderingContext|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $renderingContext;
 
     /**
-     * @var ViewHelperVariableContainer|\PHPUnit_Framework_MockObject_MockObject
+     * @var ViewHelperVariableContainer|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $viewHelperVariableContainer;
 
     /**
      * Sets up this test case
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->viewHelperVariableContainer = $this->getMockBuilder(ViewHelperVariableContainer::class)
             ->setMethods(['setView'])
             ->getMock();
-        $this->renderingContext = $this->getMockBuilder(\TYPO3\CMS\Fluid\Tests\Unit\Core\Rendering\RenderingContextFixture::class)
+        $this->renderingContext = $this->getMockBuilder(RenderingContext::class)
             ->setMethods(['getViewHelperVariableContainer'])
+            ->disableOriginalConstructor()
             ->getMock();
-        $this->renderingContext->expects($this->any())->method('getViewHelperVariableContainer')->will($this->returnValue($this->viewHelperVariableContainer));
+        $this->renderingContext->expects(self::any())->method('getViewHelperVariableContainer')->willReturn($this->viewHelperVariableContainer);
         $this->view = $this->getAccessibleMock(AbstractTemplateView::class, ['dummy'], [], '', false);
         $this->view->setRenderingContext($this->renderingContext);
     }
@@ -59,7 +64,7 @@ class AbstractTemplateViewTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function viewIsPlacedInViewHelperVariableContainer()
     {
-        $this->viewHelperVariableContainer->expects($this->once())->method('setView')->with($this->view);
+        $this->viewHelperVariableContainer->expects(self::once())->method('setView')->with($this->view);
         $this->view->setRenderingContext($this->renderingContext);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Impexp\Tests\Functional\Export;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -38,7 +39,7 @@ class PagesAndTtContentTest extends AbstractImportExportTestCase
             'typo3/sysext/impexp/Tests/Functional/Fixtures/Extensions/template_extension'
     ];
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -94,10 +95,11 @@ class PagesAndTtContentTest extends AbstractImportExportTestCase
                 'sys_file',
         ];
 
-        $subject->export_addRecord('pages', BackendUtility::getRecord('pages', 1));
-        $subject->export_addRecord('pages', BackendUtility::getRecord('pages', 2));
-        $subject->export_addRecord('tt_content', BackendUtility::getRecord('tt_content', 1));
-        $subject->export_addRecord('tt_content', BackendUtility::getRecord('tt_content', 2));
+        // @todo: Do not rely on BackendUtility::getRecord() in the test case itself
+        $subject->export_addRecord('pages', $this->forceStringsOnRowValues(BackendUtility::getRecord('pages', 1)));
+        $subject->export_addRecord('pages', $this->forceStringsOnRowValues(BackendUtility::getRecord('pages', 2)));
+        $subject->export_addRecord('tt_content', $this->forceStringsOnRowValues(BackendUtility::getRecord('tt_content', 1)));
+        $subject->export_addRecord('tt_content', $this->forceStringsOnRowValues(BackendUtility::getRecord('tt_content', 2)));
 
         $this->setPageTree($subject, 1, 1);
 
@@ -114,8 +116,8 @@ class PagesAndTtContentTest extends AbstractImportExportTestCase
 
         $out = $subject->compileMemoryToFileContent('xml');
 
-        $this->assertXmlStringEqualsXmlFile(
-            __DIR__ . '/../Fixtures/XmlExports/' . $this->databasePlatform . '/pages-and-ttcontent.xml',
+        self::assertXmlStringEqualsXmlFile(
+            __DIR__ . '/../Fixtures/XmlExports/pages-and-ttcontent.xml',
             $out
         );
     }

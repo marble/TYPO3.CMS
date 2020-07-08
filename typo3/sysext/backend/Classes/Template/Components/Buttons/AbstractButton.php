@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Template\Components\Buttons;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Template\Components\Buttons;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Template\Components\Buttons;
 
 use TYPO3\CMS\Backend\Template\Components\AbstractControl;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -30,18 +31,18 @@ class AbstractButton extends AbstractControl implements ButtonInterface
     protected $icon;
 
     /**
-     * ButtonType
-     *
-     * @var string
-     */
-    protected $type;
-
-    /**
      * Defines whether to show the title as a label within the button
      *
      * @var bool
      */
     protected $showLabelText = false;
+
+    /**
+     * Disabled state of the button
+     *
+     * @var bool
+     */
+    protected $disabled = false;
 
     /**
      * Show Label text
@@ -83,7 +84,7 @@ class AbstractButton extends AbstractControl implements ButtonInterface
      */
     public function getType()
     {
-        return get_class($this);
+        return static::class;
     }
 
     /**
@@ -96,6 +97,28 @@ class AbstractButton extends AbstractControl implements ButtonInterface
     public function setIcon(Icon $icon)
     {
         $this->icon = $icon;
+        return $this;
+    }
+
+    /**
+     * Check if button is disabled
+     *
+     * @return bool
+     */
+    public function isDisabled(): bool
+    {
+        return $this->disabled;
+    }
+
+    /**
+     * Set if button needs to be disabled
+     *
+     * @param bool $disabled
+     * @return AbstractButton
+     */
+    public function setDisabled(bool $disabled): AbstractButton
+    {
+        $this->disabled = $disabled;
         return $this;
     }
 

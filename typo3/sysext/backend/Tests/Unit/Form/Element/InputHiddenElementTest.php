@@ -1,5 +1,4 @@
 <?php
-namespace typo3\sysext\backend\Tests\Unit\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,12 +12,19 @@ namespace typo3\sysext\backend\Tests\Unit\Form\Element;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\Element;
+
 use TYPO3\CMS\Backend\Form\Element\InputHiddenElement;
+use TYPO3\CMS\Backend\Form\NodeFactory;
+use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for InputHiddenElement Form
  */
-class InputHiddenElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class InputHiddenElementTest extends UnitTestCase
 {
     /**
      * @test
@@ -31,12 +37,12 @@ class InputHiddenElementTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
                 'itemFormElValue' => 'bar'
             ]
         ];
-        $subject = $this->getAccessibleMock(InputHiddenElement::class, ['dummy'], [], '', false);
-        $subject->_set('data', $data);
+        GeneralUtility::addInstance(IconFactory::class, $this->prophesize(IconFactory::class)->reveal());
+        $subject = new InputHiddenElement($this->prophesize(NodeFactory::class)->reveal(), $data);
         $result = $subject->render();
         $additionalHiddenFieldsResult = array_pop($result['additionalHiddenFields']);
-        $this->assertContains('name="foo"', $additionalHiddenFieldsResult);
-        $this->assertContains('value="bar"', $additionalHiddenFieldsResult);
-        $this->assertContains('type="hidden"', $additionalHiddenFieldsResult);
+        self::assertStringContainsString('name="foo"', $additionalHiddenFieldsResult);
+        self::assertStringContainsString('value="bar"', $additionalHiddenFieldsResult);
+        self::assertStringContainsString('type="hidden"', $additionalHiddenFieldsResult);
     }
 }

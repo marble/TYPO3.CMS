@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Element;
 
 /**
  * Generation of TCEform elements of where the type is unknown
@@ -29,7 +30,7 @@ class UnknownElement extends AbstractFormElement
         $type = $this->data['parameterArray']['fieldConf']['config']['type'];
         $renderType = $this->data['renderType'];
         $resultArray = $this->initializeResultArray();
-        $resultArray['html'] = 'Unknown type: ' . $type . ($renderType ? ', render type: ' . $renderType : '') . '<br />';
+        $resultArray['html'] = '<div class="alert alert-warning">Unknown type: <code>' . $type . '</code>' . ($renderType ? ', render type: <code>' . $renderType . '</code>' : '') . '</div>';
         return $resultArray;
     }
 }

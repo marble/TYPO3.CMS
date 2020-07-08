@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Mvc\Validation;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,13 +15,14 @@ namespace TYPO3\CMS\Form\Mvc\Validation;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Mvc\Validation;
+
 use TYPO3\CMS\Extbase\Validation\Validator\AbstractValidator;
 
 /**
  * Validator for empty values.
  *
  * Scope: frontend
- * @api
  */
 class EmptyValidator extends AbstractValidator
 {
@@ -37,7 +38,6 @@ class EmptyValidator extends AbstractValidator
      * Checks if the given property ($propertyValue) is empty (NULL, empty string, empty array or empty object).
      *
      * @param mixed $value The value that should be validated
-     * @api
      */
     public function isValid($value)
     {

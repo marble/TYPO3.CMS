@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Property\TypeConverter;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +15,20 @@ namespace TYPO3\CMS\Extbase\Property\TypeConverter;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Property\TypeConverter;
+
+use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\ResourceInterface;
+use TYPO3\CMS\Extbase\Domain\Model\AbstractFileFolder;
+use TYPO3\CMS\Extbase\Property\Exception;
+use TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface;
+
 /**
  * Converter which transforms simple types to \TYPO3\CMS\Extbase\Domain\Model\File.
  *
- * @api experimental! This class is experimental and subject to change!
+ * @internal experimental! This class is experimental and subject to change!
  */
-abstract class AbstractFileFolderConverter extends \TYPO3\CMS\Extbase\Property\TypeConverter\AbstractTypeConverter
+abstract class AbstractFileFolderConverter extends AbstractTypeConverter
 {
     /**
      * @var int
@@ -39,7 +48,7 @@ abstract class AbstractFileFolderConverter extends \TYPO3\CMS\Extbase\Property\T
     /**
      * @param \TYPO3\CMS\Core\Resource\ResourceFactory $fileFactory
      */
-    public function injectFileFactory(\TYPO3\CMS\Core\Resource\ResourceFactory $fileFactory)
+    public function injectFileFactory(ResourceFactory $fileFactory): void
     {
         $this->fileFactory = $fileFactory;
     }
@@ -54,15 +63,14 @@ abstract class AbstractFileFolderConverter extends \TYPO3\CMS\Extbase\Property\T
      * @param \TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface $configuration
      * @throws \TYPO3\CMS\Extbase\Property\Exception
      * @return \TYPO3\CMS\Extbase\Domain\Model\AbstractFileFolder
-     * @api
      */
-    public function convertFrom($source, $targetType, array $convertedChildProperties = [], \TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface $configuration = null)
+    public function convertFrom($source, string $targetType, array $convertedChildProperties = [], PropertyMappingConfigurationInterface $configuration = null): AbstractFileFolder
     {
         $object = $this->getOriginalResource($source);
         if (empty($this->expectedObjectType) || !$object instanceof $this->expectedObjectType) {
-            throw new \TYPO3\CMS\Extbase\Property\Exception('Expected object of type "' . $this->expectedObjectType . '" but got ' . get_class($object), 1342895975);
+            throw new Exception('Expected object of type "' . $this->expectedObjectType . '" but got ' . get_class($object), 1342895975);
         }
-        /** @var $subject \TYPO3\CMS\Extbase\Domain\Model\AbstractFileFolder */
+        /** @var \TYPO3\CMS\Extbase\Domain\Model\AbstractFileFolder $subject */
         $subject = $this->objectManager->get($targetType);
         $subject->setOriginalResource($object);
         return $subject;
@@ -70,7 +78,7 @@ abstract class AbstractFileFolderConverter extends \TYPO3\CMS\Extbase\Property\T
 
     /**
      * @param string|int $source
-     * @return \TYPO3\CMS\Core\Resource\ResourceInterface
+     * @return \TYPO3\CMS\Core\Resource\ResourceInterface|null
      */
-    abstract protected function getOriginalResource($source);
+    abstract protected function getOriginalResource($source): ?ResourceInterface;
 }

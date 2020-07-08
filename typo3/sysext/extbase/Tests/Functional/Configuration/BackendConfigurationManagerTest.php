@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Functional\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,18 @@ namespace TYPO3\CMS\Extbase\Tests\Functional\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Functional\Configuration;
+
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager;
 use TYPO3\CMS\Extbase\Configuration\BackendConfigurationManager;
-use TYPO3\CMS\Extbase\Service\TypoScriptService;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
  * Test case
  */
-class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class BackendConfigurationManagerTest extends FunctionalTestCase
 {
     /**
      * Warning: white box test
@@ -31,7 +33,7 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Funct
      */
     public function getCurrentPageIdReturnsPidFromFirstRootTemplateIfIdIsNotSetAndNoRootPageWasFound()
     {
-        $backendConfigurationManager = $this->getAccessibleMock(BackendConfigurationManager::class, ['getTypoScriptSetup']);
+        $backendConfigurationManager = $this->getAccessibleMock(BackendConfigurationManager::class, ['getTypoScriptSetup'], [], '', false);
         $mockTypoScriptService = $this->getMockBuilder(TypoScriptService::class)->getMock();
         $backendConfigurationManager->_set('typoScriptService', $mockTypoScriptService);
 
@@ -46,7 +48,7 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Funct
         );
 
         $actualResult = $backendConfigurationManager->_call('getCurrentPageId');
-        $this->assertEquals(123, $actualResult);
+        self::assertEquals(123, $actualResult);
     }
 
     /**
@@ -56,7 +58,7 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Funct
      */
     public function getCurrentPageIdReturnsUidFromFirstRootPageIfIdIsNotSet()
     {
-        $backendConfigurationManager = $this->getAccessibleMock(BackendConfigurationManager::class, ['getTypoScriptSetup']);
+        $backendConfigurationManager = $this->getAccessibleMock(BackendConfigurationManager::class, ['getTypoScriptSetup'], [], '', false);
         $mockTypoScriptService = $this->getMockBuilder(TypoScriptService::class)->getMock();
         $backendConfigurationManager->_set('typoScriptService', $mockTypoScriptService);
 
@@ -70,7 +72,7 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Funct
         );
 
         $actualResult = $backendConfigurationManager->_call('getCurrentPageId');
-        $this->assertEquals(1, $actualResult);
+        self::assertEquals(1, $actualResult);
     }
 
     /**
@@ -80,12 +82,12 @@ class BackendConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Funct
      */
     public function getCurrentPageIdReturnsDefaultStoragePidIfIdIsNotSetNoRootTemplateAndRootPageWasFound()
     {
-        $backendConfigurationManager = $this->getAccessibleMock(BackendConfigurationManager::class, ['getTypoScriptSetup']);
+        $backendConfigurationManager = $this->getAccessibleMock(BackendConfigurationManager::class, ['getTypoScriptSetup'], [], '', false);
         $mockTypoScriptService = $this->getMockBuilder(TypoScriptService::class)->getMock();
         $backendConfigurationManager->_set('typoScriptService', $mockTypoScriptService);
 
         $expectedResult = AbstractConfigurationManager::DEFAULT_BACKEND_STORAGE_PID;
         $actualResult = $backendConfigurationManager->_call('getCurrentPageId');
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 }

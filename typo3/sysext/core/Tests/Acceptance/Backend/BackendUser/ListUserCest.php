@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\BackendUser;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,9 @@ namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\BackendUser;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
+namespace TYPO3\CMS\Core\Tests\Acceptance\Backend\BackendUser;
+
+use TYPO3\CMS\Core\Tests\Acceptance\Support\BackendTester;
 
 /**
  * List User tests
@@ -22,27 +25,22 @@ use TYPO3\TestingFramework\Core\Acceptance\Step\Backend\Admin;
 class ListUserCest
 {
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function _before(Admin $I)
+    public function _before(BackendTester $I)
     {
-        $I->useExistingSession();
-        // Ensure main content frame is fully loaded, otherwise there are load-race-conditions
-        $I->switchToIFrame('list_frame');
-        $I->waitForText('Web Content Management System');
-        $I->switchToIFrame();
+        $I->useExistingSession('admin');
 
-        $I->see('Backend users');
-        $I->click('Backend users');
+        $I->see('Backend Users');
+        $I->click('Backend Users');
 
-        // switch to content iframe
-        $I->switchToIFrame('list_frame');
+        $I->switchToContentFrame();
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function showsHeadingAndListsBackendUsers(Admin $I)
+    public function showsHeadingAndListsBackendUsers(BackendTester $I)
     {
         $I->see('Backend User Listing');
 
@@ -54,9 +52,9 @@ class ListUserCest
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function filterUsersByUsername(Admin $I)
+    public function filterUsersByUsername(BackendTester $I)
     {
         $I->wantTo('See the table of users');
         $I->waitForElementVisible('#typo3-backend-user-list');
@@ -66,6 +64,7 @@ class ListUserCest
         $I->wantTo('Filter the list of user by valid username admin');
         $I->fillField('#tx_Beuser_username', 'admin');
         $I->click('Filter');
+        $I->waitForElementNotVisible('div#nprogess');
         $I->waitForElementVisible('#typo3-backend-user-list');
 
         // We expect exact one fitting Backend User created from the Fixtures
@@ -74,6 +73,7 @@ class ListUserCest
         $I->wantTo('Filter the list of user by valid username administrator');
         $I->fillField('#tx_Beuser_username', 'administrator');
         $I->click('Filter');
+        $I->waitForElementNotVisible('div#nprogess');
         $I->waitForElementVisible('#typo3-backend-user-list');
 
         // We expect exact no fitting Backend User created from the Fixtures
@@ -81,9 +81,9 @@ class ListUserCest
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function filterUsersByAdmin(Admin $I)
+    public function filterUsersByAdmin(BackendTester $I)
     {
         $I->wantTo('See the table of users');
         $I->waitForElementVisible('#typo3-backend-user-list');
@@ -93,6 +93,7 @@ class ListUserCest
         $I->wantToTest('Filter BackendUser and see only admins');
         $I->selectOption('#tx_Beuser_usertype', 'Admin only');
         $I->click('Filter');
+        $I->waitForElementNotVisible('div#nprogess');
         $I->waitForElementVisible('#typo3-backend-user-list');
 
         // We expect exact two fitting Backend Users created from the Fixtures
@@ -101,6 +102,7 @@ class ListUserCest
         $I->wantToTest('Filter BackendUser and see normal users');
         $I->selectOption('#tx_Beuser_usertype', 'Normal users only');
         $I->click('Filter');
+        $I->waitForElementNotVisible('div#nprogess');
         $I->waitForElementVisible('#typo3-backend-user-list');
 
         // We expect exact two fitting Backend Users created from the Fixtures
@@ -108,9 +110,9 @@ class ListUserCest
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function filterUsersByStatus(Admin $I)
+    public function filterUsersByStatus(BackendTester $I)
     {
         $I->wantTo('See the table of users');
         $I->waitForElementVisible('#typo3-backend-user-list');
@@ -120,6 +122,7 @@ class ListUserCest
         $I->wantToTest('Filter BackendUser and see only active users');
         $I->selectOption('#tx_Beuser_status', 'Active only');
         $I->click('Filter');
+        $I->waitForElementNotVisible('div#nprogess');
         $I->waitForElementVisible('#typo3-backend-user-list');
 
         // We expect exact two fitting Backend Users created from the Fixtures
@@ -128,6 +131,7 @@ class ListUserCest
         $I->wantToTest('Filter BackendUser and see only inactive users');
         $I->selectOption('#tx_Beuser_status', 'Inactive only');
         $I->click('Filter');
+        $I->waitForElementNotVisible('div#nprogess');
         $I->waitForElementVisible('#typo3-backend-user-list');
 
         // We expect exact two fitting Backend Users created from the Fixtures
@@ -135,9 +139,9 @@ class ListUserCest
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function filterUsersByLogin(Admin $I)
+    public function filterUsersByLogin(BackendTester $I)
     {
         $I->wantTo('See the table of users');
         $I->waitForElementVisible('#typo3-backend-user-list');
@@ -147,6 +151,7 @@ class ListUserCest
         $I->wantToTest('Filter BackendUser and see only users logged in before');
         $I->selectOption('#tx_Beuser_logins', 'Logged in before');
         $I->click('Filter');
+        $I->waitForElementNotVisible('div#nprogess');
         $I->waitForElementVisible('#typo3-backend-user-list');
 
         // We expect exact two fitting Backend Users created from the Fixtures
@@ -155,6 +160,7 @@ class ListUserCest
         $I->wantToTest('Filter BackendUser and see only users never logged in before');
         $I->selectOption('#tx_Beuser_logins', 'Never logged in');
         $I->click('Filter');
+        $I->waitForElementNotVisible('div#nprogess');
         $I->waitForElementVisible('#typo3-backend-user-list');
 
         // We expect exact two fitting Backend Users created from the Fixtures
@@ -162,9 +168,9 @@ class ListUserCest
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
      */
-    public function filterUsersByUserGroup(Admin $I)
+    public function filterUsersByUserGroup(BackendTester $I)
     {
         $I->wantTo('See the table of users');
         $I->waitForElementVisible('#typo3-backend-user-list');
@@ -175,6 +181,7 @@ class ListUserCest
         $I->wantToTest('Filter BackendUser and see only users with given usergroup');
         $I->selectOption('#tx_beuser_backendUserGroup', 'editor-group');
         $I->click('Filter');
+        $I->waitForElementNotVisible('div#nprogess');
         $I->waitForElementVisible('#typo3-backend-user-list');
 
         // We expect exact one fitting Backend User created from the Fixtures
@@ -182,14 +189,49 @@ class ListUserCest
     }
 
     /**
-     * @param Admin $I
+     * @param BackendTester $I
+     */
+    public function canEditUsersFromIndexListView(BackendTester $I)
+    {
+        $I->canSee('Backend User Listing', 'h1');
+        $username = $I->grabTextFrom('#typo3-backend-user-list > tbody > tr:nth-child(1) > td.col-title > a:nth-child(1) > b');
+
+        $I->amGoingTo('test the edit button');
+        $I->click('#typo3-backend-user-list > tbody > tr:nth-child(1) > td.col-control > div:nth-child(1) > a');
+        $this->openAndCloseTheEditForm($I, $username);
+
+        $I->amGoingTo('test the edit link on username');
+        $I->click('#typo3-backend-user-list > tbody > tr:nth-child(1) > td.col-title > a:nth-child(1)');
+        $this->openAndCloseTheEditForm($I, $username);
+
+        $I->amGoingTo('test the edit link on real name');
+        $I->click('#typo3-backend-user-list > tbody > tr:nth-child(1) > td.col-title > a:nth-child(4)');
+        $this->openAndCloseTheEditForm($I, $username);
+    }
+
+    /**
+     * @param BackendTester $I
      * @param int $countOfUsers
      */
-    protected function checkCountOfUsers(Admin $I, $countOfUsers)
+    private function checkCountOfUsers(BackendTester $I, int $countOfUsers)
     {
         $I->canSeeNumberOfElements('#typo3-backend-user-list tbody tr', $countOfUsers);
         $I->wantToTest('If a number of users is shown in the footer row');
         $I->canSeeNumberOfElements('#typo3-backend-user-list tfoot tr', 1);
         $I->see($countOfUsers . ' Users', '#typo3-backend-user-list tfoot tr');
+    }
+
+    /**
+     * @param BackendTester $I
+     * @param string $username
+     */
+    private function openAndCloseTheEditForm(BackendTester $I, string $username): void
+    {
+        $I->waitForElementNotVisible('#t3js-ui-block');
+        $I->canSee('Edit Backend user "' . $username . '" on root level');
+
+        $I->click('div.module-docheader .btn.t3js-editform-close');
+        $I->waitForElementVisible('table.table-striped');
+        $I->canSee('Backend User Listing', 'h1');
     }
 }

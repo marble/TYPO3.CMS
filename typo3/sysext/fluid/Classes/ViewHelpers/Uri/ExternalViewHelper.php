@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Uri;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,31 +12,37 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Uri;
  *
  * The TYPO3 project - inspiring people to share!
  */
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
+
+namespace TYPO3\CMS\Fluid\ViewHelpers\Uri;
+
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
- * A view helper for creating URIs to external targets.
+ * A ViewHelper for creating URIs to external targets.
  * Currently the specified URI is simply passed through.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code>
- * <f:uri.external uri="http://www.typo3.org" />
- * </code>
- * <output>
- * http://www.typo3.org
- * </output>
+ * Default
+ * -------
  *
- * <code title="custom default scheme">
- * <f:uri.external uri="typo3.org" defaultScheme="ftp" />
- * </code>
- * <output>
- * ftp://typo3.org
- * </output>
+ * ::
  *
- * @api
+ *    <f:uri.external uri="http://www.typo3.org" />
+ *
+ * ``http://www.typo3.org``
+ *
+ * Custom default scheme
+ * ---------------------
+ *
+ * ::
+ *
+ *    <f:uri.external uri="typo3.org" defaultScheme="ftp" />
+ *
+ * ``ftp://typo3.org``
  */
 class ExternalViewHelper extends AbstractViewHelper
 {
@@ -50,7 +55,6 @@ class ExternalViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('uri', 'string', 'target URI', true);
         $this->registerArgument('defaultScheme', 'string', 'scheme the href attribute will be prefixed with if specified $uri does not contain a scheme already', false, 'http');
     }

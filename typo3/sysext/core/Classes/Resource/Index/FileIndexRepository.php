@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Index;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,16 @@ namespace TYPO3\CMS\Core\Resource\Index;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Index;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\ReferenceIndex;
+use TYPO3\CMS\Core\Resource\Event\AfterFileAddedToIndexEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileMarkedAsMissingEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileRemovedFromIndexEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileUpdatedInIndexEvent;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\FileInterface;
 use TYPO3\CMS\Core\Resource\Folder;
@@ -24,8 +30,6 @@ use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * Repository Class as an abstraction layer to sys_file
@@ -33,7 +37,7 @@ use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
  * Every access to table sys_file_metadata which is not handled by DataHandler
  * has to use this Repository class.
  *
- * This is meant for FAL internal use only!.
+ * @internal This is meant for FAL internal use only!
  */
 class FileIndexRepository implements SingletonInterface
 {
@@ -41,6 +45,11 @@ class FileIndexRepository implements SingletonInterface
      * @var string
      */
     protected $table = 'sys_file';
+
+    /**
+     * @var EventDispatcherInterface
+     */
+    protected $eventDispatcher;
 
     /**
      * A list of properties which are to be persisted
@@ -59,7 +68,7 @@ class FileIndexRepository implements SingletonInterface
      */
     protected function getResourceFactory()
     {
-        return ResourceFactory::getInstance();
+        return GeneralUtility::makeInstance(ResourceFactory::class);
     }
 
     /**
@@ -72,6 +81,11 @@ class FileIndexRepository implements SingletonInterface
         return GeneralUtility::makeInstance(self::class);
     }
 
+    public function __construct(EventDispatcherInterface $eventDispatcher)
+    {
+        $this->eventDispatcher = $eventDispatcher;
+    }
+
     /**
      * Retrieves Index record for a given $combinedIdentifier
      *
@@ -80,7 +94,7 @@ class FileIndexRepository implements SingletonInterface
      */
     public function findOneByCombinedIdentifier($combinedIdentifier)
     {
-        list($storageUid, $identifier) = GeneralUtility::trimExplode(':', $combinedIdentifier, false, 2);
+        [$storageUid, $identifier] = GeneralUtility::trimExplode(':', $combinedIdentifier, false, 2);
         return $this->findOneByStorageUidAndIdentifier($storageUid, $identifier);
     }
 
@@ -196,7 +210,7 @@ class FileIndexRepository implements SingletonInterface
      * Find all records for files in a Folder
      *
      * @param Folder $folder
-     * @return array|NULL
+     * @return array|null
      */
     public function findByFolder(Folder $folder)
     {
@@ -232,7 +246,7 @@ class FileIndexRepository implements SingletonInterface
      * @param Folder[] $folders
      * @param bool $includeMissing
      * @param string $fileName
-     * @return array|NULL
+     * @return array|null
      */
     public function findByFolders(array $folders, $includeMissing = true, $fileName = null)
     {
@@ -275,8 +289,10 @@ class FileIndexRepository implements SingletonInterface
                     $queryBuilder->andWhere(
                         $queryBuilder->expr()->like(
                             'name',
-                            $queryBuilder->createNamedParameter('%' . $queryBuilder->escapeLikeWildcards($part) . '%',
-                                \PDO::PARAM_STR)
+                            $queryBuilder->createNamedParameter(
+                                '%' . $queryBuilder->escapeLikeWildcards($part) . '%',
+                                \PDO::PARAM_STR
+                            )
                         )
                     );
                 }
@@ -344,7 +360,7 @@ class FileIndexRepository implements SingletonInterface
         );
         $data['uid'] = $connection->lastInsertId($this->table);
         $this->updateRefIndex($data['uid']);
-        $this->emitRecordCreatedSignal($data);
+        $this->eventDispatcher->dispatch(new AfterFileAddedToIndexEvent($data['uid'], $data));
         return $data['uid'];
     }
 
@@ -417,7 +433,7 @@ class FileIndexRepository implements SingletonInterface
             );
 
             $this->updateRefIndex($file->getUid());
-            $this->emitRecordUpdatedSignal(array_intersect_key($file->getProperties(), array_flip($this->fields)));
+            $this->eventDispatcher->dispatch(new AfterFileUpdatedInIndexEvent($file, array_intersect_key($file->getProperties(), array_flip($this->fields)), $updateRow));
         }
     }
 
@@ -454,7 +470,7 @@ class FileIndexRepository implements SingletonInterface
      * Helper function for the Indexer to detect missing files
      *
      * @param ResourceStorage $storage
-     * @param array $uidList
+     * @param int[] $uidList
      * @return array
      */
     public function findInStorageAndNotInUidList(ResourceStorage $storage, array $uidList)
@@ -475,7 +491,7 @@ class FileIndexRepository implements SingletonInterface
             $queryBuilder->andWhere(
                 $queryBuilder->expr()->notIn(
                     'uid',
-                    $queryBuilder->createNamedParameter($uidList, Connection::PARAM_INT_ARRAY)
+                    array_map('intval', $uidList)
                 )
             );
         }
@@ -521,7 +537,7 @@ class FileIndexRepository implements SingletonInterface
                 'uid' => (int)$fileUid
             ]
         );
-        $this->emitRecordMarkedAsMissingSignal($fileUid);
+        $this->eventDispatcher->dispatch(new AfterFileMarkedAsMissingEvent((int)$fileUid));
     }
 
     /**
@@ -539,7 +555,7 @@ class FileIndexRepository implements SingletonInterface
             ]
         );
         $this->updateRefIndex($fileUid);
-        $this->emitRecordDeletedSignal($fileUid);
+        $this->eventDispatcher->dispatch(new AfterFileRemovedFromIndexEvent((int)$fileUid));
     }
 
     /**
@@ -549,72 +565,9 @@ class FileIndexRepository implements SingletonInterface
      */
     public function updateRefIndex($id)
     {
-        /** @var $refIndexObj ReferenceIndex */
+        /** @var ReferenceIndex $refIndexObj */
         $refIndexObj = GeneralUtility::makeInstance(ReferenceIndex::class);
+        $refIndexObj->enableRuntimeCache();
         $refIndexObj->updateRefIndexTable($this->table, $id);
-    }
-
-    /*
-     * Get the SignalSlot dispatcher
-     *
-     * @return Dispatcher
-     */
-    protected function getSignalSlotDispatcher()
-    {
-        return $this->getObjectManager()->get(Dispatcher::class);
-    }
-
-    /**
-     * Get the ObjectManager
-     *
-     * @return ObjectManager
-     */
-    protected function getObjectManager()
-    {
-        return GeneralUtility::makeInstance(ObjectManager::class);
-    }
-
-    /**
-     * Signal that is called after an IndexRecord is updated
-     *
-     * @param array $data
-     * @signal
-     */
-    protected function emitRecordUpdatedSignal(array $data)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(self::class, 'recordUpdated', [$data]);
-    }
-
-    /**
-     * Signal that is called after an IndexRecord is created
-     *
-     * @param array $data
-     * @signal
-     */
-    protected function emitRecordCreatedSignal(array $data)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(self::class, 'recordCreated', [$data]);
-    }
-
-    /**
-     * Signal that is called after an IndexRecord is deleted
-     *
-     * @param int $fileUid
-     * @signal
-     */
-    protected function emitRecordDeletedSignal($fileUid)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(self::class, 'recordDeleted', [$fileUid]);
-    }
-
-    /**
-     * Signal that is called after an IndexRecord is marked as missing
-     *
-     * @param int $fileUid
-     * @signal
-     */
-    protected function emitRecordMarkedAsMissingSignal($fileUid)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(self::class, 'recordMarkedAsMissing', [$fileUid]);
     }
 }

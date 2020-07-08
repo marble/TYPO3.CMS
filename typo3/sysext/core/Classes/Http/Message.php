@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Http;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Http;
 
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\StreamInterface;
@@ -76,7 +77,7 @@ class Message implements MessageInterface
      * new protocol version.
      *
      * @param string $version HTTP protocol version
-     * @return Message
+     * @return static
      */
     public function withProtocolVersion($version)
     {
@@ -151,9 +152,8 @@ class Message implements MessageInterface
         $headerValue = $this->headers[$header];
         if (is_array($headerValue)) {
             return $headerValue;
-        } else {
-            return [$headerValue];
         }
+        return [$headerValue];
     }
 
     /**
@@ -196,7 +196,7 @@ class Message implements MessageInterface
      *
      * @param string $name Case-insensitive header field name.
      * @param string|string[] $value Header value(s).
-     * @return Message
+     * @return static
      * @throws \InvalidArgumentException for invalid header names or values.
      */
     public function withHeader($name, $value)
@@ -206,7 +206,7 @@ class Message implements MessageInterface
         }
 
         if (!is_array($value) || !$this->arrayContainsOnlyStrings($value)) {
-            throw new \InvalidArgumentException('Invalid header value for header "' . $name . '"". The value must be a string or an array of strings.', 1436717266);
+            throw new \InvalidArgumentException('Invalid header value for header "' . $name . '". The value must be a string or an array of strings.', 1436717266);
         }
 
         $this->validateHeaderName($name);
@@ -232,7 +232,7 @@ class Message implements MessageInterface
      *
      * @param string $name Case-insensitive header field name to add.
      * @param string|string[] $value Header value(s).
-     * @return Message
+     * @return static
      * @throws \InvalidArgumentException for invalid header names or values.
      */
     public function withAddedHeader($name, $value)
@@ -264,7 +264,7 @@ class Message implements MessageInterface
      * the named header.
      *
      * @param string $name Case-insensitive header field name to remove.
-     * @return Message
+     * @return static
      */
     public function withoutHeader($name)
     {
@@ -286,6 +286,9 @@ class Message implements MessageInterface
      */
     public function getBody()
     {
+        if ($this->body === null) {
+            $this->body = new Stream('php://temp', 'r+');
+        }
         return $this->body;
     }
 
@@ -299,7 +302,7 @@ class Message implements MessageInterface
      * new body stream.
      *
      * @param \Psr\Http\Message\StreamInterface $body Body.
-     * @return Message
+     * @return static
      * @throws \InvalidArgumentException When the body is not valid.
      */
     public function withBody(StreamInterface $body)
@@ -368,7 +371,7 @@ class Message implements MessageInterface
     /**
      * Assert that the provided header values are valid.
      *
-     * @see http://tools.ietf.org/html/rfc7230#section-3.2
+     * @see https://tools.ietf.org/html/rfc7230#section-3.2
      * @param string[] $values
      * @throws \InvalidArgumentException
      */
@@ -434,7 +437,7 @@ class Message implements MessageInterface
     /**
      * Check whether or not a header name is valid and throw an exception.
      *
-     * @see http://tools.ietf.org/html/rfc7230#section-3.2
+     * @see https://tools.ietf.org/html/rfc7230#section-3.2
      * @param string $name
      * @throws \InvalidArgumentException
      */
@@ -476,7 +479,7 @@ class Message implements MessageInterface
             // 32-126, 128-254 === visible
             // 127 === DEL
             // 255 === null byte
-            if (($ascii < 32 && ! in_array($ascii, [9, 10, 13], true)) || $ascii === 127 || $ascii > 254) {
+            if (($ascii < 32 && !in_array($ascii, [9, 10, 13], true)) || $ascii === 127 || $ascii > 254) {
                 return false;
             }
         }

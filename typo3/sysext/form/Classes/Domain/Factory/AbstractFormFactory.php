@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Factory;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,8 +15,13 @@ namespace TYPO3\CMS\Form\Domain\Factory;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Factory;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Form\Domain\Model\FormDefinition;
 
 /**
@@ -48,7 +51,6 @@ use TYPO3\CMS\Form\Domain\Model\FormDefinition;
  *
  * Scope: frontend / backend
  * **This class is meant to be sub classed by developers.**
- * @api
  */
 abstract class AbstractFormFactory implements FormFactoryInterface
 {
@@ -57,22 +59,16 @@ abstract class AbstractFormFactory implements FormFactoryInterface
      * hook on all form elements.
      *
      * @param FormDefinition $form
-     * @api
      */
     protected function triggerFormBuildingFinished(FormDefinition $form)
     {
         foreach ($form->getRenderablesRecursively() as $renderable) {
-            if (
-                isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['afterBuildingFinished'])
-                && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['afterBuildingFinished'])
-            ) {
-                foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['afterBuildingFinished'] as $className) {
-                    $hookObj = GeneralUtility::makeInstance($className);
-                    if (method_exists($hookObj, 'afterBuildingFinished')) {
-                        $hookObj->afterBuildingFinished(
-                            $renderable
-                        );
-                    }
+            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['afterBuildingFinished'] ?? [] as $className) {
+                $hookObj = GeneralUtility::makeInstance($className);
+                if (method_exists($hookObj, 'afterBuildingFinished')) {
+                    $hookObj->afterBuildingFinished(
+                        $renderable
+                    );
                 }
             }
         }

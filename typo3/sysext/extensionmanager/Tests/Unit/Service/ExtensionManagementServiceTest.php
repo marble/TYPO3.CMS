@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Service;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,272 +15,175 @@ namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Service;
+
+use Prophecy\Argument;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue;
+use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
+use TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService;
+use TYPO3\CMS\Extensionmanager\Utility\DependencyUtility;
+use TYPO3\CMS\Extensionmanager\Utility\DownloadUtility;
+use TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility;
+use TYPO3\CMS\Extensionmanager\Utility\InstallUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Testcase
  */
-class ExtensionManagementServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ExtensionManagementServiceTest extends UnitTestCase
 {
-    /**
-     * @test
-     */
-    public function resolveDependenciesCallsDownloadDependenciesIfDownloadKeyExistsInQueue()
+    protected $managementService;
+    protected $downloadUtilityProphecy;
+    protected $dependencyUtilityProphecy;
+    protected $installUtilityProphecy;
+    protected $downloadQueue;
+    protected $extensionModelUtilityProphecy;
+
+    public function setUp(): void
     {
-        $managementMock = $this->getAccessibleMock(
-            \TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService::class,
-            ['downloadDependencies', 'uninstallDependenciesToBeUpdated', 'setInExtensionRepository', 'downloadMainExtension', 'isAutomaticInstallationEnabled']
-        );
-        $managementMock->expects($this->any())->method('downloadMainExtension')->will($this->returnValue([]));
-        $managementMock->expects($this->any())->method('isAutomaticInstallationEnabled')->will($this->returnValue([false]));
-        $extensionModelMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class);
-        $extensionModelMock->_set('extensionKey', 'foobar');
-        $extensionModelMock->_set('version', '1.0.0');
-        $dependencyUtilityMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class, ['checkDependencies']);
-        $dependencyUtilityMock->expects($this->atLeastOnce())->method('checkDependencies');
-        $managementMock->_set('dependencyUtility', $dependencyUtilityMock);
-        $downloadQueueMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue::class, ['isCopyQueueEmpty', 'isQueueEmpty', 'resetExtensionQueue', 'addExtensionToInstallQueue']);
-        $downloadQueueMock->expects($this->any())->method('isCopyQueueEmpty')->willReturn(true);
-        $downloadQueueMock->expects($this->at(1))->method('isQueueEmpty')->with('download')->willReturn(false);
-        $downloadQueueMock->expects($this->at(4))->method('isQueueEmpty')->with('download')->willReturn(true);
-        $downloadQueueMock->expects($this->at(5))->method('isQueueEmpty')->with('update')->willReturn(true);
-        $downloadQueueMock->expects($this->atLeastOnce())->method('resetExtensionQueue')->will($this->returnValue([
-            'download' => [
-                'foo' => $extensionModelMock
-            ]
-        ]));
-        $managementMock->_set('downloadQueue', $downloadQueueMock);
-        $managementMock->expects($this->once())->method('downloadDependencies')->with(['foo' => $extensionModelMock])->will($this->returnValue([]));
-        $managementMock->_call('installExtension', $extensionModelMock);
+        parent::setUp();
+        $this->resetSingletonInstances = true;
+        $this->managementService = new ExtensionManagementService();
+        $this->managementService->injectEventDispatcher($this->prophesize(EventDispatcherInterface::class)->reveal());
+
+        $this->downloadUtilityProphecy = $this->prophesize(DownloadUtility::class);
+        $this->dependencyUtilityProphecy = $this->prophesize(DependencyUtility::class);
+        $this->installUtilityProphecy = $this->prophesize(InstallUtility::class);
+        $this->downloadQueue = new DownloadQueue();
+        $this->extensionModelUtilityProphecy = $this->prophesize(ExtensionModelUtility::class);
+
+        $this->managementService->injectDependencyUtility($this->dependencyUtilityProphecy->reveal());
+        $this->managementService->injectDownloadUtility($this->downloadUtilityProphecy->reveal());
+        $this->managementService->injectInstallUtility($this->installUtilityProphecy->reveal());
+        $this->managementService->injectDownloadQueue($this->downloadQueue);
+        $this->managementService->injectExtensionModelUtility($this->extensionModelUtilityProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function resolveDependenciesCallsUpdateAndDownloadDependenciesIfUpdateKeyExistsInQueue()
+    public function installDownloadsExtensionIfNecessary(): void
     {
-        $managementMock = $this->getAccessibleMock(
-            \TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService::class,
-            ['downloadDependencies', 'uninstallDependenciesToBeUpdated', 'setInExtensionRepository', 'downloadMainExtension', 'isAutomaticInstallationEnabled']
-        );
-        $managementMock->expects($this->any())->method('downloadMainExtension')->will($this->returnValue([]));
-        $managementMock->expects($this->any())->method('isAutomaticInstallationEnabled')->will($this->returnValue(true));
-        $extensionModelMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class);
-        $extensionModelMock->_set('extensionKey', 'foobar');
-        $extensionModelMock->_set('version', '1.0.0');
-        $dependencyUtilityMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class, ['checkDependencies']);
-        $dependencyUtilityMock->expects($this->atLeastOnce())->method('checkDependencies');
-        $managementMock->_set('dependencyUtility', $dependencyUtilityMock);
-        $downloadQueueMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue::class, ['isCopyQueueEmpty', 'isQueueEmpty', 'resetExtensionQueue', 'addExtensionToInstallQueue']);
-        $downloadQueueMock->expects($this->any())->method('isCopyQueueEmpty')->willReturn(true);
-        $downloadQueueMock->expects($this->at(1))->method('isQueueEmpty')->with('download')->willReturn(false);
-        $downloadQueueMock->expects($this->at(4))->method('isQueueEmpty')->with('download')->willReturn(true);
-        $downloadQueueMock->expects($this->at(5))->method('isQueueEmpty')->with('update')->willReturn(true);
-        $downloadQueueMock->expects($this->atLeastOnce())->method('resetExtensionQueue')->will($this->returnValue([
-            'update' => [
-                'foo' => $extensionModelMock
-            ]
-        ]));
-        $managementMock->_set('downloadQueue', $downloadQueueMock);
-        $managementMock->expects($this->once())->method('downloadDependencies')->with(['foo' => $extensionModelMock])->will($this->returnValue([]));
-        $managementMock->expects($this->once())->method('uninstallDependenciesToBeUpdated')->with(['foo' => $extensionModelMock])->will($this->returnValue([]));
-        $managementMock->_call('installExtension', $extensionModelMock);
+        $extension = new Extension();
+        $extension->setExtensionKey('foobar');
+        $extension->setVersion('1.0.0');
+        // an extension with a uid means it needs to be downloaded
+        $extension->_setProperty('uid', 123);
+
+        $this->managementService->installExtension($extension);
+        $this->downloadUtilityProphecy->download($extension)->shouldHaveBeenCalled();
     }
 
     /**
      * @test
      */
-    public function downloadDependenciesCallsDownloadUtilityDownloadMethod()
+    public function installExtensionReturnsFalseIfDependenciesCannotBeResolved(): void
     {
-        $managementMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService::class, [
-            'dummy'
-        ]);
+        $extension = new Extension();
+        $this->dependencyUtilityProphecy->setLocalExtensionStorage(Argument::any())->willReturn();
+        $this->dependencyUtilityProphecy->setSkipDependencyCheck(false)->willReturn();
+        $this->dependencyUtilityProphecy->checkDependencies($extension)->willReturn();
 
-        $extensionModelMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class, ['getExtensionKey']);
-        $extensionModelMock->_set('extensionKey', 'foobar');
-        $extensionModelMock->_set('version', '1.0.0');
+        $this->dependencyUtilityProphecy->hasDependencyErrors()->willReturn(true);
 
-        $dependencyUtilityMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class);
-        $dependencyUtilityMock->expects($this->atLeastOnce())->method('checkDependencies');
-        $installUtilityMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class)->getMock();
-        $installUtilityMock->expects($this->any())->method('enrichExtensionWithDetails')->will($this->returnValue([]));
-        $extensionModelUtilityMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility::class)->getMock();
-        $extensionModelUtilityMock->expects($this->any())->method('mapExtensionArrayToModel')->will($this->returnValue($extensionModelMock));
-        $managementMock->_set('dependencyUtility', $dependencyUtilityMock);
-        $managementMock->_set('installUtility', $installUtilityMock);
-        $managementMock->_set('extensionModelUtility', $extensionModelUtilityMock);
-
-        $downloadQueue = [
-            $extensionModelMock
-        ];
-        $downloadQueueMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue::class, ['removeExtensionFromQueue', 'addExtensionToInstallQueue']);
-        $downloadUtilityMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\DownloadUtility::class, ['download']);
-        $downloadUtilityMock->expects($this->once())->method('download')->with($extensionModelMock);
-        $managementMock->_set('downloadUtility', $downloadUtilityMock);
-        $managementMock->_set('downloadQueue', $downloadQueueMock);
-        $managementMock->_call('downloadDependencies', $downloadQueue);
+        $result = $this->managementService->installExtension($extension);
+        self::assertFalse($result);
     }
 
     /**
      * @test
      */
-    public function downloadDependenciesCallsRemoveExtensionFromQueue()
+    public function installExtensionWillReturnInstalledExtensions(): void
     {
-        $managementMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService::class, [
-            'dummy'
-        ]);
+        $extension = new Extension();
+        $extension->setExtensionKey('foo');
 
-        /** @var \TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extensionModelMock */
-        $extensionModelMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)
-            ->setMethods(['getExtensionKey'])
-            ->getMock();
-        $extensionModelMock->setExtensionKey('foobar');
-        $extensionModelMock->setVersion('1.0.0');
-        $downloadQueue = [
-            $extensionModelMock
-        ];
-
-        $dependencyUtilityMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class);
-        $dependencyUtilityMock->expects($this->atLeastOnce())->method('checkDependencies');
-        $installUtilityMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class)->getMock();
-        $installUtilityMock->expects($this->any())->method('enrichExtensionWithDetails')->will($this->returnValue([]));
-        $extensionModelUtilityMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility::class)->getMock();
-        $extensionModelUtilityMock->expects($this->any())->method('mapExtensionArrayToModel')->will($this->returnValue($extensionModelMock));
-        $managementMock->_set('dependencyUtility', $dependencyUtilityMock);
-        $managementMock->_set('installUtility', $installUtilityMock);
-        $managementMock->_set('extensionModelUtility', $extensionModelUtilityMock);
-
-        $downloadQueueMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue::class, ['removeExtensionFromQueue', 'addExtensionToInstallQueue']);
-        $downloadUtilityMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\DownloadUtility::class, ['download']);
-        $downloadQueueMock->expects($this->once())->method('removeExtensionFromQueue')->with($extensionModelMock);
-        $managementMock->_set('downloadUtility', $downloadUtilityMock);
-        $managementMock->_set('downloadQueue', $downloadQueueMock);
-        $managementMock->_call('downloadDependencies', $downloadQueue);
+        $result = $this->managementService->installExtension($extension);
+        self::assertSame(['installed' => ['foo' => 'foo']], $result);
     }
 
     /**
      * @test
      */
-    public function downloadDependenciesReturnsResolvedDependencies()
+    public function installExtensionWillReturnDownloadedExtensions(): void
     {
-        $managementMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService::class, [
-            'dummy'
-        ]);
+        $downloadQueue = new DownloadQueue();
+        $extension = new Extension();
+        $extension->setExtensionKey('foo');
+        $downloadQueue->addExtensionToQueue($extension);
+        $this->managementService->injectDownloadQueue($downloadQueue);
+        $this->installUtilityProphecy->enrichExtensionWithDetails('foo')->willReturn([]);
+        $this->installUtilityProphecy->reloadAvailableExtensions()->willReturn();
+        $this->installUtilityProphecy->install('foo')->willReturn();
+        $this->extensionModelUtilityProphecy->mapExtensionArrayToModel([])->willReturn($extension);
 
-        $extensionModelMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class, ['getExtensionKey']);
-        $extensionModelMock->_set('extensionKey', 'foobar');
-        $extensionModelMock->_set('version', '1.0.0');
-        $downloadQueue = [
-            $extensionModelMock
-        ];
-
-        $dependencyUtilityMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\DependencyUtility::class);
-        $dependencyUtilityMock->expects($this->atLeastOnce())->method('checkDependencies');
-        $installUtilityMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class)->getMock();
-        $installUtilityMock->expects($this->any())->method('enrichExtensionWithDetails')->will($this->returnValue([]));
-        $extensionModelUtilityMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility::class)->getMock();
-        $extensionModelUtilityMock->expects($this->any())->method('mapExtensionArrayToModel')->will($this->returnValue($extensionModelMock));
-        $managementMock->_set('dependencyUtility', $dependencyUtilityMock);
-        $managementMock->_set('installUtility', $installUtilityMock);
-        $managementMock->_set('extensionModelUtility', $extensionModelUtilityMock);
-
-        $downloadQueueMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\DownloadQueue::class, ['removeExtensionFromQueue', 'addExtensionToInstallQueue']);
-        $downloadUtilityMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\DownloadUtility::class, ['download']);
-        $extensionModelMock->expects($this->atLeastOnce())->method('getExtensionKey')->will($this->returnValue('foobar'));
-        $managementMock->_set('downloadUtility', $downloadUtilityMock);
-        $managementMock->_set('downloadQueue', $downloadQueueMock);
-        $resolvedDependencies = $managementMock->_call('downloadDependencies', $downloadQueue);
-        $this->assertEquals(['downloaded' => ['foobar' => $extensionModelMock]], $resolvedDependencies);
+        $result = $this->managementService->installExtension($extension);
+        self::assertSame(['downloaded' => ['foo' => $extension], 'installed' => ['foo' => 'foo']], $result);
     }
 
     /**
      * @test
      */
-    public function uninstallDependenciesToBeUpdatedCallsUninstall()
+    public function installExtensionWillReturnUpdatedExtensions(): void
     {
-        $managementMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService::class, [
-            'dummy'
-        ]);
-        $extensionModelMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class, ['getExtensionKey']);
-        $extensionModelMock->_set('extensionKey', 'foobar');
-        $extensionModelMock->_set('version', '1.0.0');
-        $extensionModelMock->expects($this->atLeastOnce())->method('getExtensionKey')->will($this->returnValue('foobar'));
-        $downloadQueue = [
-            $extensionModelMock
-        ];
-        $installUtility = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class, ['uninstall'], [], '', false);
-        $installUtility->expects($this->once())->method('uninstall')->with('foobar');
-        $managementMock->_set('installUtility', $installUtility);
-        $managementMock->_call('uninstallDependenciesToBeUpdated', $downloadQueue);
+        $downloadQueue = new DownloadQueue();
+        $extension = new Extension();
+        $extension->setExtensionKey('foo');
+        $downloadQueue->addExtensionToQueue($extension, 'update');
+        $this->managementService->injectDownloadQueue($downloadQueue);
+        $this->installUtilityProphecy->enrichExtensionWithDetails('foo')->willReturn([]);
+        $this->installUtilityProphecy->reloadAvailableExtensions()->willReturn();
+        $this->extensionModelUtilityProphecy->mapExtensionArrayToModel([])->willReturn($extension);
+
+        // an extension update will uninstall the extension and install it again
+        $this->installUtilityProphecy->uninstall('foo')->shouldBeCalled();
+        $this->installUtilityProphecy->install('foo')->shouldBeCalled();
+
+        $result = $this->managementService->installExtension($extension);
+
+        self::assertSame(['updated' => ['foo' => $extension], 'installed' => ['foo' => 'foo']], $result);
     }
 
     /**
      * @test
      */
-    public function uninstallDependenciesToBeUpdatedReturnsResolvedDependencies()
+    public function markExtensionForCopyAddsExtensionToCopyQueue(): void
     {
-        $managementMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService::class, [
-            'dummy'
-        ]);
-        $extensionModelMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class, ['getExtensionKey']);
-        $extensionModelMock->_set('extensionKey', 'foobar');
-        $extensionModelMock->_set('version', '1.0.0');
-        $extensionModelMock->expects($this->atLeastOnce())->method('getExtensionKey')->will($this->returnValue('foobar'));
-        $downloadQueue = [
-            $extensionModelMock
-        ];
-        $installUtility = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class, ['uninstall'], [], '', false);
-        $managementMock->_set('installUtility', $installUtility);
-        $resolvedDependencies = $managementMock->_call('uninstallDependenciesToBeUpdated', $downloadQueue);
-        $this->assertEquals(['updated' => ['foobar' => $extensionModelMock]], $resolvedDependencies);
+        $this->managementService->markExtensionForCopy('ext', 'some/folder/');
+
+        self::assertSame(['ext' => 'some/folder/'], $this->downloadQueue->resetExtensionCopyStorage());
     }
 
     /**
      * @test
      */
-    public function installDependenciesCallsInstall()
+    public function markExtensionForDownloadAddsExtensionToDownloadQueueAndChecksDependencies(): void
     {
-        $managementMock = $this->getAccessibleMock(
-            \TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService::class,
-            ['emitWillInstallExtensionsSignal', 'emitHasInstalledExtensionSignal']
-        );
-        /** @var \TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extensionMock */
-        $extensionMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)
-            ->setMethods(['dummy'])
-            ->getMock();
-        $extensionMock->setExtensionKey('foobar');
-        $installQueue = [
-            'foobar' => $extensionMock,
-        ];
-        $installUtility = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class, ['install', 'emitWillInstallExtensionsSignal'], [], '', false);
-        $installUtility->expects($this->once())->method('install')->with('foobar');
-        $managementMock->_set('installUtility', $installUtility);
-        $managementMock->_call('installDependencies', $installQueue);
+        $extension = new Extension();
+        $extension->setExtensionKey('foo');
+        $this->dependencyUtilityProphecy->hasDependencyErrors()->willReturn(false);
+        $this->dependencyUtilityProphecy->checkDependencies($extension)->shouldBeCalled();
+
+        $this->managementService->markExtensionForDownload($extension);
+
+        $this->dependencyUtilityProphecy->checkDependencies($extension)->shouldHaveBeenCalled();
+        self::assertSame(['download' => ['foo' => $extension]], $this->downloadQueue->getExtensionQueue());
     }
 
     /**
      * @test
      */
-    public function installDependenciesReturnsResolvedDependencies()
+    public function markExtensionForUpdateAddsExtensionToUpdateQueueAndChecksDependencies(): void
     {
-        $managementMock = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService::class, [
-            'emitWillInstallExtensionsSignal',
-            'emitHasInstalledExtensionSignal'
-        ]);
-        /** @var \TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extensionMock */
-        $extensionMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)
-            ->setMethods(['dummy'])
-            ->getMock();
-        $extensionMock->setExtensionKey('foobar');
-        $installQueue = [
-            'foobar' => $extensionMock,
-        ];
-        $installUtility = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Utility\InstallUtility::class, ['install', 'emitWillInstallExtensionsSignal'], [], '', false);
-        $installUtility->expects($this->once())->method('install')->with('foobar');
-        $managementMock->_set('installUtility', $installUtility);
-        $resolvedDependencies = $managementMock->_call('installDependencies', $installQueue);
-        $this->assertEquals([
-            'installed' => [
-                'foobar' => 'foobar'
-            ]
-        ], $resolvedDependencies);
+        $extension = new Extension();
+        $extension->setExtensionKey('foo');
+        $this->dependencyUtilityProphecy->hasDependencyErrors()->willReturn(false);
+        $this->dependencyUtilityProphecy->checkDependencies($extension)->shouldBeCalled();
+
+        $this->managementService->markExtensionForUpdate($extension);
+
+        $this->dependencyUtilityProphecy->checkDependencies($extension)->shouldHaveBeenCalled();
+        self::assertSame(['update' => ['foo' => $extension]], $this->downloadQueue->getExtensionQueue());
     }
 }

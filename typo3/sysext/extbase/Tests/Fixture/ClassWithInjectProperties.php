@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Fixture;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,10 @@ namespace TYPO3\CMS\Extbase\Tests\Fixture;
  * The TYPO3 project - inspiring people to share!
  */
 
-/**
- */
+namespace TYPO3\CMS\Extbase\Tests\Fixture;
+
+use TYPO3\CMS\Extbase\Annotation as Extbase;
+
 class ClassWithInjectProperties
 {
     /**
@@ -25,7 +26,7 @@ class ClassWithInjectProperties
 
     /**
      * @var \TYPO3\CMS\Extbase\Tests\Fixture\SecondDummyClass
-     * @inject
+     * @Extbase\Inject
      */
     protected $secondDummyClass;
 }

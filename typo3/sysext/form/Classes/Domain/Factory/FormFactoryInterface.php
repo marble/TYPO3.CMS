@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Factory;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\Domain\Factory;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Factory;
 
 use TYPO3\CMS\Form\Domain\Model\FormDefinition;
 
@@ -28,7 +32,6 @@ use TYPO3\CMS\Form\Domain\Model\FormDefinition;
  * it is done through an invocation of a Form Rendering ViewHelper.
  *
  * Scope: frontend / backend
- * @api
  */
 interface FormFactoryInterface
 {
@@ -42,7 +45,6 @@ interface FormFactoryInterface
      * @param array $configuration factory-specific configuration array
      * @param string $prototypeName The name of the "PrototypeName" to use; it is factory-specific to implement this.
      * @return FormDefinition a newly built form definition
-     * @api
      */
     public function build(array $configuration, string $prototypeName = null): FormDefinition;
 }

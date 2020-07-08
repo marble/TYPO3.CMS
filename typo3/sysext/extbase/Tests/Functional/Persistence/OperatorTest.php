@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,16 @@ namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Persistence\QueryInterface;
+namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
-class OperatorTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+use ExtbaseTeam\BlogExample\Domain\Repository\BlogRepository;
+use ExtbaseTeam\BlogExample\Domain\Repository\PostRepository;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\Persistence\QueryInterface;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
+
+class OperatorTest extends FunctionalTestCase
 {
     /**
      * @var \ExtbaseTeam\BlogExample\Domain\Repository\BlogRepository
@@ -47,7 +52,7 @@ class OperatorTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
     /**
      * Sets up this test suite.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -57,9 +62,9 @@ class OperatorTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/tags.xml');
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/post-tag-mm.xml');
 
-        $this->objectManager = GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
-        $this->blogRepository = $this->objectManager->get(\ExtbaseTeam\BlogExample\Domain\Repository\BlogRepository::class);
-        $this->postRepository = $this->objectManager->get(\ExtbaseTeam\BlogExample\Domain\Repository\PostRepository::class);
+        $this->objectManager = GeneralUtility::makeInstance(ObjectManager::class);
+        $this->blogRepository = $this->objectManager->get(BlogRepository::class);
+        $this->postRepository = $this->objectManager->get(PostRepository::class);
     }
 
     /**
@@ -73,13 +78,13 @@ class OperatorTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
             $query->equals('title', null)
         );
 
-        $this->assertSame(0, $query->count());
+        self::assertSame(0, $query->count());
     }
 
     /**
      * @test
      */
-    public function equalsCorrectlyHandlesCaseSensivity()
+    public function equalsCorrectlyHandlesCaseSensitivity()
     {
         $query = $this->postRepository->createQuery();
 
@@ -87,7 +92,7 @@ class OperatorTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
             $query->equals('title', 'PoSt1', false)
         );
 
-        $this->assertSame(2, $query->count());
+        self::assertSame(2, $query->count());
     }
 
     /**
@@ -108,6 +113,6 @@ class OperatorTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
             },
             $query->execute(true)
         );
-        $this->assertEquals([3, 4, 5], $result);
+        self::assertEquals([3, 4, 5], $result);
     }
 }

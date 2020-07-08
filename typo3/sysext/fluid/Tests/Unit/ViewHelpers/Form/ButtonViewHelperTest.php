@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Form\ButtonViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 
@@ -27,7 +28,7 @@ class ButtonViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new ButtonViewHelper();
@@ -54,6 +55,6 @@ class ButtonViewHelperTest extends ViewHelperBaseTestcase
 
         $expectedResult = '<button type="submit" name="" value="">Button Content</button>';
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 }

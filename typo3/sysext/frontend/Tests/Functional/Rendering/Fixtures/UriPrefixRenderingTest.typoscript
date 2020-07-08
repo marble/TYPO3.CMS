@@ -1,0 +1,55 @@
+config.absRefPrefix =
+page = PAGE
+page {
+  includeCSS {
+    absoluteCSS = {$absoluteCSS}
+    relativeCSS = {$relativeCSS}
+    extensionCSS = {$extensionCSS}
+    externalCSS = {$externalCSS}
+    externalCSS.external = 1
+    externalCSS.excludeFromConcatenation = 1
+    externalCSS.disableCompression = 1
+  }
+
+  includeJS {
+    absoluteJS = {$absoluteJS}
+    relativeJS = {$relativeJS}
+    extensionJS = {$extensionJS}
+    externalJS = {$externalJS}
+    externalJS.external = 1
+    externalJS.excludeFromConcatenation = 1
+    externalJS.disableCompression = 1
+  }
+  20 = IMAGE
+  20 {
+    file = {$localImage}
+  }
+}
+
+[request.getQueryParams()['testAbsRefPrefix'] == 'auto' || request.getParsedBody()['testAbsRefPrefix'] == 'auto']
+  config.absRefPrefix = auto
+[request.getQueryParams()['testAbsRefPrefix'] == 'absolute-with-host' || request.getParsedBody()['testAbsRefPrefix'] == 'absolute-with-host']
+  config.absRefPrefix = http://localhost/
+[request.getQueryParams()['testAbsRefPrefix'] == 'absolute-without-host' || request.getParsedBody()['testAbsRefPrefix'] == 'absolute-without-host']
+  config.absRefPrefix = /
+[end]
+
+[request.getQueryParams()['testCompressor'] == 'concatenate' || request.getParsedBody()['testCompressor'] == 'concatenate']
+  config {
+    concatenateCss = 1
+    concatenateJs = 1
+  }
+[request.getQueryParams()['testCompressor'] == 'compress' || request.getParsedBody()['testCompressor'] == 'compress']
+  config {
+    compressCss = 1
+    compressJs = 1
+  }
+[request.getQueryParams()['testCompressor'] == 'concatenate-and-compress' || request.getParsedBody()['testCompressor'] == 'concatenate-and-compress']
+  config {
+    concatenateCss = 1
+    concatenateJs = 1
+    compressCss = 1
+    compressJs = 1
+    concatenateJsAndCss = 1
+  }
+[end]

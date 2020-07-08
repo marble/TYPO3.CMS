@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Mvc;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,10 @@ namespace TYPO3\CMS\Extbase\Mvc;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Mvc;
+
 /**
  * A generic and very basic response implementation
- *
- * @api
  */
 interface ResponseInterface
 {
@@ -25,7 +24,6 @@ interface ResponseInterface
      * Overrides and sets the content of the response
      *
      * @param string $content The response content
-     * @api
      */
     public function setContent($content);
 
@@ -33,7 +31,6 @@ interface ResponseInterface
      * Appends content to the already existing content.
      *
      * @param string $content More response content
-     * @api
      */
     public function appendContent($content);
 
@@ -41,7 +38,6 @@ interface ResponseInterface
      * Returns the response content without sending it.
      *
      * @return string The response content
-     * @api
      */
     public function getContent();
 
@@ -49,7 +45,6 @@ interface ResponseInterface
      * Returns the response content without sending it.
      *
      * @return string The response content
-     * @api
      */
     public function shutdown();
 }

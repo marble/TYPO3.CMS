@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Resource\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Service;
+
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Resource\Exception\InsufficientFolderReadPermissionsException;
 use TYPO3\CMS\Core\Resource\Folder;
+use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -36,20 +39,25 @@ class UserFileMountService
      * of a selected mount
      *
      * @param array $PA the array with additional configuration options.
-     * @return string The HTML code for the TCEform field
      */
     public function renderTceformsSelectDropdown(&$PA)
     {
+        $allowedStorageIds = array_map(
+            function (ResourceStorage $storage) {
+                return $storage->getUid();
+            },
+            $this->getBackendUserAuthentication()->getFileStorages()
+        );
         // If working for sys_filemounts table
         $storageUid = (int)$PA['row']['base'][0];
         if (!$storageUid) {
             // If working for sys_file_collection table
             $storageUid = (int)$PA['row']['storage'][0];
         }
-        if ($storageUid > 0) {
-            /** @var $storageRepository StorageRepository */
+        if ($storageUid > 0 && in_array($storageUid, $allowedStorageIds, true)) {
+            /** @var StorageRepository $storageRepository */
             $storageRepository = GeneralUtility::makeInstance(StorageRepository::class);
-            /** @var $storage \TYPO3\CMS\Core\Resource\ResourceStorage */
+            /** @var \TYPO3\CMS\Core\Resource\ResourceStorage $storage */
             $storage = $storageRepository->findByUid($storageUid);
             if ($storage === null) {
                 /** @var FlashMessageService $flashMessageService */
@@ -121,10 +129,20 @@ class UserFileMountService
             try {
                 $subFolderItems = $this->getSubfoldersForOptionList($subFolder, $level);
             } catch (InsufficientFolderReadPermissionsException $e) {
-                $subFolderItems  = [];
+                $subFolderItems = [];
             }
             $allFolderItems = array_merge($allFolderItems, $subFolderItems);
         }
         return $allFolderItems;
+    }
+
+    /**
+     * Returns the BE USER Object
+     *
+     * @return BackendUserAuthentication
+     */
+    protected function getBackendUserAuthentication(): BackendUserAuthentication
+    {
+        return $GLOBALS['BE_USER'];
     }
 }

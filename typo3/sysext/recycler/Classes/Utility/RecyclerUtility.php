@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recycler\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Recycler\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recycler\Utility;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
@@ -21,6 +22,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Helper class for the 'recycler' extension.
+ * @internal
  */
 class RecyclerUtility
 {
@@ -34,12 +36,20 @@ class RecyclerUtility
      * as well as the table access rights of the user.
      *
      * @param string $table The table to check access for
-     * @param string $row Record array
+     * @param array $row Record array
      * @return bool Returns TRUE is the user has access, or FALSE if not
      */
     public static function checkAccess($table, $row)
     {
         $backendUser = static::getBackendUser();
+
+        if ($backendUser->isAdmin()) {
+            return true;
+        }
+
+        if (!$backendUser->check('tables_modify', $table)) {
+            return false;
+        }
 
         // Checking if the user has permissions? (Only working as a precaution, because the final permission check is always down in TCE. But it's good to notify the user on beforehand...)
         // First, resetting flags.
@@ -60,9 +70,6 @@ class RecyclerUtility
                 $hasAccess = $backendUser->recordEditAccessInternals($table, $calcPRec);
             }
         }
-        if (!$backendUser->check('tables_modify', $table)) {
-            $hasAccess = false;
-        }
         return $hasAccess;
     }
 
@@ -77,7 +84,7 @@ class RecyclerUtility
     public static function getRecordPath($uid)
     {
         $uid = (int)$uid;
-        $output = ($fullOutput = '/');
+        $output = '/';
         if ($uid === 0) {
             return $output;
         }
@@ -177,7 +184,7 @@ class RecyclerUtility
      * Gets the TCA of the table used in the current context.
      *
      * @param string $tableName Name of the table to get TCA for
-     * @return array|FALSE TCA of the table used in the current context
+     * @return array|false TCA of the table used in the current context
      */
     public static function getTableTCA($tableName)
     {
@@ -209,11 +216,11 @@ class RecyclerUtility
     }
 
     /**
-     * Returns the modifyable tables of the current user
+     * Returns the modifiable tables of the current user
      */
     public static function getModifyableTables()
     {
-        if ((bool)$GLOBALS['BE_USER']->user['admin']) {
+        if ($GLOBALS['BE_USER']->isAdmin()) {
             $tables = array_keys($GLOBALS['TCA']);
         } else {
             $tables = explode(',', $GLOBALS['BE_USER']->groupData['tables_modify']);

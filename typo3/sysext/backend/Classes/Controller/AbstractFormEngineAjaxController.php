@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,9 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Localization\LocalizationFactory;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -36,7 +39,7 @@ abstract class AbstractFormEngineAjaxController
      * @param array $result
      * @return array
      */
-    public function createExecutableStringRepresentationOfRegisteredRequireJsModules(array $result): array
+    protected function createExecutableStringRepresentationOfRegisteredRequireJsModules(array $result): array
     {
         if (empty($result['requireJsModules'])) {
             return [];
@@ -51,11 +54,8 @@ abstract class AbstractFormEngineAjaxController
                 $callback = null;
             } elseif (is_array($module)) {
                 // if $module is an array, callback is possible
-                foreach ($module as $key => $value) {
-                    $moduleName = $key;
-                    $callback = $value;
-                    break;
-                }
+                $callback = reset($module);
+                $moduleName = key($module);
             }
             if ($moduleName !== null) {
                 $inlineCodeKey = $moduleName;
@@ -98,9 +98,9 @@ abstract class AbstractFormEngineAjaxController
      */
     protected function getLabelsFromLocalizationFile($file)
     {
-        /** @var $languageFactory LocalizationFactory */
+        /** @var LocalizationFactory $languageFactory */
         $languageFactory = GeneralUtility::makeInstance(LocalizationFactory::class);
-        $language = $GLOBALS['LANG']->lang;
+        $language = $this->getLanguageService()->lang;
         $localizationArray = $languageFactory->getParsedData($file, $language);
         if (is_array($localizationArray) && !empty($localizationArray)) {
             if (!empty($localizationArray[$language])) {
@@ -121,5 +121,13 @@ abstract class AbstractFormEngineAjaxController
             }
         }
         return $labelArray;
+    }
+
+    /**
+     * @return LanguageService|null
+     */
+    protected function getLanguageService(): ?LanguageService
+    {
+        return $GLOBALS['LANG'] ?? null;
     }
 }

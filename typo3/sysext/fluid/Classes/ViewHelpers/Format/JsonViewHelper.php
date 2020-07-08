@@ -1,10 +1,7 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,38 +13,50 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Fluid\ViewHelpers\Format;
+
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithContentArgumentAndRenderStatic;
 
 /**
- * Wrapper for PHPs json_encode function.
+ * Wrapper for PHPs :php:`json_encode` function.
+ * See https://www.php.net/manual/function.json-encode.php.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="encoding a view variable">
- * {someArray -> f:format.json()}
- * </code>
- * <output>
- * ["array","values"]
- * // depending on the value of {someArray}
- * </output>
+ * Encoding a view variable
+ * ------------------------
  *
- * <code title="associative array">
- * {f:format.json(value: {foo: 'bar', bar: 'baz'})}
- * </code>
- * <output>
- * {"foo":"bar","bar":"baz"}
- * </output>
+ * ::
  *
- * <code title="non-associative array with forced object">
- * {f:format.json(value: {0: 'bar', 1: 'baz'}, forceObject: true)}
- * </code>
- * <output>
- * {"0":"bar","1":"baz"}
- * </output>
+ *    {someArray -> f:format.json()}
  *
- * @api
+ * ``["array","values"]``
+ * Depending on the value of ``{someArray}``.
+ *
+ * Associative array
+ * -----------------
+ *
+ * ::
+ *
+ *    {f:format.json(value: {foo: 'bar', bar: 'baz'})}
+ *
+ * ``{"foo":"bar","bar":"baz"}``
+ *
+ * Non associative array with forced object
+ * ----------------------------------------
+ *
+ * ::
+ *
+ *    {f:format.json(value: {0: 'bar', 1: 'baz'}, forceObject: true)}
+ *
+ * ``{"0":"bar","1":"baz"}``
  */
 class JsonViewHelper extends AbstractViewHelper
 {
@@ -79,7 +88,7 @@ class JsonViewHelper extends AbstractViewHelper
      * @param array $arguments
      * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext
-     * @see http://www.php.net/manual/en/function.json-encode.php
+     * @see https://www.php.net/manual/function.json-encode.php
      * @return string
      */
     public static function renderStatic(array $arguments, \Closure $renderChildrenClosure, RenderingContextInterface $renderingContext)

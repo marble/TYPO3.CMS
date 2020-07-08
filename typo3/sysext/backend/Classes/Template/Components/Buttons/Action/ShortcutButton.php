@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Template\Components\Buttons\Action;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Template\Components\Buttons\Action;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Template\Components\Buttons\Action;
 
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
 use TYPO3\CMS\Backend\Template\Components\Buttons\ButtonInterface;
@@ -177,7 +178,7 @@ class ShortcutButton implements ButtonInterface, PositionInterface
      */
     public function getType()
     {
-        return get_class($this);
+        return static::class;
     }
 
     /**
@@ -239,7 +240,7 @@ class ShortcutButton implements ButtonInterface, PositionInterface
 
         // Set default GET parameters
         if ($emptyGetVariables) {
-            $this->getVariables = ['id', 'M'];
+            $this->getVariables = ['id', 'route'];
         }
 
         // Automatically determine module name in Extbase context

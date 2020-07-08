@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,19 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Class ContextHelpAjaxController
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class ContextHelpAjaxController
 {
@@ -30,21 +33,21 @@ class ContextHelpAjaxController
      * The main dispatcher function. Collect data and prepare HTML output.
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
+     * @throws \RuntimeException
      */
-    public function getHelpAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function getHelpAction(ServerRequestInterface $request): ResponseInterface
     {
-        $params = isset($request->getParsedBody()['params']) ? $request->getParsedBody()['params'] : $request->getQueryParams()['params'];
-        if ($params['action'] === 'getContextHelp') {
-            $result = $this->getContextHelp($params['table'], $params['field']);
-            $response->getBody()->write(json_encode([
-                'title' => $result['title'],
-                'content' => $result['description'],
-                'link' => $result['moreInfo']
-            ]));
+        $params = $request->getParsedBody()['params'] ?? $request->getQueryParams()['params'];
+        if (($params['action'] ?? '') !== 'getContextHelp') {
+            throw new \RuntimeException('Action must be set to "getContextHelp"', 1518787887);
         }
-        return $response;
+        $result = $this->getContextHelp($params['table'], $params['field']);
+        return new JsonResponse([
+            'title' => $result['title'],
+            'content' => $result['description'],
+            'link' => $result['moreInfo']
+        ]);
     }
 
     /**
@@ -61,7 +64,7 @@ class ContextHelpAjaxController
         $moreIcon = $helpTextArray['moreInfo'] ? $iconFactory->getIcon('actions-view-go-forward', Icon::SIZE_SMALL)->render() : '';
         return [
             'title' => $helpTextArray['title'],
-            'description' => '<p class="t3-help-short' . ($moreIcon ? ' tipIsLinked' : '') . '">' . $helpTextArray['description'] . $moreIcon . '</p>',
+            'description' => '<p class="help-short' . ($moreIcon ? ' help-has-link' : '') . '">' . $helpTextArray['description'] . $moreIcon . '</p>',
             'id' => $table . '.' . $field,
             'moreInfo' => $helpTextArray['moreInfo']
         ];

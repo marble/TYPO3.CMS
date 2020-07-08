@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
 
@@ -36,6 +37,9 @@ class DatabaseParentPageRow extends AbstractDatabaseRecordProvider implements Fo
             if ($result['vanillaUid'] < 0) {
                 // vanillaUid points to a neighbor record in same table - get its record and its pid from there to find parent record
                 $neighborRow = $this->getRecordFromDatabase($result['tableName'], abs($result['vanillaUid']));
+                if (!empty($neighborRow['t3ver_oid'])) {
+                    $neighborRow = $this->getRecordFromDatabase($result['tableName'], (int)$neighborRow['t3ver_oid']);
+                }
                 $result['neighborRow'] = $neighborRow;
                 // uid of page the record is located in
                 $neighborRowPid = (int)$neighborRow['pid'];

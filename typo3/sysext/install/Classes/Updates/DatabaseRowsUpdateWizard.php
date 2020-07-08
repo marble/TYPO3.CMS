@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Install\Updates;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,13 +15,14 @@ namespace TYPO3\CMS\Install\Updates;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Updates;
+
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Registry;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Install\Updates\RowUpdater\ImageCropUpdater;
-use TYPO3\CMS\Install\Updates\RowUpdater\L10nModeUpdater;
 use TYPO3\CMS\Install\Updates\RowUpdater\RowUpdaterInterface;
-use TYPO3\CMS\Install\Updates\RowUpdater\RteLinkSyntaxUpdater;
+use TYPO3\CMS\Install\Updates\RowUpdater\WorkspaceVersionRecordsMigration;
 
 /**
  * This is a generic updater to migrate content of TCA rows.
@@ -39,42 +40,50 @@ use TYPO3\CMS\Install\Updates\RowUpdater\RteLinkSyntaxUpdater;
  * A start position pointer is stored in the registry that is updated during
  * the run process, so if for instance the PHP process runs into a timeout,
  * the job can restart at the position it stopped.
+ * @internal This class is only meant to be used within EXT:install and is not part of the TYPO3 Core API.
  */
-class DatabaseRowsUpdateWizard extends AbstractUpdate
+class DatabaseRowsUpdateWizard implements UpgradeWizardInterface, RepeatableInterface
 {
-    /**
-     * @var string Title of this updater
-     */
-    protected $title = 'Execute database migrations on single rows';
-
     /**
      * @var array Single classes that may update rows
      */
     protected $rowUpdater = [
-        L10nModeUpdater::class,
-        ImageCropUpdater::class,
-        RteLinkSyntaxUpdater::class,
+        WorkspaceVersionRecordsMigration::class,
     ];
 
     /**
-     * Checks if an update is needed by looking up in registry if all
-     * registered update row classes are marked as done or not.
-     *
-     * @param string &$description The description for the update
-     * @return bool Whether an update is needed (TRUE) or not (FALSE)
+     * @internal
+     * @return string[]
      */
-    public function checkForUpdate(&$description)
+    public function getAvailableRowUpdater(): array
     {
-        $updateNeeded = false;
-        $rowUpdaterNotExecuted = $this->getRowUpdatersToExecute();
-        if (!empty($rowUpdaterNotExecuted)) {
-            $updateNeeded = true;
-        }
-        if (!$updateNeeded) {
-            return false;
-        }
+        return $this->rowUpdater;
+    }
 
-        $description = 'Some row updaters have not been executed:';
+    /**
+     * @return string Unique identifier of this updater
+     */
+    public function getIdentifier(): string
+    {
+        return 'databaseRowsUpdateWizard';
+    }
+
+    /**
+     * @return string Title of this updater
+     */
+    public function getTitle(): string
+    {
+        return 'Execute database migrations on single rows';
+    }
+
+    /**
+     * @return string Longer description of this updater
+     * @throws \RuntimeException
+     */
+    public function getDescription(): string
+    {
+        $rowUpdaterNotExecuted = $this->getRowUpdatersToExecute();
+        $description = 'Row updaters that have not been executed:';
         foreach ($rowUpdaterNotExecuted as $rowUpdateClassName) {
             $rowUpdater = GeneralUtility::makeInstance($rowUpdateClassName);
             if (!$rowUpdater instanceof RowUpdaterInterface) {
@@ -83,22 +92,37 @@ class DatabaseRowsUpdateWizard extends AbstractUpdate
                     1484066647
                 );
             }
-            $description .= '<br />' . htmlspecialchars($rowUpdater->getTitle());
+            $description .= LF . $rowUpdater->getTitle();
         }
+        return $description;
+    }
 
-        return $updateNeeded;
+    /**
+     * @return bool True if at least one row updater is not marked done
+     */
+    public function updateNecessary(): bool
+    {
+        return !empty($this->getRowUpdatersToExecute());
+    }
+
+    /**
+     * @return string[] All new fields and tables must exist
+     */
+    public function getPrerequisites(): array
+    {
+        return [
+            DatabaseUpdatedPrerequisite::class
+        ];
     }
 
     /**
      * Performs the configuration update.
      *
-     * @param array &$databaseQueries Queries done in this update - not filled for this updater
-     * @param string &$customMessage Custom message
      * @return bool
      * @throws \Doctrine\DBAL\ConnectionException
      * @throws \Exception
      */
-    public function performUpdate(array &$databaseQueries, &$customMessage)
+    public function executeUpdate(): bool
     {
         $registry = GeneralUtility::makeInstance(Registry::class);
 
@@ -137,9 +161,8 @@ class DatabaseRowsUpdateWizard extends AbstractUpdate
         foreach ($listOfAllTables as $key => $table) {
             if ($table === $startPosition['table']) {
                 break;
-            } else {
-                unset($listOfAllTables[$key]);
             }
+            unset($listOfAllTables[$key]);
         }
 
         // Ask each row updater if it potentially has field updates for rows of a table
@@ -180,7 +203,7 @@ class DatabaseRowsUpdateWizard extends AbstractUpdate
                 $updatedFields = array_diff_assoc($row, $rowBefore);
                 if (empty($updatedFields)) {
                     // Updaters changed no field of that row
-                    $rowCountWithoutUpdate ++;
+                    $rowCountWithoutUpdate++;
                     if ($rowCountWithoutUpdate >= 200) {
                         // Update startPosition if there were many rows without data change
                         $startPosition = [
@@ -200,22 +223,13 @@ class DatabaseRowsUpdateWizard extends AbstractUpdate
                         // Target table and sys_registry table are on the same connection, use a transaction
                         $connectionForTable->beginTransaction();
                         try {
-                            $connectionForTable->update(
+                            $this->updateOrDeleteRow(
+                                $connectionForTable,
+                                $connectionForTable,
                                 $table,
+                                (int)$rowBefore['uid'],
                                 $updatedFields,
-                                [
-                                    'uid' => $rowBefore['uid'],
-                                ]
-                            );
-                            $connectionForTable->update(
-                                'sys_registry',
-                                [
-                                    'entry_value' => serialize($startPosition),
-                                ],
-                                [
-                                    'entry_namespace' => 'installUpdateRows',
-                                    'entry_key' => 'rowUpdatePosition',
-                                ]
+                                $startPosition
                             );
                             $connectionForTable->commit();
                         } catch (\Exception $up) {
@@ -225,22 +239,13 @@ class DatabaseRowsUpdateWizard extends AbstractUpdate
                     } else {
                         // Different connections for table and sys_registry -> execute two
                         // distinct queries and hope for the best.
-                        $connectionForTable->update(
+                        $this->updateOrDeleteRow(
+                            $connectionForTable,
+                            $connectionForSysRegistry,
                             $table,
+                            (int)$rowBefore['uid'],
                             $updatedFields,
-                            [
-                                'uid' => $rowBefore['uid'],
-                            ]
-                        );
-                        $connectionForSysRegistry->update(
-                            'sys_registry',
-                            [
-                                'entry_value' => serialize($startPosition),
-                            ],
-                            [
-                                'entry_namespace' => 'installUpdateRows',
-                                'entry_key' => 'rowUpdatePosition',
-                            ]
+                            $startPosition
                         );
                     }
                 }
@@ -300,5 +305,44 @@ class DatabaseRowsUpdateWizard extends AbstractUpdate
             $registry->set('installUpdateRows', 'rowUpdatePosition', $startPosition);
         }
         return $startPosition;
+    }
+
+    /**
+     * @param Connection $connectionForTable
+     * @param string $table
+     * @param array $updatedFields
+     * @param int $uid
+     * @param Connection $connectionForSysRegistry
+     * @param array $startPosition
+     */
+    protected function updateOrDeleteRow(Connection $connectionForTable, Connection $connectionForSysRegistry, string $table, int $uid, array $updatedFields, array $startPosition): void
+    {
+        $deleteField = $GLOBALS['TCA'][$table]['ctrl']['delete'] ?? null;
+        if ($deleteField === null && $updatedFields['deleted'] === 1) {
+            $connectionForTable->delete(
+                $table,
+                [
+                    'uid' => $uid,
+                ]
+            );
+        } else {
+            $connectionForTable->update(
+                $table,
+                $updatedFields,
+                [
+                    'uid' => $uid,
+                ]
+            );
+        }
+        $connectionForSysRegistry->update(
+            'sys_registry',
+            [
+                'entry_value' => serialize($startPosition),
+            ],
+            [
+                'entry_namespace' => 'installUpdateRows',
+                'entry_key' => 'rowUpdatePosition',
+            ]
+        );
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\IndexedSearch\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +13,25 @@ namespace TYPO3\CMS\IndexedSearch\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
+namespace TYPO3\CMS\IndexedSearch\ViewHelpers\Format;
+
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
  * FlagValue viewhelper
+ * @internal
  */
 class FlagValueViewHelper extends AbstractViewHelper
 {
     use CompileWithRenderStatic;
 
     /**
-     * Sets up the needed arguments for this View Helper.
+     * Sets up the needed arguments for this ViewHelper.
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('flags', 'int', '', true);
     }
 

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,41 +13,32 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Resource;
+
+use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\FileReference;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
- * Testcase for the file class of the TYPO3 FAL
+ * Test case
  */
-class FileReferenceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FileReferenceTest extends UnitTestCase
 {
-    /**
-     * @var array A backup of registered singleton instances
-     */
-    protected $singletonInstances = [];
-
-    protected function setUp()
-    {
-        $this->singletonInstances = \TYPO3\CMS\Core\Utility\GeneralUtility::getSingletonInstances();
-        \TYPO3\CMS\Core\Utility\GeneralUtility::purgeInstances();
-    }
-
-    protected function tearDown()
-    {
-        \TYPO3\CMS\Core\Utility\GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
-    }
-
     /**
      * @param array $fileReferenceProperties
      * @param array $originalFileProperties
-     * @return \TYPO3\CMS\Core\Resource\FileReference|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @return \TYPO3\CMS\Core\Resource\FileReference|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected function prepareFixture(array $fileReferenceProperties, array $originalFileProperties)
     {
-        $fixture = $this->getAccessibleMock(\TYPO3\CMS\Core\Resource\FileReference::class, ['dummy'], [], '', false);
-        $originalFileMock = $this->getAccessibleMock(\TYPO3\CMS\Core\Resource\File::class, [], [], '', false);
-        $originalFileMock->expects($this->any())
+        $fixture = $this->getAccessibleMock(FileReference::class, ['dummy'], [], '', false);
+        $originalFileMock = $this->getAccessibleMock(File::class, [], [], '', false);
+        $originalFileMock->expects(self::any())
             ->method('getProperties')
-            ->will($this->returnValue($originalFileProperties)
-        );
+            ->willReturn(
+                $originalFileProperties
+            );
         $fixture->_set('originalFile', $originalFileMock);
         $fixture->_set('propertiesOfFileReference', $fileReferenceProperties);
 
@@ -94,7 +84,7 @@ class FileReferenceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $fixture = $this->prepareFixture($fileReferenceProperties, $originalFileProperties);
         $actual = $fixture->getProperties();
-        $this->assertSame($expectedMergedProperties, $actual);
+        self::assertSame($expectedMergedProperties, $actual);
     }
 
     /**
@@ -108,7 +98,7 @@ class FileReferenceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $fixture = $this->prepareFixture($fileReferenceProperties, $originalFileProperties);
         foreach ($expectedMergedProperties as $key => $_) {
-            $this->assertTrue($fixture->hasProperty($key));
+            self::assertTrue($fixture->hasProperty($key));
         }
     }
 
@@ -123,7 +113,7 @@ class FileReferenceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $fixture = $this->prepareFixture($fileReferenceProperties, $originalFileProperties);
         foreach ($expectedMergedProperties as $key => $expectedValue) {
-            $this->assertSame($expectedValue, $fixture->getProperty($key));
+            self::assertSame($expectedValue, $fixture->getProperty($key));
         }
     }
 
@@ -140,7 +130,7 @@ class FileReferenceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->expectExceptionCode(1314226805);
 
         $fixture = $this->prepareFixture($fileReferenceProperties, $originalFileProperties);
-        $fixture->getProperty($this->getUniqueId('nothingHere'));
+        $fixture->getProperty(StringUtility::getUniqueId('nothingHere'));
     }
 
     /**
@@ -153,7 +143,7 @@ class FileReferenceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getPropertyDoesNotThrowExceptionForPropertyOnlyAvailableInOriginalFile($fileReferenceProperties, $originalFileProperties)
     {
         $fixture = $this->prepareFixture($fileReferenceProperties, $originalFileProperties);
-        $this->assertSame($originalFileProperties['file_only_property'], $fixture->getProperty('file_only_property'));
+        self::assertSame($originalFileProperties['file_only_property'], $fixture->getProperty('file_only_property'));
     }
 
     /**

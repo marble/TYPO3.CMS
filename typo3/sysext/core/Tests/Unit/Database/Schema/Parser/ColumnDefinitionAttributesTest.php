@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,14 +15,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\CreateColumnDefinitionItem;
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\CreateTableStatement;
 use TYPO3\CMS\Core\Database\Schema\Parser\Parser;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for CreateColumnDefinitionItem attributes
  */
-class ColumnDefinitionAttributesTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ColumnDefinitionAttributesTest extends UnitTestCase
 {
     /**
      * Each parameter array consists of the following values:
@@ -364,17 +366,17 @@ class ColumnDefinitionAttributesTest extends \TYPO3\TestingFramework\Core\Unit\U
         $statement = sprintf('CREATE TABLE `aTable`(`aField` INT(11) %s);', $columnAttribute);
         $subject = $this->createSubject($statement);
 
-        $this->assertInstanceOf(CreateColumnDefinitionItem::class, $subject);
-        $this->assertSame($allowNull, $subject->allowNull);
-        $this->assertSame($hasDefaultValue, $subject->hasDefaultValue);
-        $this->assertSame($defaultValue, $subject->defaultValue);
-        $this->assertSame($createIndex, $subject->index);
-        $this->assertSame($createUniqueIndex, $subject->unique);
-        $this->assertSame($isPrimaryKey, $subject->primary);
-        $this->assertSame($autoIncrement, $subject->autoIncrement);
-        $this->assertSame($comment, $subject->comment);
-        $this->assertSame($columnFormat, $subject->columnFormat);
-        $this->assertSame($storage, $subject->storage);
+        self::assertInstanceOf(CreateColumnDefinitionItem::class, $subject);
+        self::assertSame($allowNull, $subject->allowNull);
+        self::assertSame($hasDefaultValue, $subject->hasDefaultValue);
+        self::assertSame($defaultValue, $subject->defaultValue);
+        self::assertSame($createIndex, $subject->index);
+        self::assertSame($createUniqueIndex, $subject->unique);
+        self::assertSame($isPrimaryKey, $subject->primary);
+        self::assertSame($autoIncrement, $subject->autoIncrement);
+        self::assertSame($comment, $subject->comment);
+        self::assertSame($columnFormat, $subject->columnFormat);
+        self::assertSame($storage, $subject->storage);
     }
 
     /**

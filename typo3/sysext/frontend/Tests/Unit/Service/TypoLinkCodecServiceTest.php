@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Tests\Unit\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Frontend\Tests\Unit\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Tests\Unit\Service;
+
 use TYPO3\CMS\Frontend\Service\TypoLinkCodecService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TypoLinkCodecServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TypoLinkCodecServiceTest extends UnitTestCase
 {
     /**
      * @var TypoLinkCodecService
@@ -29,8 +31,9 @@ class TypoLinkCodecServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * Set up test subject
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = new TypoLinkCodecService();
     }
 
@@ -38,11 +41,11 @@ class TypoLinkCodecServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      * @test
      * @dataProvider encodeReturnsExpectedResultDataProvider
      * @param array $parts
-     * @param string$expected
+     * @param string $expected
      */
     public function encodeReturnsExpectedResult(array $parts, $expected)
     {
-        $this->assertSame($expected, $this->subject->encode($parts));
+        self::assertSame($expected, $this->subject->encode($parts));
     }
 
     /**
@@ -89,7 +92,7 @@ class TypoLinkCodecServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
      */
     public function decodeReturnsExpectedResult($typoLink, array $expected)
     {
-        $this->assertSame($expected, $this->subject->decode($typoLink));
+        self::assertSame($expected, $this->subject->decode($typoLink));
     }
 
     /**

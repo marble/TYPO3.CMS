@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tree\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,14 @@ namespace TYPO3\CMS\Backend\Tree\View;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tree\View;
+
+use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+
 /**
  * Position map class for moving pages,
- * previously resided in typo3/move_el.php
+ * @internal This class is a TYPO3 Backend implementation and is not considered part of the Public TYPO3 API.
  */
 class PageMovingPagePositionMap extends PagePositionMap
 {
@@ -39,9 +43,13 @@ class PageMovingPagePositionMap extends PagePositionMap
      * @param int $newPagePID New page id.
      * @return string Onclick attribute content
      */
-    public function onClickEvent($pid, $newPagePID)
+    public function getActionLink($pid, $newPagePID): string
     {
-        return 'window.location.href=' . \TYPO3\CMS\Core\Utility\GeneralUtility::quoteJSvalue(\TYPO3\CMS\Backend\Utility\BackendUtility::getModuleUrl('tce_db') . '&cmd[pages][' . $GLOBALS['SOBE']->moveUid . '][' . $this->moveOrCopy . ']=' . $pid . '&redirect=' . rawurlencode($this->R_URI) . '&prErr=1&uPT=1') . ';return false;';
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        return (string)$uriBuilder->buildUriFromRoute('tce_db', [
+            'cmd[pages][' . $this->moveUid . '][' . $this->moveOrCopy . ']' => $pid,
+            'redirect' => $this->R_URI,
+        ]);
     }
 
     /**
@@ -53,7 +61,7 @@ class PageMovingPagePositionMap extends PagePositionMap
      */
     public function linkPageTitle($str, $rec)
     {
-        $url = \TYPO3\CMS\Core\Utility\GeneralUtility::linkThisScript(['uid' => (int)$rec['uid'], 'moveUid' => $GLOBALS['SOBE']->moveUid]);
+        $url = GeneralUtility::linkThisScript(['uid' => (int)$rec['uid'], 'moveUid' => $this->moveUid]);
         return '<a href="' . htmlspecialchars($url) . '">' . $str . '</a>';
     }
 
@@ -67,6 +75,6 @@ class PageMovingPagePositionMap extends PagePositionMap
      */
     public function boldTitle($t_code, $dat, $id)
     {
-        return parent::boldTitle($t_code, $dat, $GLOBALS['SOBE']->moveUid);
+        return parent::boldTitle($t_code, $dat, $this->moveUid);
     }
 }

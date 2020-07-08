@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Database\Query\Restriction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Database\Query\Restriction;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database\Query\Restriction;
+
 use TYPO3\CMS\Core\Database\Query\Expression\CompositeExpression;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -28,6 +30,11 @@ abstract class AbstractRestrictionContainer implements QueryRestrictionContainer
      * @var QueryRestrictionInterface[]
      */
     protected $restrictions = [];
+
+    /**
+     * @var QueryRestrictionInterface[]
+     */
+    protected $enforcedRestrictions = [];
 
     /**
      * Main method to build expressions for given tables.
@@ -51,9 +58,9 @@ abstract class AbstractRestrictionContainer implements QueryRestrictionContainer
      *
      * @return QueryRestrictionContainerInterface
      */
-    public function removeAll()
+    public function removeAll(): QueryRestrictionContainerInterface
     {
-        $this->restrictions = [];
+        $this->restrictions = $this->enforcedRestrictions;
         return $this;
     }
 
@@ -63,9 +70,9 @@ abstract class AbstractRestrictionContainer implements QueryRestrictionContainer
      * @param string $restrictionType Class name of the restriction to be removed
      * @return QueryRestrictionContainerInterface
      */
-    public function removeByType(string $restrictionType)
+    public function removeByType(string $restrictionType): QueryRestrictionContainerInterface
     {
-        unset($this->restrictions[$restrictionType]);
+        unset($this->restrictions[$restrictionType], $this->enforcedRestrictions[$restrictionType]);
         return $this;
     }
 
@@ -75,9 +82,12 @@ abstract class AbstractRestrictionContainer implements QueryRestrictionContainer
      * @param QueryRestrictionInterface $restriction
      * @return QueryRestrictionContainerInterface
      */
-    public function add(QueryRestrictionInterface $restriction)
+    public function add(QueryRestrictionInterface $restriction): QueryRestrictionContainerInterface
     {
         $this->restrictions[get_class($restriction)] = $restriction;
+        if ($restriction instanceof EnforceableQueryRestrictionInterface && $restriction->isEnforced()) {
+            $this->enforcedRestrictions[get_class($restriction)] = $restriction;
+        }
         return $this;
     }
 
@@ -88,7 +98,7 @@ abstract class AbstractRestrictionContainer implements QueryRestrictionContainer
      * @param string $restrictionClass
      * @return QueryRestrictionInterface
      */
-    protected function createRestriction($restrictionClass)
+    protected function createRestriction($restrictionClass): QueryRestrictionInterface
     {
         return GeneralUtility::makeInstance($restrictionClass);
     }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,26 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Unit\Domain\Model;
+
+use TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup;
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class BackendUserGroupTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup
      */
-    protected $subject = null;
+    protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = new \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup();
+        parent::setUp();
+        $this->subject = new BackendUserGroup();
     }
 
     /**
@@ -34,7 +40,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getTitleInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getTitle());
+        self::assertSame('', $this->subject->getTitle());
     }
 
     /**
@@ -44,7 +50,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $title = 'foo bar';
         $this->subject->setTitle($title);
-        $this->assertSame($title, $this->subject->getTitle());
+        self::assertSame($title, $this->subject->getTitle());
     }
 
     /**
@@ -52,7 +58,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getDescriptionInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getDescription());
+        self::assertSame('', $this->subject->getDescription());
     }
 
     /**
@@ -62,7 +68,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $description = 'foo bar';
         $this->subject->setDescription($description);
-        $this->assertSame($description, $this->subject->getDescription());
+        self::assertSame($description, $this->subject->getDescription());
     }
 
     /**
@@ -70,9 +76,9 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function setSubGroupsSetsSubgroups()
     {
-        $subGroups = new \TYPO3\CMS\Extbase\Persistence\ObjectStorage();
+        $subGroups = new ObjectStorage();
         $this->subject->setSubGroups($subGroups);
-        $this->assertSame($subGroups, $this->subject->getSubGroups());
+        self::assertSame($subGroups, $this->subject->getSubGroups());
     }
 
     /**
@@ -80,17 +86,17 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function anSubGroupCanBeRemoved()
     {
-        $group1 = new \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup();
+        $group1 = new BackendUserGroup();
         $group1->setTitle('foo');
-        $group2 = new \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup();
+        $group2 = new BackendUserGroup();
         $group2->setTitle('bar');
         $this->subject->addSubGroup($group1);
         $this->subject->addSubGroup($group2);
-        $this->assertEquals(count($this->subject->getSubGroups()), 2);
+        self::assertEquals(count($this->subject->getSubGroups()), 2);
         $this->subject->removeSubGroup($group1);
-        $this->assertEquals(count($this->subject->getSubGroups()), 1);
+        self::assertEquals(count($this->subject->getSubGroups()), 1);
         $this->subject->removeSubGroup($group2);
-        $this->assertEquals(count($this->subject->getSubGroups()), 0);
+        self::assertEquals(count($this->subject->getSubGroups()), 0);
     }
 
     /**
@@ -98,14 +104,14 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function allSubGroupsCanBeRemoved()
     {
-        $group1 = new \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup();
+        $group1 = new BackendUserGroup();
         $group1->setTitle('foo');
-        $group2 = new \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup();
+        $group2 = new BackendUserGroup();
         $group2->setTitle('bar');
         $this->subject->addSubGroup($group1);
         $this->subject->addSubGroup($group2);
         $this->subject->removeAllSubGroups();
-        $this->assertEquals(count($this->subject->getSubGroups()), 0);
+        self::assertEquals(count($this->subject->getSubGroups()), 0);
     }
 
     /**
@@ -113,7 +119,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getModulesInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getModules());
+        self::assertSame('', $this->subject->getModules());
     }
 
     /**
@@ -123,7 +129,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $modules = 'foo,bar';
         $this->subject->setModules($modules);
-        $this->assertSame($modules, $this->subject->getModules());
+        self::assertSame($modules, $this->subject->getModules());
     }
 
     /**
@@ -131,7 +137,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getTablesListeningInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getTablesListening());
+        self::assertSame('', $this->subject->getTablesListening());
     }
 
     /**
@@ -141,7 +147,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $tablesListening = 'foo,bar';
         $this->subject->setTablesListening($tablesListening);
-        $this->assertSame($tablesListening, $this->subject->getTablesListening());
+        self::assertSame($tablesListening, $this->subject->getTablesListening());
     }
 
     /**
@@ -149,7 +155,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getTablesModifyInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getTablesModify());
+        self::assertSame('', $this->subject->getTablesModify());
     }
 
     /**
@@ -157,7 +163,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getPageTypesInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getPageTypes());
+        self::assertSame('', $this->subject->getPageTypes());
     }
 
     /**
@@ -167,7 +173,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $pageTypes = 'foo,bar';
         $this->subject->setPageTypes($pageTypes);
-        $this->assertSame($pageTypes, $this->subject->getPageTypes());
+        self::assertSame($pageTypes, $this->subject->getPageTypes());
     }
 
     /**
@@ -177,7 +183,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $tablesModify = 'foo,bar';
         $this->subject->setTablesModify($tablesModify);
-        $this->assertSame($tablesModify, $this->subject->getTablesModify());
+        self::assertSame($tablesModify, $this->subject->getTablesModify());
     }
 
     /**
@@ -185,7 +191,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getAllowedExcludeFieldsInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getAllowedExcludeFields());
+        self::assertSame('', $this->subject->getAllowedExcludeFields());
     }
 
     /**
@@ -195,7 +201,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $allowedExcludeFields = 'foo,bar';
         $this->subject->setAllowedExcludeFields($allowedExcludeFields);
-        $this->assertSame($allowedExcludeFields, $this->subject->getAllowedExcludeFields());
+        self::assertSame($allowedExcludeFields, $this->subject->getAllowedExcludeFields());
     }
 
     /**
@@ -203,7 +209,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getExplicitlyAllowAndDenyInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getExplicitlyAllowAndDeny());
+        self::assertSame('', $this->subject->getExplicitlyAllowAndDeny());
     }
 
     /**
@@ -213,7 +219,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $explicitlyAllowAndDeny = 'foo,bar';
         $this->subject->setExplicitlyAllowAndDeny($explicitlyAllowAndDeny);
-        $this->assertSame($explicitlyAllowAndDeny, $this->subject->getExplicitlyAllowAndDeny());
+        self::assertSame($explicitlyAllowAndDeny, $this->subject->getExplicitlyAllowAndDeny());
     }
 
     /**
@@ -221,7 +227,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getAllowedLanguagesInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getAllowedLanguages());
+        self::assertSame('', $this->subject->getAllowedLanguages());
     }
 
     /**
@@ -231,7 +237,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $allowedLanguages = '1,0';
         $this->subject->setAllowedLanguages($allowedLanguages);
-        $this->assertSame($allowedLanguages, $this->subject->getAllowedLanguages());
+        self::assertSame($allowedLanguages, $this->subject->getAllowedLanguages());
     }
 
     /**
@@ -239,7 +245,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getWorkspacePermissionInitiallyReturnsFalse()
     {
-        $this->assertFalse($this->subject->getWorkspacePermission());
+        self::assertFalse($this->subject->getWorkspacePermission());
     }
 
     /**
@@ -248,7 +254,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function setWorkspacePermissionSetsWorkspacePermission()
     {
         $this->subject->setWorkspacePermissions(true);
-        $this->assertTrue($this->subject->getWorkspacePermission());
+        self::assertTrue($this->subject->getWorkspacePermission());
     }
 
     /**
@@ -256,7 +262,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getDatabaseMountsInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getDatabaseMounts());
+        self::assertSame('', $this->subject->getDatabaseMounts());
     }
 
     /**
@@ -266,7 +272,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $mounts = '1,42';
         $this->subject->setDatabaseMounts($mounts);
-        $this->assertSame($mounts, $this->subject->getDatabaseMounts());
+        self::assertSame($mounts, $this->subject->getDatabaseMounts());
     }
 
     /**
@@ -274,7 +280,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getFileOperationPermissionsInitiallyReturnsZero()
     {
-        $this->assertSame(0, $this->subject->getFileOperationPermissions());
+        self::assertSame(0, $this->subject->getFileOperationPermissions());
     }
 
     /**
@@ -284,7 +290,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $permission = 7;
         $this->subject->setFileOperationPermissions($permission);
-        $this->assertSame($permission, $this->subject->getFileOperationPermissions());
+        self::assertSame($permission, $this->subject->getFileOperationPermissions());
     }
 
     /**
@@ -293,11 +299,11 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function getIsFileOperationAllowedReturnsFalse()
     {
         $this->subject->setFileOperationPermissions(0);
-        $this->assertFalse($this->subject->isFileOperationAllowed());
+        self::assertFalse($this->subject->isFileOperationAllowed());
         $this->subject->setFileOperationPermissions(2);
-        $this->assertFalse($this->subject->isFileOperationAllowed());
+        self::assertFalse($this->subject->isFileOperationAllowed());
         $this->subject->setFileOperationPermissions(6);
-        $this->assertFalse($this->subject->isFileOperationAllowed());
+        self::assertFalse($this->subject->isFileOperationAllowed());
     }
 
     /**
@@ -306,9 +312,9 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function getIsFileOperationAllowedReturnsTrue()
     {
         $this->subject->setFileOperationPermissions(1);
-        $this->assertTrue($this->subject->isFileOperationAllowed());
+        self::assertTrue($this->subject->isFileOperationAllowed());
         $this->subject->setFileOperationPermissions(3);
-        $this->assertTrue($this->subject->isFileOperationAllowed());
+        self::assertTrue($this->subject->isFileOperationAllowed());
     }
 
     /**
@@ -318,7 +324,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $this->subject->setFileOperationPermissions(0);
         $this->subject->setFileOperationAllowed(true);
-        $this->assertTrue($this->subject->isFileOperationAllowed());
+        self::assertTrue($this->subject->isFileOperationAllowed());
     }
 
     /**
@@ -327,11 +333,11 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function getIsDirectoryRemoveRecursivelyAllowedReturnsFalse()
     {
         $this->subject->setFileOperationPermissions(1);
-        $this->assertFalse($this->subject->isDirectoryRemoveRecursivelyAllowed());
+        self::assertFalse($this->subject->isDirectoryRemoveRecursivelyAllowed());
         $this->subject->setFileOperationPermissions(15);
-        $this->assertFalse($this->subject->isDirectoryRemoveRecursivelyAllowed());
+        self::assertFalse($this->subject->isDirectoryRemoveRecursivelyAllowed());
         $this->subject->setFileOperationPermissions(7);
-        $this->assertFalse($this->subject->isDirectoryRemoveRecursivelyAllowed());
+        self::assertFalse($this->subject->isDirectoryRemoveRecursivelyAllowed());
     }
 
     /**
@@ -340,9 +346,9 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function getIsDirectoryRemoveRecursivelyAllowedReturnsTrue()
     {
         $this->subject->setFileOperationPermissions(16);
-        $this->assertTrue($this->subject->isDirectoryRemoveRecursivelyAllowed());
+        self::assertTrue($this->subject->isDirectoryRemoveRecursivelyAllowed());
         $this->subject->setFileOperationPermissions(31);
-        $this->assertTrue($this->subject->isDirectoryRemoveRecursivelyAllowed());
+        self::assertTrue($this->subject->isDirectoryRemoveRecursivelyAllowed());
     }
 
     /**
@@ -352,7 +358,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $this->subject->setFileOperationPermissions(0);
         $this->subject->setDirectoryRemoveRecursivelyAllowed(true);
-        $this->assertTrue($this->subject->isDirectoryRemoveRecursivelyAllowed());
+        self::assertTrue($this->subject->isDirectoryRemoveRecursivelyAllowed());
     }
 
     /**
@@ -361,11 +367,11 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function getIsDirectoryCopyAllowedReturnsFalse()
     {
         $this->subject->setFileOperationPermissions(0);
-        $this->assertFalse($this->subject->isDirectoryCopyAllowed());
+        self::assertFalse($this->subject->isDirectoryCopyAllowed());
         $this->subject->setFileOperationPermissions(7);
-        $this->assertFalse($this->subject->isDirectoryCopyAllowed());
+        self::assertFalse($this->subject->isDirectoryCopyAllowed());
         $this->subject->setFileOperationPermissions(23);
-        $this->assertFalse($this->subject->isDirectoryCopyAllowed());
+        self::assertFalse($this->subject->isDirectoryCopyAllowed());
     }
 
     /**
@@ -374,9 +380,9 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function getIsDirectoryCopyAllowedReturnsTrue()
     {
         $this->subject->setFileOperationPermissions(8);
-        $this->assertTrue($this->subject->isDirectoryCopyAllowed());
+        self::assertTrue($this->subject->isDirectoryCopyAllowed());
         $this->subject->setFileOperationPermissions(15);
-        $this->assertTrue($this->subject->isDirectoryCopyAllowed());
+        self::assertTrue($this->subject->isDirectoryCopyAllowed());
     }
 
     /**
@@ -386,7 +392,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $this->subject->setFileOperationPermissions(0);
         $this->subject->setDirectoryCopyAllowed(true);
-        $this->assertTrue($this->subject->isDirectoryCopyAllowed());
+        self::assertTrue($this->subject->isDirectoryCopyAllowed());
     }
 
     /**
@@ -395,11 +401,11 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function getIsDirectoryOperationAllowedReturnsFalse()
     {
         $this->subject->setFileOperationPermissions(0);
-        $this->assertFalse($this->subject->isDirectoryOperationAllowed());
+        self::assertFalse($this->subject->isDirectoryOperationAllowed());
         $this->subject->setFileOperationPermissions(3);
-        $this->assertFalse($this->subject->isDirectoryOperationAllowed());
+        self::assertFalse($this->subject->isDirectoryOperationAllowed());
         $this->subject->setFileOperationPermissions(11);
-        $this->assertFalse($this->subject->isDirectoryOperationAllowed());
+        self::assertFalse($this->subject->isDirectoryOperationAllowed());
     }
 
     /**
@@ -408,9 +414,9 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function getIsDirectoryOperationAllowedReturnsTrue()
     {
         $this->subject->setFileOperationPermissions(4);
-        $this->assertTrue($this->subject->isDirectoryOperationAllowed());
+        self::assertTrue($this->subject->isDirectoryOperationAllowed());
         $this->subject->setFileOperationPermissions(7);
-        $this->assertTrue($this->subject->isDirectoryOperationAllowed());
+        self::assertTrue($this->subject->isDirectoryOperationAllowed());
     }
 
     /**
@@ -420,7 +426,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $this->subject->setFileOperationPermissions(0);
         $this->subject->setDirectoryOperationAllowed(true);
-        $this->assertTrue($this->subject->isDirectoryOperationAllowed());
+        self::assertTrue($this->subject->isDirectoryOperationAllowed());
     }
 
     /**
@@ -428,7 +434,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getLockToDomainInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getLockToDomain());
+        self::assertSame('', $this->subject->getLockToDomain());
     }
 
     /**
@@ -438,24 +444,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $lockToDomain = 'foo.bar';
         $this->subject->setLockToDomain($lockToDomain);
-        $this->assertSame($lockToDomain, $this->subject->getLockToDomain());
-    }
-
-    /**
-     * @test
-     */
-    public function getHideInListInitiallyReturnsFalse()
-    {
-        $this->assertFalse($this->subject->getHideInList());
-    }
-
-    /**
-     * @test
-     */
-    public function setHideInListSetsHideInList()
-    {
-        $this->subject->setHideInList(true);
-        $this->assertTrue($this->subject->getHideInList());
+        self::assertSame($lockToDomain, $this->subject->getLockToDomain());
     }
 
     /**
@@ -463,7 +452,7 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
      */
     public function getTsConfigInitiallyReturnsEmptyString()
     {
-        $this->assertSame('', $this->subject->getTsConfig());
+        self::assertSame('', $this->subject->getTsConfig());
     }
 
     /**
@@ -473,6 +462,6 @@ class BackendUserGroupTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     {
         $tsConfig = 'foo bar';
         $this->subject->setTsConfig($tsConfig);
-        $this->assertSame($tsConfig, $this->subject->getTsConfig());
+        self::assertSame($tsConfig, $this->subject->getTsConfig());
     }
 }

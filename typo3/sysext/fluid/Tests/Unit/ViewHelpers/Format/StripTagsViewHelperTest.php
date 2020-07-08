@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Format\StripTagsViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 
@@ -27,7 +28,7 @@ class StripTagsViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new StripTagsViewHelper();
@@ -46,7 +47,7 @@ class StripTagsViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Some string', $actualResult);
+        self::assertEquals('Some string', $actualResult);
     }
 
     /**
@@ -61,7 +62,7 @@ class StripTagsViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Some string', $actualResult);
+        self::assertEquals('Some string', $actualResult);
     }
 
     /**
@@ -96,15 +97,21 @@ class StripTagsViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertSame($expectedResult, $actualResult);
+        self::assertSame($expectedResult, $actualResult);
     }
 
     /**
+     * Ensures that objects are handled properly:
+     * + class not having __toString() method as given
+     * + class having __toString() method gets tags stripped off
+     *
+     * @param $source
+     * @param $expectation
      * @test
+     * @dataProvider renderEscapesObjectIfPossibleDataProvider
      */
-    public function renderReturnsUnmodifiedSourceIfItIsNoString()
+    public function renderEscapesObjectIfPossible($source, $expectation)
     {
-        $source = new \stdClass();
         $this->setArgumentsUnderTest(
             $this->viewHelper,
             [
@@ -112,6 +119,25 @@ class StripTagsViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->render();
-        $this->assertSame($source, $actualResult);
+        self::assertSame($expectation, $actualResult);
+    }
+
+    /**
+     * @return array
+     */
+    public function renderEscapesObjectIfPossibleDataProvider(): array
+    {
+        $stdClass = new \stdClass();
+        $toStringClass = new class() {
+            public function __toString(): string
+            {
+                return '<script>alert(\'"xss"\')</script>';
+            }
+        };
+
+        return [
+            'plain object' => [$stdClass, $stdClass],
+            'object with __toString()' => [$toStringClass, 'alert(\'"xss"\')'],
+        ];
     }
 }

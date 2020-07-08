@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\TimeTracker;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,10 +12,14 @@ namespace TYPO3\CMS\Core\TimeTracker;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\TimeTracker;
+
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
  * Frontend Timetracking functions
@@ -39,12 +42,19 @@ class TimeTracker implements SingletonInterface
     public $starttime = 0;
 
     /**
+     * Is set via finish() with the millisecond time when the request handler is finished.
+     *
+     * @var int
+     */
+    protected $finishtime = 0;
+
+    /**
      * Log Rendering flag. If set, ->push() and ->pull() is called from the cObj->cObjGetSingle().
      * This determines whether or not the TypoScript parsing activity is logged. But it also slows down the rendering
      *
      * @var bool
      */
-    public $LR = 1;
+    public $LR = true;
 
     /**
      * @var array
@@ -141,14 +151,25 @@ class TimeTracker implements SingletonInterface
     }
 
     /**
-     * Sets the starting time
+     * @param bool $isEnabled
      */
-    public function start()
+    public function setEnabled(bool $isEnabled = true)
+    {
+        $this->isEnabled = $isEnabled;
+    }
+
+    /**
+     * Sets the starting time
+     *
+     * @see finish()
+     * @param float|null $starttime
+     */
+    public function start(?float $starttime = null)
     {
         if (!$this->isEnabled) {
             return;
         }
-        $this->starttime = $this->getMilliseconds();
+        $this->starttime = $this->getMilliseconds($starttime);
     }
 
     /**
@@ -156,7 +177,8 @@ class TimeTracker implements SingletonInterface
      *
      * @param string $tslabel Label string for the entry, eg. TypoScript property name
      * @param string $value Additional value(?)
-     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::cObjGetSingle(), pull()
+     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::cObjGetSingle()
+     * @see pull()
      */
     public function push($tslabel, $value = '')
     {
@@ -182,7 +204,8 @@ class TimeTracker implements SingletonInterface
      * Pulls an element from the TypoScript tracking array
      *
      * @param string $content The content string generated within the push/pull part.
-     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::cObjGetSingle(), push()
+     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::cObjGetSingle()
+     * @see push()
      */
     public function pull($content = '')
     {
@@ -242,7 +265,9 @@ class TimeTracker implements SingletonInterface
     /**
      * Increases the stack pointer
      *
-     * @see decStackPointer(), \TYPO3\CMS\Frontend\Page\PageGenerator::renderContent(), \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::cObjGetSingle()
+     * @see decStackPointer()
+     * @see \TYPO3\CMS\Frontend\Page\PageGenerator::renderContent()
+     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::cObjGetSingle()
      */
     public function incStackPointer()
     {
@@ -256,7 +281,9 @@ class TimeTracker implements SingletonInterface
     /**
      * Decreases the stack pointer
      *
-     * @see incStackPointer(), \TYPO3\CMS\Frontend\Page\PageGenerator::renderContent(), \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::cObjGetSingle()
+     * @see incStackPointer()
+     * @see \TYPO3\CMS\Frontend\Page\PageGenerator::renderContent()
+     * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::cObjGetSingle()
      */
     public function decStackPointer()
     {
@@ -281,7 +308,7 @@ class TimeTracker implements SingletonInterface
         if (!isset($microtime)) {
             $microtime = microtime(true);
         }
-        return round($microtime * 1000);
+        return (int)round($microtime * 1000);
     }
 
     /**
@@ -296,27 +323,31 @@ class TimeTracker implements SingletonInterface
     }
 
     /**
-     * Get total parse time in milliseconds(without backend user initialization)
+     * Usually called when the page generation and output is prepared.
+     *
+     * @see start()
+     */
+    public function finish(): void
+    {
+        if ($this->isEnabled) {
+            $this->finishtime = microtime(true);
+        }
+    }
+
+    /**
+     * Get total parse time in milliseconds
      *
      * @return int
      */
     public function getParseTime(): int
     {
-        // Compensates for the time consumed with Back end user initialization.
-        $processStart = $this->getMilliseconds($GLOBALS['TYPO3_MISC']['microtime_start'] ?? null);
-
-        $beUserInitializationStart = $this->getMilliseconds($GLOBALS['TYPO3_MISC']['microtime_BE_USER_start'] ?? null);
-        $beUserInitializationEnd = $this->getMilliseconds($GLOBALS['TYPO3_MISC']['microtime_BE_USER_end'] ?? null);
-        $beUserInitialization = $beUserInitializationEnd - $beUserInitializationStart;
-
-        $processEnd = $this->getMilliseconds($GLOBALS['TYPO3_MISC']['microtime_end'] ?? null);
-        $totalParseTime = $processEnd - $processStart;
-
-        if ($beUserInitialization > 0) {
-            $totalParseTime -= $beUserInitialization;
+        if (!$this->starttime) {
+            $this->start(microtime(true));
         }
-
-        return $totalParseTime;
+        if (!$this->finishtime) {
+            $this->finish();
+        }
+        return $this->getDifferenceToStarttime($this->finishtime ?? null);
     }
 
     /*******************************************
@@ -349,8 +380,8 @@ class TimeTracker implements SingletonInterface
         foreach ($this->tsStackLog as $uniqueId => $data) {
             $this->createHierarchyArray($arr, $data['level'], $uniqueId);
         }
-        // Parsing the registeret content and create icon-html for the tree
-        $this->tsStackLog[$arr['0.'][0]]['content'] = $this->fixContent($arr['0.'], $this->tsStackLog[$arr['0.'][0]]['content'], '', 0, $arr['0.'][0]);
+        // Parsing the registered content and create icon-html for the tree
+        $this->tsStackLog[$arr['0.'][0]]['content'] = $this->fixContent($arr['0.'], $this->tsStackLog[$arr['0.'][0]]['content'] ?? '', '', $arr['0.'][0]);
         // Displaying the tree:
         $outputArr = [];
         $outputArr[] = $this->fw('TypoScript Key');
@@ -375,10 +406,9 @@ class TimeTracker implements SingletonInterface
         $keyLgd = $this->printConf['keyLgd'];
         $c = 0;
         foreach ($this->tsStackLog as $uniqueId => $data) {
+            $logRowClass = '';
             if ($this->highlightLongerThan && (int)$data['owntime'] > (int)$this->highlightLongerThan) {
                 $logRowClass = 'typo3-adminPanel-logRow-highlight';
-            } else {
-                $logRowClass = $c % 2 ? 'line-odd' : 'line-even';
             }
             $item = '';
             // If first...
@@ -392,13 +422,13 @@ class TimeTracker implements SingletonInterface
             if (!$flag_tree && $data['stackPointer']) {
                 $temp = [];
                 foreach ($data['tsStack'] as $k => $v) {
-                    $temp[] = GeneralUtility::fixed_lgd_cs(implode($v, $k ? '.' : '/'), -$keyLgd);
+                    $temp[] = GeneralUtility::fixed_lgd_cs(implode($k ? '.' : '/', $v), -$keyLgd);
                 }
                 array_pop($temp);
                 $temp = array_reverse($temp);
                 array_pop($temp);
                 if (!empty($temp)) {
-                    $keyLabel = '<br /><span style="color:#999999;">' . implode($temp, '<br />') . '</span>';
+                    $keyLabel = '<br /><span style="color:#999999;">' . implode('<br />', $temp) . '</span>';
                 }
             }
             if ($flag_tree) {
@@ -410,7 +440,7 @@ class TimeTracker implements SingletonInterface
             $theLabel = GeneralUtility::fixed_lgd_cs($theLabel, -$keyLgd);
             $theLabel = $data['stackPointer'] ? '<span class="stackPointer">' . $theLabel . '</span>' : $theLabel;
             $keyLabel = $theLabel . $keyLabel;
-            $item .= '<td class="typo3-adminPanel-table-cell-nowrap ' . $logRowClass . '">' . ($flag_tree ? $data['icons'] : '') . $this->fw($keyLabel) . '</td>';
+            $item .= '<th scope="row" class="typo3-adminPanel-table-cell-key ' . $logRowClass . '">' . ($flag_tree ? $data['icons'] : '') . $this->fw($keyLabel) . '</th>';
             // Key value:
             $keyValue = $data['value'];
             $item .= '<td class="' . $logRowClass . ' typo3-adminPanel-tsLogTime">' . $this->fw(htmlspecialchars($keyValue)) . '</td>';
@@ -442,13 +472,13 @@ class TimeTracker implements SingletonInterface
                 $msgArr[] = nl2br($data['content']);
             }
             if (!empty($msgArr)) {
-                $msg = implode($msgArr, '<hr />');
+                $msg = implode('<hr />', $msgArr);
             }
             $item .= '<td class="typo3-adminPanel-table-cell-content">' . $this->fw($msg) . '</td>';
             $out .= '<tr>' . $item . '</tr>';
             $c++;
         }
-        $out = '<div class="typo3-adminPanel-table-overflow"><table class="typo3-adminPanel-table">' . $out . '</table></div>';
+        $out = '<div class="typo3-adminPanel-table-overflow"><table class="typo3-adminPanel-table typo3-adminPanel-table-debug">' . $out . '</table></div>';
         return $out;
     }
 
@@ -458,37 +488,37 @@ class TimeTracker implements SingletonInterface
      * @param array $arr Array which is modified with content. Reference
      * @param string $content Current content string for the level
      * @param string $depthData Prefixed icons for new PM icons
-     * @param bool $first Set this for the first call from outside.
      * @param string $vKey Seems to be the previous tsStackLog key
      * @return string Returns the $content string generated/modified. Also the $arr array is modified!
      */
-    protected function fixContent(&$arr, $content, $depthData = '', $first = 0, $vKey = '')
+    protected function fixContent(&$arr, $content, $depthData = '', $vKey = '')
     {
-        $ac = 0;
+        $entriesCount = 0;
         $c = 0;
         // First, find number of entries
         foreach ($arr as $k => $v) {
-            if (\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($k)) {
-                $ac++;
+            //do not count subentries (the one ending with dot, eg. '9.'
+            if (MathUtility::canBeInterpretedAsInteger($k)) {
+                $entriesCount++;
             }
         }
         // Traverse through entries
         $subtime = 0;
         foreach ($arr as $k => $v) {
-            if (\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($k)) {
+            if (MathUtility::canBeInterpretedAsInteger($k)) {
                 $c++;
-                $deeper = is_array($arr[$k . '.']) ? 1 : 0;
-                $LN = $ac == $c ? 'blank' : 'line';
+                $hasChildren = isset($arr[$k . '.']);
+                $lastEntry = $entriesCount === $c;
 
-                $BTM = $ac == $c ? 'bottom' : '';
-                $PM = is_array($arr[$k . '.']) ? '<i class="fa fa-' . ($deeper ? 'minus' : 'plus') . '-square-o"></i>' : '<span class="treeline-icon treeline-icon-join' . ($BTM ? 'bottom' : '') . '"></span>';
+                $PM = '<span class="treeline-icon treeline-icon-join' . ($lastEntry ? 'bottom' : '') . '"></span>';
 
-                $this->tsStackLog[$v]['icons'] = $depthData . ($first ? '' : $PM);
+                $this->tsStackLog[$v]['icons'] = $depthData . $PM;
                 if ($this->tsStackLog[$v]['content'] !== '') {
                     $content = str_replace($this->tsStackLog[$v]['content'], $v, $content);
                 }
-                if (is_array($arr[$k . '.'])) {
-                    $this->tsStackLog[$v]['content'] = $this->fixContent($arr[$k . '.'], $this->tsStackLog[$v]['content'], $depthData . ($first ? '' : '<span class="treeline-icon treeline-icon-' . $LN . '"></span>'), 0, $v);
+                if ($hasChildren) {
+                    $lineClass = $lastEntry ? 'treeline-icon-clear' : 'treeline-icon-line';
+                    $this->tsStackLog[$v]['content'] = $this->fixContent($arr[$k . '.'], $this->tsStackLog[$v]['content'], $depthData . '<span class="treeline-icon ' . $lineClass . '"></span>', $v);
                 } else {
                     $this->tsStackLog[$v]['content'] = $this->fixCLen($this->tsStackLog[$v]['content'], $this->tsStackLog[$v]['value']);
                     $this->tsStackLog[$v]['subtime'] = '';
@@ -505,7 +535,7 @@ class TimeTracker implements SingletonInterface
         $content = $this->fixCLen($content, $this->tsStackLog[$vKey]['value']);
         // Traverse array again, this time substitute the unique hash with the red key
         foreach ($arr as $k => $v) {
-            if (\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($k)) {
+            if (MathUtility::canBeInterpretedAsInteger($k)) {
                 if ($this->tsStackLog[$v]['content'] !== '') {
                     $content = str_replace($v, '<strong style="color:red;">[' . $this->tsStackLog[$v]['key'] . ']</strong>', $content);
                 }
@@ -516,7 +546,7 @@ class TimeTracker implements SingletonInterface
     }
 
     /**
-     * Wraps the input content string in green colored span-tags IF the length o fthe input string exceeds $this->printConf['contentLength'] (or $this->printConf['contentLength_FILE'] if $v == "FILE"
+     * Wraps the input content string in green colored span-tags IF the length of the input string exceeds $this->printConf['contentLength'] (or $this->printConf['contentLength_FILE'] if $v == "FILE"
      *
      * @param string $c The content string
      * @param string $v Command: If "FILE" then $this->printConf['contentLength_FILE'] is used for content length comparison, otherwise $this->printConf['contentLength']
@@ -550,7 +580,7 @@ class TimeTracker implements SingletonInterface
      * @param array $arr Array (passed by reference) and modified
      * @param int $pointer Pointer value
      * @param string $uniqueId Unique ID string
-     * @access private
+     * @internal
      * @see printTSlog()
      */
     protected function createHierarchyArray(&$arr, $pointer, $uniqueId)

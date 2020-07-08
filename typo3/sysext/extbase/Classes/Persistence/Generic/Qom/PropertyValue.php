@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
+
 /**
  * Evaluates to the value (or values, if multi-valued) of a property.
  *
@@ -24,6 +25,8 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  *
  * selector is not the name of a selector in the query, or
  * property is not a syntactically valid JCR name.
+ *
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class PropertyValue implements PropertyValueInterface
 {

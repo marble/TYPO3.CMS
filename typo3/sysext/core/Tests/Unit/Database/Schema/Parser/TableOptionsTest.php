@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,14 +15,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Parser;
+
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\AbstractCreateStatement;
 use TYPO3\CMS\Core\Database\Schema\Parser\AST\CreateTableStatement;
 use TYPO3\CMS\Core\Database\Schema\Parser\Parser;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for CreateTableStatement table options
  */
-class TableOptionsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TableOptionsTest extends UnitTestCase
 {
     /**
      * Each parameter array consists of the following values:
@@ -151,8 +153,8 @@ class TableOptionsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $statement = sprintf('CREATE TABLE `aTable`(`aField` INT(11)) %s;', $tableOptionsSQL);
         $subject = $this->createSubject($statement);
 
-        $this->assertInstanceOf(CreateTableStatement::class, $subject);
-        $this->assertSame($expectedTableOptions, $subject->tableOptions);
+        self::assertInstanceOf(CreateTableStatement::class, $subject);
+        self::assertSame($expectedTableOptions, $subject->tableOptions);
     }
 
     /**

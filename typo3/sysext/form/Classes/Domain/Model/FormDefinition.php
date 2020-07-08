@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,9 +15,16 @@ namespace TYPO3\CMS\Form\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Model;
+
 use TYPO3\CMS\Core\Utility\ArrayUtility;
-use TYPO3\CMS\Extbase\Mvc\Web\Request;
-use TYPO3\CMS\Extbase\Mvc\Web\Response;
+use TYPO3\CMS\Extbase\Mvc\Request;
+use TYPO3\CMS\Extbase\Mvc\Response;
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
 use TYPO3\CMS\Extbase\Reflection\ObjectAccess;
 use TYPO3\CMS\Form\Domain\Exception\IdentifierNotValidException;
 use TYPO3\CMS\Form\Domain\Exception\TypeDefinitionNotFoundException;
@@ -31,6 +36,7 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\FormElementInterface;
 use TYPO3\CMS\Form\Domain\Model\FormElements\Page;
 use TYPO3\CMS\Form\Domain\Model\Renderable\AbstractCompositeRenderable;
 use TYPO3\CMS\Form\Domain\Model\Renderable\RenderableInterface;
+use TYPO3\CMS\Form\Domain\Model\Renderable\VariableRenderableInterface;
 use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
 use TYPO3\CMS\Form\Exception as FormException;
 use TYPO3\CMS\Form\Mvc\ProcessingRule;
@@ -142,7 +148,7 @@ use TYPO3\CMS\Form\Mvc\ProcessingRule;
  *
  * Often, it is not really useful to manually create the $prototypeConfiguration array.
  *
- * Most of it comes pre-configured inside the extensions's yaml settings,
+ * Most of it comes pre-configured inside the YAML settings of the extensions,
  * and the {@link \TYPO3\CMS\Form\Domain\Configuration\ConfigurationService} contains helper methods
  * which return the ready-to-use *$prototypeConfiguration*.
  *
@@ -194,7 +200,7 @@ use TYPO3\CMS\Form\Mvc\ProcessingRule;
  * ==========================
  *
  * In order to trigger *rendering* on a FormDefinition,
- * the current {@link \TYPO3\CMS\Extbase\Mvc\Web\Request} needs to be bound to the FormDefinition,
+ * the current {@link \TYPO3\CMS\Extbase\Mvc\Request} needs to be bound to the FormDefinition,
  * resulting in a {@link \TYPO3\CMS\Form\Domain\Runtime\FormRuntime} object which contains the *Runtime State* of the form
  * (such as the currently inserted values).
  *
@@ -213,7 +219,7 @@ use TYPO3\CMS\Form\Mvc\ProcessingRule;
  * Scope: frontend
  * **This class is NOT meant to be sub classed by developers.**
  */
-class FormDefinition extends AbstractCompositeRenderable
+class FormDefinition extends AbstractCompositeRenderable implements VariableRenderableInterface
 {
 
     /**
@@ -273,17 +279,22 @@ class FormDefinition extends AbstractCompositeRenderable
     protected $finishersDefinition;
 
     /**
+     * @var array
+     */
+    protected $conditionContextDefinition;
+
+    /**
      * The persistence identifier of the form
      *
      * @var string
      */
-    protected $persistenceIdentifier = null;
+    protected $persistenceIdentifier;
 
     /**
      * @param \TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager
      * @internal
      */
-    public function injectObjectManager(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager)
+    public function injectObjectManager(ObjectManagerInterface $objectManager)
     {
         $this->objectManager = $objectManager;
     }
@@ -296,7 +307,6 @@ class FormDefinition extends AbstractCompositeRenderable
      * @param string $type element type of this form
      * @param string $persistenceIdentifier the persistence identifier of the form
      * @throws IdentifierNotValidException if the identifier was not valid
-     * @api
      */
     public function __construct(
         string $identifier,
@@ -304,9 +314,10 @@ class FormDefinition extends AbstractCompositeRenderable
         string $type = 'Form',
         string $persistenceIdentifier = null
     ) {
-        $this->typeDefinitions = isset($prototypeConfiguration['formElementsDefinition']) ? $prototypeConfiguration['formElementsDefinition'] : [];
-        $this->validatorsDefinition = isset($prototypeConfiguration['validatorsDefinition']) ? $prototypeConfiguration['validatorsDefinition'] : [];
-        $this->finishersDefinition = isset($prototypeConfiguration['finishersDefinition']) ? $prototypeConfiguration['finishersDefinition'] : [];
+        $this->typeDefinitions = $prototypeConfiguration['formElementsDefinition'] ?? [];
+        $this->validatorsDefinition = $prototypeConfiguration['validatorsDefinition'] ?? [];
+        $this->finishersDefinition = $prototypeConfiguration['finishersDefinition'] ?? [];
+        $this->conditionContextDefinition = $prototypeConfiguration['conditionContextDefinition'] ?? [];
 
         if (!is_string($identifier) || strlen($identifier) === 0) {
             throw new IdentifierNotValidException('The given identifier was not a string or the string was empty.', 1477082503);
@@ -342,33 +353,40 @@ class FormDefinition extends AbstractCompositeRenderable
      * the passed $options array.
      *
      * @param array $options
+     * @param bool $resetFinishers
      * @internal
      */
-    public function setOptions(array $options)
+    public function setOptions(array $options, bool $resetFinishers = false)
     {
         if (isset($options['rendererClassName'])) {
             $this->setRendererClassName($options['rendererClassName']);
         }
+        if (isset($options['label'])) {
+            $this->setLabel($options['label']);
+        }
         if (isset($options['renderingOptions'])) {
             foreach ($options['renderingOptions'] as $key => $value) {
-                if (is_array($value)) {
-                    $currentValue = isset($this->getRenderingOptions()[$key]) ? $this->getRenderingOptions()[$key] : [];
-                    ArrayUtility::mergeRecursiveWithOverrule($currentValue, $value);
-                    $this->setRenderingOption($key, $currentValue);
-                } else {
-                    $this->setRenderingOption($key, $value);
-                }
+                $this->setRenderingOption($key, $value);
             }
         }
         if (isset($options['finishers'])) {
+            if ($resetFinishers) {
+                $this->finishers = [];
+            }
             foreach ($options['finishers'] as $finisherConfiguration) {
-                $this->createFinisher($finisherConfiguration['identifier'], isset($finisherConfiguration['options']) ? $finisherConfiguration['options'] : []);
+                $this->createFinisher($finisherConfiguration['identifier'], $finisherConfiguration['options'] ?? []);
+            }
+        }
+
+        if (isset($options['variants'])) {
+            foreach ($options['variants'] as $variantConfiguration) {
+                $this->createVariant($variantConfiguration);
             }
         }
 
         ArrayUtility::assertAllArrayKeysAreValid(
             $options,
-            ['rendererClassName', 'renderingOptions', 'finishers', 'formEditor']
+            ['rendererClassName', 'renderingOptions', 'finishers', 'formEditor', 'label', 'variants']
         );
     }
 
@@ -384,7 +402,6 @@ class FormDefinition extends AbstractCompositeRenderable
      * @param string $typeName Type of the new page
      * @return Page the newly created page
      * @throws TypeDefinitionNotFoundException
-     * @api
      */
     public function createPage(string $identifier, string $typeName = 'Page'): Page
     {
@@ -427,7 +444,6 @@ class FormDefinition extends AbstractCompositeRenderable
      * @param Page $page
      * @throws FormDefinitionConsistencyException if Page is already added to a FormDefinition
      * @see createPage
-     * @api
      */
     public function addPage(Page $page)
     {
@@ -437,8 +453,7 @@ class FormDefinition extends AbstractCompositeRenderable
     /**
      * Get the Form's pages
      *
-     * @return array<Page> The Form's pages in the correct order
-     * @api
+     * @return array|Page[] The Form's pages in the correct order
      */
     public function getPages(): array
     {
@@ -450,7 +465,6 @@ class FormDefinition extends AbstractCompositeRenderable
      *
      * @param int $index
      * @return bool TRUE if a page with the given $index exists, otherwise FALSE
-     * @api
      */
     public function hasPageWithIndex(int $index): bool
     {
@@ -465,7 +479,6 @@ class FormDefinition extends AbstractCompositeRenderable
      * @param int $index
      * @return Page the page, or NULL if none found.
      * @throws FormException if the specified index does not exist
-     * @api
      */
     public function getPageByIndex(int $index)
     {
@@ -479,7 +492,6 @@ class FormDefinition extends AbstractCompositeRenderable
      * Adds the specified finisher to this form
      *
      * @param FinisherInterface $finisher
-     * @api
      */
     public function addFinisher(FinisherInterface $finisher)
     {
@@ -491,29 +503,26 @@ class FormDefinition extends AbstractCompositeRenderable
      * @param array $options options for this finisher in the format ['option1' => 'value1', 'option2' => 'value2', ...]
      * @return FinisherInterface
      * @throws FinisherPresetNotFoundException
-     * @api
      */
     public function createFinisher(string $finisherIdentifier, array $options = []): FinisherInterface
     {
         if (isset($this->finishersDefinition[$finisherIdentifier]) && is_array($this->finishersDefinition[$finisherIdentifier]) && isset($this->finishersDefinition[$finisherIdentifier]['implementationClassName'])) {
             $implementationClassName = $this->finishersDefinition[$finisherIdentifier]['implementationClassName'];
-            $defaultOptions = isset($this->finishersDefinition[$finisherIdentifier]['options']) ? $this->finishersDefinition[$finisherIdentifier]['options'] : [];
+            $defaultOptions = $this->finishersDefinition[$finisherIdentifier]['options'] ?? [];
             ArrayUtility::mergeRecursiveWithOverrule($defaultOptions, $options);
 
-            $finisher = $this->objectManager->get($implementationClassName);
+            $finisher = $this->objectManager->get($implementationClassName, $finisherIdentifier);
             $finisher->setOptions($defaultOptions);
             $this->addFinisher($finisher);
             return $finisher;
-        } else {
-            throw new FinisherPresetNotFoundException('The finisher preset identified by "' . $finisherIdentifier . '" could not be found, or the implementationClassName was not specified.', 1328709784);
         }
+        throw new FinisherPresetNotFoundException('The finisher preset identified by "' . $finisherIdentifier . '" could not be found, or the implementationClassName was not specified.', 1328709784);
     }
 
     /**
      * Gets all finishers of this form
      *
      * @return \TYPO3\CMS\Form\Domain\Finishers\FinisherInterface[]
-     * @api
      */
     public function getFinishers(): array
     {
@@ -551,17 +560,26 @@ class FormDefinition extends AbstractCompositeRenderable
     }
 
     /**
+     * Get all form elements with their identifiers as keys
+     *
+     * @return FormElementInterface[]
+     */
+    public function getElements(): array
+    {
+        return $this->elementsByIdentifier;
+    }
+
+    /**
      * Get a Form Element by its identifier
      *
      * If identifier does not exist, returns NULL.
      *
      * @param string $elementIdentifier
      * @return FormElementInterface The element with the given $elementIdentifier or NULL if none found
-     * @api
      */
     public function getElementByIdentifier(string $elementIdentifier)
     {
-        return isset($this->elementsByIdentifier[$elementIdentifier]) ? $this->elementsByIdentifier[$elementIdentifier] : null;
+        return $this->elementsByIdentifier[$elementIdentifier] ?? null;
     }
 
     /**
@@ -599,7 +617,6 @@ class FormDefinition extends AbstractCompositeRenderable
      *
      * @param Page $pageToMove
      * @param Page $referencePage
-     * @api
      */
     public function movePageBefore(Page $pageToMove, Page $referencePage)
     {
@@ -611,7 +628,6 @@ class FormDefinition extends AbstractCompositeRenderable
      *
      * @param Page $pageToMove
      * @param Page $referencePage
-     * @api
      */
     public function movePageAfter(Page $pageToMove, Page $referencePage)
     {
@@ -622,7 +638,6 @@ class FormDefinition extends AbstractCompositeRenderable
      * Remove $pageToRemove from form
      *
      * @param Page $pageToRemove
-     * @api
      */
     public function removePage(Page $pageToRemove)
     {
@@ -636,7 +651,6 @@ class FormDefinition extends AbstractCompositeRenderable
      * @param Request $request
      * @param Response $response
      * @return FormRuntime
-     * @api
      */
     public function bind(Request $request, Response $response): FormRuntime
     {
@@ -646,7 +660,6 @@ class FormDefinition extends AbstractCompositeRenderable
     /**
      * @param string $propertyPath
      * @return ProcessingRule
-     * @api
      */
     public function getProcessingRule(string $propertyPath): ProcessingRule
     {
@@ -686,6 +699,15 @@ class FormDefinition extends AbstractCompositeRenderable
     }
 
     /**
+     * @return array
+     * @internal
+     */
+    public function getConditionContextDefinition(): array
+    {
+        return $this->conditionContextDefinition;
+    }
+
+    /**
      * Get the persistence identifier of the form
      *
      * @return string
@@ -700,7 +722,6 @@ class FormDefinition extends AbstractCompositeRenderable
      * Set the renderer class name
      *
      * @param string $rendererClassName
-     * @api
      */
     public function setRendererClassName(string $rendererClassName)
     {
@@ -711,7 +732,6 @@ class FormDefinition extends AbstractCompositeRenderable
      * Get the classname of the renderer
      *
      * @return string
-     * @api
      */
     public function getRendererClassName(): string
     {

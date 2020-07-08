@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Core\Tests\Unit\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Service;
+
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DependencyOrderingServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DependencyOrderingServiceTest extends UnitTestCase
 {
     /**
      * @test
@@ -32,7 +34,7 @@ class DependencyOrderingServiceTest extends \TYPO3\TestingFramework\Core\Unit\Un
     public function orderByDependenciesBuildsCorrectOrder(array $items, $beforeKey, $afterKey, array $expectedOrderedItems)
     {
         $orderedItems = (new DependencyOrderingService())->orderByDependencies($items, $beforeKey, $afterKey);
-        $this->assertSame($expectedOrderedItems, $orderedItems);
+        self::assertSame($expectedOrderedItems, $orderedItems);
     }
 
     /**
@@ -165,10 +167,10 @@ class DependencyOrderingServiceTest extends \TYPO3\TestingFramework\Core\Unit\Un
      */
     public function prepareDependenciesBuildsFullIdentifierList(array $dependencies, array $expectedDependencies)
     {
-        /** @var DependencyOrderingService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $dependencyOrderingService */
+        /** @var DependencyOrderingService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $dependencyOrderingService */
         $dependencyOrderingService = $this->getAccessibleMock(DependencyOrderingService::class, ['dummy']);
         $preparedDependencies = $dependencyOrderingService->_call('prepareDependencies', $dependencies);
-        $this->assertEquals($expectedDependencies, $preparedDependencies);
+        self::assertEquals($expectedDependencies, $preparedDependencies);
     }
 
     /**
@@ -224,7 +226,7 @@ class DependencyOrderingServiceTest extends \TYPO3\TestingFramework\Core\Unit\Un
     public function buildDependencyGraphBuildsValidGraph(array $dependencies, array $expectedGraph)
     {
         $graph = (new DependencyOrderingService())->buildDependencyGraph($dependencies);
-        $this->assertEquals($expectedGraph, $graph);
+        self::assertEquals($expectedGraph, $graph);
     }
 
     /**
@@ -596,7 +598,7 @@ class DependencyOrderingServiceTest extends \TYPO3\TestingFramework\Core\Unit\Un
     public function calculateOrderResolvesCorrectOrder(array $graph, array $expectedList)
     {
         $list = (new DependencyOrderingService())->calculateOrder($graph);
-        $this->assertSame($expectedList, $list);
+        self::assertSame($expectedList, $list);
     }
 
     /**
@@ -714,10 +716,10 @@ class DependencyOrderingServiceTest extends \TYPO3\TestingFramework\Core\Unit\Un
      */
     public function findPathInGraphReturnsCorrectPath(array $graph, $from, $to, array $expected)
     {
-        /** @var DependencyOrderingService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $dependencyOrderingService */
+        /** @var DependencyOrderingService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface $dependencyOrderingService */
         $dependencyOrderingService = $this->getAccessibleMock(DependencyOrderingService::class, ['dummy']);
         $path = $dependencyOrderingService->_call('findPathInGraph', $graph, $from, $to);
 
-        $this->assertSame($expected, $path);
+        self::assertSame($expected, $path);
     }
 }

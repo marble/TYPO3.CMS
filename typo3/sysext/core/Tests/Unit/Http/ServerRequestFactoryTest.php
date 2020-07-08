@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Http;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,21 +15,95 @@ namespace TYPO3\CMS\Core\Tests\Unit\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Http;
+
+use Psr\Http\Message\ServerRequestFactoryInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Http\ServerRequestFactory;
 use TYPO3\CMS\Core\Http\UploadedFile;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Http\ServerRequestFactory
  */
-class ServerRequestFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ServerRequestFactoryTest extends UnitTestCase
 {
     /**
-     * Set up
+     * @test
      */
-    protected function setUp()
+    public function implementsPsr17FactoryInterface()
     {
-        GeneralUtility::flushInternalRuntimeCaches();
+        $factory = new ServerRequestFactory();
+        self::assertInstanceOf(ServerRequestFactoryInterface::class, $factory);
+    }
+
+    /**
+     * @test
+     */
+    public function testServerRequestHasMethodSet()
+    {
+        $factory = new ServerRequestFactory();
+        $request = $factory->createServerRequest('POST', '/');
+        self::assertSame('POST', $request->getMethod());
+    }
+
+    /**
+     * @test
+     */
+    public function testServerRequestFactoryHasAWritableEmptyBody()
+    {
+        $factory = new ServerRequestFactory();
+        $request = $factory->createServerRequest('GET', '/');
+        $body = $request->getBody();
+
+        self::assertInstanceOf(ServerRequestInterface::class, $request);
+
+        self::assertSame('', $body->__toString());
+        self::assertSame(0, $body->getSize());
+        self::assertTrue($body->isSeekable());
+
+        $body->write('Foo');
+        self::assertSame(3, $body->getSize());
+        self::assertSame('Foo', $body->__toString());
+    }
+
+    /**
+     * @return array
+     */
+    public function invalidRequestUriDataProvider()
+    {
+        return [
+            'true'     => [true],
+            'false'    => [false],
+            'int'      => [1],
+            'float'    => [1.1],
+            'array'    => [['http://example.com']],
+            'stdClass' => [(object)['href' => 'http://example.com']],
+        ];
+    }
+
+    /**
+     * @dataProvider invalidRequestUriDataProvider
+     * @test
+     */
+    public function constructorRaisesExceptionForInvalidUri($uri)
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionCode(1436717272);
+        $factory = new ServerRequestFactory();
+        $factory->createServerRequest('GET', $uri);
+    }
+
+    /**
+     * @test
+     */
+    public function raisesExceptionForInvalidMethod()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionCode(1436717275);
+        $factory = new ServerRequestFactory();
+        $factory->createServerRequest('BOGUS-BODY', '/');
     }
 
     /**
@@ -38,6 +113,8 @@ class ServerRequestFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $_SERVER['HTTP_HOST'] = 'localhost';
         $_SERVER['REQUEST_URI'] = '/index.php';
+        $_SERVER['REMOTE_ADDR'] = '';
+        $_SERVER['SSL_SESSION_ID'] = '';
         $_FILES = [
             'tx_uploadexample_piexample' => [
                 'name' => [
@@ -85,10 +162,10 @@ class ServerRequestFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
 
         $uploadedFiles = ServerRequestFactory::fromGlobals()->getUploadedFiles();
 
-        $this->assertNotEmpty($uploadedFiles['tx_uploadexample_piexample']['newExample']['image']);
-        $this->assertTrue($uploadedFiles['tx_uploadexample_piexample']['newExample']['image'] instanceof UploadedFile);
-        $this->assertNotEmpty($uploadedFiles['tx_uploadexample_piexample']['newExample']['imageCollection'][0]);
-        $this->assertTrue($uploadedFiles['tx_uploadexample_piexample']['newExample']['imageCollection'][0] instanceof UploadedFile);
+        self::assertNotEmpty($uploadedFiles['tx_uploadexample_piexample']['newExample']['image']);
+        self::assertTrue($uploadedFiles['tx_uploadexample_piexample']['newExample']['image'] instanceof UploadedFile);
+        self::assertNotEmpty($uploadedFiles['tx_uploadexample_piexample']['newExample']['imageCollection'][0]);
+        self::assertTrue($uploadedFiles['tx_uploadexample_piexample']['newExample']['imageCollection'][0] instanceof UploadedFile);
     }
 
     /**
@@ -98,11 +175,13 @@ class ServerRequestFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $_SERVER['HTTP_HOST'] = 'localhost';
         $_SERVER['REQUEST_URI'] = '/index.php';
+        $_SERVER['REMOTE_ADDR'] = '';
+        $_SERVER['SSL_SESSION_ID'] = '';
         $_FILES = [];
 
         $uploadedFiles = ServerRequestFactory::fromGlobals()->getUploadedFiles();
 
-        $this->assertEmpty($uploadedFiles);
+        self::assertEmpty($uploadedFiles);
     }
 
     /**
@@ -112,6 +191,8 @@ class ServerRequestFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     {
         $_SERVER['HTTP_HOST'] = 'localhost';
         $_SERVER['REQUEST_URI'] = '/index.php';
+        $_SERVER['REMOTE_ADDR'] = '';
+        $_SERVER['SSL_SESSION_ID'] = '';
         $_FILES = [
             'tx_uploadexample_piexample' => [
                 'name' => '',
@@ -123,6 +204,21 @@ class ServerRequestFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
 
         $uploadedFiles = ServerRequestFactory::fromGlobals()->getUploadedFiles();
 
-        $this->assertEmpty($uploadedFiles);
+        self::assertEmpty($uploadedFiles);
+    }
+
+    /**
+     * @test
+     */
+    public function handlesNumericKeys()
+    {
+        $_SERVER['HTTP_HOST'] = 'localhost';
+        $_SERVER['REQUEST_URI'] = '/index.php';
+        $_SERVER[1] = '1';
+
+        $request = ServerRequestFactory::fromGlobals();
+
+        self::assertInstanceOf(ServerRequest::class, $request, '$_SERVER with numeric key prevented creation.');
+        self::assertEquals([], $request->getHeader('1'), 'Numeric keys are not processed, default empty array should be returned.');
     }
 }

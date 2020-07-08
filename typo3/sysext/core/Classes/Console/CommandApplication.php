@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Console;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,55 +12,59 @@ namespace TYPO3\CMS\Core\Console;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Console;
+
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use TYPO3\CMS\Core\Authentication\CommandLineUserAuthentication;
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\DateTimeAspect;
+use TYPO3\CMS\Core\Context\UserAspect;
+use TYPO3\CMS\Core\Context\VisibilityAspect;
+use TYPO3\CMS\Core\Context\WorkspaceAspect;
 use TYPO3\CMS\Core\Core\ApplicationInterface;
 use TYPO3\CMS\Core\Core\Bootstrap;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Information\Typo3Version;
+use TYPO3\CMS\Core\Localization\LanguageService;
 
 /**
  * Entry point for the TYPO3 Command Line for Commands
- * Does not run the RequestHandler as this already runs an Application inside an Application which
- * is just way too much logic around simple CLI calls
+ * In addition to a simple Symfony Command, this also sets up a CLI user
  */
 class CommandApplication implements ApplicationInterface
 {
     /**
-     * @var Bootstrap
+     * @var Context
      */
-    protected $bootstrap;
+    protected $context;
 
     /**
-     * Number of subdirectories where the entry script is located, relative to PATH_site
-     * @var int
+     * @var CommandRegistry
      */
-    protected $entryPointLevel = 4;
+    protected $commandRegistry;
 
     /**
-     * All available request handlers that can deal with a CLI Request
-     * @var array
+     * Instance of the symfony application
+     * @var Application
      */
-    protected $availableRequestHandlers = [
-        \TYPO3\CMS\Core\Console\CommandRequestHandler::class,
-    ];
+    protected $application;
 
-    /**
-     * Constructor setting up legacy constants and register available Request Handlers
-     *
-     * @param \Composer\Autoload\ClassLoader $classLoader an instance of the class loader
-     */
-    public function __construct($classLoader)
+    public function __construct(Context $context, CommandRegistry $commandRegistry)
     {
+        $this->context = $context;
+        $this->commandRegistry = $commandRegistry;
         $this->checkEnvironmentOrDie();
-        $this->defineLegacyConstants();
-        $this->bootstrap = Bootstrap::getInstance()
-            ->initializeClassLoader($classLoader)
-            ->setRequestType(TYPO3_REQUESTTYPE_CLI)
-            ->baseSetup($this->entryPointLevel);
-
-        foreach ($this->availableRequestHandlers as $requestHandler) {
-            $this->bootstrap->registerRequestHandlerImplementation($requestHandler);
-        }
-
-        $this->bootstrap->configure();
+        $this->application = new Application('TYPO3 CMS', sprintf(
+            '%s (Application Context: <comment>%s</comment>)',
+            (new Typo3Version())->getVersion(),
+            Environment::getContext()
+        ));
+        $this->application->setAutoExit(false);
+        $this->application->setCommandLoader($commandRegistry);
     }
 
     /**
@@ -71,30 +74,45 @@ class CommandApplication implements ApplicationInterface
      */
     public function run(callable $execute = null)
     {
-        $this->bootstrap->handleRequest(new ArgvInput());
+        $this->initializeContext();
+
+        $input = new ArgvInput();
+        $output = new ConsoleOutput();
+
+        Bootstrap::loadExtTables();
+        // create the BE_USER object (not logged in yet)
+        Bootstrap::initializeBackendUser(CommandLineUserAuthentication::class);
+        $GLOBALS['LANG'] = LanguageService::createFromUserPreferences($GLOBALS['BE_USER']);
+        // Make sure output is not buffered, so command-line output and interaction can take place
+        ob_clean();
+
+        $exitCode = $this->application->run($input, $output);
 
         if ($execute !== null) {
             call_user_func($execute);
         }
 
-        $this->bootstrap->shutdown();
-    }
-
-    /**
-     * Define constants and variables
-     */
-    protected function defineLegacyConstants()
-    {
-        define('TYPO3_MODE', 'BE');
+        exit($exitCode);
     }
 
     /**
      * Check the script is called from a cli environment.
      */
-    protected function checkEnvironmentOrDie()
+    protected function checkEnvironmentOrDie(): void
     {
-        if (php_sapi_name() !== 'cli') {
+        if (PHP_SAPI !== 'cli') {
             die('Not called from a command line interface (e.g. a shell or scheduler).' . LF);
         }
+    }
+
+    /**
+     * Initializes the Context used for accessing data and finding out the current state of the application
+     */
+    protected function initializeContext(): void
+    {
+        $this->context->setAspect('date', new DateTimeAspect(new \DateTimeImmutable('@' . $GLOBALS['EXEC_TIME'])));
+        $this->context->setAspect('visibility', new VisibilityAspect(true, true));
+        $this->context->setAspect('workspace', new WorkspaceAspect(0));
+        $this->context->setAspect('backend.user', new UserAspect(null));
     }
 }

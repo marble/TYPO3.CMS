@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Utility;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,40 +15,49 @@ namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Utility;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Package\Package;
+use TYPO3\CMS\Core\Package\PackageManager;
+use TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository;
+use TYPO3\CMS\Extensionmanager\Utility\EmConfUtility;
+use TYPO3\CMS\Extensionmanager\Utility\ListUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * List utility test
  */
-class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ListUtilityTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\ListUtility
+     * @var ListUtility
      */
     protected $subject;
 
-    /**
-     */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\ListUtility::class)
-            ->setMethods(['emitPackagesMayHaveChangedSignal'])
+        parent::setUp();
+        $this->subject = new ListUtility();
+        $this->subject->injectEventDispatcher($this->prophesize(EventDispatcherInterface::class)->reveal());
+        $packageManagerMock = $this->getMockBuilder(PackageManager::class)
+            ->disableOriginalConstructor()
             ->getMock();
-        $packageManagerMock = $this->getMockBuilder(\TYPO3\CMS\Core\Package\PackageManager::class)->getMock();
         $packageManagerMock
-                ->expects($this->any())
+                ->expects(self::any())
                 ->method('getActivePackages')
-                ->will($this->returnValue([
-                    'lang' => $this->getMockBuilder(\TYPO3\CMS\Core\Package::class)->disableOriginalConstructor()->getMock(),
-                    'news' => $this->getMockBuilder(\TYPO3\CMS\Core\Package::class)->disableOriginalConstructor()->getMock(),
-                    'saltedpasswords' => $this->getMockBuilder(\TYPO3\CMS\Core\Package::class)->disableOriginalConstructor()->getMock(),
-                    'rsaauth' => $this->getMockBuilder(\TYPO3\CMS\Core\Package::class)->disableOriginalConstructor()->getMock(),
-                ]));
-        $this->inject($this->subject, 'packageManager', $packageManagerMock);
+                ->willReturn([
+                    'lang' => $this->getMockBuilder(Package::class)->disableOriginalConstructor()->getMock(),
+                    'news' => $this->getMockBuilder(Package::class)->disableOriginalConstructor()->getMock(),
+                    'saltedpasswords' => $this->getMockBuilder(Package::class)->disableOriginalConstructor()->getMock(),
+                ]);
+        $this->subject->injectPackageManager($packageManagerMock);
     }
 
     /**
      * @return array
      */
-    public function getAvailableAndInstalledExtensionsDataProvider()
+    public function getAvailableAndInstalledExtensionsDataProvider(): array
     {
         return [
             'same extension lists' => [
@@ -55,13 +65,11 @@ class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'lang' => [],
                     'news' => [],
                     'saltedpasswords' => [],
-                    'rsaauth' => []
                 ],
                 [
                     'lang' => ['installed' => true],
                     'news' => ['installed' => true],
                     'saltedpasswords' => ['installed' => true],
-                    'rsaauth' => ['installed' => true]
                 ]
             ],
             'different extension lists' => [
@@ -69,13 +77,11 @@ class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'lang' => [],
                     'news' => [],
                     'saltedpasswords' => [],
-                    'rsaauth' => []
                 ],
                 [
                     'lang' => ['installed' => true],
                     'news' => ['installed' => true],
                     'saltedpasswords' => ['installed' => true],
-                    'rsaauth' => ['installed' => true]
                 ]
             ],
             'different extension lists - set2' => [
@@ -83,14 +89,12 @@ class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'lang' => [],
                     'news' => [],
                     'saltedpasswords' => [],
-                    'rsaauth' => [],
                     'em' => []
                 ],
                 [
                     'lang' => ['installed' => true],
                     'news' => ['installed' => true],
                     'saltedpasswords' => ['installed' => true],
-                    'rsaauth' => ['installed' => true],
                     'em' => []
                 ]
             ],
@@ -100,7 +104,6 @@ class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'fluid' => [],
                     'news' => [],
                     'saltedpasswords' => [],
-                    'rsaauth' => [],
                     'em' => []
                 ],
                 [
@@ -108,7 +111,6 @@ class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'fluid' => [],
                     'news' => ['installed' => true],
                     'saltedpasswords' => ['installed' => true],
-                    'rsaauth' => ['installed' => true],
                     'em' => []
                 ]
             ]
@@ -123,13 +125,13 @@ class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getAvailableAndInstalledExtensionsTest($availableExtensions, $expectedResult)
     {
-        $this->assertEquals($expectedResult, $this->subject->getAvailableAndInstalledExtensions($availableExtensions));
+        self::assertEquals($expectedResult, $this->subject->getAvailableAndInstalledExtensions($availableExtensions));
     }
 
     /**
      * @return array
      */
-    public function enrichExtensionsWithEmConfInformationDataProvider()
+    public function enrichExtensionsWithEmConfInformationDataProvider(): array
     {
         return [
             'simple key value array emconf' => [
@@ -137,7 +139,6 @@ class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'lang' => ['property1' => 'oldvalue'],
                     'news' => [],
                     'saltedpasswords' => [],
-                    'rsaauth' => []
                 ],
                 [
                     'property1' => 'property value1'
@@ -146,7 +147,6 @@ class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                     'lang' => ['property1' => 'oldvalue'],
                     'news' => ['property1' => 'property value1'],
                     'saltedpasswords' => ['property1' => 'property value1'],
-                    'rsaauth' => ['property1' => 'property value1']
                 ]
             ]
         ];
@@ -161,10 +161,10 @@ class ListUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function enrichExtensionsWithEmConfInformation($extensions, $emConf, $expectedResult)
     {
-        $this->inject($this->subject, 'extensionRepository', $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository::class, ['findOneByExtensionKeyAndVersion', 'findHighestAvailableVersion'], [], '', false));
-        $emConfUtilityMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\EmConfUtility::class)->getMock();
-        $emConfUtilityMock->expects($this->any())->method('includeEmConf')->will($this->returnValue($emConf));
-        $this->inject($this->subject, 'emConfUtility', $emConfUtilityMock);
-        $this->assertEquals($expectedResult, $this->subject->enrichExtensionsWithEmConfAndTerInformation($extensions));
+        $this->subject->injectExtensionRepository($this->getAccessibleMock(ExtensionRepository::class, ['findOneByExtensionKeyAndVersion', 'findHighestAvailableVersion'], [], '', false));
+        $emConfUtilityMock = $this->getMockBuilder(EmConfUtility::class)->getMock();
+        $emConfUtilityMock->expects(self::any())->method('includeEmConf')->willReturn($emConf);
+        $this->subject->injectEmConfUtility($emConfUtilityMock);
+        self::assertEquals($expectedResult, $this->subject->enrichExtensionsWithEmConfAndTerInformation($extensions));
     }
 }

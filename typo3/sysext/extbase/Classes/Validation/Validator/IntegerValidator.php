@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Validation\Validator;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,10 @@ namespace TYPO3\CMS\Extbase\Validation\Validator;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Validation\Validator;
+
 /**
  * Validator for integers.
- *
- * @api
  */
 class IntegerValidator extends AbstractValidator
 {
@@ -25,16 +24,17 @@ class IntegerValidator extends AbstractValidator
      * Checks if the given value is a valid integer.
      *
      * @param mixed $value The value that should be validated
-     * @api
      */
     public function isValid($value)
     {
         if (filter_var($value, FILTER_VALIDATE_INT) === false) {
             $this->addError(
                 $this->translateErrorMessage(
-                'validator.integer.notvalid',
-                'extbase'
-                ), 1221560494);
+                    'validator.integer.notvalid',
+                    'extbase'
+                ),
+                1221560494
+            );
         }
     }
 }

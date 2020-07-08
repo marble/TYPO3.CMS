@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Beuser\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +13,37 @@ namespace TYPO3\CMS\Beuser\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Beuser\Controller;
+
+use TYPO3\CMS\Backend\Authentication\Event\SwitchUserEvent;
+use TYPO3\CMS\Backend\Authentication\PasswordReset;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Beuser\Domain\Model\BackendUser;
+use TYPO3\CMS\Beuser\Domain\Model\Demand;
+use TYPO3\CMS\Beuser\Domain\Repository\BackendUserGroupRepository;
+use TYPO3\CMS\Beuser\Domain\Repository\BackendUserRepository;
+use TYPO3\CMS\Beuser\Domain\Repository\BackendUserSessionRepository;
+use TYPO3\CMS\Beuser\Service\ModuleDataStorageService;
+use TYPO3\CMS\Beuser\Service\UserInformationService;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
-use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Session\Backend\SessionBackendInterface;
 use TYPO3\CMS\Core\Session\SessionManager;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
+use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
+use TYPO3\CMS\Extbase\Mvc\Exception\StopActionException;
+use TYPO3\CMS\Extbase\Mvc\RequestInterface;
+use TYPO3\CMS\Extbase\Mvc\ResponseInterface;
+use TYPO3\CMS\Extbase\Mvc\View\ViewInterface;
 use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 
 /**
  * Backend module user administration controller
+ * @internal This class is a TYPO3 Backend implementation and is not considered part of the Public TYPO3 API.
  */
-class BackendUserController extends BackendUserActionController
+class BackendUserController extends ActionController
 {
     /**
      * @var int
@@ -38,55 +56,42 @@ class BackendUserController extends BackendUserActionController
     protected $moduleData;
 
     /**
-     * @var \TYPO3\CMS\Beuser\Service\ModuleDataStorageService
+     * @var ModuleDataStorageService
      */
     protected $moduleDataStorageService;
 
     /**
-     * @var \TYPO3\CMS\Beuser\Domain\Repository\BackendUserRepository
+     * @var BackendUserRepository
      */
     protected $backendUserRepository;
 
     /**
-     * @var \TYPO3\CMS\Beuser\Domain\Repository\BackendUserGroupRepository
+     * @var BackendUserGroupRepository
      */
     protected $backendUserGroupRepository;
 
     /**
-     * @var \TYPO3\CMS\Beuser\Domain\Repository\BackendUserSessionRepository
+     * @var BackendUserSessionRepository
      */
     protected $backendUserSessionRepository;
 
     /**
-     * @param \TYPO3\CMS\Beuser\Service\ModuleDataStorageService $moduleDataStorageService
+     * @var UserInformationService
      */
-    public function injectModuleDataStorageService(\TYPO3\CMS\Beuser\Service\ModuleDataStorageService $moduleDataStorageService)
-    {
+    protected $userInformationService;
+
+    public function __construct(
+        ModuleDataStorageService $moduleDataStorageService,
+        BackendUserRepository $backendUserRepository,
+        BackendUserGroupRepository $backendUserGroupRepository,
+        BackendUserSessionRepository $backendUserSessionRepository,
+        UserInformationService $userInformationService
+    ) {
         $this->moduleDataStorageService = $moduleDataStorageService;
-    }
-
-    /**
-     * @param \TYPO3\CMS\Beuser\Domain\Repository\BackendUserRepository $backendUserRepository
-     */
-    public function injectBackendUserRepository(\TYPO3\CMS\Beuser\Domain\Repository\BackendUserRepository $backendUserRepository)
-    {
         $this->backendUserRepository = $backendUserRepository;
-    }
-
-    /**
-     * @param \TYPO3\CMS\Beuser\Domain\Repository\BackendUserGroupRepository $backendUserGroupRepository
-     */
-    public function injectBackendUserGroupRepository(\TYPO3\CMS\Beuser\Domain\Repository\BackendUserGroupRepository $backendUserGroupRepository)
-    {
         $this->backendUserGroupRepository = $backendUserGroupRepository;
-    }
-
-    /**
-     * @param \TYPO3\CMS\Beuser\Domain\Repository\BackendUserSessionRepository $backendUserSessionRepository
-     */
-    public function injectBackendUserSessionRepository(\TYPO3\CMS\Beuser\Domain\Repository\BackendUserSessionRepository $backendUserSessionRepository)
-    {
         $this->backendUserSessionRepository = $backendUserSessionRepository;
+        $this->userInformationService = $userInformationService;
     }
 
     /**
@@ -96,34 +101,30 @@ class BackendUserController extends BackendUserActionController
      * @param \TYPO3\CMS\Extbase\Mvc\ResponseInterface $response
      * @throws \TYPO3\CMS\Extbase\Mvc\Exception\StopActionException
      */
-    public function processRequest(\TYPO3\CMS\Extbase\Mvc\RequestInterface $request, \TYPO3\CMS\Extbase\Mvc\ResponseInterface $response)
+    public function processRequest(RequestInterface $request, ResponseInterface $response)
     {
         $this->moduleData = $this->moduleDataStorageService->loadModuleData();
         // We "finally" persist the module data.
         try {
             parent::processRequest($request, $response);
             $this->moduleDataStorageService->persistModuleData($this->moduleData);
-        } catch (\TYPO3\CMS\Extbase\Mvc\Exception\StopActionException $e) {
+        } catch (StopActionException $e) {
             $this->moduleDataStorageService->persistModuleData($this->moduleData);
             throw $e;
         }
     }
 
     /**
-     * Initialize actions
-     *
-     * @throws \RuntimeException
+     * Assign default variables to view
+     * @param ViewInterface $view
      */
-    public function initializeAction()
+    protected function initializeView(ViewInterface $view)
     {
-        // @TODO: Extbase backend modules relies on frontend TypoScript for view, persistence
-        // and settings. Thus, we need a TypoScript root template, that then loads the
-        // ext_typoscript_setup.txt file of this module. This is nasty, but can not be
-        // circumvented until there is a better solution in extbase.
-        // For now we throw an exception if no settings are detected.
-        if (empty($this->settings)) {
-            throw new \RuntimeException('No settings detected. This module can not work then. This usually happens if there is no frontend TypoScript template with root flag set. ' . 'Please create a frontend page with a TypoScript root template.', 1344375003);
-        }
+        $view->assignMultiple([
+            'shortcutLabel' => 'backendUsers',
+            'dateFormat' => $GLOBALS['TYPO3_CONF_VARS']['SYS']['ddmmyy'],
+            'timeFormat' => $GLOBALS['TYPO3_CONF_VARS']['SYS']['hhmm'],
+        ]);
     }
 
     /**
@@ -132,7 +133,7 @@ class BackendUserController extends BackendUserActionController
      *
      * @param \TYPO3\CMS\Beuser\Domain\Model\Demand $demand
      */
-    public function indexAction(\TYPO3\CMS\Beuser\Domain\Model\Demand $demand = null)
+    public function indexAction(Demand $demand = null)
     {
         if ($demand === null) {
             $demand = $this->moduleData->getDemand();
@@ -146,26 +147,15 @@ class BackendUserController extends BackendUserActionController
         }
         $compareUserList = $this->moduleData->getCompareUserList();
 
-        // Create online user list for easy parsing
-        $onlineUsers = $this->backendUserSessionRepository->findAllActive();
-        $onlineBackendUsers = [];
-        if (is_array($onlineUsers)) {
-            foreach ($onlineUsers as $onlineUser) {
-                $onlineBackendUsers[$onlineUser['ses_userid']] = true;
-            }
-        }
-        $this->view->assign('onlineBackendUsers', $onlineBackendUsers);
-
-        $this->view->assign('demand', $demand);
-        $this->view->assign('returnUrl', rawurlencode(BackendUtility::getModuleUrl('system_BeuserTxBeuser')));
-        $this->view->assign('dateFormat', $GLOBALS['TYPO3_CONF_VARS']['SYS']['ddmmyy']);
-        $this->view->assign('timeFormat', $GLOBALS['TYPO3_CONF_VARS']['SYS']['hhmm']);
-        $this->view->assign('backendUsers', $this->backendUserRepository->findDemanded($demand));
-        $this->view->assign('backendUserGroups', array_merge([''], $this->backendUserGroupRepository->findAll()->toArray()));
-        $this->view->assign('compareUserUidList', array_map(function ($item) {
-            return true;
-        }, array_flip((array)$compareUserList)));
-        $this->view->assign('compareUserList', !empty($compareUserList) ? $this->backendUserRepository->findByUidList($compareUserList) : '');
+        $this->view->assignMultiple([
+            'onlineBackendUsers' => $this->getOnlineBackendUsers(),
+            'demand' => $demand,
+            'backendUsers' => $this->backendUserRepository->findDemanded($demand),
+            'backendUserGroups' => array_merge([''], $this->backendUserGroupRepository->findAll()->toArray()),
+            'compareUserUidList' => array_combine($compareUserList, $compareUserList),
+            'currentUserUid' => $this->getBackendUserAuthentication()->user['uid'],
+            'compareUserList' => !empty($compareUserList) ? $this->backendUserRepository->findByUidList($compareUserList) : '',
+        ]);
     }
 
     /**
@@ -181,10 +171,24 @@ class BackendUserController extends BackendUserActionController
                 'sessions' => $this->backendUserSessionRepository->findByBackendUser($onlineUser)
             ];
         }
-        $this->view->assign('dateFormat', $GLOBALS['TYPO3_CONF_VARS']['SYS']['ddmmyy']);
-        $this->view->assign('timeFormat', $GLOBALS['TYPO3_CONF_VARS']['SYS']['hhmm']);
-        $this->view->assign('onlineUsersAndSessions', $onlineUsersAndSessions);
-        $this->view->assign('currentSessionId', $this->getBackendUserAuthentication()->user['ses_id']);
+
+        $this->view->assignMultiple([
+            'shortcutLabel' => 'onlineUsers',
+            'onlineUsersAndSessions' => $onlineUsersAndSessions,
+            'currentSessionId' => $this->getBackendUserAuthentication()->user['ses_id'],
+        ]);
+    }
+
+    /**
+     * @param int $uid
+     */
+    public function showAction(int $uid = 0): void
+    {
+        $data = $this->userInformationService->getUserInformation($uid);
+        $this->view->assignMultiple([
+            'shortcutLabel' => 'showUser',
+            'data' => $data
+        ]);
     }
 
     /**
@@ -193,17 +197,54 @@ class BackendUserController extends BackendUserActionController
     public function compareAction()
     {
         $compareUserList = $this->moduleData->getCompareUserList();
-        $this->view->assign('dateFormat', $GLOBALS['TYPO3_CONF_VARS']['SYS']['ddmmyy']);
-        $this->view->assign('timeFormat', $GLOBALS['TYPO3_CONF_VARS']['SYS']['hhmm']);
-        $returnUrl = BackendUtility::getModuleUrl(
-            'system_BeuserTxBeuser',
-            [
-                'tx_beuser_system_beusertxbeuser[action]' => 'compare',
-                'tx_beuser_system_beusertxbeuser[controller]' => 'BackendUser'
-            ]
-        );
-        $this->view->assign('returnUrl', rawurlencode($returnUrl));
-        $this->view->assign('compareUserList', !empty($compareUserList) ? $this->backendUserRepository->findByUidList($compareUserList) : '');
+        if (empty($compareUserList)) {
+            $this->redirect('index');
+        }
+
+        $compareData = [];
+        foreach ($compareUserList as $uid) {
+            if ($compareInformation = $this->userInformationService->getUserInformation($uid)) {
+                $compareData[] = $compareInformation;
+            }
+        }
+
+        $this->view->assignMultiple([
+            'shortcutLabel' => 'compareUsers',
+            'compareUserList' => $compareData,
+            'onlineBackendUsers' => $this->getOnlineBackendUsers()
+        ]);
+    }
+
+    /**
+     * Starts the password reset process for a selected user.
+     *
+     * @param int $user
+     */
+    public function initiatePasswordResetAction(int $user): void
+    {
+        $context = GeneralUtility::makeInstance(Context::class);
+        /** @var BackendUser $user */
+        $user = $this->backendUserRepository->findByUid($user);
+        if (!$user || !$user->isPasswordResetEnabled() || !$context->getAspect('backend.user')->isAdmin()) {
+            // Add an error message
+            $this->addFlashMessage(
+                LocalizationUtility::translate('LLL:EXT:beuser/Resources/Private/Language/locallang.xlf:flashMessage.resetPassword.error.text', 'beuser'),
+                LocalizationUtility::translate('LLL:EXT:beuser/Resources/Private/Language/locallang.xlf:flashMessage.resetPassword.error.title', 'beuser'),
+                FlashMessage::ERROR
+            );
+        } else {
+            GeneralUtility::makeInstance(PasswordReset::class)->initiateReset(
+                $GLOBALS['TYPO3_REQUEST'],
+                $context,
+                $user->getEmail()
+            );
+            $this->addFlashMessage(
+                LocalizationUtility::translate('LLL:EXT:beuser/Resources/Private/Language/locallang.xlf:flashMessage.resetPassword.success.text', 'beuser', [$user->getEmail()]),
+                LocalizationUtility::translate('LLL:EXT:beuser/Resources/Private/Language/locallang.xlf:flashMessage.resetPassword.success.title', 'beuser'),
+                FlashMessage::OK
+            );
+        }
+        $this->forward('index');
     }
 
     /**
@@ -222,12 +263,29 @@ class BackendUserController extends BackendUserActionController
      * Removes given backend user to the compare list
      *
      * @param int $uid
+     * @param int $redirectToCompare
      */
-    public function removeFromCompareListAction($uid)
+    public function removeFromCompareListAction($uid, int $redirectToCompare = 0)
     {
         $this->moduleData->detachUidCompareUser($uid);
         $this->moduleDataStorageService->persistModuleData($this->moduleData);
-        $this->forward('index');
+        if ($redirectToCompare) {
+            $this->redirect('compare');
+        } else {
+            $this->redirect('index');
+        }
+    }
+
+    /**
+     * Removes all backend users from the compare list
+     */
+    public function removeAllFromCompareListAction(): void
+    {
+        foreach ($this->moduleData->getCompareUserList() as $user) {
+            $this->moduleData->detachUidCompareUser($user);
+        }
+        $this->moduleDataStorageService->persistModuleData($this->moduleData);
+        $this->redirect('index');
     }
 
     /**
@@ -237,7 +295,7 @@ class BackendUserController extends BackendUserActionController
      * @param \TYPO3\CMS\Beuser\Domain\Model\BackendUser $backendUser
      * @param string $sessionId
      */
-    protected function terminateBackendUserSessionAction(\TYPO3\CMS\Beuser\Domain\Model\BackendUser $backendUser, $sessionId)
+    protected function terminateBackendUserSessionAction(BackendUser $backendUser, $sessionId)
     {
         $sessionBackend = $this->getSessionBackend();
         $success = $sessionBackend->remove($sessionId);
@@ -255,12 +313,26 @@ class BackendUserController extends BackendUserActionController
      */
     protected function switchUser($switchUser)
     {
-        $targetUser = \TYPO3\CMS\Backend\Utility\BackendUtility::getRecord('be_users', $switchUser);
+        $targetUser = BackendUtility::getRecord('be_users', $switchUser);
         if (is_array($targetUser) && $this->getBackendUserAuthentication()->isAdmin()) {
             // Set backend user listing module as starting module for switchback
             $this->getBackendUserAuthentication()->uc['startModuleOnFirstLogin'] = 'system_BeuserTxBeuser';
             $this->getBackendUserAuthentication()->uc['recentSwitchedToUsers'] = $this->generateListOfMostRecentSwitchedUsers($targetUser['uid']);
             $this->getBackendUserAuthentication()->writeUC();
+
+            // User switch   written to log
+            $this->getBackendUserAuthentication()->writelog(
+                255,
+                2,
+                0,
+                1,
+                'User %s switched to user %s (be_users:%s)',
+                [
+                    $this->getBackendUserAuthentication()->user['username'],
+                    $targetUser['username'],
+                    $targetUser['uid'],
+                ]
+            );
 
             $sessionBackend = $this->getSessionBackend();
             $sessionBackend->update(
@@ -271,8 +343,15 @@ class BackendUserController extends BackendUserActionController
                 ]
             );
 
+            $event = new SwitchUserEvent(
+                $this->getBackendUserAuthentication()->getSessionId(),
+                $targetUser,
+                $this->getBackendUserAuthentication()->user
+            );
+            $this->eventDispatcher->dispatch($event);
+
             $redirectUrl = 'index.php' . ($GLOBALS['TYPO3_CONF_VARS']['BE']['interfaces'] ? '' : '?commandLI=1');
-            \TYPO3\CMS\Core\Utility\HttpUtility::redirect($redirectUrl);
+            HttpUtility::redirect($redirectUrl);
         }
     }
 
@@ -306,17 +385,9 @@ class BackendUserController extends BackendUserActionController
     /**
      * @return BackendUserAuthentication
      */
-    protected function getBackendUserAuthentication()
+    protected function getBackendUserAuthentication(): BackendUserAuthentication
     {
         return $GLOBALS['BE_USER'];
-    }
-
-    /**
-     * @return LanguageService
-     */
-    protected function getLanguageService()
-    {
-        return $GLOBALS['LANG'];
     }
 
     /**
@@ -326,5 +397,25 @@ class BackendUserController extends BackendUserActionController
     {
         $loginType = $this->getBackendUserAuthentication()->getLoginType();
         return GeneralUtility::makeInstance(SessionManager::class)->getSessionBackend($loginType);
+    }
+
+    /**
+     * Create an array with the uids of online users as the keys
+     * [
+     *   1 => true,
+     *   5 => true
+     * ]
+     * @return array
+     */
+    protected function getOnlineBackendUsers(): array
+    {
+        $onlineUsers = $this->backendUserSessionRepository->findAllActive();
+        $onlineBackendUsers = [];
+        if (is_array($onlineUsers)) {
+            foreach ($onlineUsers as $onlineUser) {
+                $onlineBackendUsers[$onlineUser['ses_userid']] = true;
+            }
+        }
+        return $onlineBackendUsers;
     }
 }

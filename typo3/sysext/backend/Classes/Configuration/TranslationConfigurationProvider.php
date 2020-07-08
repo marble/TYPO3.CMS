@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,29 +13,28 @@ namespace TYPO3\CMS\Backend\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Configuration;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\BackendWorkspaceRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
-use TYPO3\CMS\Core\Localization\LanguageService;
-use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
+use TYPO3\CMS\Core\Exception\SiteNotFoundException;
+use TYPO3\CMS\Core\Site\Entity\NullSite;
+use TYPO3\CMS\Core\Site\Entity\SiteInterface;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Contains translation tools
+ *
+ * @internal The whole class is subject to be removed, fetch all language info from the current site object.
  */
 class TranslationConfigurationProvider
 {
     /**
-     * @return LanguageService
-     */
-    protected function getLanguageService()
-    {
-        return $GLOBALS['LANG'];
-    }
-
-    /**
-     * Returns array of system languages
+     * Returns array of languages given for a specific site (or "nullSite" if on page=0)
      * The property flagIcon returns a string <flags-xx>.
      *
      * @param int $pageId Page id (used to get TSconfig configuration setting flag and label for default language)
@@ -44,48 +42,56 @@ class TranslationConfigurationProvider
      */
     public function getSystemLanguages($pageId = 0)
     {
-        $modSharedTSconfig = BackendUtility::getModTSconfig($pageId, 'mod.SHARED');
-
-        // default language and "all languages" are always present
-        $languages = [
-            // 0: default language
-            0 => [
-                'uid' => 0,
-                'title' => $this->getDefaultLanguageLabel($modSharedTSconfig),
-                'ISOcode' => 'DEF',
-                'flagIcon' => $this->getDefaultLanguageFlag($modSharedTSconfig),
-            ],
-            // -1: all languages
-            -1 => [
-                'uid' => -1,
-                'title' => $this->getLanguageService()->getLL('multipleLanguages'),
-                'ISOcode' => 'DEF',
-                'flagIcon' => 'flags-multiple',
-            ],
-        ];
-
-        // add the additional languages from database records
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_language');
-        $languageRecords = $queryBuilder
-            ->select('*')
-            ->from('sys_language')
-            ->orderBy('sorting')
-            ->execute()
-            ->fetchAll();
-        foreach ($languageRecords as $languageRecord) {
-            $languages[$languageRecord['uid']] = $languageRecord;
-            // @todo: this should probably resolve language_isocode too and throw a deprecation if not filled
-            if ($languageRecord['static_lang_isocode'] && ExtensionManagementUtility::isLoaded('static_info_tables')) {
-                $staticLangRow = BackendUtility::getRecord('static_languages', $languageRecord['static_lang_isocode'], 'lg_iso_2');
-                if ($staticLangRow['lg_iso_2']) {
-                    $languages[$languageRecord['uid']]['ISOcode'] = $staticLangRow['lg_iso_2'];
-                }
+        $allSystemLanguages = [];
+        $siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
+        if ($pageId === 0) {
+            // Used for e.g. filelist, where there is no site selected
+            // This also means that there is no "-1" (All Languages) selectable.
+            $sites = $siteFinder->getAllSites();
+            foreach ($sites as $site) {
+                $allSystemLanguages = $this->addSiteLanguagesToConsolidatedList(
+                    $allSystemLanguages,
+                    $site->getAvailableLanguages($this->getBackendUserAuthentication()),
+                    $site
+                );
             }
-            if ($languageRecord['flag'] !== '') {
-                $languages[$languageRecord['uid']]['flagIcon'] = 'flags-' . $languageRecord['flag'];
+        } else {
+            try {
+                $site = $siteFinder->getSiteByPageId((int)$pageId);
+            } catch (SiteNotFoundException $e) {
+                $site = new NullSite();
+            }
+            $siteLanguages = $site->getAvailableLanguages($this->getBackendUserAuthentication(), true);
+            if (!isset($siteLanguages[0])) {
+                $siteLanguages[0] = $site->getDefaultLanguage();
+            }
+            $allSystemLanguages = $this->addSiteLanguagesToConsolidatedList(
+                $allSystemLanguages,
+                $siteLanguages,
+                $site
+            );
+        }
+        ksort($allSystemLanguages);
+        return $allSystemLanguages;
+    }
+
+    protected function addSiteLanguagesToConsolidatedList(array $allSystemLanguages, array $languagesOfSpecificSite, SiteInterface $site): array
+    {
+        foreach ($languagesOfSpecificSite as $language) {
+            $languageId = $language->getLanguageId();
+            if (isset($allSystemLanguages[$languageId])) {
+                // Language already provided by another site, just add the label separately
+                $allSystemLanguages[$languageId]['title'] .= ', ' . $language->getTitle() . ' [Site: ' . $site->getIdentifier() . ']';
+            } else {
+                $allSystemLanguages[$languageId] = [
+                    'uid' => $languageId,
+                    'title' => $language->getTitle() . ' [Site: ' . $site->getIdentifier() . ']',
+                    'ISOcode' => $language->getTwoLetterIsoCode(),
+                    'flagIcon' => $language->getFlagIdentifier(),
+                ];
             }
         }
-        return $languages;
+        return $allSystemLanguages;
     }
 
     /**
@@ -110,37 +116,36 @@ class TranslationConfigurationProvider
         if (!is_array($row)) {
             return 'Record "' . $table . '_' . $uid . '" was not found';
         }
-        $translationTable = $this->getTranslationTable($table);
-        if ($translationTable === '') {
+        if (!BackendUtility::isTableLocalizable($table)) {
             return 'Translation is not supported for this table!';
         }
-        if ($translationTable === $table && $row[$GLOBALS['TCA'][$table]['ctrl']['languageField']] > 0) {
+        if ($row[$GLOBALS['TCA'][$table]['ctrl']['languageField']] > 0) {
             return 'Record "' . $table . '_' . $uid . '" seems to be a translation already (has a language value "' . $row[$GLOBALS['TCA'][$table]['ctrl']['languageField']] . '", relation to record "' . $row[$GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField']] . '")';
         }
-        if ($translationTable === $table && $row[$GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField']] != 0) {
+        if ($row[$GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField']] != 0) {
             return 'Record "' . $table . '_' . $uid . '" seems to be a translation already (has a relation to record "' . $row[$GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField']] . '")';
         }
         // Look for translations of this record, index by language field value:
         if (!$selFieldList) {
-            $selFieldList = 'uid,' . $GLOBALS['TCA'][$translationTable]['ctrl']['languageField'];
+            $selFieldList = 'uid,' . $GLOBALS['TCA'][$table]['ctrl']['languageField'];
         }
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($translationTable);
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
         $queryBuilder->getRestrictions()
             ->removeAll()
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
             ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
         $queryBuilder
             ->select(...GeneralUtility::trimExplode(',', $selFieldList))
-            ->from($translationTable)
+            ->from($table)
             ->where(
                 $queryBuilder->expr()->eq(
-                    $GLOBALS['TCA'][$translationTable]['ctrl']['transOrigPointerField'],
+                    $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'],
                     $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)
                 ),
                 $queryBuilder->expr()->eq(
                     'pid',
                     $queryBuilder->createNamedParameter(
-                        ($table === 'pages' ? $row['uid'] : $row['pid']),
+                        $row['pid'],
                         \PDO::PARAM_INT
                     )
                 )
@@ -148,7 +153,7 @@ class TranslationConfigurationProvider
         if (!$languageUid) {
             $queryBuilder->andWhere(
                 $queryBuilder->expr()->gt(
-                    $GLOBALS['TCA'][$translationTable]['ctrl']['languageField'],
+                    $GLOBALS['TCA'][$table]['ctrl']['languageField'],
                     $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
                 )
             );
@@ -156,7 +161,7 @@ class TranslationConfigurationProvider
             $queryBuilder
                 ->andWhere(
                     $queryBuilder->expr()->eq(
-                        $GLOBALS['TCA'][$translationTable]['ctrl']['languageField'],
+                        $GLOBALS['TCA'][$table]['ctrl']['languageField'],
                         $queryBuilder->createNamedParameter($languageUid, \PDO::PARAM_INT)
                     )
                 );
@@ -168,10 +173,10 @@ class TranslationConfigurationProvider
         $translations = [];
         $translationsErrors = [];
         foreach ($translationRecords as $translationRecord) {
-            if (!isset($translations[$translationRecord[$GLOBALS['TCA'][$translationTable]['ctrl']['languageField']]])) {
-                $translations[$translationRecord[$GLOBALS['TCA'][$translationTable]['ctrl']['languageField']]] = $translationRecord;
+            if (!isset($translations[$translationRecord[$GLOBALS['TCA'][$table]['ctrl']['languageField']]])) {
+                $translations[$translationRecord[$GLOBALS['TCA'][$table]['ctrl']['languageField']]] = $translationRecord;
             } else {
-                $translationsErrors[$translationRecord[$GLOBALS['TCA'][$translationTable]['ctrl']['languageField']]][] = $translationRecord;
+                $translationsErrors[$translationRecord[$GLOBALS['TCA'][$table]['ctrl']['languageField']]][] = $translationRecord;
             }
         }
         return [
@@ -179,70 +184,13 @@ class TranslationConfigurationProvider
             'uid' => $uid,
             'CType' => $row['CType'],
             'sys_language_uid' => $row[$GLOBALS['TCA'][$table]['ctrl']['languageField']],
-            'translation_table' => $translationTable,
             'translations' => $translations,
             'excessive_translations' => $translationsErrors
         ];
     }
 
-    /**
-     * Returns the table in which translations for input table is found.
-     *
-     * @param string $table The table name
-     * @return string
-     */
-    public function getTranslationTable($table)
+    protected function getBackendUserAuthentication(): BackendUserAuthentication
     {
-        return $this->isTranslationInOwnTable($table) ? $table : $this->foreignTranslationTable($table);
-    }
-
-    /**
-     * Returns TRUE, if the input table has localization enabled and done so with records from the same table
-     *
-     * @param string $table The table name
-     * @return bool
-     */
-    public function isTranslationInOwnTable($table)
-    {
-        return $GLOBALS['TCA'][$table]['ctrl']['languageField'] && $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'] && $table !== 'pages_language_overlay';
-    }
-
-    /**
-     * Returns foreign translation table, if any
-     *
-     * @param string $table The table name
-     * @return string Translation foreign table
-     */
-    public function foreignTranslationTable($table)
-    {
-        return $table === 'pages' ? 'pages_language_overlay' : '';
-    }
-
-    /**
-     * @param array $modSharedTSconfig
-     * @return string
-     */
-    protected function getDefaultLanguageFlag(array $modSharedTSconfig)
-    {
-        if (strlen($modSharedTSconfig['properties']['defaultLanguageFlag'])) {
-            $defaultLanguageFlag = 'flags-' . $modSharedTSconfig['properties']['defaultLanguageFlag'];
-        } else {
-            $defaultLanguageFlag = 'empty-empty';
-        }
-        return $defaultLanguageFlag;
-    }
-
-    /**
-     * @param array $modSharedTSconfig
-     * @return string
-     */
-    protected function getDefaultLanguageLabel(array $modSharedTSconfig)
-    {
-        if (strlen($modSharedTSconfig['properties']['defaultLanguageLabel'])) {
-            $defaultLanguageLabel = $modSharedTSconfig['properties']['defaultLanguageLabel'] . ' (' . $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:defaultLanguage') . ')';
-        } else {
-            $defaultLanguageLabel = $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:defaultLanguage');
-        }
-        return $defaultLanguageLabel;
+        return $GLOBALS['BE_USER'];
     }
 }

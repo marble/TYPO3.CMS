@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,24 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaColumnsProcessPlaceholders;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaColumnsProcessPlaceholdersTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaColumnsProcessPlaceholdersTest extends UnitTestCase
 {
     /**
      * @var TcaColumnsProcessPlaceholders
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = new TcaColumnsProcessPlaceholders();
     }
 
@@ -52,7 +55,7 @@ class TcaColumnsProcessPlaceholdersTest extends \TYPO3\TestingFramework\Core\Uni
 
         $expected = $input;
         $expected['columnsToProcess'] = ['anotherField'];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -76,13 +79,13 @@ class TcaColumnsProcessPlaceholdersTest extends \TYPO3\TestingFramework\Core\Uni
 
         $expected = $input;
         $expected['columnsToProcess'] = ['uid_local'];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
      * @test
      */
-    public function addDataRegistersAlternativeLabelColumnn()
+    public function addDataRegistersAlternativeLabelColumn()
     {
         $input = [
             'columnsToProcess' => [],
@@ -99,6 +102,6 @@ class TcaColumnsProcessPlaceholdersTest extends \TYPO3\TestingFramework\Core\Uni
         ];
 
         $expected = $input;
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 }

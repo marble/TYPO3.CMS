@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Uri;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Uri;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Uri;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Uri\ExternalViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 
@@ -27,7 +28,7 @@ class ExternalViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new ExternalViewHelper();
@@ -51,7 +52,7 @@ class ExternalViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('http://www.some-domain.tld', $actualResult);
+        self::assertEquals('http://www.some-domain.tld', $actualResult);
     }
 
     /**
@@ -66,7 +67,7 @@ class ExternalViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('http://www.some-domain.tld', $actualResult);
+        self::assertEquals('http://www.some-domain.tld', $actualResult);
     }
 
     /**
@@ -82,7 +83,7 @@ class ExternalViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('ftp://some-domain.tld', $actualResult);
+        self::assertEquals('ftp://some-domain.tld', $actualResult);
     }
 
     /**
@@ -98,6 +99,6 @@ class ExternalViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('some-domain.tld', $actualResult);
+        self::assertEquals('some-domain.tld', $actualResult);
     }
 }

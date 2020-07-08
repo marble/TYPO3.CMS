@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Filemetadata\Tests\Unit\Tca;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Filemetadata\Tests\Unit\Tca;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Filemetadata\Tests\Functional\Tca;
+
 use TYPO3\CMS\Backend\Tests\Functional\Form\FormTestService;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
-class FileMetadataVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class FileMetadataVisibleFieldsTest extends FunctionalTestCase
 {
     /**
      * @var array
@@ -31,7 +33,6 @@ class FileMetadataVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functio
      */
     protected static $fileMetadataFields = [
         File::FILETYPE_UNKNOWN => [
-            'sys_language_uid',
             'title',
             'description',
             'ranking',
@@ -52,7 +53,6 @@ class FileMetadataVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functio
             'categories',
         ],
         File::FILETYPE_TEXT => [
-            'sys_language_uid',
             'title',
             'description',
             'ranking',
@@ -74,7 +74,6 @@ class FileMetadataVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functio
             'categories',
         ],
         File::FILETYPE_IMAGE => [
-            'sys_language_uid',
             'title',
             'description',
             'ranking',
@@ -101,7 +100,6 @@ class FileMetadataVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functio
             'categories',
         ],
         File::FILETYPE_AUDIO => [
-            'sys_language_uid',
             'title',
             'description',
             'ranking',
@@ -123,7 +121,6 @@ class FileMetadataVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functio
             'categories',
         ],
         File::FILETYPE_VIDEO => [
-            'sys_language_uid',
             'title',
             'description',
             'ranking',
@@ -164,7 +161,7 @@ class FileMetadataVisibleFieldsTest extends \TYPO3\TestingFramework\Core\Functio
             );
 
             foreach ($expectedFields as $expectedField) {
-                $this->assertNotFalse(
+                self::assertNotFalse(
                     $formEngineTestService->formHtmlContainsField($expectedField, $formResult['html']),
                     'The field ' . $expectedField . ' is not in the form HTML for file type ' . $filetype
                 );

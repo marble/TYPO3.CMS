@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Core;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,34 +13,40 @@ namespace TYPO3\CMS\Core\Tests\Unit\Core;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Core;
+
 use Composer\Autoload\ClassLoader;
 use TYPO3\CMS\Core\Core\ClassLoadingInformationGenerator;
+use TYPO3\CMS\Core\Error\Exception;
 use TYPO3\CMS\Core\Package\PackageInterface;
+use TYPO3\CMS\Core\Tests\Unit\Core\Fixtures\test_extension\Resources\PHP\AnotherTestFile;
+use TYPO3\CMS\Core\Tests\Unit\Core\Fixtures\test_extension\Resources\PHP\Test;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for the ClassLoadingInformationGenerator class
  */
-class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ClassLoadingInformationGeneratorTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function buildClassAliasMapForPackageThrowsExceptionForWrongComposerManifestInformation()
     {
-        $this->expectException(\TYPO3\CMS\Core\Error\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1444142481);
 
         $packageMock = $this->createPackageMock([
             'extra' => [
                 'typo3/class-alias-loader' => [
                     'class-alias-maps' => [
-                        'foo' => Fixtures\test_extension\Resources\PHP\Test::class,
-                        'bar' => Fixtures\test_extension\Resources\PHP\AnotherTestFile::class,
+                        'foo' => Test::class,
+                        'bar' => AnotherTestFile::class,
                     ],
                 ],
             ],
         ]);
-        /** @var ClassLoader|\PHPUnit_Framework_MockObject_MockObject $classLoaderMock */
+        /** @var ClassLoader|\PHPUnit\Framework\MockObject\MockObject $classLoaderMock */
         $classLoaderMock = $this->createMock(ClassLoader::class);
         $generator = new ClassLoadingInformationGenerator($classLoaderMock, [], __DIR__);
         $generator->buildClassAliasMapForPackage($packageMock);
@@ -52,7 +57,7 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
      */
     public function buildClassAliasMapForPackageThrowsExceptionForWrongClassAliasMapFile()
     {
-        $this->expectException(\TYPO3\CMS\Core\Error\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1422625075);
 
         $packageMock = $this->createPackageMock([
@@ -64,7 +69,7 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
                 ],
             ],
         ]);
-        /** @var ClassLoader|\PHPUnit_Framework_MockObject_MockObject $classLoaderMock */
+        /** @var ClassLoader|\PHPUnit\Framework\MockObject\MockObject $classLoaderMock */
         $classLoaderMock = $this->createMock(ClassLoader::class);
         $generator = new ClassLoadingInformationGenerator($classLoaderMock, [], __DIR__);
         $generator->buildClassAliasMapForPackage($packageMock);
@@ -77,23 +82,23 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
     {
         $expectedClassMap = [
             'aliasToClassNameMapping' => [
-                'foo' => Fixtures\test_extension\Resources\PHP\Test::class,
-                'bar' => Fixtures\test_extension\Resources\PHP\AnotherTestFile::class,
+                'foo' => Test::class,
+                'bar' => AnotherTestFile::class,
             ],
             'classNameToAliasMapping' => [
-                Fixtures\test_extension\Resources\PHP\Test::class => [
+                Test::class => [
                     'foo' => 'foo',
                 ],
-                Fixtures\test_extension\Resources\PHP\AnotherTestFile::class => [
+                AnotherTestFile::class => [
                     'bar' => 'bar',
                 ]
             ],
         ];
         $packageMock = $this->createPackageMock([]);
-        /** @var ClassLoader|\PHPUnit_Framework_MockObject_MockObject $classLoaderMock */
+        /** @var ClassLoader|\PHPUnit\Framework\MockObject\MockObject $classLoaderMock */
         $classLoaderMock = $this->createMock(ClassLoader::class);
         $generator = new ClassLoadingInformationGenerator($classLoaderMock, [], __DIR__);
-        $this->assertEquals($expectedClassMap, $generator->buildClassAliasMapForPackage($packageMock));
+        self::assertEquals($expectedClassMap, $generator->buildClassAliasMapForPackage($packageMock));
     }
 
     /**
@@ -103,14 +108,14 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
     {
         $expectedClassMap = [
             'aliasToClassNameMapping' => [
-                'foo' => Fixtures\test_extension\Resources\PHP\Test::class,
-                'bar' => Fixtures\test_extension\Resources\PHP\AnotherTestFile::class,
+                'foo' => Test::class,
+                'bar' => AnotherTestFile::class,
             ],
             'classNameToAliasMapping' => [
-                Fixtures\test_extension\Resources\PHP\Test::class => [
+                Test::class => [
                     'foo' => 'foo',
                 ],
-                Fixtures\test_extension\Resources\PHP\AnotherTestFile::class => [
+                AnotherTestFile::class => [
                     'bar' => 'bar',
                 ]
             ],
@@ -124,10 +129,10 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
                 ],
             ],
         ]);
-        /** @var ClassLoader|\PHPUnit_Framework_MockObject_MockObject $classLoaderMock */
+        /** @var ClassLoader|\PHPUnit\Framework\MockObject\MockObject $classLoaderMock */
         $classLoaderMock = $this->createMock(ClassLoader::class);
         $generator = new ClassLoadingInformationGenerator($classLoaderMock, [], __DIR__);
-        $this->assertEquals($expectedClassMap, $generator->buildClassAliasMapForPackage($packageMock));
+        self::assertEquals($expectedClassMap, $generator->buildClassAliasMapForPackage($packageMock));
     }
 
     /**
@@ -262,13 +267,13 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
      */
     public function autoloadFilesAreBuildCorrectly($packageManifest, $expectedPsr4Files, $expectedClassMapFiles)
     {
-        /** @var ClassLoader|\PHPUnit_Framework_MockObject_MockObject $classLoaderMock */
+        /** @var ClassLoader|\PHPUnit\Framework\MockObject\MockObject $classLoaderMock */
         $classLoaderMock = $this->createMock(ClassLoader::class);
         $generator = new ClassLoadingInformationGenerator($classLoaderMock, [$this->createPackageMock($packageManifest)], __DIR__);
         $files = $generator->buildAutoloadInformationFiles();
 
-        $this->assertArrayHasKey('psr-4File', $files);
-        $this->assertArrayHasKey('classMapFile', $files);
+        self::assertArrayHasKey('psr-4File', $files);
+        self::assertArrayHasKey('classMapFile', $files);
         foreach ($expectedPsr4Files as $expectation) {
             if ($expectation[0] === '!') {
                 $expectedCount = 0;
@@ -278,7 +283,7 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
                 $expectedCount = 1;
                 $message = sprintf('File "%s" is expected to be in psr-4, but is not.', $expectation);
             }
-            $this->assertSame($expectedCount, substr_count($files['psr-4File'], $expectation), $message);
+            self::assertSame($expectedCount, substr_count($files['psr-4File'], $expectation), $message);
         }
         foreach ($expectedClassMapFiles as $expectation) {
             if ($expectation[0] === '!') {
@@ -289,7 +294,7 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
                 $expectedCount = 1;
                 $message = sprintf('File "%s" is expected to be in class map, but is not.', $expectation);
             }
-            $this->assertSame($expectedCount, substr_count($files['classMapFile'], $expectation), $message);
+            self::assertSame($expectedCount, substr_count($files['classMapFile'], $expectation), $message);
         }
     }
 
@@ -372,20 +377,20 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
      */
     public function autoloadDevFilesAreBuildCorrectly($packageManifest, $expectedPsr4Files, $expectedClassMapFiles)
     {
-        /** @var ClassLoader|\PHPUnit_Framework_MockObject_MockObject $classLoaderMock */
+        /** @var ClassLoader|\PHPUnit\Framework\MockObject\MockObject $classLoaderMock */
         $classLoaderMock = $this->createMock(ClassLoader::class);
         $generator = new ClassLoadingInformationGenerator($classLoaderMock, [$this->createPackageMock($packageManifest)], __DIR__, true);
         $files = $generator->buildAutoloadInformationFiles();
 
-        $this->assertArrayHasKey('psr-4File', $files);
-        $this->assertArrayHasKey('classMapFile', $files);
+        self::assertArrayHasKey('psr-4File', $files);
+        self::assertArrayHasKey('classMapFile', $files);
         foreach ($expectedPsr4Files as $expectation) {
             if ($expectation[0] === '!') {
                 $expectedCount = 0;
             } else {
                 $expectedCount = 1;
             }
-            $this->assertSame($expectedCount, substr_count($files['psr-4File'], $expectation), '' . $expectation);
+            self::assertSame($expectedCount, substr_count($files['psr-4File'], $expectation), '' . $expectation);
         }
         foreach ($expectedClassMapFiles as $expectation) {
             if ($expectation[0] === '!') {
@@ -393,7 +398,7 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
             } else {
                 $expectedCount = 1;
             }
-            $this->assertSame($expectedCount, substr_count($files['classMapFile'], $expectation), '' . $expectation);
+            self::assertSame($expectedCount, substr_count($files['classMapFile'], $expectation), '' . $expectation);
         }
     }
 
@@ -404,8 +409,8 @@ class ClassLoadingInformationGeneratorTest extends \TYPO3\TestingFramework\Core\
     protected function createPackageMock($packageManifest)
     {
         $packageMock = $this->createMock(PackageInterface::class);
-        $packageMock->expects($this->any())->method('getPackagePath')->willReturn(__DIR__ . '/Fixtures/test_extension/');
-        $packageMock->expects($this->any())->method('getValueFromComposerManifest')->willReturn(
+        $packageMock->expects(self::any())->method('getPackagePath')->willReturn(__DIR__ . '/Fixtures/test_extension/');
+        $packageMock->expects(self::any())->method('getValueFromComposerManifest')->willReturn(
             json_decode(json_encode($packageManifest))
         );
 

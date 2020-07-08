@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,17 +15,16 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Database\Query\Restriction\FrontendWorkspaceRestriction;
-use TYPO3\CMS\Frontend\Page\PageRepository;
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Query\Restriction;
 
+use TYPO3\CMS\Core\Database\Query\Restriction\FrontendWorkspaceRestriction;
+
+/**
+ * Test case
+ */
 class FrontendWorkspaceRestrictionTest extends AbstractRestrictionTestCase
 {
-    /**
-     */
-    protected function setUp()
-    {
-        parent::setUp();
-    }
+    protected $resetSingletonInstances = true;
 
     /**
      * @test
@@ -35,17 +34,14 @@ class FrontendWorkspaceRestrictionTest extends AbstractRestrictionTestCase
         $GLOBALS['TCA'] = [
             'aTable' => [
                 'ctrl' => [
-                    'versioningWS' => 2,
+                    'versioningWS' => true,
                 ],
             ]
         ];
 
-        $pageRepository = $this->createMock(PageRepository::class);
-        $pageRepository->versioningPreview = false;
-
         $subject = new FrontendWorkspaceRestriction(0);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('("aTable"."t3ver_state" <= 0) AND ("aTable"."pid" <> -1)', (string)$expression);
+        self::assertSame('("aTable"."t3ver_state" <= 0) AND ("aTable"."t3ver_oid" = 0)', (string)$expression);
     }
 
     /**
@@ -56,18 +52,14 @@ class FrontendWorkspaceRestrictionTest extends AbstractRestrictionTestCase
         $GLOBALS['TCA'] = [
             'aTable' => [
                 'ctrl' => [
-                    'versioningWS' => 2,
+                    'versioningWS' => true,
                 ],
             ]
         ];
 
-        $pageRepository = $this->createMock(PageRepository::class);
-        $pageRepository->versioningPreview = true;
-        $pageRepository->versioningWorkspaceId = 42;
-
         $subject = new FrontendWorkspaceRestriction(42, true);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('(("aTable"."t3ver_wsid" = 0) OR ("aTable"."t3ver_wsid" = 42)) AND ("aTable"."pid" <> -1)', (string)$expression);
+        self::assertSame('(("aTable"."t3ver_wsid" = 0) OR ("aTable"."t3ver_wsid" = 42)) AND ("aTable"."t3ver_oid" = 0)', (string)$expression);
     }
 
     /**
@@ -78,17 +70,13 @@ class FrontendWorkspaceRestrictionTest extends AbstractRestrictionTestCase
         $GLOBALS['TCA'] = [
             'aTable' => [
                 'ctrl' => [
-                    'versioningWS' => 2,
+                    'versioningWS' => true,
                 ],
             ]
         ];
 
-        $pageRepository = $this->createMock(PageRepository::class);
-        $pageRepository->versioningPreview = true;
-        $pageRepository->versioningWorkspaceId = 42;
-
         $subject = new FrontendWorkspaceRestriction(42, true, false);
         $expression = $subject->buildExpression(['aTable' => 'aTable'], $this->expressionBuilder);
-        $this->assertSame('("aTable"."t3ver_wsid" = 0) OR ("aTable"."t3ver_wsid" = 42)', (string)$expression);
+        self::assertSame('("aTable"."t3ver_wsid" = 0) OR ("aTable"."t3ver_wsid" = 42)', (string)$expression);
     }
 }

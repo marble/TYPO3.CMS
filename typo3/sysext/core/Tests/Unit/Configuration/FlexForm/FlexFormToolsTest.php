@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Configuration\FlexForm;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,8 +15,13 @@ namespace TYPO3\CMS\Core\Tests\Unit\Configuration\FlexForm;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Configuration\FlexForm;
+
 use Doctrine\DBAL\Driver\Statement;
 use Prophecy\Argument;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Configuration\FlexForm\Exception\InvalidCombinedPointerFieldException;
 use TYPO3\CMS\Core\Configuration\FlexForm\Exception\InvalidIdentifierException;
 use TYPO3\CMS\Core\Configuration\FlexForm\Exception\InvalidParentRowException;
@@ -46,16 +51,37 @@ use TYPO3\CMS\Core\Tests\Unit\Configuration\FlexForm\Fixtures\DataStructureParse
 use TYPO3\CMS\Core\Tests\Unit\Configuration\FlexForm\Fixtures\DataStructureParsePreProcessHookReturnString;
 use TYPO3\CMS\Core\Tests\Unit\Configuration\FlexForm\Fixtures\DataStructureParsePreProcessHookThrowException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FlexFormToolsTest extends UnitTestCase
 {
+    /**
+     * @var bool Reset singletons created by subject
+     */
+    protected $resetSingletonInstances = true;
+
+    /**
+     * Set up
+     */
+    public function setUp(): void
+    {
+        parent::setUp();
+        // Underlying static GeneralUtility::xml2array() uses caches that have to be mocked here
+        $cacheManagerProphecy = $this->prophesize(CacheManager::class);
+        $cacheProphecy = $this->prophesize(FrontendInterface::class);
+        $cacheManagerProphecy->getCache('runtime')->willReturn($cacheProphecy->reveal());
+        $cacheProphecy->get(Argument::cetera())->willReturn(false);
+        $cacheProphecy->set(Argument::cetera())->willReturn(false);
+        GeneralUtility::setSingletonInstance(CacheManager::class, $cacheManagerProphecy->reveal());
+    }
+
     /**
      * @test
      */
-    public function getDataStructureIdentifierCallsRegisteredPreProcessHook()
+    public function getDataStructureIdentifierCallsRegisteredPreProcessHook(): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FlexFormTools::class]['flexParsing'] = [
             DataStructureIdentifierPreProcessHookThrowException::class,
@@ -68,7 +94,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfPreProcessHookReturnsNoArray()
+    public function getDataStructureIdentifierThrowsExceptionIfPreProcessHookReturnsNoArray(): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FlexFormTools::class]['flexParsing'] = [
             DataStructureIdentifierPreProcessHookReturnString::class
@@ -81,7 +107,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierUsesCasualLogicIfPreProcessHookReturnsNoIdentifier()
+    public function getDataStructureIdentifierUsesCasualLogicIfPreProcessHookReturnsNoIdentifier(): void
     {
         $fieldTca = [
             'config' => [
@@ -94,25 +120,25 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             DataStructureIdentifierPreProcessHookReturnEmptyArray::class
         ];
         $expected = '{"type":"tca","tableName":"aTableName","fieldName":"aFieldName","dataStructureKey":"default"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', []));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', []));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsStringFromPreProcessHook()
+    public function getDataStructureIdentifierReturnsStringFromPreProcessHook(): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FlexFormTools::class]['flexParsing'] = [
             DataStructureIdentifierPreProcessHookReturnArray::class
         ];
         $expected = '{"type":"myExtension","further":"data"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier([], 'aTableName', 'aFieldName', []));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier([], 'aTableName', 'aFieldName', []));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsStringFromFirstMatchingPreProcessHook()
+    public function getDataStructureIdentifierReturnsStringFromFirstMatchingPreProcessHook(): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FlexFormTools::class]['flexParsing'] = [
             DataStructureIdentifierPreProcessHookReturnEmptyArray::class,
@@ -120,13 +146,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             DataStructureIdentifierPreProcessHookThrowException::class
         ];
         $expected = '{"type":"myExtension","further":"data"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier([], 'aTableName', 'aFieldName', []));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier([], 'aTableName', 'aFieldName', []));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierCallsRegisteredPostProcessHook()
+    public function getDataStructureIdentifierCallsRegisteredPostProcessHook(): void
     {
         $fieldTca = [
             'config' => [
@@ -146,7 +172,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfPostProcessHookReturnsNoArray()
+    public function getDataStructureIdentifierThrowsExceptionIfPostProcessHookReturnsNoArray(): void
     {
         $fieldTca = [
             'config' => [
@@ -166,7 +192,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfPostProcessHookReturnsEmptyArray()
+    public function getDataStructureIdentifierThrowsExceptionIfPostProcessHookReturnsEmptyArray(): void
     {
         $fieldTca = [
             'config' => [
@@ -186,7 +212,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierPostProcessHookCanEnrichIdentifier()
+    public function getDataStructureIdentifierPostProcessHookCanEnrichIdentifier(): void
     {
         $fieldTca = [
             'config' => [
@@ -199,13 +225,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             DataStructureIdentifierPostProcessHookReturnArray::class
         ];
         $expected = '{"type":"tca","tableName":"aTableName","fieldName":"aFieldName","dataStructureKey":"default","myExtensionData":"foo"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', []));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', []));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfDsIsNotAnArrayAndNoDsPointerField()
+    public function getDataStructureIdentifierThrowsExceptionIfDsIsNotAnArrayAndNoDsPointerField(): void
     {
         $fieldTca = [
             'config' => [
@@ -221,7 +247,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsDefaultIfDsIsSetButNoDsPointerField()
+    public function getDataStructureIdentifierReturnsDefaultIfDsIsSetButNoDsPointerField(): void
     {
         $fieldTca = [
             'config' => [
@@ -231,13 +257,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
         $expected = '{"type":"tca","tableName":"aTableName","fieldName":"aFieldName","dataStructureKey":"default"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', []));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', []));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionsIfNoDsPointerFieldIsSetAndDefaultDoesNotExist()
+    public function getDataStructureIdentifierThrowsExceptionsIfNoDsPointerFieldIsSetAndDefaultDoesNotExist(): void
     {
         $fieldTca = [
             'config' => [
@@ -246,13 +272,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         $this->expectException(InvalidTcaException::class);
         $this->expectExceptionCode(1463652560);
-        $this->assertSame('default', (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', []));
+        self::assertSame('default', (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', []));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldStringHasMoreThanTwoFields()
+    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldStringHasMoreThanTwoFields(): void
     {
         $fieldTca = [
             'config' => [
@@ -268,7 +294,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldWithStringSingleFieldDoesNotExist()
+    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldWithStringSingleFieldDoesNotExist(): void
     {
         $fieldTca = [
             'config' => [
@@ -287,7 +313,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldSWithTwoFieldsFirstDoesNotExist()
+    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldSWithTwoFieldsFirstDoesNotExist(): void
     {
         $fieldTca = [
             'config' => [
@@ -306,7 +332,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldSWithTwoFieldsSecondDoesNotExist()
+    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldSWithTwoFieldsSecondDoesNotExist(): void
     {
         $fieldTca = [
             'config' => [
@@ -325,7 +351,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsPointerFieldValueIfDataStructureExists()
+    public function getDataStructureIdentifierReturnsPointerFieldValueIfDataStructureExists(): void
     {
         $fieldTca = [
             'config' => [
@@ -339,13 +365,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'aField' => 'thePointerValue',
         ];
         $expected = '{"type":"tca","tableName":"aTableName","fieldName":"aFieldName","dataStructureKey":"thePointerValue"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsDefaultIfPointerFieldValueDoesNotExist()
+    public function getDataStructureIdentifierReturnsDefaultIfPointerFieldValueDoesNotExist(): void
     {
         $fieldTca = [
             'config' => [
@@ -359,13 +385,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'aField' => 'thePointerValue',
         ];
         $expected = '{"type":"tca","tableName":"aTableName","fieldName":"aFieldName","dataStructureKey":"default"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldValueDoesNotExistAndDefaultToo()
+    public function getDataStructureIdentifierThrowsExceptionIfPointerFieldValueDoesNotExistAndDefaultToo(): void
     {
         $fieldTca = [
             'config' => [
@@ -376,6 +402,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
         $row = [
+            'uid' => 23,
             'aField' => 'aNotDefinedDataStructure',
         ];
         $this->expectException(InvalidSinglePointerFieldException::class);
@@ -386,7 +413,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * Data provider for getDataStructureIdentifierReturnsValidNameForTwoFieldCombinations
      */
-    public function getDataStructureIdentifierReturnsValidNameForTwoFieldCombinationsDataProvider()
+    public function getDataStructureIdentifierReturnsValidNameForTwoFieldCombinationsDataProvider(): array
     {
         return [
             'direct match of two fields' => [
@@ -486,7 +513,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * @param array $ds
      * @param $expected
      */
-    public function getDataStructureIdentifierReturnsValidNameForTwoFieldCombinations(array $row, array $ds, string $expected)
+    public function getDataStructureIdentifierReturnsValidNameForTwoFieldCombinations(array $row, array $ds, string $expected): void
     {
         $fieldTca = [
             'config' => [
@@ -494,13 +521,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'ds_pointerField' => 'firstField,secondField'
             ],
         ];
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionForTwoFieldsWithNoMatchAndNoDefault()
+    public function getDataStructureIdentifierThrowsExceptionForTwoFieldsWithNoMatchAndNoDefault(): void
     {
         $fieldTca = [
             'config' => [
@@ -511,6 +538,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
         $row = [
+            'uid' => 23,
             'firstField' => 'noMatch',
             'secondField' => 'noMatchToo',
         ];
@@ -522,7 +550,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfParentRowLookupFails()
+    public function getDataStructureIdentifierThrowsExceptionIfParentRowLookupFails(): void
     {
         $fieldTca = [
             'config' => [
@@ -531,6 +559,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ]
         ];
         $row = [
+            'uid' => 23,
             'pid' => 42,
             'tx_templavoila_ds' => null,
         ];
@@ -561,7 +590,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
 
         // Error case that is tested here: Do not return a valid parent row from db -> exception should be thrown
-        $statementProphecy->rowCount()->shouldBeCalled()->willReturn(0);
+        $queryBuilderProphecy->count('uid')->shouldBeCalled()->willReturn($queryBuilderProphecy);
         $this->expectException(InvalidParentRowException::class);
         $this->expectExceptionCode(1463833794);
         (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row);
@@ -570,8 +599,10 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfParentRowsFormALoop()
+    public function getDataStructureIdentifierThrowsExceptionIfParentRowsFormALoop(): void
     {
+        $GLOBALS['BE_USER'] = new BackendUserAuthentication();
+
         $fieldTca = [
             'config' => [
                 'ds_pointerField' => 'tx_templavoila_ds',
@@ -623,9 +654,10 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $queryBuilderProphecy->where('uid = 2')->shouldBeCalled()->willReturn($queryBuilderRevelation);
         $queryBuilderProphecy->where('uid = 1')->shouldBeCalled()->willReturn($queryBuilderRevelation);
         $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-        $statementProphecy->rowCount()->shouldBeCalled()->willReturn(1);
+        $queryBuilderProphecy->count('uid')->shouldBeCalled()->willReturn($queryBuilderProphecy);
 
         // First db call returns $secondRow, second returns $thirdRow, which points back to $initialRow -> exception
+        $statementProphecy->fetchColumn(0)->willReturn(1);
         $statementProphecy->fetch()->willReturn($secondRow, $thirdRow);
 
         $this->expectException(InvalidParentRowLoopException::class);
@@ -636,8 +668,10 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfNoValidPointerFoundUntilRoot()
+    public function getDataStructureIdentifierThrowsExceptionIfNoValidPointerFoundUntilRoot(): void
     {
+        $GLOBALS['BE_USER'] = new BackendUserAuthentication();
+
         $fieldTca = [
             'config' => [
                 'ds_pointerField' => 'tx_templavoila_ds',
@@ -689,7 +723,8 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $queryBuilderProphecy->where('uid = 2')->shouldBeCalled()->willReturn($queryBuilderRevelation);
         $queryBuilderProphecy->where('uid = 1')->shouldBeCalled()->willReturn($queryBuilderRevelation);
         $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-        $statementProphecy->rowCount()->shouldBeCalled()->willReturn(1);
+        $queryBuilderProphecy->count('uid')->shouldBeCalled()->willReturn($queryBuilderRevelation);
+        $statementProphecy->fetchColumn(0)->shouldBeCalled()->willReturn(1);
 
         // First db call returns $secondRow, second returns $thirdRow. $thirdRow has pid 0 and still no ds -> exception
         $statementProphecy->fetch()->willReturn($secondRow, $thirdRow);
@@ -702,7 +737,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfNoValidPointerValueFound()
+    public function getDataStructureIdentifierThrowsExceptionIfNoValidPointerValueFound(): void
     {
         $fieldTca = [
             'config' => [
@@ -720,7 +755,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfResorvedPointerValueIsIntegerButDsFieldNameIsNotConfigured()
+    public function getDataStructureIdentifierThrowsExceptionIfReservedPointerValueIsIntegerButDsFieldNameIsNotConfigured(): void
     {
         $fieldTca = [
             'config' => [
@@ -738,7 +773,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierThrowsExceptionIfDsTableFieldIsMisconfigured()
+    public function getDataStructureIdentifierThrowsExceptionIfDsTableFieldIsMisconfigured(): void
     {
         $fieldTca = [
             'config' => [
@@ -757,7 +792,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsValidIdentifierForPointerField()
+    public function getDataStructureIdentifierReturnsValidIdentifierForPointerField(): void
     {
         $fieldTca = [
             'config' => [
@@ -769,14 +804,16 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'aPointerField' => '<T3DataStructure>...',
         ];
         $expected = '{"type":"record","tableName":"aTableName","uid":42,"fieldName":"aPointerField"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsValidIdentifierForParentLookup()
+    public function getDataStructureIdentifierReturnsValidIdentifierForParentLookup(): void
     {
+        $GLOBALS['BE_USER'] = new BackendUserAuthentication();
+
         $fieldTca = [
             'config' => [
                 'ds_pointerField' => 'tx_templavoila_ds',
@@ -828,20 +865,23 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $queryBuilderProphecy->where('uid = 2')->shouldBeCalled()->willReturn($queryBuilderRevelation);
         $queryBuilderProphecy->where('uid = 1')->shouldBeCalled()->willReturn($queryBuilderRevelation);
         $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-        $statementProphecy->rowCount()->shouldBeCalled()->willReturn(1);
+        $queryBuilderProphecy->count('uid')->shouldBeCalled()->willReturn($queryBuilderRevelation);
+        $statementProphecy->fetchColumn(0)->shouldBeCalled()->willReturn(1);
 
         // First db call returns $secondRow, second returns $thirdRow. $thirdRow resolves ds
         $statementProphecy->fetch()->willReturn($secondRow, $thirdRow);
 
         $expected = '{"type":"record","tableName":"aTableName","uid":1,"fieldName":"tx_templavoila_ds"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $initialRow));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $initialRow));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsValidIdentifierForParentLookupAndBreaksLoop()
+    public function getDataStructureIdentifierReturnsValidIdentifierForParentLookupAndBreaksLoop(): void
     {
+        $GLOBALS['BE_USER'] = new BackendUserAuthentication();
+
         $fieldTca = [
             'config' => [
                 'ds_pointerField' => 'tx_templavoila_ds',
@@ -883,21 +923,24 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $queryBuilderProphecy->createNamedParameter(2, 1)->willReturn(2);
         $expressionBuilderProphecy->eq('uid', 2)->shouldBeCalled()->willReturn('uid = 2');
         $queryBuilderProphecy->where('uid = 2')->shouldBeCalled()->willReturn($queryBuilderRevelation);
+        $queryBuilderProphecy->count('uid')->shouldBeCalled()->willReturn($queryBuilderRevelation);
         $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-        $statementProphecy->rowCount()->shouldBeCalled()->willReturn(1);
+        $statementProphecy->fetchColumn(0)->shouldBeCalled()->willReturn(1);
 
-        // First db call returns $secondRow. $secendRow resolves DS and does not look further up
+        // First db call returns $secondRow. $secondRow resolves DS and does not look further up
         $statementProphecy->fetch()->willReturn($secondRow);
 
         $expected = '{"type":"record","tableName":"aTableName","uid":2,"fieldName":"tx_templavoila_ds"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $initialRow));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $initialRow));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsValidIdentifierForParentLookupAndPrefersSubField()
+    public function getDataStructureIdentifierReturnsValidIdentifierForParentLookupAndPrefersSubField(): void
     {
+        $GLOBALS['BE_USER'] = new BackendUserAuthentication();
+
         $fieldTca = [
             'config' => [
                 'ds_pointerField' => 'tx_templavoila_ds',
@@ -943,20 +986,21 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $queryBuilderProphecy->createNamedParameter(2, 1)->willReturn(2);
         $expressionBuilderProphecy->eq('uid', 2)->shouldBeCalled()->willReturn('uid = 2');
         $queryBuilderProphecy->where('uid = 2')->shouldBeCalled()->willReturn($queryBuilderRevelation);
+        $queryBuilderProphecy->count('uid')->shouldBeCalled()->willReturn($queryBuilderRevelation);
         $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-        $statementProphecy->rowCount()->shouldBeCalled()->willReturn(1);
+        $statementProphecy->fetchColumn(0)->shouldBeCalled()->willReturn(1);
 
-        // First db call returns $secondRow. $secendRow resolves DS and does not look further up
+        // First db call returns $secondRow. $secondRow resolves DS and does not look further up
         $statementProphecy->fetch()->willReturn($secondRow);
 
         $expected = '{"type":"record","tableName":"aTableName","uid":2,"fieldName":"tx_templavoila_next_ds"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $initialRow));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $initialRow));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsValidIdentifierForTableAndFieldPointer()
+    public function getDataStructureIdentifierReturnsValidIdentifierForTableAndFieldPointer(): void
     {
         $fieldTca = [
             'config' => [
@@ -970,14 +1014,16 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'aPointerField' => 42,
         ];
         $expected = '{"type":"record","tableName":"foreignTableName","uid":42,"fieldName":"foreignTableField"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $row));
     }
 
     /**
      * @test
      */
-    public function getDataStructureIdentifierReturnsValidIdentifierForTableAndFieldPointerWithParentLookup()
+    public function getDataStructureIdentifierReturnsValidIdentifierForTableAndFieldPointerWithParentLookup(): void
     {
+        $GLOBALS['BE_USER'] = new BackendUserAuthentication();
+
         $fieldTca = [
             'config' => [
                 'ds_pointerField' => 'tx_templavoila_ds',
@@ -1025,19 +1071,20 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expressionBuilderProphecy->eq('uid', 2)->shouldBeCalled()->willReturn('uid = 2');
         $queryBuilderProphecy->where('uid = 2')->shouldBeCalled()->willReturn($queryBuilderRevelation);
         $queryBuilderProphecy->execute()->shouldBeCalled()->willReturn($statementProphecy->reveal());
-        $statementProphecy->rowCount()->shouldBeCalled()->willReturn(1);
+        $queryBuilderProphecy->count('uid')->shouldBeCalled()->willReturn($queryBuilderRevelation);
+        $statementProphecy->fetchColumn(0)->shouldBeCalled()->willReturn(1);
 
-        // First db call returns $secondRow. $secendRow resolves DS and does not look further up
+        // First db call returns $secondRow. $secondRow resolves DS and does not look further up
         $statementProphecy->fetch()->willReturn($secondRow);
 
         $expected = '{"type":"record","tableName":"foreignTableName","uid":42,"fieldName":"foreignTableField"}';
-        $this->assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $initialRow));
+        self::assertSame($expected, (new FlexFormTools())->getDataStructureIdentifier($fieldTca, 'aTableName', 'aFieldName', $initialRow));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionWithEmptyString()
+    public function parseDataStructureByIdentifierThrowsExceptionWithEmptyString(): void
     {
         $this->expectException(InvalidIdentifierException::class);
         $this->expectExceptionCode(1478100828);
@@ -1047,7 +1094,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierIfIdentifierDoesNotResolveToArray()
+    public function parseDataStructureByIdentifierIfIdentifierDoesNotResolveToArray(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1478345642);
@@ -1057,7 +1104,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierCallsRegisteredHook()
+    public function parseDataStructureByIdentifierCallsRegisteredHook(): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FlexFormTools::class]['flexParsing'] = [
             DataStructureParsePreProcessHookThrowException::class,
@@ -1070,7 +1117,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionIfHookReturnsNoString()
+    public function parseDataStructureByIdentifierThrowsExceptionIfHookReturnsNoString(): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FlexFormTools::class]['flexParsing'] = [
             DataStructureParsePreProcessHookReturnObject::class
@@ -1083,7 +1130,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierUsesCasualLogicIfHookReturnsNoIdentifier()
+    public function parseDataStructureByIdentifierUsesCasualLogicIfHookReturnsNoIdentifier(): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FlexFormTools::class]['flexParsing'] = [
             DataStructureParsePreProcessHookReturnEmptyString::class
@@ -1097,13 +1144,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = [
             'sheets' => '',
         ];
-        $this->assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierParsesDataStructureReturnedByHook()
+    public function parseDataStructureByIdentifierParsesDataStructureReturnedByHook(): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FlexFormTools::class]['flexParsing'] = [
             DataStructureParsePreProcessHookReturnString::class
@@ -1112,13 +1159,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = [
             'sheets' => '',
         ];
-        $this->assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierParsesDataStructureFromFirstMatchingHook()
+    public function parseDataStructureByIdentifierParsesDataStructureFromFirstMatchingHook(): void
     {
         $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FlexFormTools::class]['flexParsing'] = [
             DataStructureParsePreProcessHookReturnEmptyString::class,
@@ -1129,13 +1176,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = [
             'sheets' => '',
         ];
-        $this->assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionForInvalidSyntax()
+    public function parseDataStructureByIdentifierThrowsExceptionForInvalidSyntax(): void
     {
         $this->expectException(InvalidIdentifierException::class);
         $this->expectExceptionCode(1478104554);
@@ -1145,7 +1192,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionForIncompleteTcaSyntax()
+    public function parseDataStructureByIdentifierThrowsExceptionForIncompleteTcaSyntax(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1478113471);
@@ -1156,7 +1203,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionForInvalidTcaSyntaxPointer()
+    public function parseDataStructureByIdentifierThrowsExceptionForInvalidTcaSyntaxPointer(): void
     {
         $this->expectException(InvalidIdentifierException::class);
         $this->expectExceptionCode(1478105491);
@@ -1167,7 +1214,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierResolvesTcaSyntaxPointer()
+    public function parseDataStructureByIdentifierResolvesTcaSyntaxPointer(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default'] = '
             <T3DataStructure>
@@ -1178,13 +1225,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = [
             'sheets' => '',
         ];
-        $this->assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionForIncompleteRecordSyntax()
+    public function parseDataStructureByIdentifierThrowsExceptionForIncompleteRecordSyntax(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1478113873);
@@ -1195,7 +1242,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierResolvesRecordSyntaxPointer()
+    public function parseDataStructureByIdentifierResolvesRecordSyntaxPointer(): void
     {
         // Prophecies and revelations for a lot of the database stack classes
         $queryBuilderProphecy = $this->prophesize(QueryBuilder::class);
@@ -1230,13 +1277,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = [
             'sheets' => '',
         ];
-        $this->assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionIfDataStructureFileDoesNotExist()
+    public function parseDataStructureByIdentifierThrowsExceptionIfDataStructureFileDoesNotExist(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default']
             = 'FILE:EXT:core/Does/Not/Exist.xml';
@@ -1249,7 +1296,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierFetchesFromFile()
+    public function parseDataStructureByIdentifierFetchesFromFile(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default']
             = ' FILE:EXT:core/Tests/Unit/Configuration/FlexForm/Fixtures/DataStructureWithSheet.xml ';
@@ -1276,13 +1323,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ]
         ];
-        $this->assertEquals($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertEquals($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionForInvalidXmlStructure()
+    public function parseDataStructureByIdentifierThrowsExceptionForInvalidXmlStructure(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default'] = '
             <T3DataStructure>
@@ -1300,7 +1347,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionIfStructureHasBothSheetAndRoot()
+    public function parseDataStructureByIdentifierThrowsExceptionIfStructureHasBothSheetAndRoot(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default'] = '
             <T3DataStructure>
@@ -1317,7 +1364,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierCreatesDefaultSheet()
+    public function parseDataStructureByIdentifierCreatesDefaultSheet(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default'] = '
             <T3DataStructure>
@@ -1362,13 +1409,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ]
         ];
-        $this->assertEquals($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertEquals($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierResolvesExtReferenceForSingleSheets()
+    public function parseDataStructureByIdentifierResolvesExtReferenceForSingleSheets(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default'] = '
             <T3DataStructure>
@@ -1402,13 +1449,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ]
         ];
-        $this->assertEquals($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertEquals($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierResolvesExtReferenceForSingleSheetsWithFilePrefix()
+    public function parseDataStructureByIdentifierResolvesExtReferenceForSingleSheetsWithFilePrefix(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default'] = '
             <T3DataStructure>
@@ -1442,13 +1489,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 ],
             ]
         ];
-        $this->assertEquals($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertEquals($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierCallsPostProcessHook()
+    public function parseDataStructureByIdentifierCallsPostProcessHook(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default'] = '
             <T3DataStructure>
@@ -1467,7 +1514,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierThrowsExceptionIfPostProcessHookReturnsNoArray()
+    public function parseDataStructureByIdentifierThrowsExceptionIfPostProcessHookReturnsNoArray(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default'] = '
             <T3DataStructure>
@@ -1486,7 +1533,7 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function parseDataStructureByIdentifierPostProcessHookManipulatesDataStructure()
+    public function parseDataStructureByIdentifierPostProcessHookManipulatesDataStructure(): void
     {
         $GLOBALS['TCA']['aTableName']['columns']['aFieldName']['config']['ds']['default'] = '
             <T3DataStructure>
@@ -1502,13 +1549,13 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'foo' => 'bar'
             ]
         ];
-        $this->assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
+        self::assertSame($expected, (new FlexFormTools())->parseDataStructureByIdentifier($identifier));
     }
 
     /**
      * @test
      */
-    public function traverseFlexFormXmlDataRecurseDoesNotFailOnNotExistingField()
+    public function traverseFlexFormXmlDataRecurseDoesNotFailOnNotExistingField(): void
     {
         $dataStruct = [
             'dummy_field' => [
@@ -1521,19 +1568,19 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'vKeys' => ['ES'],
             'callBackMethod_value' => 'dummy',
         ];
-        $editData = '';
-        /** @var \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools|\PHPUnit_Framework_MockObject_MockObject $subject */
+        $editData = [];
+        /** @var \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->getMockBuilder(FlexFormTools::class)
             ->setMethods(['executeCallBackMethod'])
             ->getMock();
-        $subject->expects($this->never())->method('executeCallBackMethod');
+        $subject->expects(self::never())->method('executeCallBackMethod');
         $subject->traverseFlexFormXMLData_recurse($dataStruct, $editData, $pA);
     }
 
     /**
      * @test
      */
-    public function traverseFlexFormXmlDataRecurseDoesNotFailOnNotExistingArrayField()
+    public function traverseFlexFormXmlDataRecurseDoesNotFailOnNotExistingArrayField(): void
     {
         $dataStruct = [
             'dummy_field' => [
@@ -1550,10 +1597,10 @@ class FlexFormToolsTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
                 'el' => 'dummy',
             ],
         ];
-        $editData2 = '';
-        /** @var \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools|\PHPUnit_Framework_MockObject_MockObject $subject */
+        $editData2 = [];
+        /** @var \TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools|\PHPUnit\Framework\MockObject\MockObject $subject */
         $subject = $this->createMock(FlexFormTools::class);
-        $this->assertEquals(
+        self::assertEquals(
             $subject->traverseFlexFormXMLData_recurse($dataStruct, $editData, $pA),
             $subject->traverseFlexFormXMLData_recurse($dataStruct, $editData2, $pA)
         );

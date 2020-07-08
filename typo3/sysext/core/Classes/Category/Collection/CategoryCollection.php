@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Category\Collection;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Category\Collection;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Category\Collection;
 
 use TYPO3\CMS\Core\Collection\AbstractRecordCollection;
 use TYPO3\CMS\Core\Collection\CollectionInterface;
@@ -71,7 +72,7 @@ class CategoryCollection extends AbstractRecordCollection implements EditableCol
      */
     public static function create(array $collectionRecord, $fillItems = false)
     {
-        /** @var $collection CategoryCollection */
+        /** @var CategoryCollection $collection */
         $collection = GeneralUtility::makeInstance(
             self::class,
             $collectionRecord['table_name'],
@@ -281,7 +282,7 @@ class CategoryCollection extends AbstractRecordCollection implements EditableCol
     public function getItems()
     {
         $itemArray = [];
-        /** @var $item \TYPO3\CMS\Core\Resource\File */
+        /** @var \TYPO3\CMS\Core\Resource\File $item */
         foreach ($this->storage as $item) {
             $itemArray[] = $item;
         }

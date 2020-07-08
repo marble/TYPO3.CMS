@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Messaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,7 +15,13 @@ namespace TYPO3\CMS\Core\Messaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Messaging;
+
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Messaging\Renderer\BootstrapRenderer;
 use TYPO3\CMS\Core\Messaging\Renderer\FlashMessageRendererInterface;
+use TYPO3\CMS\Core\Messaging\Renderer\ListRenderer;
+use TYPO3\CMS\Core\Messaging\Renderer\PlaintextRenderer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -27,10 +33,10 @@ class FlashMessageRendererResolver
      * @var array
      */
     protected $renderer = [
-        'BE' => Renderer\BootstrapRenderer::class,
-        'FE' => Renderer\ListRenderer::class,
-        'CLI' => Renderer\PlaintextRenderer::class,
-        '_default' => Renderer\PlaintextRenderer::class,
+        'BE' => BootstrapRenderer::class,
+        'FE' => ListRenderer::class,
+        'CLI' => PlaintextRenderer::class,
+        '_default' => PlaintextRenderer::class,
     ];
 
     /**
@@ -40,7 +46,7 @@ class FlashMessageRendererResolver
      *
      * @return FlashMessageRendererInterface
      */
-    public function resolve() : FlashMessageRendererInterface
+    public function resolve(): FlashMessageRendererInterface
     {
         $rendererClass = $this->resolveFlashMessageRenderClass();
         $renderer = GeneralUtility::makeInstance($rendererClass);
@@ -56,7 +62,7 @@ class FlashMessageRendererResolver
      *
      * @return string
      */
-    protected function resolveFlashMessageRenderClass() : string
+    protected function resolveFlashMessageRenderClass(): string
     {
         $context = $this->resolveContext();
         $renderClass = $this->renderer['_default'];
@@ -77,10 +83,10 @@ class FlashMessageRendererResolver
      *
      * @return string
      */
-    protected function resolveContext() : string
+    protected function resolveContext(): string
     {
         $context = '';
-        if (TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_CLI) {
+        if (Environment::isCli()) {
             $context = 'CLI';
         } elseif (TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_BE) {
             $context = 'BE';

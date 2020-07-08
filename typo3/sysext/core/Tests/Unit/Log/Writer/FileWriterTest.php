@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Log\Writer;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +15,23 @@ namespace TYPO3\CMS\Core\Tests\Unit\Log\Writer;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Log\Writer;
+
 use org\bovigo\vfs\vfsStream;
 use org\bovigo\vfs\vfsStreamWrapper;
+use TYPO3\CMS\Core\Log\Logger;
+use TYPO3\CMS\Core\Log\LogLevel;
+use TYPO3\CMS\Core\Log\LogManager;
+use TYPO3\CMS\Core\Log\LogRecord;
+use TYPO3\CMS\Core\Log\Writer\FileWriter;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FileWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FileWriterTest extends UnitTestCase
 {
     /**
      * @var string
@@ -32,11 +43,8 @@ class FileWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     protected $logFileName = 'test.log';
 
-    protected function setUpVfsStream()
+    protected function setUpVfsStream(): void
     {
-        if (!class_exists('org\\bovigo\\vfs\\vfsStream')) {
-            $this->markTestSkipped('File backend tests are not available with this phpunit version.');
-        }
         vfsStream::setup('LogRoot');
     }
 
@@ -45,16 +53,16 @@ class FileWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      *
      * @param string $name
      * @internal param string $component Component key
-     * @return \TYPO3\CMS\Core\Log\Logger
+     * @return Logger
      */
-    protected function createLogger($name = '')
+    protected function createLogger($name = ''): Logger
     {
         if (empty($name)) {
-            $name = $this->getUniqueId('test.core.log.');
+            $name = StringUtility::getUniqueId('test.core.log.');
         }
-        \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\LogManager::class)->registerLogger($name);
-        /** @var \TYPO3\CMS\Core\Log\Logger $logger */
-        $logger = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\LogManager::class)->getLogger($name);
+        GeneralUtility::makeInstance(LogManager::class)->registerLogger($name);
+        /** @var Logger $logger */
+        $logger = GeneralUtility::makeInstance(LogManager::class)->getLogger($name);
         return $logger;
     }
 
@@ -62,18 +70,18 @@ class FileWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      * Creates a file writer
      *
      * @param string $prependName
-     * @return \TYPO3\CMS\Core\Log\Writer\FileWriter
+     * @return FileWriter
      */
-    protected function createWriter($prependName = '')
+    protected function createWriter($prependName = ''): FileWriter
     {
-        /** @var \TYPO3\CMS\Core\Log\Writer\FileWriter $writer */
-        $writer = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\Writer\FileWriter::class, [
+        /** @var FileWriter $writer */
+        $writer = GeneralUtility::makeInstance(FileWriter::class, [
             'logFile' => $this->getDefaultFileName($prependName)
         ]);
         return $writer;
     }
 
-    protected function getDefaultFileName($prependName = '')
+    protected function getDefaultFileName($prependName = ''): string
     {
         return 'vfs://LogRoot/' . $this->logFileDirectory . '/' . $prependName . $this->logFileName;
     }
@@ -81,53 +89,53 @@ class FileWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
-    public function setLogFileSetsLogFile()
+    public function setLogFileSetsLogFile(): void
     {
         $this->setUpVfsStream();
         vfsStream::newFile($this->logFileName)->at(vfsStreamWrapper::getRoot());
-        $writer = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\Writer\FileWriter::class);
+        $writer = GeneralUtility::makeInstance(FileWriter::class);
         $writer->setLogFile($this->getDefaultFileName());
-        $this->assertAttributeEquals($this->getDefaultFileName(), 'logFile', $writer);
+        self::assertEquals($this->getDefaultFileName(), $writer->getLogFile());
     }
 
     /**
      * @test
      */
-    public function setLogFileAcceptsAbsolutePath()
+    public function setLogFileAcceptsAbsolutePath(): void
     {
-        $writer = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\Writer\FileWriter::class);
+        $writer = GeneralUtility::makeInstance(FileWriter::class);
         $tempFile = rtrim(sys_get_temp_dir(), '/\\') . '/typo3.log';
         $writer->setLogFile($tempFile);
-        $this->assertAttributeEquals($tempFile, 'logFile', $writer);
+        self::assertEquals($tempFile, $writer->getLogFile());
     }
 
     /**
      * @test
      */
-    public function createsLogFileDirectory()
+    public function createsLogFileDirectory(): void
     {
         $this->setUpVfsStream();
         $this->createWriter();
-        $this->assertTrue(vfsStreamWrapper::getRoot()->hasChild($this->logFileDirectory));
+        self::assertTrue(vfsStreamWrapper::getRoot()->hasChild($this->logFileDirectory));
     }
 
     /**
      * @test
      */
-    public function createsLogFile()
+    public function createsLogFile(): void
     {
         $this->setUpVfsStream();
         $this->createWriter();
-        $this->assertTrue(vfsStreamWrapper::getRoot()->getChild($this->logFileDirectory)->hasChild($this->logFileName));
+        self::assertTrue(vfsStreamWrapper::getRoot()->getChild($this->logFileDirectory)->hasChild($this->logFileName));
     }
 
     /**
      * @return array
      */
-    public function logsToFileDataProvider()
+    public function logsToFileDataProvider(): array
     {
-        $simpleRecord = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\LogRecord::class, $this->getUniqueId('test.core.log.fileWriter.simpleRecord.'), \TYPO3\CMS\Core\Log\LogLevel::INFO, 'test record');
-        $recordWithData = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\LogRecord::class, $this->getUniqueId('test.core.log.fileWriter.recordWithData.'), \TYPO3\CMS\Core\Log\LogLevel::ALERT, 'test record with data', ['foo' => ['bar' => 'baz']]);
+        $simpleRecord = GeneralUtility::makeInstance(LogRecord::class, StringUtility::getUniqueId('test.core.log.fileWriter.simpleRecord.'), LogLevel::INFO, 'test record');
+        $recordWithData = GeneralUtility::makeInstance(LogRecord::class, StringUtility::getUniqueId('test.core.log.fileWriter.recordWithData.'), LogLevel::ALERT, 'test record with data', ['foo' => ['bar' => 'baz']]);
         return [
             'simple record' => [$simpleRecord, trim((string)$simpleRecord)],
             'record with data' => [$recordWithData, trim((string)$recordWithData)]
@@ -136,25 +144,47 @@ class FileWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
     /**
      * @test
-     * @param \TYPO3\CMS\Core\Log\LogRecord $record Record Test Data
+     * @param LogRecord $record Record Test Data
      * @param string $expectedResult Needle
      * @dataProvider logsToFileDataProvider
      */
-    public function logsToFile(\TYPO3\CMS\Core\Log\LogRecord $record, $expectedResult)
+    public function logsToFile(LogRecord $record, $expectedResult): void
     {
         $this->setUpVfsStream();
         $this->createWriter()->writeLog($record);
         $logFileContents = trim(file_get_contents($this->getDefaultFileName()));
-        $this->assertEquals($expectedResult, $logFileContents);
+        self::assertEquals($expectedResult, $logFileContents);
     }
 
     /**
      * @test
-     * @param \TYPO3\CMS\Core\Log\LogRecord $record Record Test Data
+     */
+    public function logsToFileWithUnescapedCharacters(): void
+    {
+        $this->setUpVfsStream();
+
+        $recordWithData = GeneralUtility::makeInstance(
+            LogRecord::class,
+            StringUtility::getUniqueId('test.core.log.fileWriter.recordWithData.'),
+            LogLevel::INFO,
+            'test record with unicode and slash in data to encode',
+            ['foo' => ['bar' => 'I paid 0.00€ for open source projects/code']]
+        );
+
+        $expectedResult = '{"foo":{"bar":"I paid 0.00€ for open source projects/code"}}';
+
+        $this->createWriter('encoded-data')->writeLog($recordWithData);
+        $logFileContents = trim(file_get_contents($this->getDefaultFileName('encoded-data')));
+        self::assertStringContainsString($expectedResult, $logFileContents);
+    }
+
+    /**
+     * @test
+     * @param LogRecord $record Record Test Data
      * @param string $expectedResult Needle
      * @dataProvider logsToFileDataProvider
      */
-    public function differentWritersLogToDifferentFiles(\TYPO3\CMS\Core\Log\LogRecord $record, $expectedResult)
+    public function differentWritersLogToDifferentFiles(LogRecord $record, $expectedResult): void
     {
         $this->setUpVfsStream();
         $firstWriter = $this->createWriter();
@@ -166,8 +196,8 @@ class FileWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $firstLogFileContents = trim(file_get_contents($this->getDefaultFileName()));
         $secondLogFileContents = trim(file_get_contents($this->getDefaultFileName('second-')));
 
-        $this->assertEquals($expectedResult, $firstLogFileContents);
-        $this->assertEquals($expectedResult, $secondLogFileContents);
+        self::assertEquals($expectedResult, $firstLogFileContents);
+        self::assertEquals($expectedResult, $secondLogFileContents);
     }
 
     /**
@@ -177,17 +207,41 @@ class FileWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $this->setUpVfsStream();
 
-        $firstWriter = $this->getMockBuilder(\TYPO3\CMS\Core\Log\Writer\FileWriter::class)
+        $firstWriter = $this->getMockBuilder(FileWriter::class)
             ->setMethods(['dummy'])
             ->getMock();
-        $secondWriter = $this->getMockBuilder(\TYPO3\CMS\Core\Log\Writer\FileWriter::class)
+        $secondWriter = $this->getMockBuilder(FileWriter::class)
             ->setMethods(['createLogFile'])
             ->getMock();
 
-        $secondWriter->expects($this->never())->method('createLogFile');
+        $secondWriter->expects(self::never())->method('createLogFile');
 
-        $logFilePrefix = $this->getUniqueId('unique');
+        $logFilePrefix = StringUtility::getUniqueId('unique');
         $firstWriter->setLogFile($this->getDefaultFileName($logFilePrefix));
         $secondWriter->setLogFile($this->getDefaultFileName($logFilePrefix));
+    }
+
+    /**
+     * @test
+     */
+    public function fileHandleIsNotClosedIfSecondFileWriterIsStillUsingSameFile()
+    {
+        $this->setUpVfsStream();
+
+        $firstWriter = $this->getMockBuilder(FileWriter::class)
+            ->setMethods(['closeLogFile'])
+            ->getMock();
+        $secondWriter = $this->getMockBuilder(FileWriter::class)
+            ->setMethods(['closeLogFile'])
+            ->getMock();
+
+        $firstWriter->expects(self::never())->method('closeLogFile');
+        $secondWriter->expects(self::once())->method('closeLogFile');
+
+        $logFilePrefix = StringUtility::getUniqueId('unique');
+        $firstWriter->setLogFile($this->getDefaultFileName($logFilePrefix));
+        $secondWriter->setLogFile($this->getDefaultFileName($logFilePrefix));
+        $firstWriter->__destruct();
+        $secondWriter->__destruct();
     }
 }

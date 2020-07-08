@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
 
@@ -35,8 +37,6 @@ class InlineOverrideChildTca implements FormDataProviderInterface
         'uid',
         'pid',
         't3ver_oid',
-        't3ver_id',
-        't3ver_label',
         't3ver_wsid',
         't3ver_state',
         't3ver_stage',

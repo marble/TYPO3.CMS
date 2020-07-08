@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Template\Components;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,16 @@ namespace TYPO3\CMS\Backend\Tests\Template\Components;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Template\Components;
+
 use TYPO3\CMS\Backend\Template\Components\Menu\Menu;
 use TYPO3\CMS\Backend\Template\Components\MenuRegistry;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case for Menu
  */
-class MenuTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class MenuTest extends UnitTestCase
 {
     /**
      * Try setting an empty menu
@@ -31,7 +33,7 @@ class MenuTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $menu = new Menu();
         $isValid = $menu->isValid($menu);
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -44,7 +46,7 @@ class MenuTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $menu = new Menu();
         $menu->setIdentifier('husel');
         $isValid = $menu->isValid($menu);
-        $this->assertTrue($isValid);
+        self::assertTrue($isValid);
     }
 
     /**
@@ -59,7 +61,7 @@ class MenuTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $expected = new Menu();
         $expected->setIdentifier('MenuIdent');
         $expected->setLabel('MenuLabel');
-        $this->assertEquals($expected, $result);
+        self::assertEquals($expected, $result);
     }
 
     /**
@@ -67,7 +69,7 @@ class MenuTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      *
      * @test
      */
-    public function getMenusremovedEmptyMenusExpectsEquals()
+    public function getMenusRemovedEmptyMenusExpectsEquals()
     {
         $menuRegistry = new MenuRegistry();
 
@@ -87,6 +89,6 @@ class MenuTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'Foo' => $menu2
         ];
 
-        $this->assertEquals($expected, $result);
+        self::assertEquals($expected, $result);
     }
 }

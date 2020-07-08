@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,16 @@ namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\DataHandling\Regular;
+
+use TYPO3\CMS\Core\Migrations\TcaMigration;
+use TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase;
 use TYPO3\CMS\Core\Utility\StringUtility;
 
 /**
  * Functional test for the DataHandler
  */
-abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\DataHandling\AbstractDataHandlerActionTestCase
+abstract class AbstractActionTestCase extends AbstractDataHandlerActionTestCase
 {
     const VALUE_PageId = 89;
     const VALUE_PageIdTarget = 90;
@@ -32,7 +35,6 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     const VALUE_LanguageIdSecond = 2;
 
     const TABLE_Page = 'pages';
-    const TABLE_PageOverlay = 'pages_language_overlay';
     const TABLE_Content = 'tt_content';
 
     /**
@@ -40,14 +42,15 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
     protected $scenarioDataSetDirectory = 'typo3/sysext/core/Tests/Functional/DataHandling/Regular/DataSet/';
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->importScenarioDataSet('LiveDefaultPages');
         $this->importScenarioDataSet('LiveDefaultElements');
 
-        $this->setUpFrontendRootPage(1, ['typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.ts']);
-        $this->backendUser->workspace = 0;
+        $this->setUpFrontendSite(1, $this->siteLanguageConfiguration);
+        $this->setUpFrontendRootPage(1, ['typo3/sysext/core/Tests/Functional/Fixtures/Frontend/JsonRenderer.typoscript']);
+        $this->setWorkspaceId(0);
     }
 
     /**
@@ -55,7 +58,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
      */
 
     /**
-     * @see DataSet/createContentRecords.csv
+     * See DataSet/createContentRecords.csv
      */
     public function createContents()
     {
@@ -70,7 +73,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     /**
      * Creation of a content element with language set to all
      *
-     * @see DataSet/createContentForLanguageAll.csv
+     * See DataSet/createContentForLanguageAll.csv
      */
     public function createContentForLanguageAll()
     {
@@ -79,7 +82,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/modifyContentRecord.csv
+     * See DataSet/modifyContentRecord.csv
      */
     public function modifyContent()
     {
@@ -87,7 +90,15 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/deleteContentRecord.csv
+     * See DataSet/hideContent.csv
+     */
+    public function hideContent()
+    {
+        $this->actionService->modifyRecord(self::TABLE_Content, self::VALUE_ContentIdSecond, ['hidden' => '1']);
+    }
+
+    /**
+     * See DataSet/deleteContentRecord.csv
      */
     public function deleteContent()
     {
@@ -95,7 +106,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/deleteLocalizedContentNDeleteContent.csv
+     * See DataSet/deleteLocalizedContentNDeleteContent.csv
      */
     public function deleteLocalizedContentAndDeleteContent()
     {
@@ -104,7 +115,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/copyContentRecord.csv
+     * See DataSet/copyContentRecord.csv
      */
     public function copyContent()
     {
@@ -113,7 +124,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/copyContentToLanguage.csv
+     * See DataSet/copyContentToLanguage.csv
      */
     public function copyContentToLanguage()
     {
@@ -122,9 +133,31 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
+     * See DataSet/copyContentToLanguageWSynchronization.csv
+     */
+    public function copyContentToLanguageWithLanguageSynchronization()
+    {
+        $GLOBALS['TCA']['tt_content']['columns']['header']['config']['behaviour']['allowLanguageSynchronization'] = true;
+        $copiedTableIds = $this->actionService->copyRecordToLanguage(self::TABLE_Content, self::VALUE_ContentIdSecond, self::VALUE_LanguageId);
+        $this->recordIds['localizedContentId'] = $copiedTableIds[self::TABLE_Content][self::VALUE_ContentIdSecond];
+        $this->actionService->modifyRecord(self::TABLE_Content, self::VALUE_ContentIdSecond, ['header' => 'Testing #1']);
+    }
+
+    /**
+     * See DataSet/copyContentToLanguageWExclude.csv
+     */
+    public function copyContentToLanguageWithLocalizationExclude()
+    {
+        $GLOBALS['TCA']['tt_content']['columns']['header']['l10n_mode'] = 'exclude';
+        $copiedTableIds = $this->actionService->copyRecordToLanguage(self::TABLE_Content, self::VALUE_ContentIdSecond, self::VALUE_LanguageId);
+        $this->recordIds['localizedContentId'] = $copiedTableIds[self::TABLE_Content][self::VALUE_ContentIdSecond];
+        $this->actionService->modifyRecord(self::TABLE_Content, self::VALUE_ContentIdSecond, ['header' => 'Testing #1']);
+    }
+
+    /**
      * Free mode "translation" of a record in non default language
      *
-     * @see DataSet/copyContentToLanguageFromNonDefaultLanguage.csv
+     * See DataSet/copyContentToLanguageFromNonDefaultLanguage.csv
      */
     public function copyContentToLanguageFromNonDefaultLanguage()
     {
@@ -133,7 +166,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/copyPasteContent.csv
+     * See DataSet/copyPasteContent.csv
      */
     public function copyPasteContent()
     {
@@ -141,12 +174,44 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/localizeContentRecord.csv
+     * See DataSet/localizeContentRecord.csv
      */
     public function localizeContent()
     {
         $localizedTableIds = $this->actionService->localizeRecord(self::TABLE_Content, self::VALUE_ContentIdSecond, self::VALUE_LanguageId);
         $this->recordIds['localizedContentId'] = $localizedTableIds[self::TABLE_Content][self::VALUE_ContentIdSecond];
+    }
+
+    /**
+     * See DataSet/localizeContentWHideAtCopy.csv
+     */
+    public function localizeContentWithHideAtCopy()
+    {
+        $GLOBALS['TCA'][self::TABLE_Content]['ctrl']['hideAtCopy'] = true;
+        self::localizeContent();
+        $this->actionService->modifyRecord(self::TABLE_Content, $this->recordIds['localizedContentId'], ['hidden' => 0]);
+    }
+
+    /**
+     * See DataSet/localizeContentRecord.csv
+     * @see \TYPO3\CMS\Core\Migrations\TcaMigration::sanitizeControlSectionIntegrity()
+     */
+    public function localizeContentWithEmptyTcaIntegrityColumns()
+    {
+        $integrityFieldNames = [
+            'origin' => $GLOBALS['TCA'][self::TABLE_Content]['ctrl']['origUid'] ?? null,
+            'language' => $GLOBALS['TCA'][self::TABLE_Content]['ctrl']['languageField'] ?? null,
+            'languageParent' => $GLOBALS['TCA'][self::TABLE_Content]['ctrl']['transOrigPointerField'] ?? null,
+            'languageSource' => $GLOBALS['TCA'][self::TABLE_Content]['ctrl']['translationSource'] ?? null,
+        ];
+        // explicitly unset integrity columns in TCA
+        foreach ($integrityFieldNames as $integrityFieldName) {
+            unset($GLOBALS['TCA'][self::TABLE_Content]['columns'][$integrityFieldName]);
+        }
+        // explicitly call TcaMigration (which was executed already earlier in functional testing bootstrap)
+        $GLOBALS['TCA'] = (new TcaMigration())->migrate($GLOBALS['TCA']);
+        // perform actions to be tested
+        self::localizeContent();
     }
 
     public function localizeContentWithLanguageSynchronization()
@@ -166,7 +231,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/localizeContentFromNonDefaultLanguage.csv
+     * See DataSet/localizeContentFromNonDefaultLanguage.csv
      */
     public function localizeContentFromNonDefaultLanguage()
     {
@@ -219,7 +284,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/changeContentRecordSorting.csv
+     * See DataSet/changeContentRecordSorting.csv
      */
     public function changeContentSorting()
     {
@@ -227,7 +292,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/moveContentRecordToDifferentPage.csv
+     * See DataSet/moveContentRecordToDifferentPage.csv
      */
     public function moveContentToDifferentPage()
     {
@@ -235,7 +300,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/movePasteContentToDifferentPage.csv
+     * See DataSet/movePasteContentToDifferentPage.csv
      */
     public function movePasteContentToDifferentPage()
     {
@@ -243,7 +308,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/moveContentRecordToDifferentPageAndChangeSorting.csv
+     * See DataSet/moveContentRecordToDifferentPageAndChangeSorting.csv
      */
     public function moveContentToDifferentPageAndChangeSorting()
     {
@@ -252,20 +317,28 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
+     * See DataSet/moveContentRecordToDifferentPageAndHide.csv
+     */
+    public function moveContentToDifferentPageAndHide()
+    {
+        $this->actionService->moveRecord(self::TABLE_Content, self::VALUE_ContentIdSecond, self::VALUE_PageIdTarget, ['hidden' => '1']);
+    }
+
+    /**
      * Page records
      */
 
     /**
-     * @see DataSet/createPageRecord.csv
+     * See DataSet/createPageRecord.csv
      */
     public function createPage()
     {
-        $newTableIds = $this->actionService->createNewRecord(self::TABLE_Page, self::VALUE_PageId, ['title' => 'Testing #1', 'hidden' => 0]);
+        $newTableIds = $this->actionService->createNewRecord(self::TABLE_Page, self::VALUE_PageId, ['title' => 'Testing #1', 'hidden' => 0, 'nav_title' => 'Nav Testing #1']);
         $this->recordIds['newPageId'] = $newTableIds[self::TABLE_Page][0];
     }
 
     /**
-     * @see DataSet/modifyPageRecord.csv
+     * See DataSet/modifyPageRecord.csv
      */
     public function modifyPage()
     {
@@ -273,7 +346,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/deletePageRecord.csv
+     * See DataSet/deletePageRecord.csv
      */
     public function deletePage()
     {
@@ -281,7 +354,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/copyPage.csv
+     * See DataSet/copyPage.csv
      */
     public function copyPage()
     {
@@ -292,7 +365,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/copyPageFreeMode.csv
+     * See DataSet/copyPageFreeMode.csv
      */
     public function copyPageFreeMode()
     {
@@ -301,26 +374,25 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/localizePageRecord.csv
+     * See DataSet/localizePageRecord.csv
      */
     public function localizePage()
     {
         $localizedTableIds = $this->actionService->localizeRecord(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         $this->recordIds['localizedPageId'] = $localizedTableIds[self::TABLE_Page][self::VALUE_PageId];
-        $this->recordIds['localizedPageOverlayId'] = $localizedTableIds[self::TABLE_PageOverlay][self::VALUE_PageId];
     }
 
     public function localizePageWithLanguageSynchronization()
     {
-        $GLOBALS['TCA']['pages_language_overlay']['columns']['title']['config']['behaviour']['allowLanguageSynchronization'] = true;
+        unset($GLOBALS['TCA'][self::TABLE_Page]['columns']['title']['l10n_mode']);
+        $GLOBALS['TCA'][self::TABLE_Page]['columns']['title']['config']['behaviour']['allowLanguageSynchronization'] = true;
         $localizedTableIds = $this->actionService->localizeRecord(self::TABLE_Page, self::VALUE_PageId, self::VALUE_LanguageId);
         $this->recordIds['localizedPageId'] = $localizedTableIds[self::TABLE_Page][self::VALUE_PageId];
-        $this->recordIds['localizedPageOverlayId'] = $localizedTableIds[self::TABLE_PageOverlay][self::VALUE_PageId];
         $this->actionService->modifyRecord(self::TABLE_Page, self::VALUE_PageId, ['title' => 'Testing #1']);
     }
 
     /**
-     * @see DataSet/changePageRecordSorting.csv
+     * See DataSet/changePageRecordSorting.csv
      */
     public function changePageSorting()
     {
@@ -328,7 +400,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/movePageRecordToDifferentPage.csv
+     * See DataSet/movePageRecordToDifferentPage.csv
      */
     public function movePageToDifferentPage()
     {
@@ -336,7 +408,7 @@ abstract class AbstractActionTestCase extends \TYPO3\CMS\Core\Tests\Functional\D
     }
 
     /**
-     * @see DataSet/movePageRecordToDifferentPageAndChangeSorting.csv
+     * See DataSet/movePageRecordToDifferentPageAndChangeSorting.csv
      */
     public function movePageToDifferentPageAndChangeSorting()
     {

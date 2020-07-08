@@ -1,4 +1,4 @@
-﻿.. include:: Includes.txt
+.. include:: Includes.txt
 
 
 .. _start:
@@ -23,7 +23,7 @@ Content Elements based on Fluid
       frontend, content, fluid
 
 :Copyright:
-      2015-2017
+      2015-2020
 
 :Author:
       TYPO3 CMS Core Development Team
@@ -47,7 +47,6 @@ a GNU/GPL CMS/Framework available from http://typo3.org
 
 .. toctree::
    :maxdepth: 5
-   :titlesonly:
    :glob:
 
    Introduction/Index

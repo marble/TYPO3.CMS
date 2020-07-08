@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -22,29 +23,17 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class File extends AbstractFile
 {
     /**
-     * @var bool
-     */
-    protected $metaDataLoaded = false;
-
-    /**
-     * @var array
-     */
-    protected $metaDataProperties = [];
-
-    /**
-     * Set to TRUE while this file is being indexed - used to prevent some endless loops
-     *
-     * @var bool
-     */
-    protected $indexingInProgress = false;
-
-    /**
      * Contains the names of all properties that have been update since the
      * instantiation of this object
      *
      * @var array
      */
     protected $updatedProperties = [];
+
+    /**
+     * @var MetaDataAspect
+     */
+    private $metaDataAspect;
 
     /**
      * Constructor for a file object. Should normally not be used directly, use
@@ -56,13 +45,13 @@ class File extends AbstractFile
      */
     public function __construct(array $fileData, ResourceStorage $storage, array $metaData = [])
     {
-        $this->identifier = $fileData['identifier'];
-        $this->name = $fileData['name'];
+        $this->identifier = $fileData['identifier'] ?? null;
+        $this->name = $fileData['name'] ?? '';
         $this->properties = $fileData;
         $this->storage = $storage;
+
         if (!empty($metaData)) {
-            $this->metaDataLoaded = true;
-            $this->metaDataProperties = $metaData;
+            $this->getMetaData()->add($metaData);
         }
     }
 
@@ -79,10 +68,8 @@ class File extends AbstractFile
     {
         if (parent::hasProperty($key)) {
             return parent::getProperty($key);
-        } else {
-            $metaData = $this->_getMetaData();
-            return isset($metaData[$key]) ? $metaData[$key] : null;
         }
+        return $this->getMetaData()[$key];
     }
 
     /**
@@ -92,10 +79,10 @@ class File extends AbstractFile
      * @param string $key
      * @return bool
      */
-    public function hasProperty($key)
+    public function hasProperty($key): bool
     {
         if (!parent::hasProperty($key)) {
-            return array_key_exists($key, $this->_getMetaData());
+            return isset($this->getMetaData()[$key]);
         }
         return true;
     }
@@ -105,23 +92,9 @@ class File extends AbstractFile
      *
      * @return array
      */
-    public function getProperties()
+    public function getProperties(): array
     {
-        return array_merge(parent::getProperties(), array_diff_key($this->_getMetaData(), parent::getProperties()));
-    }
-
-    /**
-     * Returns the MetaData
-     *
-     * @return array
-     * @internal
-     */
-    public function _getMetaData()
-    {
-        if (!$this->metaDataLoaded) {
-            $this->loadMetaData();
-        }
-        return $this->metaDataProperties;
+        return array_merge(parent::getProperties(), array_diff_key($this->getMetaData()->get(), parent::getProperties()));
     }
 
     /******************
@@ -168,24 +141,11 @@ class File extends AbstractFile
     /**
      * Returns TRUE if this file is indexed
      *
-     * @return bool|NULL
+     * @return bool|null
      */
     public function isIndexed()
     {
         return true;
-    }
-
-    /**
-     * Loads MetaData from Repository
-     */
-    protected function loadMetaData()
-    {
-        if (!$this->indexingInProgress) {
-            $this->indexingInProgress = true;
-            $this->metaDataProperties = $this->getMetaDataRepository()->findByFile($this);
-            $this->metaDataLoaded = true;
-            $this->indexingInProgress = false;
-        }
     }
 
     /**
@@ -211,7 +171,7 @@ class File extends AbstractFile
             $this->name = $properties['name'];
         }
 
-        if ($this->properties['uid'] != 0 && isset($properties['uid'])) {
+        if (isset($properties['uid']) && $this->properties['uid'] != 0) {
             unset($properties['uid']);
         }
         foreach ($properties as $key => $value) {
@@ -229,20 +189,8 @@ class File extends AbstractFile
             $this->getType();
         }
         if (array_key_exists('storage', $properties) && in_array('storage', $this->updatedProperties)) {
-            $this->storage = ResourceFactory::getInstance()->getStorageObject($properties['storage']);
+            $this->storage = GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject($properties['storage']);
         }
-    }
-
-    /**
-     * Updates MetaData properties
-     *
-     * @internal Do not use outside the FileAbstraction Layer classes
-     *
-     * @param array $properties
-     */
-    public function _updateMetaDataProperties(array $properties)
-    {
-        $this->metaDataProperties = array_merge($this->metaDataProperties, $properties);
     }
 
     /**
@@ -261,7 +209,7 @@ class File extends AbstractFile
     /**
      * Check if a file operation (= action) is allowed for this file
      *
-     * @param 	string	$action, can be read, write, delete
+     * @param string $action can be read, write, delete
      * @return bool
      */
     public function checkActionPermission($action)
@@ -360,49 +308,36 @@ class File extends AbstractFile
      *
      * @param bool  $relativeToCurrentScript   Determines whether the URL returned should be relative to the current script, in case it is relative at all (only for the LocalDriver)
      *
-     * @return string
+     * @return string|null NULL if file is missing or deleted, the generated url otherwise
      */
     public function getPublicUrl($relativeToCurrentScript = false)
     {
         if ($this->isMissing() || $this->deleted) {
-            return false;
-        } else {
-            return $this->getStorage()->getPublicUrl($this, $relativeToCurrentScript);
+            return null;
         }
+        return $this->getStorage()->getPublicUrl($this, $relativeToCurrentScript);
     }
 
     /**
-     * @return Index\MetaDataRepository
-     */
-    protected function getMetaDataRepository()
-    {
-        return GeneralUtility::makeInstance(Index\MetaDataRepository::class);
-    }
-
-    /**
-     * @return Index\FileIndexRepository
-     */
-    protected function getFileIndexRepository()
-    {
-        return GeneralUtility::makeInstance(Index\FileIndexRepository::class);
-    }
-
-    /**
-     * @param bool $indexingState
-     * @internal Only for usage in Indexer
-     */
-    public function setIndexingInProgess($indexingState)
-    {
-        $this->indexingInProgress = (bool)$indexingState;
-    }
-
-    /**
-     * @param $key
+     * @param string $key
      * @internal Only for use in Repositories and indexer
      * @return mixed
      */
     public function _getPropertyRaw($key)
     {
         return parent::getProperty($key);
+    }
+
+    /**
+     * Loads the metadata of a file in an encapsulated aspect
+     *
+     * @return MetaDataAspect
+     */
+    public function getMetaData(): MetaDataAspect
+    {
+        if ($this->metaDataAspect === null) {
+            $this->metaDataAspect = GeneralUtility::makeInstance(MetaDataAspect::class, $this);
+        }
+        return $this->metaDataAspect;
     }
 }

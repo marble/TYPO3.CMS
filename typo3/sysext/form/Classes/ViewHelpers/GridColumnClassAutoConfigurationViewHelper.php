@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,15 +15,15 @@ namespace TYPO3\CMS\Form\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
-use TYPO3\CMS\Form\Domain\Model\FormElements\GridContainerInterface;
+namespace TYPO3\CMS\Form\ViewHelpers;
+
 use TYPO3\CMS\Form\Domain\Model\Renderable\RootRenderableInterface;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
  * Scope: frontend
- * @api
  */
 class GridColumnClassAutoConfigurationViewHelper extends AbstractViewHelper
 {
@@ -41,7 +41,6 @@ class GridColumnClassAutoConfigurationViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('element', RootRenderableInterface::class, 'A RootRenderableInterface instance', true);
     }
 
@@ -50,7 +49,6 @@ class GridColumnClassAutoConfigurationViewHelper extends AbstractViewHelper
      * @param \Closure $renderChildrenClosure
      * @param RenderingContextInterface $renderingContext
      * @return string
-     * @public
      */
     public static function renderStatic(
         array $arguments,
@@ -60,14 +58,9 @@ class GridColumnClassAutoConfigurationViewHelper extends AbstractViewHelper
         $formElement = $arguments['element'];
 
         $gridRowElement = $formElement->getParentRenderable();
-        $gridContainerElement = $gridRowElement->getParentRenderable();
-        $gridRowEChildElements = $gridRowElement->getElementsRecursively();
+        $gridRowChildElements = $gridRowElement->getElements();
 
-        if ($gridContainerElement instanceof GridContainerInterface) {
-            $gridViewPortConfiguration = $gridContainerElement->getProperties()['gridColumnClassAutoConfiguration'];
-        } else {
-            $gridViewPortConfiguration = $gridRowElement->getProperties()['gridColumnClassAutoConfiguration'];
-        }
+        $gridViewPortConfiguration = $gridRowElement->getProperties()['gridColumnClassAutoConfiguration'];
 
         if (empty($gridViewPortConfiguration)) {
             return '';
@@ -76,7 +69,7 @@ class GridColumnClassAutoConfigurationViewHelper extends AbstractViewHelper
 
         $columnsToCalculate = [];
         $usedColumns = [];
-        foreach ($gridRowEChildElements as $childElement) {
+        foreach ($gridRowChildElements as $childElement) {
             if (empty($childElement->getProperties()['gridColumnClassAutoConfiguration'])) {
                 foreach ($gridViewPortConfiguration['viewPorts'] as $viewPortName => $configuration) {
                     $columnsToCalculate[$viewPortName]['elements']++;
@@ -112,7 +105,7 @@ class GridColumnClassAutoConfigurationViewHelper extends AbstractViewHelper
                 $restElements = (int)$columnsToCalculate[$viewPortName]['elements'];
 
                 if ($restColumnsToDivide < 1) {
-                    $restColumnsToDivide = 1;
+                    $restColumnsToDivide = $gridSize;
                 }
                 if ($restElements < 1) {
                     $restElements = 1;

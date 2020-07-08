@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Imaging\IconProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,51 +13,38 @@ namespace TYPO3\CMS\Core\Tests\Unit\Imaging\IconProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Imaging\IconProvider;
+
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconProvider\SvgIconProvider;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Imaging\IconProvider\SvgIconProvider
  */
-class SvgIconProviderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class SvgIconProviderTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Core\Imaging\IconProvider\SvgIconProvider
      */
-    protected $subject = null;
+    protected $subject;
 
     /**
      * @var Icon
      */
-    protected $icon = null;
-
-    /**
-     * @var string
-     */
-    protected $testFileName;
+    protected $icon;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = new \TYPO3\CMS\Core\Imaging\IconProvider\SvgIconProvider();
+        parent::setUp();
+        $this->subject = new SvgIconProvider();
         $this->icon = GeneralUtility::makeInstance(Icon::class);
         $this->icon->setIdentifier('foo');
         $this->icon->setSize(Icon::SIZE_SMALL);
-
-        $svgTestFileContent = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no" ?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="#CD201F" d="M11 12l3-2v6H2v-6l3 2 3-2 3 2z"></path><script><![CDATA[ function alertMe() {} ]]></script></svg>';
-        $this->testFileName = GeneralUtility::tempnam(uniqid('svg_') . '.svg');
-        file_put_contents($this->testFileName, $svgTestFileContent);
-    }
-
-    /**
-     * Tear down
-     */
-    protected function tearDown()
-    {
-        unlink($this->testFileName);
     }
 
     /**
@@ -67,7 +53,7 @@ class SvgIconProviderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function prepareIconMarkupWithRelativeSourceReturnsInstanceOfIconWithCorrectMarkup()
     {
         $this->subject->prepareIconMarkup($this->icon, ['source' => 'fileadmin/foo.svg']);
-        $this->assertEquals('<img src="fileadmin/foo.svg" width="16" height="16" />', $this->icon->getMarkup());
+        self::assertEquals('<img src="fileadmin/foo.svg" width="16" height="16" alt="" />', $this->icon->getMarkup());
     }
 
     /**
@@ -76,7 +62,7 @@ class SvgIconProviderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function prepareIconMarkupWithAbsoluteSourceReturnsInstanceOfIconWithCorrectMarkup()
     {
         $this->subject->prepareIconMarkup($this->icon, ['source' => '/fileadmin/foo.svg']);
-        $this->assertEquals('<img src="/fileadmin/foo.svg" width="16" height="16" />', $this->icon->getMarkup());
+        self::assertEquals('<img src="/fileadmin/foo.svg" width="16" height="16" alt="" />', $this->icon->getMarkup());
     }
 
     /**
@@ -85,7 +71,7 @@ class SvgIconProviderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getIconWithEXTSourceReferenceReturnsInstanceOfIconWithCorrectMarkup()
     {
         $this->subject->prepareIconMarkup($this->icon, ['source' => 'EXT:core/Resources/Public/Images/foo.svg']);
-        $this->assertEquals('<img src="typo3/sysext/core/Resources/Public/Images/foo.svg" width="16" height="16" />', $this->icon->getMarkup());
+        self::assertEquals('<img src="typo3/sysext/core/Resources/Public/Images/foo.svg" width="16" height="16" alt="" />', $this->icon->getMarkup());
     }
 
     /**
@@ -93,7 +79,12 @@ class SvgIconProviderTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getIconWithInlineOptionReturnsCleanSvgMarkup()
     {
-        $this->subject->prepareIconMarkup($this->icon, ['source' => $this->testFileName]);
-        $this->assertEquals('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="#CD201F" d="M11 12l3-2v6H2v-6l3 2 3-2 3 2z"/></svg>', $this->icon->getMarkup(SvgIconProvider::MARKUP_IDENTIFIER_INLINE));
+        $testFile = GeneralUtility::tempnam(uniqid('svg_') . '.svg');
+        $this->testFilesToDelete[] = $testFile;
+        $svgTestFileContent = '<?xml version="1.0" encoding="ISO-8859-1" standalone="no" ?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="#CD201F" d="M11 12l3-2v6H2v-6l3 2 3-2 3 2z"></path><script><![CDATA[ function alertMe() {} ]]></script></svg>';
+        file_put_contents($testFile, $svgTestFileContent);
+        $this->testFilesToDelete[] = GeneralUtility::tempnam(uniqid('svg_') . '.svg');
+        $this->subject->prepareIconMarkup($this->icon, ['source' => $testFile]);
+        self::assertEquals('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="#CD201F" d="M11 12l3-2v6H2v-6l3 2 3-2 3 2z"/></svg>', $this->icon->getMarkup(SvgIconProvider::MARKUP_IDENTIFIER_INLINE));
     }
 }

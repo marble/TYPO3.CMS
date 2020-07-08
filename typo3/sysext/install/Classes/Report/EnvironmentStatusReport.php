@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Report;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,29 @@ namespace TYPO3\CMS\Install\Report;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Report;
+
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Install\SystemEnvironment\Check;
+use TYPO3\CMS\Install\SystemEnvironment\DatabaseCheck;
+use TYPO3\CMS\Install\SystemEnvironment\SetupCheck;
 use TYPO3\CMS\Reports\ExtendedStatusProviderInterface;
+use TYPO3\CMS\Reports\Status;
 use TYPO3\CMS\Reports\StatusProviderInterface;
 
 /**
  * Provides an environment status report
+ * @internal This class is only meant to be used within EXT:install and is not part of the TYPO3 Core API.
  */
 class EnvironmentStatusReport implements StatusProviderInterface, ExtendedStatusProviderInterface
 {
     /**
      * Compile environment status report
      *
-     * @return \TYPO3\CMS\Reports\Status[]
+     * @return Status[]
      */
     public function getStatus()
     {
@@ -36,7 +45,7 @@ class EnvironmentStatusReport implements StatusProviderInterface, ExtendedStatus
     /**
      * Returns the detailed status of an extension or (sub)system
      *
-     * @return \TYPO3\CMS\Reports\Status[]
+     * @return Status[]
      */
     public function getDetailedStatus()
     {
@@ -44,17 +53,21 @@ class EnvironmentStatusReport implements StatusProviderInterface, ExtendedStatus
     }
 
     /**
-     * @param $verbose
-     * @return \TYPO3\CMS\Reports\Status[]
-     * @throws \TYPO3\CMS\Install\Exception
+     * @param bool $verbose
+     * @return Status[]
      */
     protected function getStatusInternal($verbose)
     {
-        $statusObjects = array_merge(
-            GeneralUtility::makeInstance(\TYPO3\CMS\Install\SystemEnvironment\Check::class)->getStatus(),
-            GeneralUtility::makeInstance(\TYPO3\CMS\Install\SystemEnvironment\SetupCheck::class)->getStatus(),
-            GeneralUtility::makeInstance(\TYPO3\CMS\Install\SystemEnvironment\DatabaseCheck::class)->getStatus()
-        );
+        $statusMessageQueue = new FlashMessageQueue('install');
+        foreach (GeneralUtility::makeInstance(Check::class)->getStatus() as $message) {
+            $statusMessageQueue->enqueue($message);
+        }
+        foreach (GeneralUtility::makeInstance(SetupCheck::class)->getStatus() as $message) {
+            $statusMessageQueue->enqueue($message);
+        }
+        foreach (GeneralUtility::makeInstance(DatabaseCheck::class)->getStatus() as $message) {
+            $statusMessageQueue->enqueue($message);
+        }
         $reportStatusTypes = [
             'error' => [],
             'warning' => [],
@@ -62,14 +75,24 @@ class EnvironmentStatusReport implements StatusProviderInterface, ExtendedStatus
             'information' => [],
             'notice' => [],
         ];
-
-        /** @var $statusObject \TYPO3\CMS\Install\Status\AbstractStatus */
-        foreach ($statusObjects as $statusObject) {
-            $severityIdentifier = $statusObject->getSeverity();
-            if (empty($severityIdentifier) || !is_array($reportStatusTypes[$severityIdentifier])) {
-                throw new \TYPO3\CMS\Install\Exception('Unknown reports severity type', 1362602560);
+        foreach ($statusMessageQueue->toArray() as $message) {
+            switch ($message->getSeverity()) {
+                case FlashMessage::ERROR:
+                    $reportStatusTypes['error'][] = $message;
+                    break;
+                case FlashMessage::WARNING:
+                    $reportStatusTypes['warning'][] = $message;
+                    break;
+                case FlashMessage::OK:
+                    $reportStatusTypes['ok'][] = $message;
+                    break;
+                case FlashMessage::INFO:
+                    $reportStatusTypes['information'][] = $message;
+                    break;
+                case FlashMessage::NOTICE:
+                    $reportStatusTypes['notice'][] = $message;
+                    break;
             }
-            $reportStatusTypes[$severityIdentifier][] = $statusObject;
         }
 
         $statusArray = [];
@@ -89,13 +112,13 @@ class EnvironmentStatusReport implements StatusProviderInterface, ExtendedStatus
                     $type = 'info';
                 }
                 if (!$verbose) {
-                    $message = $GLOBALS['LANG']->sL($pathToXliff . ':environment.status.message.' . $type);
+                    $message = $this->getLanguageService()->sL($pathToXliff . ':environment.status.message.' . $type);
                 }
                 $severity = constant('\TYPO3\CMS\Reports\Status::' . strtoupper($type));
                 $statusArray[] = GeneralUtility::makeInstance(
-                    \TYPO3\CMS\Reports\Status::class,
-                    $GLOBALS['LANG']->sL($pathToXliff . ':environment.status.title'),
-                    sprintf($GLOBALS['LANG']->sL($pathToXliff . ':environment.status.value'), $value),
+                    Status::class,
+                    $this->getLanguageService()->sL($pathToXliff . ':environment.status.title'),
+                    sprintf($this->getLanguageService()->sL($pathToXliff . ':environment.status.value'), $value),
                     $message,
                     $severity
                 );
@@ -103,5 +126,13 @@ class EnvironmentStatusReport implements StatusProviderInterface, ExtendedStatus
         }
 
         return $statusArray;
+    }
+
+    /**
+     * @return LanguageService|null
+     */
+    protected function getLanguageService(): ?LanguageService
+    {
+        return $GLOBALS['LANG'] ?? null;
     }
 }

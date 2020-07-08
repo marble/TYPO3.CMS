@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Form\FieldControl;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,8 +15,11 @@ namespace TYPO3\CMS\Backend\Form\FieldControl;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\FieldControl;
+
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 
 /**
  * "Reset selection to previous selected items" icon,
@@ -45,19 +48,18 @@ class ResetSelection extends AbstractNode
             }
         }
 
-        $resetCode = [
-            'document.editform[' . GeneralUtility::quoteJSvalue($itemName . '[]') . '].selectedIndex=-1;'
-        ];
-        foreach ($initiallySelectedIndices as $index) {
-            $resetCode[] = 'document.editform[' . GeneralUtility::quoteJSvalue($itemName . '[]') . '].options[' . $index . '].selected=1;';
-        }
-        $resetCode[] = 'return false;';
+        $id = StringUtility::getUniqueId('t3js-formengine-fieldcontrol-');
 
         return [
             'iconIdentifier' => 'actions-edit-undo',
-            'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.revertSelection',
+            'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.revertSelection',
             'linkAttributes' => [
-                'onClick' => implode('', $resetCode),
+                'id' => htmlspecialchars($id),
+                'data-item-name' => htmlspecialchars($itemName),
+                'data-selected-indices' => json_encode($initiallySelectedIndices),
+            ],
+            'requireJsModules' => [
+                ['TYPO3/CMS/Backend/FormEngine/FieldControl/ResetSelection' => 'function(FieldControl) {new FieldControl(' . GeneralUtility::quoteJSvalue('#' . $id) . ');}'],
             ],
         ];
     }

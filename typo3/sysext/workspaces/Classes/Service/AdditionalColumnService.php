@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,30 +13,38 @@ namespace TYPO3\CMS\Workspaces\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Workspaces\Service;
+
+use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Workspaces\ColumnDataProviderInterface;
+use TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord;
+
 /**
  * Service for additional columns in GridPanel
  */
-class AdditionalColumnService implements \TYPO3\CMS\Core\SingletonInterface
+class AdditionalColumnService implements SingletonInterface
 {
     /**
-     * @var array|\TYPO3\CMS\Workspaces\ColumnDataProviderInterface[]
+     * @var array|ColumnDataProviderInterface[]
      */
     protected $columns = [];
 
     /**
-     * @return \TYPO3\CMS\Workspaces\Service\AdditionalColumnService
+     * @return AdditionalColumnService
      */
     public static function getInstance()
     {
-        return self::getObjectManager()->get(\TYPO3\CMS\Workspaces\Service\AdditionalColumnService::class);
+        return self::getObjectManager()->get(AdditionalColumnService::class);
     }
 
     /**
-     * @return \TYPO3\CMS\Extbase\Object\ObjectManager
+     * @return ObjectManager
      */
     public static function getObjectManager()
     {
-        return \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
+        return GeneralUtility::makeInstance(ObjectManager::class);
     }
 
     /**
@@ -52,10 +59,10 @@ class AdditionalColumnService implements \TYPO3\CMS\Core\SingletonInterface
         if (is_object($dataProviderClassOrObject)) {
             $dataProvider = $dataProviderClassOrObject;
         } else {
-            $dataProvider = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance($dataProviderClassOrObject);
+            $dataProvider = GeneralUtility::makeInstance($dataProviderClassOrObject);
         }
 
-        if (!$dataProvider instanceof \TYPO3\CMS\Workspaces\ColumnDataProviderInterface) {
+        if (!$dataProvider instanceof ColumnDataProviderInterface) {
             throw new \RuntimeException('Data provider needs to implement ColumnDataProviderInterface', 1374309323);
         }
 
@@ -101,10 +108,10 @@ class AdditionalColumnService implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Gets data for grid data.
      *
-     * @param \TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord $combinedRecord
+     * @param CombinedRecord $combinedRecord
      * @return array Record data
      */
-    public function getData(\TYPO3\CMS\Workspaces\Domain\Model\CombinedRecord $combinedRecord)
+    public function getData(CombinedRecord $combinedRecord)
     {
         $recordData = [];
         foreach ($this->columns as $columnName => $dataProvider) {

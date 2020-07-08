@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,14 +13,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Http;
+
 use TYPO3\CMS\Core\Http\Uri;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Http\Uri
  *
  * Adapted from https://github.com/phly/http/
  */
-class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class UriTest extends UnitTestCase
 {
     /**
      * @test
@@ -29,14 +31,14 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function constructorSetsAllProperties()
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
-        $this->assertEquals('https', $uri->getScheme());
-        $this->assertEquals('user:pass', $uri->getUserInfo());
-        $this->assertEquals('local.example.com', $uri->getHost());
-        $this->assertEquals(3001, $uri->getPort());
-        $this->assertEquals('user:pass@local.example.com:3001', $uri->getAuthority());
-        $this->assertEquals('/foo', $uri->getPath());
-        $this->assertEquals('bar=baz', $uri->getQuery());
-        $this->assertEquals('quz', $uri->getFragment());
+        self::assertEquals('https', $uri->getScheme());
+        self::assertEquals('user:pass', $uri->getUserInfo());
+        self::assertEquals('local.example.com', $uri->getHost());
+        self::assertEquals(3001, $uri->getPort());
+        self::assertEquals('user:pass@local.example.com:3001', $uri->getAuthority());
+        self::assertEquals('/foo', $uri->getPath());
+        self::assertEquals('bar=baz', $uri->getQuery());
+        self::assertEquals('quz', $uri->getFragment());
     }
 
     /**
@@ -46,7 +48,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $url = 'https://user:pass@local.example.com:3001/foo?bar=baz#quz';
         $uri = new Uri($url);
-        $this->assertEquals($url, (string) $uri);
+        self::assertEquals($url, (string)$uri);
     }
 
     /**
@@ -56,9 +58,9 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
         $new = $uri->withScheme('http');
-        $this->assertNotSame($uri, $new);
-        $this->assertEquals('http', $new->getScheme());
-        $this->assertEquals('http://user:pass@local.example.com:3001/foo?bar=baz#quz', (string) $new);
+        self::assertNotSame($uri, $new);
+        self::assertEquals('http', $new->getScheme());
+        self::assertEquals('http://user:pass@local.example.com:3001/foo?bar=baz#quz', (string)$new);
     }
 
     /**
@@ -68,9 +70,9 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
         $new = $uri->withUserInfo('matthew');
-        $this->assertNotSame($uri, $new);
-        $this->assertEquals('matthew', $new->getUserInfo());
-        $this->assertEquals('https://matthew@local.example.com:3001/foo?bar=baz#quz', (string) $new);
+        self::assertNotSame($uri, $new);
+        self::assertEquals('matthew', $new->getUserInfo());
+        self::assertEquals('https://matthew@local.example.com:3001/foo?bar=baz#quz', (string)$new);
     }
 
     /**
@@ -80,9 +82,9 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
         $new = $uri->withUserInfo('matthew', 'zf2');
-        $this->assertNotSame($uri, $new);
-        $this->assertEquals('matthew:zf2', $new->getUserInfo());
-        $this->assertEquals('https://matthew:zf2@local.example.com:3001/foo?bar=baz#quz', (string) $new);
+        self::assertNotSame($uri, $new);
+        self::assertEquals('matthew:zf2', $new->getUserInfo());
+        self::assertEquals('https://matthew:zf2@local.example.com:3001/foo?bar=baz#quz', (string)$new);
     }
 
     /**
@@ -92,11 +94,23 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
         $new = $uri->withHost('framework.zend.com');
-        $this->assertNotSame($uri, $new);
-        $this->assertEquals('framework.zend.com', $new->getHost());
-        $this->assertEquals('https://user:pass@framework.zend.com:3001/foo?bar=baz#quz', (string) $new);
+        self::assertNotSame($uri, $new);
+        self::assertEquals('framework.zend.com', $new->getHost());
+        self::assertEquals('https://user:pass@framework.zend.com:3001/foo?bar=baz#quz', (string)$new);
     }
 
+    /**
+     * @test
+     */
+    public function withPortAndNullValueReturnsInstanceWithProvidedPort()
+    {
+        $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
+        $new = $uri->withPort(null);
+        self::assertEquals(
+            'https://user:pass@local.example.com/foo?bar=baz#quz',
+            (string)$new
+        );
+    }
     /**
      * @return array
      */
@@ -116,11 +130,11 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
         $new = $uri->withPort($port);
-        $this->assertNotSame($uri, $new);
-        $this->assertEquals($port, $new->getPort());
-        $this->assertEquals(
+        self::assertNotSame($uri, $new);
+        self::assertEquals($port, $new->getPort());
+        self::assertEquals(
             sprintf('https://user:pass@local.example.com:%d/foo?bar=baz#quz', $port),
-            (string) $new
+            (string)$new
         );
     }
 
@@ -130,11 +144,10 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function invalidPortsDataProviderType()
     {
         return [
-            'null'      => [null],
             'false'     => [false],
             'string'    => ['string'],
             'array'     => [[3000]],
-            'object'    => [(object) [3000]],
+            'object'    => [(object)[3000]],
         ];
     }
 
@@ -173,8 +186,8 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
         $new = $uri->withPort(true);
-        $this->assertNotSame($uri, $new);
-        $this->assertEquals(1, $new->getPort());
+        self::assertNotSame($uri, $new);
+        self::assertEquals(1, $new->getPort());
     }
 
     /**
@@ -192,13 +205,40 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @test
      */
+    public function standardPortAndSchemeDoesNotRenderPort()
+    {
+        $subject = new Uri('http://www.example.com:80');
+        self::assertEquals('http://www.example.com', (string)$subject);
+    }
+
+    /**
+     * @test
+     */
+    public function standardPortAndNoSchemeDoesRenderPort()
+    {
+        $subject = new Uri('www.example.com:80');
+        self::assertEquals('//www.example.com:80', (string)$subject);
+    }
+
+    /**
+     * @test
+     */
+    public function noPortAndNoSchemeDoesNotRenderPort()
+    {
+        $subject = new Uri('www.example.com');
+        self::assertEquals('/www.example.com', (string)$subject);
+    }
+
+    /**
+     * @test
+     */
     public function withPathReturnsNewInstanceWithProvidedPath()
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
         $new = $uri->withPath('/bar/baz');
-        $this->assertNotSame($uri, $new);
-        $this->assertEquals('/bar/baz', $new->getPath());
-        $this->assertEquals('https://user:pass@local.example.com:3001/bar/baz?bar=baz#quz', (string) $new);
+        self::assertNotSame($uri, $new);
+        self::assertEquals('/bar/baz', $new->getPath());
+        self::assertEquals('https://user:pass@local.example.com:3001/bar/baz?bar=baz#quz', (string)$new);
     }
 
     /**
@@ -211,7 +251,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'true'     => [true],
             'false'    => [false],
             'array'    => [['/bar/baz']],
-            'object'   => [(object) ['/bar/baz']],
+            'object'   => [(object)['/bar/baz']],
         ];
     }
 
@@ -256,9 +296,9 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
         $new = $uri->withQuery('baz=bat');
-        $this->assertNotSame($uri, $new);
-        $this->assertEquals('baz=bat', $new->getQuery());
-        $this->assertEquals('https://user:pass@local.example.com:3001/foo?baz=bat#quz', (string) $new);
+        self::assertNotSame($uri, $new);
+        self::assertEquals('baz=bat', $new->getQuery());
+        self::assertEquals('https://user:pass@local.example.com:3001/foo?baz=bat#quz', (string)$new);
     }
 
     /**
@@ -271,7 +311,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'true'     => [true],
             'false'    => [false],
             'array'    => [['baz=bat']],
-            'object'   => [(object) ['baz=bat']],
+            'object'   => [(object)['baz=bat']],
         ];
     }
 
@@ -305,9 +345,9 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
         $new = $uri->withFragment('qat');
-        $this->assertNotSame($uri, $new);
-        $this->assertEquals('qat', $new->getFragment());
-        $this->assertEquals('https://user:pass@local.example.com:3001/foo?bar=baz#qat', (string) $new);
+        self::assertNotSame($uri, $new);
+        self::assertEquals('qat', $new->getFragment());
+        self::assertEquals('https://user:pass@local.example.com:3001/foo?bar=baz#qat', (string)$new);
     }
 
     /**
@@ -330,7 +370,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getAuthorityReturnsExpectedValues($url, $expected)
     {
         $uri = new Uri($url);
-        $this->assertEquals($expected, $uri->getAuthority());
+        self::assertEquals($expected, $uri->getAuthority());
     }
 
     /**
@@ -340,7 +380,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $url = '/foo/bar?baz=bat';
         $uri = new Uri($url);
-        $this->assertEquals($url, (string) $uri);
+        self::assertEquals($url, (string)$uri);
     }
 
     /**
@@ -350,7 +390,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('http://example.com/foo');
         $new = $uri->withPath('');
-        $this->assertEquals('', $new->getPath());
+        self::assertEquals('', $new->getPath());
     }
 
     /**
@@ -359,7 +399,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function stringRepresentationOfAbsoluteUriWithNoPathSetsAnEmptyPath()
     {
         $uri = new Uri('http://example.com');
-        $this->assertEquals('http://example.com', (string) $uri);
+        self::assertEquals('http://example.com', (string)$uri);
     }
 
     /**
@@ -368,7 +408,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getPathOnOriginFormRemainsAnEmptyPath()
     {
         $uri = new Uri('?foo=bar');
-        $this->assertEquals('', $uri->getPath());
+        self::assertEquals('', $uri->getPath());
     }
 
     /**
@@ -377,7 +417,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function stringRepresentationOfOriginFormWithNoPathRetainsEmptyPath()
     {
         $uri = new Uri('?foo=bar');
-        $this->assertEquals('?foo=bar', (string) $uri);
+        self::assertEquals('?foo=bar', (string)$uri);
     }
 
     /**
@@ -392,7 +432,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'int'    => [1],
             'float'  => [1.1],
             'array'  => [['http://example.com/']],
-            'object' => [(object) ['uri' => 'http://example.com/']],
+            'object' => [(object)['uri' => 'http://example.com/']],
         ];
     }
 
@@ -421,7 +461,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('http://example.com');
         $new = $uri->withScheme('https://');
-        $this->assertEquals('https', $new->getScheme());
+        self::assertEquals('https', $new->getScheme());
     }
 
     /**
@@ -468,7 +508,20 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('http://example.com');
         $new = $uri->withPath('foo/bar');
-        $this->assertEquals('foo/bar', $new->getPath());
+        self::assertEquals('foo/bar', $new->getPath());
+    }
+
+    /**
+     * @test
+     */
+    public function withEmptySchemeReturnsNewInstanceWithAbsoluteUri()
+    {
+        $uri = new Uri('https://user:pass@local.example.com:3001/foo?bar=baz#quz');
+        $new = $uri->withScheme('');
+        self::assertNotSame($uri, $new);
+        self::assertNotSame((string)$uri, (string)$new);
+        self::assertEquals('', $new->getScheme());
+        self::assertEquals('//user:pass@local.example.com:3001/foo?bar=baz#quz', (string)$new);
     }
 
     /**
@@ -478,7 +531,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('http://example.com');
         $new = $uri->withPath('foo/bar');
-        $this->assertEquals('http://example.com/foo/bar', $new->__toString());
+        self::assertEquals('http://example.com/foo/bar', $new->__toString());
     }
 
     /**
@@ -488,7 +541,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('http://example.com');
         $new = $uri->withQuery('?foo=bar');
-        $this->assertEquals('foo=bar', $new->getQuery());
+        self::assertEquals('foo=bar', $new->getQuery());
     }
 
     /**
@@ -498,7 +551,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = new Uri('http://example.com');
         $new = $uri->withFragment('#/foo/bar');
-        $this->assertEquals('/foo/bar', $new->getFragment());
+        self::assertEquals('/foo/bar', $new->getFragment());
     }
 
     /**
@@ -522,7 +575,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ->withHost('example.com')
             ->withScheme($scheme)
             ->withPort($port);
-        $this->assertEquals('example.com', $uri->getAuthority());
+        self::assertEquals('example.com', $uri->getAuthority());
     }
 
     /**
@@ -532,7 +585,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = (new Uri())->withPath('/foo^bar');
         $expected = '/foo%5Ebar';
-        $this->assertEquals($expected, $uri->getPath());
+        self::assertEquals($expected, $uri->getPath());
     }
 
     /**
@@ -542,7 +595,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = (new Uri())->withPath('/foo%5Ebar');
         $expected = '/foo%5Ebar';
-        $this->assertEquals($expected, $uri->getPath());
+        self::assertEquals($expected, $uri->getPath());
     }
 
     /**
@@ -566,7 +619,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getQueryIsProperlyEncoded($query, $expected)
     {
         $uri = (new Uri())->withQuery($query);
-        $this->assertEquals($expected, $uri->getQuery());
+        self::assertEquals($expected, $uri->getQuery());
     }
 
     /**
@@ -576,7 +629,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getQueryIsNotDoubleEncoded($query, $expected)
     {
         $uri = (new Uri())->withQuery($expected);
-        $this->assertEquals($expected, $uri->getQuery());
+        self::assertEquals($expected, $uri->getQuery());
     }
 
     /**
@@ -586,7 +639,7 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $uri = (new Uri())->withFragment('/p^th?key^=`bar#b@z');
         $expected = '/p%5Eth?key%5E=%60bar%23b@z';
-        $this->assertEquals($expected, $uri->getFragment());
+        self::assertEquals($expected, $uri->getFragment());
     }
 
     /**
@@ -596,6 +649,6 @@ class UriTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $expected = '/p%5Eth?key%5E=%60bar%23b@z';
         $uri = (new Uri())->withFragment($expected);
-        $this->assertEquals($expected, $uri->getFragment());
+        self::assertEquals($expected, $uri->getFragment());
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Core;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Core;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Core;
 
 use TYPO3\CMS\Core\Exception;
 
@@ -84,7 +85,6 @@ class ApplicationContext
      * Returns the full context string, for example "Development", or "Production/LiveSystem"
      *
      * @return string
-     * @api
      */
     public function __toString()
     {
@@ -95,7 +95,6 @@ class ApplicationContext
      * Returns TRUE if this context is the Development context or a sub-context of it
      *
      * @return bool
-     * @api
      */
     public function isDevelopment()
     {
@@ -106,7 +105,6 @@ class ApplicationContext
      * Returns TRUE if this context is the Production context or a sub-context of it
      *
      * @return bool
-     * @api
      */
     public function isProduction()
     {
@@ -117,7 +115,6 @@ class ApplicationContext
      * Returns TRUE if this context is the Testing context or a sub-context of it
      *
      * @return bool
-     * @api
      */
     public function isTesting()
     {
@@ -128,7 +125,6 @@ class ApplicationContext
      * Returns the parent context object, if any
      *
      * @return \TYPO3\CMS\Core\Core\ApplicationContext the parent context or NULL, if there is none
-     * @api
      */
     public function getParent()
     {

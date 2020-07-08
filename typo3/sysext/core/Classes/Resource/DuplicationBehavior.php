@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
+use TYPO3\CMS\Core\Type\Enumeration;
+
 /**
  * Enumeration object for DuplicationBehavior
  */
-class DuplicationBehavior extends \TYPO3\CMS\Core\Type\Enumeration
+final class DuplicationBehavior extends Enumeration
 {
     const __default = self::CANCEL;
 

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Install\Service;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +15,34 @@ namespace TYPO3\CMS\Install\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Tests\Unit\Service;
+
+use Prophecy\Argument;
+use Prophecy\Prophecy\ObjectProphecy;
+use TYPO3\CMS\Core\Cache\Backend\SimpleFileBackend;
+use TYPO3\CMS\Core\Cache\Backend\Typo3DatabaseBackend;
+use TYPO3\CMS\Core\Cache\Frontend\VariableFrontend;
 use TYPO3\CMS\Core\Configuration\ConfigurationManager;
+use TYPO3\CMS\Core\Crypto\PasswordHashing\Argon2idPasswordHash;
+use TYPO3\CMS\Core\Crypto\PasswordHashing\Argon2iPasswordHash;
+use TYPO3\CMS\Core\Crypto\PasswordHashing\BcryptPasswordHash;
 use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Tests\Unit\Utility\AccessibleProxies\ExtensionManagementUtilityAccessibleProxy;
+use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
-use TYPO3\CMS\Install\Controller\Exception\RedirectException;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Fluid\Core\Cache\FluidTemplateCache;
+use TYPO3\CMS\Install\Service\Exception\ConfigurationChangedException;
+use TYPO3\CMS\Install\Service\SilentConfigurationUpgradeService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class SilentConfigurationUpgradeServiceTest extends UnitTestCase
 {
     /**
-     * @var ConfigurationManager|\PHPUnit_Framework_MockObject_MockObject
+     * @var ConfigurationManager|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $configurationManager;
 
@@ -38,15 +54,16 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->backupPackageManager = ExtensionManagementUtilityAccessibleProxy::getPackageManager();
+        parent::setUp();
     }
 
     /**
      * Tear down
      */
-    protected function tearDown()
+    protected function tearDown(): void
     {
         ExtensionManagementUtilityAccessibleProxy::setPackageManager($this->backupPackageManager);
         parent::tearDown();
@@ -67,7 +84,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      *
      * @return array
      */
-    public function configureBackendLoginSecurityLocalconfiguration()
+    public function configureBackendLoginSecurityLocalconfiguration(): array
     {
         return [
             ['', 'rsa', true, false],
@@ -86,7 +103,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function configureBackendLoginSecurity($current, $setting, $isPackageActive, $hasLocalConfig)
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -95,18 +112,18 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
             false
         );
 
-        /** @var $packageManager PackageManager|\PHPUnit_Framework_MockObject_MockObject */
+        /** @var $packageManager PackageManager|\PHPUnit\Framework\MockObject\MockObject */
         $packageManager = $this->createMock(PackageManager::class);
-        $packageManager->expects($this->any())
+        $packageManager->expects(self::any())
             ->method('isPackageActive')
-            ->will($this->returnValue($isPackageActive));
+            ->willReturn($isPackageActive);
         ExtensionManagementUtility::setPackageManager($packageManager);
 
         $currentLocalConfiguration = [
             ['BE/loginSecurityLevel', $current]
         ];
         $closure = function () {
-            throw new \RuntimeException('Path does not exist in array', 1476109311);
+            throw new MissingArrayPathException('Path does not exist in array', 1538160231);
         };
 
         $this->createConfigurationManagerWithMockedMethods(
@@ -116,19 +133,19 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
             ]
         );
         if ($hasLocalConfig) {
-            $this->configurationManager->expects($this->once())
+            $this->configurationManager->expects(self::once())
                 ->method('getLocalConfigurationValueByPath')
-                ->will($this->returnValueMap($currentLocalConfiguration));
+                ->willReturnMap($currentLocalConfiguration);
         } else {
-            $this->configurationManager->expects($this->once())
+            $this->configurationManager->expects(self::once())
                 ->method('getLocalConfigurationValueByPath')
-                ->will($this->returnCallback($closure));
+                ->willReturnCallback($closure);
         }
-        $this->configurationManager->expects($this->once())
+        $this->configurationManager->expects(self::once())
             ->method('setLocalConfigurationValueByPath')
-            ->with($this->equalTo('BE/loginSecurityLevel'), $this->equalTo($setting));
+            ->with(self::equalTo('BE/loginSecurityLevel'), self::equalTo($setting));
 
-        $this->expectException(RedirectException::class);
+        $this->expectException(ConfigurationChangedException::class);
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
 
@@ -136,11 +153,86 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
     }
 
     /**
+     * Dataprovider for configureBackendLoginSecurity
+     *
+     * @return array
+     */
+    public function configureFrontendLoginSecurityLocalconfiguration(): array
+    {
+        return [
+            ['', 'rsa', true, false],
+            ['normal', 'rsa', true, true],
+            ['rsa', 'normal', false, true],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider configureFrontendLoginSecurityLocalconfiguration
+     * @param string $current
+     * @param string $setting
+     * @param bool $isPackageActive
+     * @param bool $hasLocalConfig
+     */
+    public function configureFrontendLoginSecurity($current, $setting, $isPackageActive, $hasLocalConfig)
+    {
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
+            SilentConfigurationUpgradeService::class,
+            ['dummy'],
+            [],
+            '',
+            false
+        );
+
+        /** @var $packageManager PackageManager|\PHPUnit\Framework\MockObject\MockObject */
+        $packageManager = $this->createMock(PackageManager::class);
+        $packageManager->expects(self::any())
+            ->method('isPackageActive')
+            ->willReturn($isPackageActive);
+        ExtensionManagementUtility::setPackageManager($packageManager);
+
+        $currentLocalConfiguration = [
+            ['FE/loginSecurityLevel', $current]
+        ];
+        $closure = function () {
+            throw new MissingArrayPathException('Path does not exist in array', 1476109311);
+        };
+
+        $this->createConfigurationManagerWithMockedMethods(
+            [
+                'getLocalConfigurationValueByPath',
+                'setLocalConfigurationValueByPath',
+            ]
+        );
+        if ($hasLocalConfig) {
+            $this->configurationManager->expects(self::once())
+                ->method('getLocalConfigurationValueByPath')
+                ->willReturnMap($currentLocalConfiguration);
+        } else {
+            $this->configurationManager->expects(self::once())
+                ->method('getLocalConfigurationValueByPath')
+                ->willReturnCallback($closure);
+        }
+        if ($isPackageActive === false) {
+            $this->configurationManager->expects(self::once())
+                ->method('setLocalConfigurationValueByPath')
+                ->with(self::equalTo('FE/loginSecurityLevel'), self::equalTo($setting));
+
+            $this->expectException(ConfigurationChangedException::class);
+        }
+
+        $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
+
+        $silentConfigurationUpgradeServiceInstance->_call('configureFrontendLoginSecurity');
+    }
+
+    /**
      * @test
      */
     public function removeObsoleteLocalConfigurationSettingsIfThereAreOldSettings()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -161,11 +253,11 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
                 'removeLocalConfigurationKeysByPath',
             ]
         );
-        $this->configurationManager->expects($this->exactly(1))
+        $this->configurationManager->expects(self::exactly(1))
             ->method('removeLocalConfigurationKeysByPath')
-            ->will($this->returnValueMap($currentLocalConfiguration));
+            ->willReturnMap($currentLocalConfiguration);
 
-        $this->expectException(RedirectException::class);
+        $this->expectException(ConfigurationChangedException::class);
 
         $silentConfigurationUpgradeServiceInstance->_set('obsoleteLocalConfigurationSettings', $obsoleteLocalConfigurationSettings);
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
@@ -178,7 +270,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function doNotRemoveObsoleteLocalConfigurationSettingsIfThereAreNoOldSettings()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -199,9 +291,9 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
                 'removeLocalConfigurationKeysByPath',
             ]
         );
-        $this->configurationManager->expects($this->exactly(1))
+        $this->configurationManager->expects(self::exactly(1))
             ->method('removeLocalConfigurationKeysByPath')
-            ->will($this->returnValueMap($currentLocalConfiguration));
+            ->willReturnMap($currentLocalConfiguration);
 
         $silentConfigurationUpgradeServiceInstance->_set('obsoleteLocalConfigurationSettings', $obsoleteLocalConfigurationSettings);
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
@@ -214,7 +306,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function doNotGenerateEncryptionKeyIfExists()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -233,10 +325,10 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
                 'setLocalConfigurationValueByPath',
             ]
         );
-        $this->configurationManager->expects($this->exactly(1))
+        $this->configurationManager->expects(self::exactly(1))
             ->method('getLocalConfigurationValueByPath')
-            ->will($this->returnValueMap($currentLocalConfiguration));
-        $this->configurationManager->expects($this->never())
+            ->willReturnMap($currentLocalConfiguration);
+        $this->configurationManager->expects(self::never())
             ->method('setLocalConfigurationValueByPath');
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
@@ -249,7 +341,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function generateEncryptionKeyIfNotExists()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -259,7 +351,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
         );
 
         $closure = function () {
-            throw new \RuntimeException('Path does not exist in array', 1476109266);
+            throw new MissingArrayPathException('Path does not exist in array', 1476109266);
         };
 
         $this->createConfigurationManagerWithMockedMethods(
@@ -268,14 +360,14 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
                 'setLocalConfigurationValueByPath',
             ]
         );
-        $this->configurationManager->expects($this->exactly(1))
+        $this->configurationManager->expects(self::exactly(1))
             ->method('getLocalConfigurationValueByPath')
-            ->will($this->returnCallback($closure));
-        $this->configurationManager->expects($this->once())
+            ->willReturnCallback($closure);
+        $this->configurationManager->expects(self::once())
             ->method('setLocalConfigurationValueByPath')
-            ->with($this->equalTo('SYS/encryptionKey'), $this->isType('string'));
+            ->with(self::equalTo('SYS/encryptionKey'), self::isType('string'));
 
-        $this->expectException(RedirectException::class);
+        $this->expectException(ConfigurationChangedException::class);
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
 
@@ -287,7 +379,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      *
      * @return array
      */
-    public function httpSettingsMappingDataProvider()
+    public function httpSettingsMappingDataProvider(): array
     {
         return [
             'No changes overridden in Local Configuration' => [
@@ -390,7 +482,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function transferHttpSettingsIfSet($currentLocalConfiguration, $newSettings, $localConfigurationNeedsUpdate)
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -407,20 +499,20 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
             ]
         );
 
-        $this->configurationManager->expects($this->any())
+        $this->configurationManager->expects(self::any())
             ->method('getLocalConfiguration')
             ->willReturn(['HTTP' => $currentLocalConfiguration]);
         if ($localConfigurationNeedsUpdate) {
             if (!empty($newSettings)) {
-                $this->configurationManager->expects($this->once())
+                $this->configurationManager->expects(self::once())
                     ->method('setLocalConfigurationValuesByPathValuePairs')
                     ->with($newSettings);
             }
-            $this->configurationManager->expects($this->atMost(1))->method('removeLocalConfigurationKeysByPath');
+            $this->configurationManager->expects(self::atMost(1))->method('removeLocalConfigurationKeysByPath');
         }
 
         if ($localConfigurationNeedsUpdate) {
-            $this->expectException(RedirectException::class);
+            $this->expectException(ConfigurationChangedException::class);
         }
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
@@ -433,7 +525,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function disableImageMagickDetailSettingsIfImageMagickIsDisabled()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -456,18 +548,18 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
                 'setLocalConfigurationValuesByPathValuePairs',
             ]
         );
-        $this->configurationManager->expects($this->exactly(5))
+        $this->configurationManager->expects(self::exactly(5))
             ->method('getLocalConfigurationValueByPath')
-            ->will($this->returnValueMap($currentLocalConfiguration));
-        $this->configurationManager->expects($this->never())
+            ->willReturnMap($currentLocalConfiguration);
+        $this->configurationManager->expects(self::never())
             ->method('getDefaultConfigurationValueByPath');
-        $this->configurationManager->expects($this->once())
+        $this->configurationManager->expects(self::once())
             ->method('setLocalConfigurationValuesByPathValuePairs')
             ->withConsecutive(
                 [['GFX/imagefile_ext' => 'gif,jpg,jpeg,png']]
             );
 
-        $this->expectException(RedirectException::class);
+        $this->expectException(ConfigurationChangedException::class);
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
 
@@ -479,7 +571,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function doNotDisableImageMagickDetailSettingsIfImageMagickIsEnabled()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -502,12 +594,12 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
                 'setLocalConfigurationValuesByPathValuePairs',
             ]
         );
-        $this->configurationManager->expects($this->exactly(5))
+        $this->configurationManager->expects(self::exactly(5))
             ->method('getLocalConfigurationValueByPath')
-            ->will($this->returnValueMap($currentLocalConfiguration));
-        $this->configurationManager->expects($this->never())
+            ->willReturnMap($currentLocalConfiguration);
+        $this->configurationManager->expects(self::never())
             ->method('getDefaultConfigurationValueByPath');
-        $this->configurationManager->expects($this->never())
+        $this->configurationManager->expects(self::never())
             ->method('setLocalConfigurationValuesByPathValuePairs');
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
@@ -520,7 +612,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function setImageMagickDetailSettings()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -532,7 +624,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
         $currentLocalConfiguration = [
             ['GFX/processor', 'GraphicsMagick'],
             ['GFX/processor_allowTemporaryMasksAsPng', 1],
-            ['GFX/processor_effects', 0]
+            ['GFX/processor_effects', false],
         ];
         $this->createConfigurationManagerWithMockedMethods(
             [
@@ -541,19 +633,20 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
                 'setLocalConfigurationValuesByPathValuePairs',
             ]
         );
-        $this->configurationManager->expects($this->exactly(3))
+        $this->configurationManager->expects(self::exactly(3))
             ->method('getLocalConfigurationValueByPath')
-            ->will($this->returnValueMap($currentLocalConfiguration));
-        $this->configurationManager->expects($this->never())
+            ->willReturnMap($currentLocalConfiguration);
+        $this->configurationManager->expects(self::never())
             ->method('getDefaultConfigurationValueByPath');
-        $this->configurationManager->expects($this->once())
+        $this->configurationManager->expects(self::once())
             ->method('setLocalConfigurationValuesByPathValuePairs')
-            ->withConsecutive(
-                [['GFX/processor_allowTemporaryMasksAsPng' => 0,
-                            'GFX/processor_effects' => -1]]
-            );
+            ->withConsecutive([
+                [
+                    'GFX/processor_allowTemporaryMasksAsPng' => 0,
+                ]
+            ]);
 
-        $this->expectException(RedirectException::class);
+        $this->expectException(ConfigurationChangedException::class);
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
 
@@ -565,7 +658,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function doNotSetImageMagickDetailSettings()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -577,7 +670,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
         $currentLocalConfiguration = [
             ['GFX/processor', ''],
             ['GFX/processor_allowTemporaryMasksAsPng', 0],
-            ['GFX/processor_effects', 0]
+            ['GFX/processor_effects', 0],
         ];
         $this->createConfigurationManagerWithMockedMethods(
             [
@@ -586,12 +679,12 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
                 'setLocalConfigurationValuesByPathValuePairs',
             ]
         );
-        $this->configurationManager->expects($this->exactly(3))
+        $this->configurationManager->expects(self::exactly(3))
             ->method('getLocalConfigurationValueByPath')
-            ->will($this->returnValueMap($currentLocalConfiguration));
-        $this->configurationManager->expects($this->never())
+            ->willReturnMap($currentLocalConfiguration);
+        $this->configurationManager->expects(self::never())
             ->method('getDefaultConfigurationValueByPath');
-        $this->configurationManager->expects($this->never())
+        $this->configurationManager->expects(self::never())
             ->method('setLocalConfigurationValuesByPathValuePairs');
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
@@ -601,10 +694,70 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
 
     /**
      * @test
+     * @dataProvider graphicsProcessorEffects
+     *
+     * @param mixed $currentValue
+     * @param bool $expectedMigratedValue
+     */
+    public function migratesGraphicsProcessorEffects($currentValue, $expectedMigratedValue)
+    {
+        /** @var ConfigurationManager|\Prophecy\Prophecy\ObjectProphecy */
+        $configurationManager = $this->prophesize(ConfigurationManager::class);
+        $configurationManager->getLocalConfigurationValueByPath('GFX/processor')->willReturn('GraphicsMagick');
+        $configurationManager->getLocalConfigurationValueByPath('GFX/processor_allowTemporaryMasksAsPng')->willReturn(false);
+        $configurationManager->getLocalConfigurationValueByPath('GFX/processor_effects')->willReturn($currentValue);
+        $configurationManager->setLocalConfigurationValuesByPathValuePairs([
+            'GFX/processor_effects' => $expectedMigratedValue,
+        ])->shouldBeCalled();
+
+        $this->expectException(ConfigurationChangedException::class);
+
+        $silentConfigurationUpgradeService = new SilentConfigurationUpgradeService($configurationManager->reveal());
+        // Call protected method
+        \Closure::bind(function () {
+            return $this->setImageMagickDetailSettings();
+        }, $silentConfigurationUpgradeService, SilentConfigurationUpgradeService::class)();
+    }
+
+    /**
+     * @return array
+     */
+    public function graphicsProcessorEffects(): array
+    {
+        return [
+            'integer 1' => [
+                1,
+                true,
+            ],
+            'integer 0' => [
+                0,
+                false,
+            ],
+            'integer -1' => [
+                -1,
+                false,
+            ],
+            'string "1"' => [
+                '1',
+                true,
+            ],
+            'string "0"' => [
+                '0',
+                false,
+            ],
+            'string "-1"' => [
+                '-1',
+                false,
+            ],
+        ];
+    }
+
+    /**
+     * @test
      */
     public function migrateNonExistingLangDebug()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -622,10 +775,10 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
             ]
         );
 
-        $this->configurationManager->expects($this->exactly(1))
+        $this->configurationManager->expects(self::exactly(1))
             ->method('getLocalConfigurationValueByPath')
-            ->will($this->returnValueMap($currentLocalConfiguration));
-        $this->configurationManager->expects($this->never())
+            ->willReturnMap($currentLocalConfiguration);
+        $this->configurationManager->expects(self::never())
             ->method('setLocalConfigurationValueByPath');
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
@@ -638,7 +791,7 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
      */
     public function migrateExistingLangDebug()
     {
-        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
         $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
             SilentConfigurationUpgradeService::class,
             ['dummy'],
@@ -657,15 +810,263 @@ class SilentConfigurationUpgradeServiceTest extends \TYPO3\TestingFramework\Core
             ]
         );
 
-        $this->configurationManager->expects($this->exactly(1))
+        $this->configurationManager->expects(self::exactly(1))
             ->method('getLocalConfigurationValueByPath')
-            ->will($this->returnValueMap($currentLocalConfiguration));
-        $this->configurationManager->expects($this->once())
+            ->willReturnMap($currentLocalConfiguration);
+        $this->configurationManager->expects(self::once())
             ->method('setLocalConfigurationValueByPath')
-            ->with($this->equalTo('BE/languageDebug'), false);
+            ->with(self::equalTo('BE/languageDebug'), false);
+
+        $this->expectException(ConfigurationChangedException::class);
+        $this->expectExceptionCode(1379024938);
 
         $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $this->configurationManager);
-
         $silentConfigurationUpgradeServiceInstance->_call('migrateLangDebug');
+    }
+
+    /**
+     * @test
+     */
+    public function migrateCacheHashOptions()
+    {
+        $oldConfig = [
+            'FE/cHashOnlyForParameters' => 'foo,bar',
+            'FE/cHashExcludedParameters' => 'bar,foo',
+            'FE/cHashRequiredParameters' => 'bar,baz',
+            'FE/cHashExcludedParametersIfEmpty' => '*'
+        ];
+
+        /** @var ConfigurationManager|ObjectProphecy $configurationManager */
+        $configurationManager = $this->prophesize(ConfigurationManager::class);
+
+        foreach ($oldConfig as $key => $value) {
+            $configurationManager->getLocalConfigurationValueByPath($key)
+                ->shouldBeCalled()
+                ->willReturn($value);
+        }
+
+        $configurationManager->setLocalConfigurationValuesByPathValuePairs(Argument::cetera())->shouldBeCalled();
+        $configurationManager->removeLocalConfigurationKeysByPath(Argument::cetera())->shouldBeCalled();
+
+        $this->expectException(ConfigurationChangedException::class);
+        $this->expectExceptionCode(1379024938);
+
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
+            SilentConfigurationUpgradeService::class,
+            ['dummy'],
+            [],
+            '',
+            false
+        );
+
+        $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $configurationManager->reveal());
+        $silentConfigurationUpgradeServiceInstance->_call('migrateCacheHashOptions');
+    }
+
+    /**
+     * @test
+     */
+    public function migrateSaltedPasswordsSettingsDoesNothingIfExtensionConfigsAreNotSet()
+    {
+        $configurationManagerProphecy = $this->prophesize(ConfigurationManager::class);
+        $configurationManagerException = new MissingArrayPathException('Path does not exist in array', 1533989414);
+        $configurationManagerProphecy->getLocalConfigurationValueByPath('EXTENSIONS/saltedpasswords')
+            ->shouldBeCalled()->willThrow($configurationManagerException);
+        $configurationManagerProphecy->setLocalConfigurationValuesByPathValuePairs(Argument::cetera())
+            ->shouldNotBeCalled();
+        $silentConfigurationUpgradeService = $this->getAccessibleMock(
+            SilentConfigurationUpgradeService::class,
+            ['dummy'],
+            [$configurationManagerProphecy->reveal()]
+        );
+        $silentConfigurationUpgradeService->_call('migrateSaltedPasswordsSettings');
+    }
+
+    /**
+     * @test
+     */
+    public function migrateSaltedPasswordsSettingsDoesNothingIfExtensionConfigsAreEmpty()
+    {
+        $configurationManagerProphecy = $this->prophesize(ConfigurationManager::class);
+        $configurationManagerProphecy->getLocalConfigurationValueByPath('EXTENSIONS/saltedpasswords')
+            ->shouldBeCalled()->willReturn([]);
+        $configurationManagerProphecy->setLocalConfigurationValuesByPathValuePairs(Argument::cetera())
+            ->shouldNotBeCalled();
+        $silentConfigurationUpgradeService = $this->getAccessibleMock(
+            SilentConfigurationUpgradeService::class,
+            ['dummy'],
+            [$configurationManagerProphecy->reveal()]
+        );
+        $silentConfigurationUpgradeService->_call('migrateSaltedPasswordsSettings');
+    }
+
+    /**
+     * @test
+     */
+    public function migrateSaltedPasswordsSettingsRemovesExtensionsConfigAndSetsNothingElseIfArgon2iIsAvailable()
+    {
+        $configurationManagerProphecy = $this->prophesize(ConfigurationManager::class);
+        $configurationManagerException = new MissingArrayPathException('Path does not exist in array', 1533989428);
+        $configurationManagerProphecy->getLocalConfigurationValueByPath('EXTENSIONS/saltedpasswords')
+            ->shouldBeCalled()->willReturn(['thereIs' => 'something']);
+        $argonBeProphecy = $this->prophesize(Argon2iPasswordHash::class);
+        $argonBeProphecy->isAvailable()->shouldBeCalled()->willReturn(true);
+        GeneralUtility::addInstance(Argon2iPasswordHash::class, $argonBeProphecy->reveal());
+        $argonFeProphecy = $this->prophesize(Argon2iPasswordHash::class);
+        $argonFeProphecy->isAvailable()->shouldBeCalled()->willReturn(true);
+        GeneralUtility::addInstance(Argon2iPasswordHash::class, $argonFeProphecy->reveal());
+        $configurationManagerProphecy->removeLocalConfigurationKeysByPath(['EXTENSIONS/saltedpasswords'])
+            ->shouldBeCalled();
+        $silentConfigurationUpgradeService = $this->getAccessibleMock(
+            SilentConfigurationUpgradeService::class,
+            ['dummy'],
+            [$configurationManagerProphecy->reveal()]
+        );
+        $this->expectException(ConfigurationChangedException::class);
+        $this->expectExceptionCode(1379024938);
+        $silentConfigurationUpgradeService->_call('migrateSaltedPasswordsSettings');
+    }
+
+    /**
+     * @test
+     */
+    public function migrateSaltedPasswordsSetsSpecificHashMethodIfArgon2idAndArgon2iIsNotAvailable()
+    {
+        $configurationManagerProphecy = $this->prophesize(ConfigurationManager::class);
+        $configurationManagerProphecy->getLocalConfigurationValueByPath('EXTENSIONS/saltedpasswords')
+            ->shouldBeCalled()->willReturn(['thereIs' => 'something']);
+        $argon2idBeProphecy = $this->prophesize(Argon2idPasswordHash::class);
+        $argon2idBeProphecy->isAvailable()->shouldBeCalled()->willReturn(false);
+        GeneralUtility::addInstance(Argon2idPasswordHash::class, $argon2idBeProphecy->reveal());
+        $argonBeProphecy = $this->prophesize(Argon2iPasswordHash::class);
+        $argonBeProphecy->isAvailable()->shouldBeCalled()->willReturn(false);
+        GeneralUtility::addInstance(Argon2iPasswordHash::class, $argonBeProphecy->reveal());
+        $bcryptBeProphecy = $this->prophesize(BcryptPasswordHash::class);
+        $bcryptBeProphecy->isAvailable()->shouldBeCalled()->willReturn(true);
+        GeneralUtility::addInstance(BcryptPasswordHash::class, $bcryptBeProphecy->reveal());
+        $argon2idFeProphecy = $this->prophesize(Argon2idPasswordHash::class);
+        $argon2idFeProphecy->isAvailable()->shouldBeCalled()->willReturn(false);
+        GeneralUtility::addInstance(Argon2idPasswordHash::class, $argon2idFeProphecy->reveal());
+        $argonFeProphecy = $this->prophesize(Argon2iPasswordHash::class);
+        $argonFeProphecy->isAvailable()->shouldBeCalled()->willReturn(false);
+        GeneralUtility::addInstance(Argon2iPasswordHash::class, $argonFeProphecy->reveal());
+        $bcryptFeProphecy = $this->prophesize(BcryptPasswordHash::class);
+        $bcryptFeProphecy->isAvailable()->shouldBeCalled()->willReturn(true);
+        GeneralUtility::addInstance(BcryptPasswordHash::class, $bcryptFeProphecy->reveal());
+        $configurationManagerProphecy->setLocalConfigurationValuesByPathValuePairs([
+            'BE/passwordHashing/className' => BcryptPasswordHash::class,
+            'FE/passwordHashing/className' => BcryptPasswordHash::class,
+        ])->shouldBeCalled();
+        $configurationManagerProphecy->removeLocalConfigurationKeysByPath(['EXTENSIONS/saltedpasswords'])
+            ->shouldBeCalled();
+        $silentConfigurationUpgradeService = $this->getAccessibleMock(
+            SilentConfigurationUpgradeService::class,
+            ['dummy'],
+            [$configurationManagerProphecy->reveal()]
+        );
+        $this->expectException(ConfigurationChangedException::class);
+        $this->expectExceptionCode(1379024938);
+        $silentConfigurationUpgradeService->_call('migrateSaltedPasswordsSettings');
+    }
+
+    /**
+     * @test
+     */
+    public function migrateCachingFrameworkCachesMigratesData()
+    {
+        $oldCacheConfigurations = [
+            'cache_rootline' => [
+                'frontend' => VariableFrontend::class,
+                'backend' => Typo3DatabaseBackend::class,
+                'options' => [
+                    'defaultLifetime' => 2592000,
+                ],
+                'groups' => ['pages']
+            ],
+            'fluid_template' => [
+                'backend' => SimpleFileBackend::class,
+                'frontend' => FluidTemplateCache::class,
+                'groups' => ['system'],
+            ],
+        ];
+        $newCacheConfigurations = [
+            'rootline' => [
+                'frontend' => VariableFrontend::class,
+                'backend' => Typo3DatabaseBackend::class,
+                'options' => [
+                    'defaultLifetime' => 2592000,
+                ],
+                'groups' => ['pages']
+            ],
+            'fluid_template' => [
+                'backend' => SimpleFileBackend::class,
+                'frontend' => FluidTemplateCache::class,
+                'groups' => ['system'],
+            ],
+        ];
+        /** @var ConfigurationManager|ObjectProphecy $configurationManager */
+        $configurationManager = $this->prophesize(ConfigurationManager::class);
+        $configurationManager->getLocalConfigurationValueByPath('SYS/caching/cacheConfigurations')
+            ->shouldBeCalled()
+            ->willReturn($oldCacheConfigurations);
+
+        $configurationManager->setLocalConfigurationValueByPath('SYS/caching/cacheConfigurations', $newCacheConfigurations)->shouldBeCalled();
+
+        $this->expectException(ConfigurationChangedException::class);
+        $this->expectExceptionCode(1379024938);
+
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
+            SilentConfigurationUpgradeService::class,
+            ['dummy'],
+            [],
+            '',
+            false
+        );
+
+        $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $configurationManager->reveal());
+        $silentConfigurationUpgradeServiceInstance->_call('migrateCachingFrameworkCaches');
+    }
+
+    /**
+     * @test
+     */
+    public function migrateCachingFrameworkCachesDoesNotMigrateWithoutPrefix()
+    {
+        $oldCacheConfigurations = [
+            'rootline' => [
+                'frontend' => VariableFrontend::class,
+                'backend' => Typo3DatabaseBackend::class,
+                'options' => [
+                    'defaultLifetime' => 2592000,
+                ],
+                'groups' => ['pages']
+            ],
+            'fluid_template' => [
+                'backend' => SimpleFileBackend::class,
+                'frontend' => FluidTemplateCache::class,
+                'groups' => ['system'],
+            ],
+        ];
+        /** @var ConfigurationManager|ObjectProphecy $configurationManager */
+        $configurationManager = $this->prophesize(ConfigurationManager::class);
+        $configurationManager->getLocalConfigurationValueByPath('SYS/caching/cacheConfigurations')
+            ->shouldBeCalled()
+            ->willReturn($oldCacheConfigurations);
+
+        $configurationManager->setLocalConfigurationValueByPath(Argument::cetera())->shouldNotBeCalled();
+
+        /** @var $silentConfigurationUpgradeServiceInstance SilentConfigurationUpgradeService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $silentConfigurationUpgradeServiceInstance = $this->getAccessibleMock(
+            SilentConfigurationUpgradeService::class,
+            ['dummy'],
+            [],
+            '',
+            false
+        );
+
+        $silentConfigurationUpgradeServiceInstance->_set('configurationManager', $configurationManager->reveal());
+        $silentConfigurationUpgradeServiceInstance->_call('migrateCachingFrameworkCaches');
     }
 }

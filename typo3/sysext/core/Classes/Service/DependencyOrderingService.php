@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Service;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Service;
 
 /**
  * This class provides functionality to build
@@ -104,9 +105,9 @@ class DependencyOrderingService
             }
         }
 
-        // @internal DependencyResolver
+        // @internal PackageManager
         // this is a dirty special case for suggestion handling of packages
-        // see \TYPO3\CMS\Core\Package\DependencyResolver::convertConfigurationForGraph for details
+        // see \TYPO3\CMS\Core\Package\PackageManager::convertConfigurationForGraph for details
         // DO NOT use this for any other case
         foreach ($identifiers as $id) {
             if (isset($dependencies[$id]['after-resilient'])) {
@@ -240,12 +241,11 @@ class DependencyOrderingService
         foreach (array_filter($graph[$from]) as $node => $_) {
             if ($node === $to) {
                 return [$from, $to];
-            } else {
-                $subPath = $this->findPathInGraph($graph, $node, $to);
-                if (!empty($subPath)) {
-                    array_unshift($subPath, $from);
-                    return $subPath;
-                }
+            }
+            $subPath = $this->findPathInGraph($graph, $node, $to);
+            if (!empty($subPath)) {
+                array_unshift($subPath, $from);
+                return $subPath;
             }
         }
         return [];
@@ -267,7 +267,7 @@ class DependencyOrderingService
     {
         $preparedDependencies = [];
         foreach ($dependencies as $id => $dependency) {
-            foreach ([ $beforeKey, $afterKey ] as $relation) {
+            foreach ([$beforeKey, $afterKey] as $relation) {
                 if (!isset($dependency[$relation]) || !is_array($dependency[$relation])) {
                     $dependency[$relation] = [];
                 }

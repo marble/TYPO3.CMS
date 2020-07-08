@@ -1,25 +1,36 @@
 <?php
+
+declare(strict_types=1);
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Extbase\Utility;
 
-/*                                                                        *
- * This script belongs to the TYPO3 Flow framework.                       *
- *                                                                        *
- * It is free software; you can redistribute it and/or modify it under    *
- * the terms of the GNU Lesser General Public License, either version 3   *
- * of the License, or (at your option) any later version.                 *
- *                                                                        *
- * The TYPO3 project - inspiring people to share!                         *
- *                                                                        */
+use TYPO3\CMS\Core\Type\TypeInterface;
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+use TYPO3\CMS\Extbase\Utility\Exception\InvalidTypeException;
 
 /**
  * PHP type handling functions
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class TypeHandlingUtility
 {
     /**
      * A property type parse pattern.
      */
-    const PARSE_TYPE_PATTERN = '/^\\\\?(?P<type>integer|int|float|double|boolean|bool|string|DateTime|Tx_[a-zA-Z0-9_]+|[A-Z][a-zA-Z0-9\\\\_]+|object|resource|array|ArrayObject|SplObjectStorage|TYPO3\\\\CMS\\\\Extbase\\\\Persistence\\\\ObjectStorage)(?:<\\\\?(?P<elementType>[a-zA-Z0-9\\\\_]+)>)?/';
+    const PARSE_TYPE_PATTERN = '/^\\\\?(?P<type>integer|int|float|double|boolean|bool|string|DateTimeImmutable|DateTime|[A-Z][a-zA-Z0-9\\\\]+|object|resource|array|ArrayObject|SplObjectStorage|TYPO3\\\\CMS\\\\Extbase\\\\Persistence\\\\ObjectStorage)(?:<\\\\?(?P<elementType>[a-zA-Z0-9\\\\]+)>)?/';
 
     /**
      * A type pattern to detect literal types.
@@ -29,7 +40,7 @@ class TypeHandlingUtility
     /**
      * @var array
      */
-    protected static $collectionTypes = ['array', 'ArrayObject', 'SplObjectStorage', \TYPO3\CMS\Extbase\Persistence\ObjectStorage::class];
+    protected static $collectionTypes = ['array', \ArrayObject::class, \SplObjectStorage::class, ObjectStorage::class];
 
     /**
      * Returns an array with type information, including element type for
@@ -39,7 +50,7 @@ class TypeHandlingUtility
      * @return array An array with information about the type
      * @throws \TYPO3\CMS\Extbase\Utility\Exception\InvalidTypeException
      */
-    public static function parseType($type)
+    public static function parseType(string $type): array
     {
         $matches = [];
         if (preg_match(self::PARSE_TYPE_PATTERN, $type, $matches)) {
@@ -47,16 +58,15 @@ class TypeHandlingUtility
             $elementType = isset($matches['elementType']) ? self::normalizeType($matches['elementType']) : null;
 
             if ($elementType !== null && !self::isCollectionType($type)) {
-                throw new \TYPO3\CMS\Extbase\Utility\Exception\InvalidTypeException('Found an invalid element type declaration in %s. Type "' . $type . '" must not have an element type hint (' . $elementType . ').', 1264093642);
+                throw new InvalidTypeException('Found an invalid element type declaration in %s. Type "' . $type . '" must not have an element type hint (' . $elementType . ').', 1264093642);
             }
 
             return [
                 'type' => $type,
                 'elementType' => $elementType
             ];
-        } else {
-            throw new \TYPO3\CMS\Extbase\Utility\Exception\InvalidTypeException('Found an invalid element type declaration in %s. A type "' . var_export($type, true) . '" does not exist.', 1264093630);
         }
+        throw new InvalidTypeException('Found an invalid element type declaration in %s. A type "' . var_export($type, true) . '" does not exist.', 1264093630);
     }
 
     /**
@@ -68,7 +78,7 @@ class TypeHandlingUtility
      * @param string $type Data type to unify
      * @return string unified data type
      */
-    public static function normalizeType($type)
+    public static function normalizeType(string $type): string
     {
         switch ($type) {
             case 'int':
@@ -90,7 +100,7 @@ class TypeHandlingUtility
      * @param string $type
      * @return bool
      */
-    public static function isLiteral($type)
+    public static function isLiteral(string $type): bool
     {
         return preg_match(self::LITERAL_TYPE_PATTERN, $type) === 1;
     }
@@ -101,7 +111,7 @@ class TypeHandlingUtility
      * @param string $type
      * @return bool
      */
-    public static function isSimpleType($type)
+    public static function isSimpleType(string $type): bool
     {
         return in_array(self::normalizeType($type), ['array', 'string', 'float', 'integer', 'boolean'], true);
     }
@@ -112,9 +122,9 @@ class TypeHandlingUtility
      * @param string|object $type
      * @return bool
      */
-    public static function isCoreType($type)
+    public static function isCoreType($type): bool
     {
-        return is_subclass_of($type, \TYPO3\CMS\Core\Type\TypeInterface::class);
+        return is_subclass_of($type, TypeInterface::class);
     }
 
     /**
@@ -123,7 +133,7 @@ class TypeHandlingUtility
      * @param string $type
      * @return bool
      */
-    public static function isCollectionType($type)
+    public static function isCollectionType(string $type): bool
     {
         if (in_array($type, self::$collectionTypes, true)) {
             return true;
@@ -146,24 +156,8 @@ class TypeHandlingUtility
      * @param mixed $value
      * @return bool
      */
-    public static function isValidTypeForMultiValueComparison($value)
+    public static function isValidTypeForMultiValueComparison($value): bool
     {
-        return is_array($value) || $value instanceof \Traversable;
-    }
-
-    /**
-     * Converts a hex encoded string into binary data
-     *
-     * @param string $hexadecimalData A hex encoded string of data
-     * @return string A binary string decoded from the input
-     */
-    public static function hex2bin($hexadecimalData)
-    {
-        $binaryData = '';
-        $length = strlen($hexadecimalData);
-        for ($i = 0; $i < $length; $i += 2) {
-            $binaryData .=  pack('C', hexdec(substr($hexadecimalData, $i, 2)));
-        }
-        return $binaryData;
+        return is_iterable($value);
     }
 }

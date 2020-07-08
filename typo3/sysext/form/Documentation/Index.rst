@@ -12,7 +12,7 @@ Form
    form
 
 :Version:
-   8
+   latest (10-dev)
 
 :Language:
    en
@@ -25,7 +25,7 @@ Form
    form
 
 :Copyright:
-   2000-2017
+   2000-2020
 
 :Author:
    TRITUM GmbH
@@ -38,18 +38,16 @@ Form
    |today|
 
 The content of this document is related to TYPO3,
+a GNU/GPL CMS/Framework available from https://typo3.org/
 
-a GNU/GPL CMS/Framework available from `www.typo3.org
-<https://www.typo3.org/>`_
-
-
-
-**Table of Contents**
 
 .. toctree::
+   :hidden:
 
+   Sitemap/Index
    Introduction/Index
-   Concepts/Index
-   ConfigurationReference/Index
-   ApiReference/Index
-   FAQ/Index
+   QuickStartForEditors/Index
+   QuickStartForIntegrators/Index
+   I/Index
+   E/Index
+   Targets

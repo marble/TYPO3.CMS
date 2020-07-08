@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Hooks\PageLayoutView;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Frontend\Hooks\PageLayoutView;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Hooks\PageLayoutView;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Backend\View\PageLayoutView;
 use TYPO3\CMS\Backend\View\PageLayoutViewDrawItemHookInterface;
 
 /**
  * Contains a preview rendering for the page module of CType="textmedia"
+ * @internal this is a concrete TYPO3 hook implementation and solely used for EXT:frontend and not part of TYPO3's Core API.
  */
 class TextmediaPreviewRenderer implements PageLayoutViewDrawItemHookInterface
 {

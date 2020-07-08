@@ -1,32 +1,49 @@
 {
 	"name": "typo3/cms-extbase",
 	"type": "typo3-cms-framework",
-	"description": "TYPO3 Core",
+	"description": "A framework to build extensions for TYPO3 CMS.",
 	"homepage": "https://typo3.org",
-	"license": ["GPL-2.0+"],
-
-	"require": {
-		"typo3/cms-core": "*"
+	"license": ["GPL-2.0-or-later"],
+	"authors": [{
+		"name": "TYPO3 Core Team",
+		"email": "typo3cms@typo3.org",
+		"role": "Developer"
+	}],
+	"support": {
+		"chat": "https://typo3.org/help",
+		"docs": "https://docs.typo3.org",
+		"issues": "https://forge.typo3.org",
+		"source": "https://github.com/TYPO3/TYPO3.CMS"
 	},
-	"replace": {
-		"extbase": "*"
+	"config": {
+		"sort-packages": true
+	},
+	"require": {
+		"phpdocumentor/reflection-docblock": "^5.1.0",
+		"phpdocumentor/type-resolver": "^1.1.0",
+		"symfony/dependency-injection": "^4.4 || ^5.0",
+		"symfony/property-access": "^4.4 || ^5.0",
+		"symfony/property-info": "^4.4 || ^5.0",
+		"typo3/cms-core": "11.0.*@dev"
+	},
+	"suggest": {
+		"typo3/cms-scheduler": "Additional scheduler tasks"
+	},
+	"conflict": {
+		"typo3/cms": "*"
 	},
 	"extra": {
+		"branch-alias": {
+			"dev-master": "11.0.x-dev"
+		},
 		"typo3/cms": {
 			"Package": {
+				"serviceProvider": "TYPO3\\CMS\\Extbase\\ServiceProvider",
 				"protected": true,
 				"partOfFactoryDefault": true,
 				"partOfMinimalUsableSystem": true
-			}
-		},
-		"typo3/class-alias-loader": {
-			"always-add-alias-loader": true,
-			"class-alias-maps": [
-				"Migrations/Code/ClassAliasMap.php"
-			]
-		},
-		"branch-alias": {
-			"dev-master": "8.x-dev"
+			},
+			"extension-key": "extbase"
 		}
 	},
 	"autoload": {
@@ -38,6 +55,12 @@
 		"psr-4": {
 			"TYPO3\\CMS\\Extbase\\Tests\\": "Tests/"
 		},
-		"classmap": ["Tests/Unit/Object/Container/Fixtures/"]
+		"classmap": [
+			"Tests/Unit/Object/Container/Fixtures/",
+			"Tests/Functional/Fixtures/"
+		],
+		"files": [
+			"Tests/Fixture/TxClassWithGettersAndSetters.php"
+		]
 	}
 }

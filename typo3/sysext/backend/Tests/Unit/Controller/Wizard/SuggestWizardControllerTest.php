@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Controller\Wizard;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +15,25 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Controller\Wizard;
  * The TYPO3 project - inspiring people to share!
  */
 
-use Psr\Http\Message\ResponseInterface;
+namespace TYPO3\CMS\Backend\Tests\Unit\Controller\Wizard;
+
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Controller\Wizard\SuggestWizardController;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class SuggestWizardControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class SuggestWizardControllerTest extends UnitTestCase
 {
     /**
      * @test
      */
-    public function getFlexFieldConfigurationThrowsExceptionIfSimpleFlexFieldIsNotFound()
+    public function getFlexFieldConfigurationThrowsExceptionIfSimpleFlexFieldIsNotFound(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
+        $dataStructureIdentifier = '{"type":"tca","tableName":"tt_content","fieldName":"pi_flexform","dataStructureKey":"blog_example,list"}';
         $serverRequestProphecy = $this->prophesize(ServerRequestInterface::class);
         $serverRequestProphecy->getParsedBody()->willReturn([
             'value' => 'theSearchValue',
@@ -38,7 +41,7 @@ class SuggestWizardControllerTest extends \TYPO3\TestingFramework\Core\Unit\Unit
             'field' => 'aField',
             'uid' => 'aUid',
             'pid' => 'aPid',
-            'dataStructureIdentifier' => ['anIdentifier'],
+            'dataStructureIdentifier' => $dataStructureIdentifier,
             'flexFormSheetName' => 'sDb',
             'flexFormFieldName' => 'aField',
             'flexFormContainerName' => '',
@@ -64,19 +67,19 @@ class SuggestWizardControllerTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         ];
         $flexFormToolsProphecy = $this->prophesize(FlexFormTools::class);
         GeneralUtility::addInstance(FlexFormTools::class, $flexFormToolsProphecy->reveal());
-        $flexFormToolsProphecy->parseDataStructureByIdentifier(json_encode(['anIdentifier']))->willReturn($dataStructure);
+        $flexFormToolsProphecy->parseDataStructureByIdentifier($dataStructureIdentifier)->willReturn($dataStructure);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1480609491);
-        (new SuggestWizardController())->searchAction($serverRequestProphecy->reveal(), $responseProphecy->reveal());
+        (new SuggestWizardController())->searchAction($serverRequestProphecy->reveal());
     }
 
     /**
      * @test
      */
-    public function getFlexFieldConfigurationThrowsExceptionIfSectionContainerFlexFieldIsNotFound()
+    public function getFlexFieldConfigurationThrowsExceptionIfSectionContainerFlexFieldIsNotFound(): void
     {
-        $responseProphecy = $this->prophesize(ResponseInterface::class);
+        $dataStructureIdentifier = '{"type":"tca","tableName":"tt_content","fieldName":"pi_flexform","dataStructureKey":"blog_example,list"}';
         $serverRequestProphecy = $this->prophesize(ServerRequestInterface::class);
         $serverRequestProphecy->getParsedBody()->willReturn([
             'value' => 'theSearchValue',
@@ -84,7 +87,7 @@ class SuggestWizardControllerTest extends \TYPO3\TestingFramework\Core\Unit\Unit
             'field' => 'aField',
             'uid' => 'aUid',
             'pid' => 'aPid',
-            'dataStructureIdentifier' => ['anIdentifier'],
+            'dataStructureIdentifier' => $dataStructureIdentifier,
             'flexFormSheetName' => 'sDb',
             'flexFormFieldName' => 'aField',
             'flexFormContainerName' => 'aContainer',
@@ -110,24 +113,29 @@ class SuggestWizardControllerTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         ];
         $flexFormToolsProphecy = $this->prophesize(FlexFormTools::class);
         GeneralUtility::addInstance(FlexFormTools::class, $flexFormToolsProphecy->reveal());
-        $flexFormToolsProphecy->parseDataStructureByIdentifier(json_encode(['anIdentifier']))->willReturn($dataStructure);
+        $flexFormToolsProphecy->parseDataStructureByIdentifier($dataStructureIdentifier)->willReturn($dataStructure);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1480611208);
-        (new SuggestWizardController())->searchAction($serverRequestProphecy->reveal(), $responseProphecy->reveal());
+        (new SuggestWizardController())->searchAction($serverRequestProphecy->reveal());
     }
 
     /**
      * @test
      * @dataProvider isTableHiddenIsProperlyRetrievedDataProvider
+     * @param bool $expected
+     * @param array $array
      */
-    public function isTableHiddenIsProperlyRetrieved($expected, $array)
+    public function isTableHiddenIsProperlyRetrieved(bool $expected, array $array): void
     {
         $subject = $this->getAccessibleMock(SuggestWizardController::class, ['dummy'], [], '', false);
-        $this->assertEquals($expected, $subject->_call('isTableHidden', $array));
+        self::assertEquals($expected, $subject->_call('isTableHidden', $array));
     }
 
-    public function isTableHiddenIsProperlyRetrievedDataProvider()
+    /**
+     * @return array
+     */
+    public function isTableHiddenIsProperlyRetrievedDataProvider(): array
     {
         return [
           'notSetValue' => [false, ['ctrl' => ['hideTable' => null]]],

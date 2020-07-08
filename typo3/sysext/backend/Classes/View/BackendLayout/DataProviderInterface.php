@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\View\BackendLayout;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\View\BackendLayout;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\View\BackendLayout;
 
 /**
  * Interface for classes which hook into BackendLayoutDataProvider
@@ -33,7 +34,7 @@ interface DataProviderInterface
      *
      * @param string $identifier
      * @param int $pageId
-     * @return NULL|BackendLayout
+     * @return BackendLayout|null
      */
     public function getBackendLayout($identifier, $pageId);
 }

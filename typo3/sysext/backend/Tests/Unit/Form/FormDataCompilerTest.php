@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,18 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form;
+
 use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
 use TYPO3\CMS\Backend\Form\FormDataCompiler;
 use TYPO3\CMS\Backend\Form\FormDataGroupInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FormDataCompilerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FormDataCompilerTest extends UnitTestCase
 {
     /**
      * @var FormDataCompiler
@@ -30,11 +32,11 @@ class FormDataCompilerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     protected $subject;
 
     /**
-     * @var FormDataGroupInterface | ObjectProphecy
+     * @var FormDataGroupInterface|ObjectProphecy
      */
     protected $formDataGroupProphecy;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->formDataGroupProphecy = $this->prophesize(FormDataGroupInterface::class);
         $this->subject = new FormDataCompiler($this->formDataGroupProphecy->reveal());
@@ -118,9 +120,9 @@ class FormDataCompilerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
         ];
         $this->formDataGroupProphecy->compile(Argument::cetera())->willReturnArgument(0);
         $result = $this->subject->compile($input);
-        $this->assertEquals('pages', $result['tableName']);
-        $this->assertEquals(123, $result['vanillaUid']);
-        $this->assertEquals('edit', $result['command']);
+        self::assertEquals('pages', $result['tableName']);
+        self::assertEquals(123, $result['vanillaUid']);
+        self::assertEquals('edit', $result['command']);
     }
 
     /**
@@ -134,7 +136,7 @@ class FormDataCompilerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
             return $result;
         });
         $result = $this->subject->compile([]);
-        $this->assertEquals('newData', $result['databaseRow']);
+        self::assertEquals('newData', $result['databaseRow']);
     }
 
     /**

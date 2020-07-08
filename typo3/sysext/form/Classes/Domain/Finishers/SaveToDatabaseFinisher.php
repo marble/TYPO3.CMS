@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Finishers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Form\Domain\Finishers;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Form\Domain\Finishers;
 
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -38,14 +40,14 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\FormElementInterface;
  *
  *   insert: will create a new database row with the values from the
  *           submitted form and/or some predefined values.
- *           @see options.elements and options.databaseFieldMappings
+ *           See options.elements and options.databaseFieldMappings
  *   update: will update a given database row with the values from the
  *           submitted form and/or some predefined values.
  *           'options.whereClause' is then required.
  *
  * options.whereClause
  * -------------------
- *   This where clause will be used for an database update action
+ *   This where clause will be used for a database update action
  *
  * options.elements
  * ----------------
@@ -53,7 +55,7 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\FormElementInterface;
  *   Each key within options.elements has to match with a
  *   form element identifier within your form definition.
  *   The value for each key within options.elements is an array with
- *   additional informations.
+ *   additional information.
  *
  * options.elements.<elementIdentifier>.mapOnDatabaseColumn (mandatory)
  * --------------------------------------------------------
@@ -81,7 +83,7 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\FormElementInterface;
  *   Each key within options.databaseColumnMappings has to match with a
  *   existing database column.
  *   The value for each key within options.databaseColumnMappings is an
- *   array with additional informations.
+ *   array with additional information.
  *
  *   This mapping is done *before* the options.elements mapping.
  *   This means if you map a database column to a value through
@@ -138,7 +140,7 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\FormElementInterface;
  * Multiple database operations
  * ============================
  *
- * You can write options as an array to perform multiple database oprtations.
+ * You can write options as an array to perform multiple database operations.
  *
  *  finishers:
  *    -
@@ -157,11 +159,11 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\FormElementInterface;
  *            pid: 1
  *          databaseColumnMappings:
  *            some_other_column:
- *              uid_foreign: '{SaveToDatabase.insertedUids.1}'
+ *              value: '{SaveToDatabase.insertedUids.1}'
  *
  * This would perform 2 database operations.
  * One insert and one update.
- * You cann access the inserted uids with '{SaveToDatabase.insertedUids.<theArrayKeyNumberWithinOptions>}'
+ * You can access the inserted uids with '{SaveToDatabase.insertedUids.<theArrayKeyNumberWithinOptions>}'
  * If you perform an insert operation, the value of the inserted database row will be stored
  * within the FinisherVariableProvider.
  * <theArrayKeyNumberWithinOptions> references to the numeric key within options
@@ -186,7 +188,7 @@ class SaveToDatabaseFinisher extends AbstractFinisher
     /**
      * @var \TYPO3\CMS\Core\Database\Connection
      */
-    protected $databaseConnection = null;
+    protected $databaseConnection;
 
     /**
      * Executes this finisher
@@ -196,7 +198,8 @@ class SaveToDatabaseFinisher extends AbstractFinisher
      */
     protected function executeInternal()
     {
-        if (!is_array($this->options)) {
+        $options = [];
+        if (isset($this->options['table'])) {
             $options[] = $this->options;
         } else {
             $options = $this->options;
@@ -206,6 +209,58 @@ class SaveToDatabaseFinisher extends AbstractFinisher
             $this->options = $option;
             $this->process($optionKey);
         }
+    }
+
+    /**
+     * Prepare data for saving to database
+     *
+     * @param array $elementsConfiguration
+     * @param array $databaseData
+     * @return mixed
+     */
+    protected function prepareData(array $elementsConfiguration, array $databaseData)
+    {
+        foreach ($this->getFormValues() as $elementIdentifier => $elementValue) {
+            if (
+                ($elementValue === null || $elementValue === '')
+                && isset($elementsConfiguration[$elementIdentifier])
+                && isset($elementsConfiguration[$elementIdentifier]['skipIfValueIsEmpty'])
+                && $elementsConfiguration[$elementIdentifier]['skipIfValueIsEmpty'] === true
+            ) {
+                continue;
+            }
+
+            $element = $this->getElementByIdentifier($elementIdentifier);
+            if (
+                !$element instanceof FormElementInterface
+                || !isset($elementsConfiguration[$elementIdentifier])
+                || !isset($elementsConfiguration[$elementIdentifier]['mapOnDatabaseColumn'])
+            ) {
+                continue;
+            }
+
+            if ($elementValue instanceof FileReference) {
+                if (isset($elementsConfiguration[$elementIdentifier]['saveFileIdentifierInsteadOfUid'])) {
+                    $saveFileIdentifierInsteadOfUid = (bool)$elementsConfiguration[$elementIdentifier]['saveFileIdentifierInsteadOfUid'];
+                } else {
+                    $saveFileIdentifierInsteadOfUid = false;
+                }
+
+                if ($saveFileIdentifierInsteadOfUid) {
+                    $elementValue = $elementValue->getOriginalResource()->getCombinedIdentifier();
+                } else {
+                    $elementValue = $elementValue->getOriginalResource()->getProperty('uid_local');
+                }
+            } elseif (is_array($elementValue)) {
+                $elementValue = implode(',', $elementValue);
+            } elseif ($elementValue instanceof \DateTimeInterface) {
+                $format = $elementsConfiguration[$elementIdentifier]['dateFormat'] ?? 'U';
+                $elementValue = $elementValue->format($format);
+            }
+
+            $databaseData[$elementsConfiguration[$elementIdentifier]['mapOnDatabaseColumn']] = $elementValue;
+        }
+        return $databaseData;
     }
 
     /**
@@ -236,40 +291,7 @@ class SaveToDatabaseFinisher extends AbstractFinisher
             $databaseData[$databaseColumnName] = $value;
         }
 
-        foreach ($this->getFormValues() as $elementIdentifier => $elementValue) {
-            if (
-                $elementValue === null
-                && isset($elementsConfiguration[$elementIdentifier])
-                && isset($elementsConfiguration[$elementIdentifier]['skipIfValueIsEmpty'])
-                && $elementsConfiguration[$elementIdentifier]['skipIfValueIsEmpty'] === true
-            ) {
-                continue;
-            }
-
-            $element = $this->getElementByIdentifier($elementIdentifier);
-            if (
-                !$element instanceof FormElementInterface
-                || !isset($elementsConfiguration[$elementIdentifier])
-                || !isset($elementsConfiguration[$elementIdentifier]['mapOnDatabaseColumn'])
-            ) {
-                continue;
-            }
-
-            if ($elementValue instanceof FileReference) {
-                if (isset($elementsConfiguration[$elementIdentifier]['saveFileIdentifierInsteadOfUid'])) {
-                    $saveFileIdentifierInsteadOfUid = (bool)$elementsConfiguration[$elementIdentifier]['saveFileIdentifierInsteadOfUid'];
-                } else {
-                    $saveFileIdentifierInsteadOfUid = false;
-                }
-
-                if ($saveFileIdentifierInsteadOfUid) {
-                    $elementValue = $elementValue->getOriginalResource()->getCombinedIdentifier();
-                } else {
-                    $elementValue = $elementValue->getOriginalResource()->getProperty('uid_local');
-                }
-            }
-            $databaseData[$elementsConfiguration[$elementIdentifier]['mapOnDatabaseColumn']] = $elementValue;
-        }
+        $databaseData = $this->prepareData($elementsConfiguration, $databaseData);
 
         $this->saveToDatabase($databaseData, $table, $iterationCount);
     }
@@ -278,7 +300,7 @@ class SaveToDatabaseFinisher extends AbstractFinisher
      * Save or insert the values from
      * $databaseData into the table $table
      *
-     * @param [] $databaseData
+     * @param array $databaseData
      * @param string $table
      * @param int $iterationCount
      */
@@ -329,7 +351,7 @@ class SaveToDatabaseFinisher extends AbstractFinisher
     /**
      * Returns the values of the submitted form
      *
-     * @return []
+     * @return array
      */
     protected function getFormValues(): array
     {
@@ -340,7 +362,7 @@ class SaveToDatabaseFinisher extends AbstractFinisher
      * Returns a form element object for a given identifier.
      *
      * @param string $elementIdentifier
-     * @return NULL|FormElementInterface
+     * @return FormElementInterface|null
      */
     protected function getElementByIdentifier(string $elementIdentifier)
     {

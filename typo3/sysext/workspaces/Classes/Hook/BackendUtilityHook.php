@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Hook;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +15,22 @@ namespace TYPO3\CMS\Workspaces\Hook;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Workspaces\Hook;
+
+use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Workspaces\Preview\PreviewUriBuilder;
+use TYPO3\CMS\Workspaces\Service\StagesService;
 
 /**
  * Befunc service
+ * @internal This is a specific hook implementation and is not considered part of the Public TYPO3 API.
  */
-class BackendUtilityHook implements \TYPO3\CMS\Core\SingletonInterface
+class BackendUtilityHook
 {
-    /**
-     * Gets a singleton instance of this object.
-     *
-     * @return \TYPO3\CMS\Workspaces\Hook\BackendUtilityHook
-     */
-    public static function getInstance()
-    {
-        return GeneralUtility::makeInstance(__CLASS__);
-    }
-
     /**
      * Hooks into the \TYPO3\CMS\Backend\Utility\BackendUtility::viewOnClick and redirects to the workspace preview
      * only if we're in a workspace and if the frontend-preview is disabled.
@@ -46,18 +46,9 @@ class BackendUtilityHook implements \TYPO3\CMS\Core\SingletonInterface
     public function preProcess(&$pageUid, $backPath, $rootLine, $anchorSection, &$viewScript, $additionalGetVars, $switchFocus)
     {
         if ($GLOBALS['BE_USER']->workspace !== 0) {
-            $viewScript = $this->getWorkspaceService()->generateWorkspaceSplittedPreviewLink($pageUid);
+            $viewScript = (string)GeneralUtility::makeInstance(PreviewUriBuilder::class)->buildUriForWorkspaceSplitPreview((int)$pageUid);
+            $viewScript .= $additionalGetVars ?: '';
         }
-    }
-
-    /**
-     * Gets an instance of the workspaces service.
-     *
-     * @return \TYPO3\CMS\Workspaces\Service\WorkspaceService
-     */
-    protected function getWorkspaceService()
-    {
-        return GeneralUtility::makeInstance(\TYPO3\CMS\Workspaces\Service\WorkspaceService::class);
     }
 
     /**
@@ -69,21 +60,29 @@ class BackendUtilityHook implements \TYPO3\CMS\Core\SingletonInterface
      */
     public function makeEditForm_accessCheck($params)
     {
-        if ($GLOBALS['BE_USER']->workspace !== 0 && $GLOBALS['TCA'][$params['table']]['ctrl']['versioningWS']) {
-            $record = \TYPO3\CMS\Backend\Utility\BackendUtility::getRecordWSOL($params['table'], $params['uid']);
-            if (abs($record['t3ver_stage']) > \TYPO3\CMS\Workspaces\Service\StagesService::STAGE_EDIT_ID) {
-                $stages = GeneralUtility::makeInstance(\TYPO3\CMS\Workspaces\Service\StagesService::class);
+        if ($GLOBALS['BE_USER']->workspace !== 0 && BackendUtility::isTableWorkspaceEnabled($params['table'])) {
+            $record = BackendUtility::getRecordWSOL($params['table'], $params['uid']);
+            if (abs($record['t3ver_stage']) > StagesService::STAGE_EDIT_ID) {
+                $stages = GeneralUtility::makeInstance(StagesService::class);
                 $stageName = $stages->getStageTitle($record['t3ver_stage']);
-                $editingName = $stages->getStageTitle(\TYPO3\CMS\Workspaces\Service\StagesService::STAGE_EDIT_ID);
-                $message = $GLOBALS['LANG']->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:info.elementAlreadyModified');
-                $flashMessage = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Messaging\FlashMessage::class, sprintf($message, $stageName, $editingName), '', \TYPO3\CMS\Core\Messaging\FlashMessage::INFO, true);
-                /** @var $flashMessageService \TYPO3\CMS\Core\Messaging\FlashMessageService */
-                $flashMessageService = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Messaging\FlashMessageService::class);
-                /** @var $defaultFlashMessageQueue \TYPO3\CMS\Core\Messaging\FlashMessageQueue */
+                $editingName = $stages->getStageTitle(StagesService::STAGE_EDIT_ID);
+                $message = $this->getLanguageService()->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:info.elementAlreadyModified');
+                $flashMessage = GeneralUtility::makeInstance(FlashMessage::class, sprintf($message, $stageName, $editingName), '', FlashMessage::INFO, true);
+                /** @var FlashMessageService $flashMessageService */
+                $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
+                /** @var \TYPO3\CMS\Core\Messaging\FlashMessageQueue $defaultFlashMessageQueue */
                 $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
                 $defaultFlashMessageQueue->enqueue($flashMessage);
             }
         }
         return $params['hasAccess'];
+    }
+
+    /**
+     * @return LanguageService|null
+     */
+    protected function getLanguageService(): ?LanguageService
+    {
+        return $GLOBALS['LANG'] ?? null;
     }
 }

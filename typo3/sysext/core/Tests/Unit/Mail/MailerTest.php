@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Mail;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,39 +14,63 @@ namespace TYPO3\CMS\Core\Tests\Unit\Mail;
  *
  * The TYPO3 project - inspiring people to share!
  */
-use TYPO3\CMS\Core\Tests\Unit\Mail\Fixtures\FakeTransportFixture;
+
+namespace TYPO3\CMS\Core\Tests\Unit\Mail;
+
+use Prophecy\Argument;
+use Symfony\Component\Mailer\Transport\NullTransport;
+use Symfony\Component\Mailer\Transport\SendmailTransport;
+use Symfony\Component\Mailer\Transport\TransportInterface;
+use TYPO3\CMS\Core\Controller\ErrorPageController;
+use TYPO3\CMS\Core\Exception;
+use TYPO3\CMS\Core\Mail\DelayedTransportInterface;
+use TYPO3\CMS\Core\Mail\Mailer;
+use TYPO3\CMS\Core\Mail\TransportFactory;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
- * Testcase for the TYPO3\CMS\Core\Mail\Mailer class.
+ * Test case
  */
-class MailerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class MailerTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Core\Mail\Mailer
+     * @var bool Reset singletons created by subject
+     */
+    protected $resetSingletonInstances = true;
+
+    /**
+     * @var Mailer
      */
     protected $subject;
 
-    protected function setUp()
+    /**
+     * Set up
+     */
+    protected function setUp(): void
     {
-        $this->subject = $this->getMockBuilder(\TYPO3\CMS\Core\Mail\Mailer::class)
-            ->setMethods(['emitPostInitializeMailerSignal'])
+        parent::setUp();
+        $this->subject = $this->getMockBuilder(Mailer::class)
+            ->setMethods(null)
             ->disableOriginalConstructor()
             ->getMock();
     }
 
-    //////////////////////////
-    // Tests concerning TYPO3\CMS\Core\Mail\Mailer
-    //////////////////////////
     /**
      * @test
      */
     public function injectedSettingsAreNotReplacedByGlobalSettings()
     {
         $settings = ['transport' => 'mbox', 'transport_mbox_file' => '/path/to/file'];
-        $GLOBALS['TYPO3_CONF_VARS']['MAIL'] = ['transport' => 'sendmail', 'transport_sendmail_command' => 'sendmail'];
+        $GLOBALS['TYPO3_CONF_VARS']['MAIL'] = ['transport' => 'sendmail', 'transport_sendmail_command' => 'sendmail -bs'];
+
+        $transportFactory = $this->prophesize(TransportFactory::class);
+        $transportFactory->get(Argument::any())->willReturn($this->prophesize(SendmailTransport::class));
+        GeneralUtility::setSingletonInstance(TransportFactory::class, $transportFactory->reveal());
         $this->subject->injectMailSettings($settings);
         $this->subject->__construct();
-        $this->assertAttributeSame($settings, 'mailSettings', $this->subject);
+
+        $transportFactory->get($settings)->shouldHaveBeenCalled();
     }
 
     /**
@@ -53,9 +78,15 @@ class MailerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function globalSettingsAreUsedIfNoSettingsAreInjected()
     {
-        $settings = ($GLOBALS['TYPO3_CONF_VARS']['MAIL'] = ['transport' => 'sendmail', 'transport_sendmail_command' => 'sendmail']);
+        $settings = ($GLOBALS['TYPO3_CONF_VARS']['MAIL'] = ['transport' => 'sendmail', 'transport_sendmail_command' => 'sendmail -bs']);
         $this->subject->__construct();
-        $this->assertAttributeSame($settings, 'mailSettings', $this->subject);
+        $transportFactory = $this->prophesize(TransportFactory::class);
+        $transportFactory->get(Argument::any())->willReturn($this->prophesize(SendmailTransport::class));
+        GeneralUtility::setSingletonInstance(TransportFactory::class, $transportFactory->reveal());
+        $this->subject->injectMailSettings($settings);
+        $this->subject->__construct();
+
+        $transportFactory->get($settings)->shouldHaveBeenCalled();
     }
 
     /**
@@ -67,9 +98,8 @@ class MailerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         return [
             'smtp but no host' => [['transport' => 'smtp']],
-            'sendmail but no command' => [['transport' => 'sendmail']],
             'mbox but no file' => [['transport' => 'mbox']],
-            'no instance of Swift_Transport' => [['transport' => \TYPO3\CMS\Core\Controller\ErrorPageController::class]]
+            'no instance of TransportInterface' => [['transport' => ErrorPageController::class]]
         ];
     }
 
@@ -80,7 +110,7 @@ class MailerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function wrongConfigurationThrowsException($settings)
     {
-        $this->expectException(\TYPO3\CMS\Core\Exception::class);
+        $this->expectException(Exception::class);
         $this->expectExceptionCode(1291068569);
 
         $this->subject->injectMailSettings($settings);
@@ -92,7 +122,7 @@ class MailerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function providingCorrectClassnameDoesNotThrowException()
     {
-        $this->subject->injectMailSettings(['transport' => FakeTransportFixture::class]);
+        $this->subject->injectMailSettings(['transport' => NullTransport::class]);
         $this->subject->__construct();
     }
 
@@ -103,8 +133,8 @@ class MailerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $this->subject->injectMailSettings(['transport' => 'smtp', 'transport_smtp_server' => 'localhost']);
         $this->subject->__construct();
-        $port = $this->subject->getTransport()->getPort();
-        $this->assertEquals(25, $port);
+        $port = $this->subject->getTransport()->getStream()->getPort();
+        self::assertEquals(25, $port);
     }
 
     /**
@@ -114,8 +144,8 @@ class MailerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $this->subject->injectMailSettings(['transport' => 'smtp', 'transport_smtp_server' => 'localhost:']);
         $this->subject->__construct();
-        $port = $this->subject->getTransport()->getPort();
-        $this->assertEquals(25, $port);
+        $port = $this->subject->getTransport()->getStream()->getPort();
+        self::assertEquals(25, $port);
     }
 
     /**
@@ -125,7 +155,39 @@ class MailerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $this->subject->injectMailSettings(['transport' => 'smtp', 'transport_smtp_server' => 'localhost:12345']);
         $this->subject->__construct();
-        $port = $this->subject->getTransport()->getPort();
-        $this->assertEquals(12345, $port);
+        $port = $this->subject->getTransport()->getStream()->getPort();
+        self::assertEquals(12345, $port);
+    }
+
+    /**
+     * @test
+     * @dataProvider getRealTransportReturnsNoSpoolTransportProvider
+     */
+    public function getRealTransportReturnsNoSpoolTransport($settings)
+    {
+        $this->subject->injectMailSettings($settings);
+        $transport = $this->subject->getRealTransport();
+
+        self::assertInstanceOf(TransportInterface::class, $transport);
+        self::assertNotInstanceOf(DelayedTransportInterface::class, $transport);
+    }
+
+    /**
+     * Data provider for getRealTransportReturnsNoSpoolTransport
+     *
+     * @return array Data sets
+     */
+    public static function getRealTransportReturnsNoSpoolTransportProvider()
+    {
+        return [
+            'without spool' => [[
+                'transport' => 'sendmail',
+                'spool' => '',
+            ]],
+            'with spool' => [[
+                'transport' => 'sendmail',
+                'spool' => 'memory',
+            ]],
+        ];
     }
 }

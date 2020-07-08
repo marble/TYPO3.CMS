@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataGroup;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +15,8 @@ namespace TYPO3\CMS\Backend\Form\FormDataGroup;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\FormDataGroup;
+
 use TYPO3\CMS\Backend\Form\FormDataGroupInterface;
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
@@ -27,9 +30,8 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class OrderedProviderList implements FormDataGroupInterface
 {
-
     /**
-     * @var array<FormDataProviderInterface>
+     * @var FormDataProviderInterface[]
      */
     protected $providerList = [];
 
@@ -40,12 +42,17 @@ class OrderedProviderList implements FormDataGroupInterface
      * @return array Result filled with data
      * @throws \UnexpectedValueException
      */
-    public function compile(array $result)
+    public function compile(array $result): array
     {
         $orderingService = GeneralUtility::makeInstance(DependencyOrderingService::class);
         $orderedDataProvider = $orderingService->orderByDependencies($this->providerList, 'before', 'depends');
 
-        foreach ($orderedDataProvider as $providerClassName => $_) {
+        foreach ($orderedDataProvider as $providerClassName => $providerConfig) {
+            if (isset($providerConfig['disabled']) && $providerConfig['disabled'] === true) {
+                // Skip this data provider if disabled by configuration
+                continue;
+            }
+
             /** @var FormDataProviderInterface $provider */
             $provider = GeneralUtility::makeInstance($providerClassName);
 

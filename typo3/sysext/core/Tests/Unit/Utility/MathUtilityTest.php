@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,16 @@ namespace TYPO3\CMS\Core\Tests\Unit\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Utility;
+
+use TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures\MathUtilityTestClassWithStringRepresentationFixture;
+use TYPO3\CMS\Core\Utility\MathUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Testcase for class \TYPO3\CMS\Core\Utility\MathUtility
  */
-class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class MathUtilityTest extends UnitTestCase
 {
     //////////////////////////////////
     // Tests concerning forceIntegerInRange
@@ -44,7 +49,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function forceIntegerInRangeForcesIntegerIntoDefaultBoundaries($expected, $value)
     {
-        $this->assertEquals($expected, \TYPO3\CMS\Core\Utility\MathUtility::forceIntegerInRange($value, 0));
+        self::assertEquals($expected, MathUtility::forceIntegerInRange($value, 0));
     }
 
     /**
@@ -52,7 +57,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function forceIntegerInRangeSetsDefaultValueIfZeroValueIsGiven()
     {
-        $this->assertEquals(42, \TYPO3\CMS\Core\Utility\MathUtility::forceIntegerInRange('', 0, 2000000000, 42));
+        self::assertEquals(42, MathUtility::forceIntegerInRange('', 0, 2000000000, 42));
     }
 
     //////////////////////////////////
@@ -63,7 +68,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function convertToPositiveIntegerReturnsZeroForNegativeValues()
     {
-        $this->assertEquals(0, \TYPO3\CMS\Core\Utility\MathUtility::convertToPositiveInteger(-123));
+        self::assertEquals(0, MathUtility::convertToPositiveInteger(-123));
     }
 
     /**
@@ -71,7 +76,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function convertToPositiveIntegerReturnsTheInputValueForPositiveValues()
     {
-        $this->assertEquals(123, \TYPO3\CMS\Core\Utility\MathUtility::convertToPositiveInteger(123));
+        self::assertEquals(123, MathUtility::convertToPositiveInteger(123));
     }
 
     ///////////////////////////////
@@ -101,7 +106,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function canBeInterpretedAsIntegerReturnsTrue($int)
     {
-        $this->assertTrue(\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($int));
+        self::assertTrue(MathUtility::canBeInterpretedAsInteger($int));
     }
 
     /**
@@ -111,11 +116,11 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function functionCanBeInterpretedAsIntegerInvalidDataProvider()
     {
-        $objectWithNumericalStringRepresentation = new \TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures\MathUtilityTestClassWithStringRepresentationFixture();
+        $objectWithNumericalStringRepresentation = new MathUtilityTestClassWithStringRepresentationFixture();
         $objectWithNumericalStringRepresentation->setString('1234');
-        $objectWithNonNumericalStringRepresentation = new \TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures\MathUtilityTestClassWithStringRepresentationFixture();
+        $objectWithNonNumericalStringRepresentation = new MathUtilityTestClassWithStringRepresentationFixture();
         $objectWithNonNumericalStringRepresentation->setString('foo');
-        $objectWithEmptyStringRepresentation = new \TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures\MathUtilityTestClassWithStringRepresentationFixture();
+        $objectWithEmptyStringRepresentation = new MathUtilityTestClassWithStringRepresentationFixture();
         $objectWithEmptyStringRepresentation->setString('');
         return [
             'int as string with leading zero' => ['01234'],
@@ -150,7 +155,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function canBeInterpretedAsIntegerReturnsFalse($int)
     {
-        $this->assertFalse(\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($int));
+        self::assertFalse(MathUtility::canBeInterpretedAsInteger($int));
     }
 
     ///////////////////////////////
@@ -166,8 +171,8 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         // testcases for Integer apply for float as well
         $intTestcases = $this->functionCanBeInterpretedAsIntegerValidDataProvider();
         $floatTestcases = [
-            'zero as float' => [(float) 0],
-            'negative float' => [(float) -7.5],
+            'zero as float' => [(float)0],
+            'negative float' => [(float)-7.5],
             'negative float as string with exp #1' => ['-7.5e3'],
             'negative float as string with exp #2' => ['-7.5e03'],
             'negative float as string with exp #3' => ['-7.5e-3'],
@@ -186,7 +191,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function canBeInterpretedAsFloatReturnsTrue($val)
     {
-        $this->assertTrue(\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsFloat($val));
+        self::assertTrue(MathUtility::canBeInterpretedAsFloat($val));
     }
 
     /**
@@ -196,11 +201,11 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function functionCanBeInterpretedAsFloatInvalidDataProvider()
     {
-        $objectWithNumericalStringRepresentation = new \TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures\MathUtilityTestClassWithStringRepresentationFixture();
+        $objectWithNumericalStringRepresentation = new MathUtilityTestClassWithStringRepresentationFixture();
         $objectWithNumericalStringRepresentation->setString('1234');
-        $objectWithNonNumericalStringRepresentation = new \TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures\MathUtilityTestClassWithStringRepresentationFixture();
+        $objectWithNonNumericalStringRepresentation = new MathUtilityTestClassWithStringRepresentationFixture();
         $objectWithNonNumericalStringRepresentation->setString('foo');
-        $objectWithEmptyStringRepresentation = new \TYPO3\CMS\Core\Tests\Unit\Utility\Fixtures\MathUtilityTestClassWithStringRepresentationFixture();
+        $objectWithEmptyStringRepresentation = new MathUtilityTestClassWithStringRepresentationFixture();
         $objectWithEmptyStringRepresentation->setString('');
         return [
             // 'int as string with leading zero' => array('01234'),
@@ -231,7 +236,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function canBeInterpretedAsFloatReturnsFalse($int)
     {
-        $this->assertFalse(\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsFloat($int));
+        self::assertFalse(MathUtility::canBeInterpretedAsFloat($int));
     }
 
     //////////////////////////////////
@@ -254,7 +259,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'power' => [8, '2 ^ 3'],
             'three operands with non integer result' => [6.5, '5 + 3 / 2'],
             'three operands with power' => [14, '5 + 3 ^ 2'],
-            'three operads with modulus' => [4, '5 % 2 + 3'],
+            'three operands with modulus' => [4, '5 % 2 + 3'],
             'four operands' => [3, '2 + 6 / 2 - 2'],
             'division by zero when dividing' => ['ERROR: dividing by zero', '2 / 0'],
             'division by zero with modulus' => ['ERROR: dividing by zero', '2 % 0']
@@ -267,7 +272,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function calculateWithPriorityToAdditionAndSubtractionCorrectlyCalculatesExpression($expected, $expression)
     {
-        $this->assertEquals($expected, \TYPO3\CMS\Core\Utility\MathUtility::calculateWithPriorityToAdditionAndSubtraction($expression));
+        self::assertEquals($expected, MathUtility::calculateWithPriorityToAdditionAndSubtraction($expression));
     }
 
     //////////////////////////////////
@@ -295,7 +300,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function calculateWithParenthesesCorrectlyCalculatesExpression($expected, $expression)
     {
-        $this->assertEquals($expected, \TYPO3\CMS\Core\Utility\MathUtility::calculateWithParentheses($expression));
+        self::assertEquals($expected, MathUtility::calculateWithParentheses($expression));
     }
 
     //////////////////////////////////
@@ -306,7 +311,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isIntegerInRangeIncludesLowerBoundary()
     {
-        $this->assertTrue(\TYPO3\CMS\Core\Utility\MathUtility::isIntegerInRange(1, 1, 2));
+        self::assertTrue(MathUtility::isIntegerInRange(1, 1, 2));
     }
 
     /**
@@ -314,7 +319,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isIntegerInRangeIncludesUpperBoundary()
     {
-        $this->assertTrue(\TYPO3\CMS\Core\Utility\MathUtility::isIntegerInRange(2, 1, 2));
+        self::assertTrue(MathUtility::isIntegerInRange(2, 1, 2));
     }
 
     /**
@@ -322,7 +327,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isIntegerInRangeAcceptsValueInRange()
     {
-        $this->assertTrue(\TYPO3\CMS\Core\Utility\MathUtility::isIntegerInRange(10, 1, 100));
+        self::assertTrue(MathUtility::isIntegerInRange(10, 1, 100));
     }
 
     /**
@@ -330,7 +335,7 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isIntegerInRangeRejectsValueOutsideOfRange()
     {
-        $this->assertFalse(\TYPO3\CMS\Core\Utility\MathUtility::isIntegerInRange(10, 1, 2));
+        self::assertFalse(MathUtility::isIntegerInRange(10, 1, 2));
     }
 
     /**
@@ -355,6 +360,6 @@ class MathUtilityTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function isIntegerInRangeRejectsOtherDataTypes($inputValue)
     {
-        $this->assertFalse(\TYPO3\CMS\Core\Utility\MathUtility::isIntegerInRange($inputValue, 0, 10));
+        self::assertFalse(MathUtility::isIntegerInRange($inputValue, 0, 10));
     }
 }

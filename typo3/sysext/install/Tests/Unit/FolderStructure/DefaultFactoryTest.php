@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Tests\Unit\FolderStructure;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,17 +13,23 @@ namespace TYPO3\CMS\Install\Tests\Unit\FolderStructure;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Tests\Unit\FolderStructure;
+
+use TYPO3\CMS\Install\FolderStructure\DefaultFactory;
+use TYPO3\CMS\Install\FolderStructure\StructureFacadeInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class DefaultFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DefaultFactoryTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function getStructureReturnsInstanceOfStructureFacadeInterface()
     {
-        $object = new \TYPO3\CMS\Install\FolderStructure\DefaultFactory();
-        $this->assertInstanceOf(\TYPO3\CMS\Install\FolderStructure\StructureFacadeInterface::class, $object->getStructure());
+        $object = new DefaultFactory();
+        self::assertInstanceOf(StructureFacadeInterface::class, $object->getStructure());
     }
 }

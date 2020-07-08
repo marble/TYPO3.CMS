@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\IndexedSearch\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,14 @@ namespace TYPO3\CMS\IndexedSearch\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\IndexedSearch\Utility;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+
 /**
  * Class with common methods used across various classes in the indexed search.
- * Impementation is provided by various people from the TYPO3 community.
+ * Implementation is provided by various people from the TYPO3 community.
+ * @internal
  */
 class IndexedSearchUtility
 {
@@ -31,7 +35,7 @@ class IndexedSearchUtility
     public static function isTableUsed($tableName)
     {
         $tableList = $GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['indexed_search']['use_tables'];
-        return \TYPO3\CMS\Core\Utility\GeneralUtility::inList($tableList, $tableName);
+        return GeneralUtility::inList($tableList, $tableName);
     }
 
     /**
@@ -47,7 +51,7 @@ class IndexedSearchUtility
     }
 
     /**
-     * Takes a search-string (WITHOUT SLASHES or else it'll be a little sppooky , NOW REMEMBER to unslash!!)
+     * Takes a search-string (WITHOUT SLASHES or else it'll be a little spooky , NOW REMEMBER to unslash!!)
      * Sets up search words with operators.
      *
      * @param string $sword The input search-word string.
@@ -143,7 +147,7 @@ class IndexedSearchUtility
      *
      * @param string $operator The possible operator to find in the internal operator array.
      * @param array $operatorTranslateTable an array of possible operators
-     * @return string If found, the SQL operator for the localized input operator.
+     * @return string|null If found, the SQL operator for the localized input operator.
      */
     protected static function getOperator($operator, $operatorTranslateTable)
     {
@@ -159,5 +163,17 @@ class IndexedSearchUtility
                 return $operatorTranslateTable[$key][1];
             }
         }
+
+        return null;
+    }
+
+    /**
+     * Gets the unixtime as milliseconds.
+     *
+     * @return int The unixtime as milliseconds
+     */
+    public static function milliseconds()
+    {
+        return round(microtime(true) * 1000);
     }
 }

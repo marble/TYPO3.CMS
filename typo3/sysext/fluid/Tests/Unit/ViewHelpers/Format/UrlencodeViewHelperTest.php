@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Format\UrlencodeViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 
@@ -27,7 +28,7 @@ class UrlencodeViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->viewHelper = new UrlencodeViewHelper();
@@ -46,7 +47,7 @@ class UrlencodeViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Source', $actualResult);
+        self::assertEquals('Source', $actualResult);
     }
 
     /**
@@ -62,7 +63,7 @@ class UrlencodeViewHelperTest extends ViewHelperBaseTestcase
         );
 
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Source', $actualResult);
+        self::assertEquals('Source', $actualResult);
     }
 
     /**
@@ -79,7 +80,7 @@ class UrlencodeViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertSame($source, $actualResult);
+        self::assertSame($source, $actualResult);
     }
 
     /**
@@ -98,24 +99,47 @@ class UrlencodeViewHelperTest extends ViewHelperBaseTestcase
         );
 
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expectedResult, $actualResult);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
+     * Ensures that objects are handled properly:
+     * + class not having __toString() method as given
+     * + class having __toString() method gets rawurlencoded
+     *
+     * @param $source
+     * @param $expectation
      * @test
+     * @dataProvider renderEscapesObjectIfPossibleDataProvider
      */
-    public function renderReturnsUnmodifiedSourceIfItIsNoString()
+    public function renderEscapesObjectIfPossible($source, $expectation)
     {
-        $source = new \stdClass();
-
         $this->setArgumentsUnderTest(
             $this->viewHelper,
             [
                 'value' => $source
             ]
         );
-
         $actualResult = $this->viewHelper->render();
-        $this->assertSame($source, $actualResult);
+        self::assertSame($expectation, $actualResult);
+    }
+
+    /**
+     * @return array
+     */
+    public function renderEscapesObjectIfPossibleDataProvider(): array
+    {
+        $stdClass = new \stdClass();
+        $toStringClass = new class() {
+            public function __toString(): string
+            {
+                return '<script>alert(\'"xss"\')</script>';
+            }
+        };
+
+        return [
+            'plain object' => [$stdClass, $stdClass],
+            'object with __toString()' => [$toStringClass, '%3Cscript%3Ealert%28%27%22xss%22%27%29%3C%2Fscript%3E'],
+        ];
     }
 }

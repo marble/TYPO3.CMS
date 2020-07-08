@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +13,27 @@ namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Configuration;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Form\Mvc\Configuration\Exception\NoSuchFileException;
 use TYPO3\CMS\Form\Mvc\Configuration\Exception\ParseErrorException;
 use TYPO3\CMS\Form\Mvc\Configuration\YamlSource;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class YamlSourceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class YamlSourceTest extends UnitTestCase
 {
+    protected $resetSingletonInstances = true;
 
     /**
      * @test
      */
     public function loadThrowsExceptionIfFileToLoadNotExists()
     {
-        $this->expectException(NoSuchFileException::class);
-        $this->expectExceptionCode(1471473378);
+        $this->expectException(ParseErrorException::class);
+        $this->expectExceptionCode(1480195405);
 
         $mockYamlSource = $this->getAccessibleMock(YamlSource::class, [
             'dummy',
@@ -49,41 +51,18 @@ class YamlSourceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function loadThrowsExceptionIfFileToLoadIsNotValidYamlUseSymfonyParser()
     {
-        if (!extension_loaded('yaml')) {
-            $this->expectException(ParseErrorException::class);
-            $this->expectExceptionCode(1480195405);
+        $this->expectException(ParseErrorException::class);
+        $this->expectExceptionCode(1480195405);
 
-            $mockYamlSource = $this->getAccessibleMock(YamlSource::class, [
-                'dummy',
-            ], [], '', false);
+        $mockYamlSource = $this->getAccessibleMock(YamlSource::class, [
+            'dummy',
+        ], [], '', false);
 
-            $input = [
-                'EXT:form/Tests/Unit/Mvc/Configuration/Fixtures/Invalid.yaml'
-            ];
+        $input = [
+            'EXT:form/Tests/Unit/Mvc/Configuration/Fixtures/Invalid.yaml'
+        ];
 
-            $mockYamlSource->_call('load', $input);
-        }
-    }
-
-    /**
-     * @test
-     */
-    public function loadThrowsExceptionIfFileToLoadIsNotValidYamlUsePhpExtensionParser()
-    {
-        if (extension_loaded('yaml')) {
-            $this->expectException(ParseErrorException::class);
-            $this->expectExceptionCode(1391894094);
-
-            $mockYamlSource = $this->getAccessibleMock(YamlSource::class, [
-                'dummy',
-            ], [], '', false);
-
-            $input = [
-                'EXT:form/Tests/Unit/Mvc/Configuration/Fixtures/Invalid.yaml'
-            ];
-
-            $mockYamlSource->_call('load', $input);
-        }
+        $mockYamlSource->_call('load', $input);
     }
 
     /**
@@ -101,6 +80,28 @@ class YamlSourceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 # Header 2
 ';
 
-        $this->assertSame($expected, $mockYamlSource->_call('getHeaderFromFile', $input));
+        self::assertSame($expected, $mockYamlSource->_call('getHeaderFromFile', $input));
+    }
+
+    /**
+     * @test
+     */
+    public function loadOverruleNonArrayValuesOverArrayValues()
+    {
+        $mockYamlSource = $this->getAccessibleMock(YamlSource::class, ['dummy'], [], '', false);
+
+        $input = [
+            'EXT:form/Tests/Unit/Mvc/Configuration/Fixtures/OverruleNonArrayValuesOverArrayValues1.yaml',
+            'EXT:form/Tests/Unit/Mvc/Configuration/Fixtures/OverruleNonArrayValuesOverArrayValues2.yaml'
+        ];
+
+        $expected = [
+            'Form' => [
+                'klaus01' => null,
+                'key03' => 'value2',
+            ],
+        ];
+
+        self::assertSame($expected, $mockYamlSource->_call('load', $input));
     }
 }

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Log;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,33 +15,27 @@ namespace TYPO3\CMS\Core\Tests\Unit\Log;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Log;
+
+use TYPO3\CMS\Core\Log\Logger;
+use TYPO3\CMS\Core\Log\LogLevel;
+use TYPO3\CMS\Core\Log\LogManager;
+use TYPO3\CMS\Core\Log\Processor\NullProcessor;
+use TYPO3\CMS\Core\Log\Writer\NullWriter;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class LogManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class LogManagerTest extends UnitTestCase
 {
-    /**
-     * @var \TYPO3\CMS\Core\Log\LogManager
-     */
-    protected $logManagerInstance = null;
-
-    protected function setUp()
-    {
-        $this->logManagerInstance = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\LogManager::class);
-    }
-
-    protected function tearDown()
-    {
-        \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Log\LogManager::class)->reset();
-        parent::tearDown();
-    }
-
     /**
      * @test
      */
     public function logManagerReturnsLoggerWhenRequestedWithGetLogger()
     {
-        $this->assertInstanceOf(\TYPO3\CMS\Core\Log\Logger::class, $this->logManagerInstance->getLogger('test'));
+        self::assertInstanceOf(Logger::class, (new LogManager())->getLogger('test'));
     }
 
     /**
@@ -48,7 +43,7 @@ class LogManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function logManagerTurnsUnderScoreStyleLoggerNamesIntoDotStyleLoggerNames()
     {
-        $this->assertSame('test.a.b', $this->logManagerInstance->getLogger('test_a_b')->getName());
+        self::assertSame('test.a.b', (new LogManager())->getLogger('test_a_b')->getName());
     }
 
     /**
@@ -56,7 +51,7 @@ class LogManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function logManagerTurnsNamespaceStyleLoggerNamesIntoDotStyleLoggerNames()
     {
-        $this->assertSame('test.a.b', $this->logManagerInstance->getLogger('test\\a\\b')->getName());
+        self::assertSame('test.a.b', (new LogManager())->getLogger('test\\a\\b')->getName());
     }
 
     /**
@@ -64,11 +59,12 @@ class LogManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function managerReturnsSameLoggerOnRepeatedRequest()
     {
-        $loggerName = $this->getUniqueId('test.core.log');
-        $this->logManagerInstance->registerLogger($loggerName);
-        $logger1 = $this->logManagerInstance->getLogger($loggerName);
-        $logger2 = $this->logManagerInstance->getLogger($loggerName);
-        $this->assertSame($logger1, $logger2);
+        $loggerName = StringUtility::getUniqueId('test.core.log');
+        $logger = new LogManager();
+        $logger->registerLogger($loggerName);
+        $logger1 = $logger->getLogger($loggerName);
+        $logger2 = $logger->getLogger($loggerName);
+        self::assertSame($logger1, $logger2);
     }
 
     /**
@@ -77,17 +73,16 @@ class LogManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function configuresLoggerWithConfiguredWriter()
     {
         $component = 'test';
-        $writer = \TYPO3\CMS\Core\Log\Writer\NullWriter::class;
-        $level = \TYPO3\CMS\Core\Log\LogLevel::DEBUG;
+        $writer = NullWriter::class;
+        $level = LogLevel::DEBUG;
         $GLOBALS['TYPO3_CONF_VARS']['LOG'][$component]['writerConfiguration'] = [
             $level => [
                 $writer => []
             ]
         ];
-        /** @var $logger \TYPO3\CMS\Core\Log\Logger */
-        $logger = $this->logManagerInstance->getLogger($component);
+        $logger = (new LogManager())->getLogger($component);
         $writers = $logger->getWriters();
-        $this->assertInstanceOf($writer, $writers[$level][0]);
+        self::assertInstanceOf($writer, $writers[$level][0]);
     }
 
     /**
@@ -96,16 +91,15 @@ class LogManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function configuresLoggerWithConfiguredProcessor()
     {
         $component = 'test';
-        $processor = \TYPO3\CMS\Core\Log\Processor\NullProcessor::class;
-        $level = \TYPO3\CMS\Core\Log\LogLevel::DEBUG;
+        $processor = NullProcessor::class;
+        $level = LogLevel::DEBUG;
         $GLOBALS['TYPO3_CONF_VARS']['LOG'][$component]['processorConfiguration'] = [
             $level => [
                 $processor => []
             ]
         ];
-        /** @var $logger \TYPO3\CMS\Core\Log\Logger */
-        $logger = $this->logManagerInstance->getLogger($component);
+        $logger = (new LogManager())->getLogger($component);
         $processors = $logger->getProcessors();
-        $this->assertInstanceOf($processor, $processors[$level][0]);
+        self::assertInstanceOf($processor, $processors[$level][0]);
     }
 }

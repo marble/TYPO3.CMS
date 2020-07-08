@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Recordlist\Browser;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,11 +15,14 @@ namespace TYPO3\CMS\Recordlist\Browser;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recordlist\Browser;
+
 /**
  * Extends the DatabaseBrowser for the specific needs of the LinkBrowser.
  *
  * Mostly this is about being able to set to some parameters that cannot
  * be set from outside the DatabaseBrowser.
+ * @internal This class is a specific LinkBrowser implementation and is not part of the TYPO3's Core API.
  */
 class RecordBrowser extends DatabaseBrowser
 {

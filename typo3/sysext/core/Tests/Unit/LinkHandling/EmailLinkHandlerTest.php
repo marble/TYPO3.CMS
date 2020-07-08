@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\LinkHandling\EmailLinkHandler;
+namespace TYPO3\CMS\Core\Tests\Unit\LinkHandling;
 
-class EmailLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+use TYPO3\CMS\Core\LinkHandling\EmailLinkHandler;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
+class EmailLinkHandlerTest extends UnitTestCase
 {
 
     /**
@@ -27,23 +29,32 @@ class EmailLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function resolveParametersForNonFilesDataProvider()
     {
         return [
+            'email without protocol' => [
+                [
+                    'email' => 'one@example.com'
+                ],
+                [
+                    'email' => 'one@example.com'
+                ],
+                'mailto:one@example.com'
+            ],
             'email with protocol' => [
                 [
-                    'email' => 'mailto:one@love.com'
+                    'email' => 'mailto:one@example.com'
                 ],
                 [
-                    'email' => 'one@love.com'
+                    'email' => 'one@example.com'
                 ],
-                'mailto:one@love.com'
+                'mailto:one@example.com'
             ],
             'email with protocol 2' => [
                 [
-                    'email' => 'mailto:info@typo3.org'
+                    'email' => 'mailto:info@example.org'
                 ],
                 [
-                    'email' => 'info@typo3.org'
+                    'email' => 'info@example.org'
                 ],
-                'mailto:info@typo3.org'
+                'mailto:info@example.org'
             ],
         ];
     }
@@ -60,7 +71,7 @@ class EmailLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function resolveReturnsSplitParameters($input, $expected, $finalString)
     {
         $subject = new EmailLinkHandler();
-        $this->assertEquals($expected, $subject->resolveHandlerData($input));
+        self::assertEquals($expected, $subject->resolveHandlerData($input));
     }
 
     /**
@@ -75,6 +86,6 @@ class EmailLinkHandlerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
     public function splitParametersToUnifiedIdentifier($input, $parameters, $expected)
     {
         $subject = new EmailLinkHandler();
-        $this->assertEquals($expected, $subject->asString($parameters));
+        self::assertEquals($expected, $subject->asString($parameters));
     }
 }

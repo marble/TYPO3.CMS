@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Cache;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Tests\Unit\Cache;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Cache;
+
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Cache\Exception\DuplicateIdentifierException;
 use TYPO3\CMS\Core\Cache\Exception\InvalidBackendException;
 use TYPO3\CMS\Core\Cache\Exception\InvalidCacheException;
+use TYPO3\CMS\Core\Cache\Exception\NoSuchCacheException;
 use TYPO3\CMS\Core\Cache\Exception\NoSuchCacheGroupException;
 use TYPO3\CMS\Core\Cache\Frontend\AbstractFrontend;
 use TYPO3\CMS\Core\Tests\Unit\Cache\Fixtures\BackendConfigurationOptionFixture;
@@ -29,33 +32,33 @@ use TYPO3\CMS\Core\Tests\Unit\Cache\Fixtures\FrontendDefaultFixture;
 use TYPO3\CMS\Core\Tests\Unit\Cache\Fixtures\FrontendFixture;
 use TYPO3\CMS\Core\Tests\Unit\Cache\Fixtures\FrontendIdentifierFixture;
 use TYPO3\CMS\Core\Tests\Unit\Cache\Fixtures\FrontendInitializeObjectFixture;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for the TYPO3\CMS\Core\Cache\CacheManager
- *
- * This file is a backport from FLOW3
  */
-class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class CacheManagerTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function managerThrowsExceptionOnCacheRegistrationWithAlreadyExistingIdentifier()
     {
-        $this->expectException(\TYPO3\CMS\Core\Cache\Exception\DuplicateIdentifierException::class);
+        $this->expectException(DuplicateIdentifierException::class);
         $this->expectExceptionCode(1203698223);
 
         $manager = new CacheManager();
         $cache1 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache1->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('test'));
+        $cache1->expects(self::atLeastOnce())->method('getIdentifier')->willReturn('test');
         $cache2 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache2->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('test'));
+        $cache2->expects(self::atLeastOnce())->method('getIdentifier')->willReturn('test');
         $manager->registerCache($cache1);
         $manager->registerCache($cache2);
     }
@@ -67,18 +70,18 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $manager = new CacheManager();
         $cache1 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache1->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('cache1'));
+        $cache1->expects(self::atLeastOnce())->method('getIdentifier')->willReturn('cache1');
         $cache2 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache2->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('cache2'));
+        $cache2->expects(self::atLeastOnce())->method('getIdentifier')->willReturn('cache2');
         $manager->registerCache($cache1);
         $manager->registerCache($cache2);
-        $this->assertSame($cache2, $manager->getCache('cache2'), 'The cache returned by getCache() was not the same I registered.');
+        self::assertSame($cache2, $manager->getCache('cache2'), 'The cache returned by getCache() was not the same I registered.');
     }
 
     /**
@@ -86,15 +89,15 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getCacheThrowsExceptionForNonExistingIdentifier()
     {
-        $this->expectException(\TYPO3\CMS\Core\Cache\Exception\NoSuchCacheException::class);
+        $this->expectException(NoSuchCacheException::class);
         $this->expectExceptionCode(1203699034);
 
         $manager = new CacheManager();
         $cache = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('someidentifier'));
+        $cache->expects(self::atLeastOnce())->method('getIdentifier')->willReturn('someidentifier');
         $manager->registerCache($cache);
         $manager->getCache('someidentifier');
         $manager->getCache('doesnotexist');
@@ -107,13 +110,13 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $manager = new CacheManager();
         $cache1 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache1->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('cache1'));
+        $cache1->expects(self::atLeastOnce())->method('getIdentifier')->willReturn('cache1');
         $manager->registerCache($cache1);
-        $this->assertTrue($manager->hasCache('cache1'), 'hasCache() did not return TRUE.');
-        $this->assertFalse($manager->hasCache('cache2'), 'hasCache() did not return FALSE.');
+        self::assertTrue($manager->hasCache('cache1'), 'hasCache() did not return TRUE.');
+        self::assertFalse($manager->hasCache('cache2'), 'hasCache() did not return FALSE.');
     }
 
     /**
@@ -123,17 +126,17 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $manager = new CacheManager();
         $cache1 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache1->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('cache1'));
-        $cache1->expects($this->once())->method('flushByTag')->with($this->equalTo('theTag'));
+        $cache1->expects(self::atLeastOnce())->method('getIdentifier')->willReturn('cache1');
+        $cache1->expects(self::once())->method('flushByTag')->with(self::equalTo('theTag'));
         $manager->registerCache($cache1);
         $cache2 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache2->expects($this->once())->method('flushByTag')->with($this->equalTo('theTag'));
+        $cache2->expects(self::once())->method('flushByTag')->with(self::equalTo('theTag'));
         $manager->registerCache($cache2);
         $manager->flushCachesByTag('theTag');
     }
@@ -145,17 +148,17 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $manager = new CacheManager();
         $cache1 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTags'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTags'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache1->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('cache1'));
-        $cache1->expects($this->once())->method('flushByTags')->with($this->equalTo(['theTag']));
+        $cache1->expects(self::atLeastOnce())->method('getIdentifier')->willReturn('cache1');
+        $cache1->expects(self::once())->method('flushByTags')->with(self::equalTo(['theTag']));
         $manager->registerCache($cache1);
         $cache2 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTags'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTags'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache2->expects($this->once())->method('flushByTags')->with($this->equalTo(['theTag']));
+        $cache2->expects(self::once())->method('flushByTags')->with(self::equalTo(['theTag']));
         $manager->registerCache($cache2);
         $manager->flushCachesByTags(['theTag']);
     }
@@ -167,17 +170,17 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $manager = new CacheManager();
         $cache1 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache1->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('cache1'));
-        $cache1->expects($this->once())->method('flush');
+        $cache1->expects(self::atLeastOnce())->method('getIdentifier')->willReturn('cache1');
+        $cache1->expects(self::once())->method('flush');
         $manager->registerCache($cache1);
         $cache2 = $this->getMockBuilder(AbstractFrontend::class)
-            ->setMethods(['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTag'])
+            ->setMethods(['getIdentifier', 'set', 'get', 'has', 'remove', 'flush', 'flushByTag'])
             ->disableOriginalConstructor()
             ->getMock();
-        $cache2->expects($this->once())->method('flush');
+        $cache2->expects(self::once())->method('flush');
         $manager->registerCache($cache2);
         $manager->flushCaches();
     }
@@ -316,9 +319,9 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getCacheCreatesCacheInstanceWithFallbackToDefaultFrontend()
     {
-        /** @var \PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|CacheManager $manager */
+        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|CacheManager $manager */
         $manager = $this->getAccessibleMock(CacheManager::class, ['dummy'], [], '', false);
-        $cacheIdentifier = $this->getUniqueId('Test');
+        $cacheIdentifier = StringUtility::getUniqueId('Test');
         $configuration = [
             $cacheIdentifier => [
                 'backend' => BackendFixture::class,
@@ -342,9 +345,9 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getCacheCreatesCacheInstanceWithFallbackToDefaultBackend()
     {
-        /** @var \PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|CacheManager $manager */
+        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|CacheManager $manager */
         $manager = $this->getAccessibleMock(CacheManager::class, ['dummy'], [], '', false);
-        $cacheIdentifier = $this->getUniqueId('Test');
+        $cacheIdentifier = StringUtility::getUniqueId('Test');
         $configuration = [
             $cacheIdentifier => [
                 'frontend' => FrontendFixture::class,
@@ -378,7 +381,7 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ],
         ];
         $manager->setCacheConfigurations($configuration);
-        $this->assertInstanceOf(FrontendFixture::class, $manager->getCache($cacheIdentifier));
+        self::assertInstanceOf(FrontendFixture::class, $manager->getCache($cacheIdentifier));
     }
 
     /**
@@ -426,7 +429,7 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function flushCachesInGroupByTagsWithEmptyTagsArrayDoesNotFlushCaches()
     {
-        /** @var \PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|CacheManager $manager */
+        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|CacheManager $manager */
         $manager = $this->getAccessibleMock(CacheManager::class, ['dummy'], [], '', false);
         $cacheIdentifier = 'aTest';
 
@@ -462,7 +465,7 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function flushCachesInGroupByTagsDeletesByTag()
     {
-        /** @var \PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|CacheManager $manager */
+        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|CacheManager $manager */
         $manager = $this->getAccessibleMock(CacheManager::class, ['dummy'], [], '', false);
         $cacheIdentifier = 'aTest';
 
@@ -492,5 +495,46 @@ class CacheManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         ];
         $manager->setCacheConfigurations($configuration);
         $manager->flushCachesInGroupByTags('group2', $tags);
+    }
+
+    /**
+     * @test
+     */
+    public function setCacheConfigurationsMergesLegacyConfigCorrectly()
+    {
+        $rawConfiguration = [
+            'pages' => [
+                'frontend' => \TYPO3\CMS\Core\Cache\Frontend\VariableFrontend::class,
+                'backend' => \TYPO3\CMS\Core\Cache\Backend\Typo3DatabaseBackend::class,
+                'options' => [
+                    'compression' => true,
+                ],
+                'groups' => ['pages'],
+            ],
+            'cache_pages' => [
+                'backend' => \TYPO3\CMS\Core\Cache\Backend\RedisBackend::class,
+                'options' => [
+                    'hostname' => 'redis',
+                ],
+                'groups' => ['pages'],
+            ],
+        ];
+        $expectedConfiguration = [
+            'pages' => [
+                'frontend' => \TYPO3\CMS\Core\Cache\Frontend\VariableFrontend::class,
+                'backend' => \TYPO3\CMS\Core\Cache\Backend\RedisBackend::class,
+                'options' => [
+                    'compression' => true,
+                    'hostname' => 'redis',
+                ],
+                'groups' => ['pages']
+            ],
+        ];
+        $this->expectDeprecation();
+
+        /** @var \PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|CacheManager $manager */
+        $manager = $this->getAccessibleMock(CacheManager::class, ['dummy']);
+        $manager->setCacheConfigurations($rawConfiguration);
+        self::assertEquals($expectedConfiguration, $manager->_get('cacheConfigurations'));
     }
 }

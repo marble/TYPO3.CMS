@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Security\Cryptography;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,22 +12,28 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Security\Cryptography;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\Tests\Unit\Security\Cryptography;
+
+use TYPO3\CMS\Extbase\Security\Cryptography\HashService;
 use TYPO3\CMS\Extbase\Security\Exception\InvalidArgumentForHashGenerationException;
 use TYPO3\CMS\Extbase\Security\Exception\InvalidHashException;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class HashServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class HashServiceTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Extbase\Security\Cryptography\HashService
      */
     protected $hashService;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->hashService = new \TYPO3\CMS\Extbase\Security\Cryptography\HashService();
+        parent::setUp();
+        $this->hashService = new HashService();
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['encryptionKey'] = 'Testing';
     }
 
@@ -38,7 +43,7 @@ class HashServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function generateHmacReturnsHashStringIfStringIsGiven()
     {
         $hash = $this->hashService->generateHmac('asdf');
-        $this->assertTrue(is_string($hash));
+        self::assertTrue(is_string($hash));
     }
 
     /**
@@ -47,7 +52,7 @@ class HashServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function generateHmacReturnsHashStringWhichContainsSomeSalt()
     {
         $hash = $this->hashService->generateHmac('asdf');
-        $this->assertNotEquals(sha1('asdf'), $hash);
+        self::assertNotEquals(sha1('asdf'), $hash);
     }
 
     /**
@@ -57,17 +62,7 @@ class HashServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $hash1 = $this->hashService->generateHmac('asdf');
         $hash2 = $this->hashService->generateHmac('blubb');
-        $this->assertNotEquals($hash1, $hash2);
-    }
-
-    /**
-     * @test
-     */
-    public function generateHmacThrowsExceptionIfNoStringGiven()
-    {
-        $this->expectException(InvalidArgumentForHashGenerationException::class);
-        $this->expectExceptionCode(1255069587);
-        $this->hashService->generateHmac(null);
+        self::assertNotEquals($hash1, $hash2);
     }
 
     /**
@@ -77,7 +72,7 @@ class HashServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $string = 'asdf';
         $hash = $this->hashService->generateHmac($string);
-        $this->assertTrue($this->hashService->validateHmac($string, $hash));
+        self::assertTrue($this->hashService->validateHmac($string, $hash));
     }
 
     /**
@@ -87,17 +82,7 @@ class HashServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $string = 'asdf';
         $hash = 'myhash';
-        $this->assertFalse($this->hashService->validateHmac($string, $hash));
-    }
-
-    /**
-     * @test
-     */
-    public function appendHmacThrowsExceptionIfNoStringGiven()
-    {
-        $this->expectException(InvalidArgumentForHashGenerationException::class);
-        $this->expectExceptionCode(1255069587);
-        $this->hashService->appendHmac(null);
+        self::assertFalse($this->hashService->validateHmac($string, $hash));
     }
 
     /**
@@ -107,17 +92,7 @@ class HashServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $string = 'This is some arbitrary string ';
         $hashedString = $this->hashService->appendHmac($string);
-        $this->assertSame($string, substr($hashedString, 0, -40));
-    }
-
-    /**
-     * @test
-     */
-    public function validateAndStripHmacThrowsExceptionIfNoStringGiven()
-    {
-        $this->expectException(InvalidArgumentForHashGenerationException::class);
-        $this->expectExceptionCode(1320829762);
-        $this->hashService->validateAndStripHmac(null);
+        self::assertSame($string, substr($hashedString, 0, -40));
     }
 
     /**
@@ -158,6 +133,6 @@ class HashServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $string = ' Some arbitrary string with special characters: öäüß!"§$ ';
         $hashedString = $this->hashService->appendHmac($string);
         $actualResult = $this->hashService->validateAndStripHmac($hashedString);
-        $this->assertSame($string, $actualResult);
+        self::assertSame($string, $actualResult);
     }
 }

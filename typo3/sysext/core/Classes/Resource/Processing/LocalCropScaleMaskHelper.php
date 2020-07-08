@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Processing;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,14 @@ namespace TYPO3\CMS\Core\Resource\Processing;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Processing;
+
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource;
+use TYPO3\CMS\Core\Resource\FileInterface;
+use TYPO3\CMS\Core\Resource\ProcessedFile;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Frontend\Imaging\GifBuilder;
 
 /**
@@ -23,19 +28,6 @@ use TYPO3\CMS\Frontend\Imaging\GifBuilder;
  */
 class LocalCropScaleMaskHelper
 {
-    /**
-     * @var LocalImageProcessor
-     */
-    protected $processor;
-
-    /**
-     * @param LocalImageProcessor $processor
-     */
-    public function __construct(LocalImageProcessor $processor)
-    {
-        $this->processor = $processor;
-    }
-
     /**
      * This method actually does the processing of files locally
      *
@@ -53,7 +45,7 @@ class LocalCropScaleMaskHelper
      * with the returned width and height. This is for example useful for SVG images.
      *
      * @param TaskInterface $task
-     * @return array|NULL
+     * @return array|null
      */
     public function process(TaskInterface $task)
     {
@@ -62,10 +54,7 @@ class LocalCropScaleMaskHelper
         $sourceFile = $task->getSourceFile();
 
         $originalFileName = $sourceFile->getForLocalProcessing(false);
-        /** @var $gifBuilder GifBuilder */
         $gifBuilder = GeneralUtility::makeInstance(GifBuilder::class);
-        $gifBuilder->init();
-        $gifBuilder->absPrefix = PATH_site;
 
         $configuration = $targetFile->getProcessingConfiguration();
         $configuration['additionalParameters'] = $this->modifyImageMagickStripProfileParameters($configuration['additionalParameters'], $configuration);
@@ -87,10 +76,12 @@ class LocalCropScaleMaskHelper
                 $crop = $configuration['crop'];
             }
 
-            list($offsetLeft, $offsetTop, $newWidth, $newHeight) = explode(',', $crop, 4);
+            [$offsetLeft, $offsetTop, $newWidth, $newHeight] = explode(',', $crop, 4);
 
             $backupPrefix = $gifBuilder->filenamePrefix;
             $gifBuilder->filenamePrefix = 'crop_';
+
+            $jpegQuality = MathUtility::forceIntegerInRange($GLOBALS['TYPO3_CONF_VARS']['GFX']['jpg_quality'], 10, 100, 85);
 
             // the result info is an array with 0=width,1=height,2=extension,3=filename
             $result = $gifBuilder->imageMagickConvert(
@@ -98,7 +89,7 @@ class LocalCropScaleMaskHelper
                 $configuration['fileExtension'],
                 '',
                 '',
-                sprintf('-crop %dx%d+%d+%d', $newWidth, $newHeight, $offsetLeft, $offsetTop),
+                sprintf('-crop %dx%d+%d+%d +repage -quality %d', $newWidth, $newHeight, $offsetLeft, $offsetTop, $jpegQuality),
                 '',
                 ['noScale' => true],
                 true
@@ -113,17 +104,16 @@ class LocalCropScaleMaskHelper
         // Normal situation (no masking)
         if (!(is_array($configuration['maskImages']) && $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor_enabled'])) {
 
-            // SVG
-            if ($croppedImage === null && $sourceFile->getExtension() === 'svg') {
+            // SVG without having a fileExtension (e.g. png) forced to convert to another format, leave this unchanged
+            if ($croppedImage === null && $sourceFile->getExtension() === 'svg' && ($task->getConfiguration()['fileExtension'] ?? 'svg') === 'svg') {
                 $newDimensions = $this->getNewSvgDimensions($sourceFile, $configuration, $options, $gifBuilder);
                 $result = [
                     0 => $newDimensions['width'],
                     1 => $newDimensions['height'],
                     3 => '' // no file = use original
                 ];
-
-            // all other images
             } else {
+                // all other images
                 // the result info is an array with 0=width,1=height,2=extension,3=filename
                 $result = $gifBuilder->imageMagickConvert(
                     $originalFileName,
@@ -137,10 +127,10 @@ class LocalCropScaleMaskHelper
             }
         } else {
             $targetFileName = $this->getFilenameForImageCropScaleMask($task);
-            $temporaryFileName = PATH_site . 'typo3temp/' . $targetFileName;
+            $temporaryFileName = Environment::getPublicPath() . '/typo3temp/' . $targetFileName;
             $maskImage = $configuration['maskImages']['maskImage'];
             $maskBackgroundImage = $configuration['maskImages']['backgroundImage'];
-            if ($maskImage instanceof Resource\FileInterface && $maskBackgroundImage instanceof Resource\FileInterface) {
+            if ($maskImage instanceof FileInterface && $maskBackgroundImage instanceof FileInterface) {
                 $temporaryExtension = 'png';
                 if (!$GLOBALS['TYPO3_CONF_VARS']['GFX']['processor_allowTemporaryMasksAsPng']) {
                     // If ImageMagick version 5+
@@ -157,7 +147,7 @@ class LocalCropScaleMaskHelper
                 );
                 if (is_array($tempFileInfo)) {
                     $maskBottomImage = $configuration['maskImages']['maskBottomImage'];
-                    if ($maskBottomImage instanceof Resource\FileInterface) {
+                    if ($maskBottomImage instanceof FileInterface) {
                         $maskBottomImageMask = $configuration['maskImages']['maskBottomImageMask'];
                     } else {
                         $maskBottomImageMask = null;
@@ -175,7 +165,7 @@ class LocalCropScaleMaskHelper
                     $tempScale['m_bgImg'] = $tmpStr . '_bgImg.miff';
                     $gifBuilder->imageMagickExec($maskBackgroundImage->getForLocalProcessing(), $tempScale['m_bgImg'], $command);
                     //	m_bottomImg / m_bottomImg_mask
-                    if ($maskBottomImage instanceof Resource\FileInterface && $maskBottomImageMask instanceof Resource\FileInterface) {
+                    if ($maskBottomImage instanceof FileInterface && $maskBottomImageMask instanceof FileInterface) {
                         $tempScale['m_bottomImg'] = $tmpStr . '_bottomImg.' . $temporaryExtension;
                         $gifBuilder->imageMagickExec($maskBottomImage->getForLocalProcessing(), $tempScale['m_bottomImg'], $command);
                         $tempScale['m_bottomImg_mask'] = ($tmpStr . '_bottomImg_mask.') . $temporaryExtension;
@@ -264,7 +254,7 @@ class LocalCropScaleMaskHelper
      *
      * @return array
      */
-    protected function getConfigurationForImageCropScaleMask(Resource\ProcessedFile $processedFile, \TYPO3\CMS\Frontend\Imaging\GifBuilder $gifBuilder)
+    protected function getConfigurationForImageCropScaleMask(ProcessedFile $processedFile, GifBuilder $gifBuilder)
     {
         $configuration = $processedFile->getProcessingConfiguration();
 
@@ -325,7 +315,7 @@ class LocalCropScaleMaskHelper
                 $configuration['stripProfile']
                 && $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor_stripColorProfileCommand'] !== ''
             ) {
-                $parameters = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor_stripProfileCommand'] . $parameters;
+                $parameters = $GLOBALS['TYPO3_CONF_VARS']['GFX']['processor_stripColorProfileCommand'] . $parameters;
             } else {
                 $parameters .= '###SkipStripProfile###';
             }

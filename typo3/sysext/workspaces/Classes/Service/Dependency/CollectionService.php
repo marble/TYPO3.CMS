@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Service\Dependency;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,14 +13,21 @@ namespace TYPO3\CMS\Workspaces\Service\Dependency;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Workspaces\Service\Dependency;
+
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Version\Dependency;
+use TYPO3\CMS\Workspaces\Dependency;
+use TYPO3\CMS\Workspaces\Dependency\DependencyResolver;
+use TYPO3\CMS\Workspaces\Dependency\ElementEntity;
+use TYPO3\CMS\Workspaces\Dependency\ElementEntityProcessor;
+use TYPO3\CMS\Workspaces\Dependency\EventCallback;
 use TYPO3\CMS\Workspaces\Service\GridDataService;
 
 /**
  * Service to collect dependent elements.
  */
-class CollectionService implements \TYPO3\CMS\Core\SingletonInterface
+class CollectionService implements SingletonInterface
 {
     /**
      * @var \TYPO3\CMS\Core\DataHandling\DataHandler
@@ -54,22 +60,22 @@ class CollectionService implements \TYPO3\CMS\Core\SingletonInterface
     public function getDependencyResolver()
     {
         if (!isset($this->dependencyResolver)) {
-            $this->dependencyResolver = GeneralUtility::makeInstance(\TYPO3\CMS\Version\Dependency\DependencyResolver::class);
+            $this->dependencyResolver = GeneralUtility::makeInstance(DependencyResolver::class);
             $this->dependencyResolver->setOuterMostParentsRequireReferences(true);
             $this->dependencyResolver->setWorkspace($this->getWorkspace());
 
             $this->dependencyResolver->setEventCallback(
-                Dependency\ElementEntity::EVENT_Construct,
+                ElementEntity::EVENT_Construct,
                 $this->getDependencyCallback('createNewDependentElementCallback')
             );
 
             $this->dependencyResolver->setEventCallback(
-                Dependency\ElementEntity::EVENT_CreateChildReference,
+                ElementEntity::EVENT_CreateChildReference,
                 $this->getDependencyCallback('createNewDependentElementChildReferenceCallback')
             );
 
             $this->dependencyResolver->setEventCallback(
-                Dependency\ElementEntity::EVENT_CreateParentReference,
+                ElementEntity::EVENT_CreateParentReference,
                 $this->getDependencyCallback('createNewDependentElementParentReferenceCallback')
             );
         }
@@ -87,8 +93,10 @@ class CollectionService implements \TYPO3\CMS\Core\SingletonInterface
     protected function getDependencyCallback($method, array $targetArguments = [])
     {
         return GeneralUtility::makeInstance(
-            \TYPO3\CMS\Version\Dependency\EventCallback::class,
-            $this->getElementEntityProcessor(), $method, $targetArguments
+            EventCallback::class,
+            $this->getElementEntityProcessor(),
+            $method,
+            $targetArguments
         );
     }
 
@@ -100,7 +108,7 @@ class CollectionService implements \TYPO3\CMS\Core\SingletonInterface
     protected function getElementEntityProcessor()
     {
         if (!isset($this->elementEntityProcessor)) {
-            $this->elementEntityProcessor = GeneralUtility::makeInstance(Dependency\ElementEntityProcessor::class);
+            $this->elementEntityProcessor = GeneralUtility::makeInstance(ElementEntityProcessor::class);
             $this->elementEntityProcessor->setWorkspace($this->getWorkspace());
         }
         return $this->elementEntityProcessor;
@@ -184,7 +192,7 @@ class CollectionService implements \TYPO3\CMS\Core\SingletonInterface
      * @param string $nextParentIdentifier
      * @param int $collectionLevel
      */
-    protected function resolveDataArrayChildDependencies(Dependency\ElementEntity $parent, $collection, $nextParentIdentifier = '', $collectionLevel = 0)
+    protected function resolveDataArrayChildDependencies(ElementEntity $parent, $collection, $nextParentIdentifier = '', $collectionLevel = 0)
     {
         $parentIdentifier = $parent->__toString();
         $parentIsSet = isset($this->dataArray[$parentIdentifier]);

@@ -1,30 +1,24 @@
 <?php
+
+declare(strict_types=1);
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Extbase\Error;
 
-/*                                                                        *
- * This script belongs to the Extbase framework                           *
- *                                                                        *
- * It is free software; you can redistribute it and/or modify it under    *
- * the terms of the GNU Lesser General Public License as published by the *
- * Free Software Foundation, either version 3 of the License, or (at your *
- * option) any later version.                                             *
- *                                                                        *
- * This script is distributed in the hope that it will be useful, but     *
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHAN-    *
- * TABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser       *
- * General Public License for more details.                               *
- *                                                                        *
- * You should have received a copy of the GNU Lesser General Public       *
- * License along with the script.                                         *
- * If not, see http://www.gnu.org/licenses/lgpl.html                      *
- *                                                                        *
- * The TYPO3 project - inspiring people to share!                         *
- *                                                                        */
 /**
  * An object representation of a generic message. Usually, you will use Error, Warning or Notice instead of this one.
- *
- * @license http://www.gnu.org/licenses/lgpl.html GNU Lesser General Public License, version 3 or later
- * @api
  */
 class Message
 {
@@ -38,7 +32,7 @@ class Message
     /**
      * The error code
      *
-     * @var string
+     * @var int
      */
     protected $code;
 
@@ -63,9 +57,8 @@ class Message
      * @param int $code A unique error code
      * @param array $arguments Array of arguments to be replaced in message
      * @param string $title optional title for the message
-     * @api
      */
-    public function __construct($message, $code, array $arguments = [], $title = '')
+    public function __construct(string $message, int $code, array $arguments = [], string $title = '')
     {
         $this->message = $message;
         $this->code = $code;
@@ -77,9 +70,8 @@ class Message
      * Returns the error message
      *
      * @return string The error message
-     * @api
      */
-    public function getMessage()
+    public function getMessage(): string
     {
         return $this->message;
     }
@@ -87,10 +79,9 @@ class Message
     /**
      * Returns the error code
      *
-     * @return string The error code
-     * @api
+     * @return int The error code
      */
-    public function getCode()
+    public function getCode(): int
     {
         return $this->code;
     }
@@ -99,9 +90,8 @@ class Message
      * Get arguments
      *
      * @return array
-     * @api
      */
-    public function getArguments()
+    public function getArguments(): array
     {
         return $this->arguments;
     }
@@ -110,9 +100,8 @@ class Message
      * Get title
      *
      * @return string
-     * @api
      */
-    public function getTitle()
+    public function getTitle(): string
     {
         return $this->title;
     }
@@ -121,22 +110,19 @@ class Message
      * Return the rendered message
      *
      * @return string
-     * @api
      */
-    public function render()
+    public function render(): string
     {
-        if (!empty($this->arguments)) {
+        if (count($this->arguments) > 0) {
             return vsprintf($this->message, $this->arguments);
-        } else {
-            return $this->message;
         }
+        return $this->message;
     }
 
     /**
      * Converts this error into a string
      *
      * @return string
-     * @api
      */
     public function __toString()
     {

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Cache\Frontend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,15 @@ namespace TYPO3\CMS\Core\Cache\Frontend;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Cache\Frontend;
+
 use TYPO3\CMS\Core\Cache\Backend\PhpCapableBackendInterface;
 use TYPO3\CMS\Core\Cache\Exception\InvalidDataException;
 
 /**
  * A cache frontend tailored to PHP code.
- *
- * This file is a backport from FLOW3
- * @api
  */
-class PhpFrontend extends StringFrontend
+class PhpFrontend extends AbstractFrontend
 {
     /**
      * Constructs the cache
@@ -45,7 +43,6 @@ class PhpFrontend extends StringFrontend
      * @param int $lifetime Lifetime of this cache entry in seconds. If NULL is specified, the default lifetime is used. "0" means unlimited lifetime.
      * @throws \InvalidArgumentException If $entryIdentifier or $tags is invalid
      * @throws InvalidDataException If $sourceCode is not a string
-     * @api
      */
     public function set($entryIdentifier, $sourceCode, array $tags = [], $lifetime = null)
     {
@@ -65,14 +62,42 @@ class PhpFrontend extends StringFrontend
     }
 
     /**
+     * Finds and returns a variable value from the cache.
+     *
+     * @param string $entryIdentifier Identifier of the cache entry to fetch
+     * @return string The value
+     * @throws \InvalidArgumentException if the cache identifier is not valid
+     */
+    public function get($entryIdentifier)
+    {
+        if (!$this->isValidEntryIdentifier($entryIdentifier)) {
+            throw new \InvalidArgumentException('"' . $entryIdentifier . '" is not a valid cache entry identifier.', 1233057753);
+        }
+        return $this->backend->get($entryIdentifier);
+    }
+
+    /**
      * Loads PHP code from the cache and require_onces it right away.
      *
      * @param string $entryIdentifier An identifier which describes the cache entry to load
      * @return mixed Potential return value from the include operation
-     * @api
      */
     public function requireOnce($entryIdentifier)
     {
         return $this->backend->requireOnce($entryIdentifier);
+    }
+
+    /**
+     * Loads PHP code from the cache and require() it right away. Note require()
+     * in comparison to requireOnce() is only "safe" if the cache entry only contain stuff
+     * that can be required multiple times during one request. For instance a class definition
+     * would fail here.
+     *
+     * @param string $entryIdentifier An identifier which describes the cache entry to load
+     * @return mixed Potential return value from the include operation
+     */
+    public function require(string $entryIdentifier)
+    {
+        return $this->backend->require($entryIdentifier);
     }
 }

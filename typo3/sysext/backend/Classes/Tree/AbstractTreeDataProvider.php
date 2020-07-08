@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tree;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Tree;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tree;
+
 /**
  * Abstract Tree Data Provider
  */
@@ -24,7 +25,7 @@ abstract class AbstractTreeDataProvider
      *
      * @var \TYPO3\CMS\Backend\Tree\TreeNode
      */
-    protected $rootNode = null;
+    protected $rootNode;
 
     /**
      * Returns the root node
@@ -39,5 +40,5 @@ abstract class AbstractTreeDataProvider
      * @param \TYPO3\CMS\Backend\Tree\TreeNode $node
      * @return \TYPO3\CMS\Backend\Tree\TreeNodeCollection
      */
-    abstract public function getNodes(\TYPO3\CMS\Backend\Tree\TreeNode $node);
+    abstract public function getNodes(TreeNode $node);
 }

@@ -8,6 +8,7 @@ Introduction
 ============
 
 .. note::
+
    This documentation will be extended on a constant basis. If you have
    problems understanding a certain aspect, or if you notice something
    missing, contribute to improve it. This will help you and everyone else!
@@ -42,7 +43,7 @@ form elements, register new validators and finishers, as well as create
 custom form elements. Plenty of hooks allow you to manipulate the generation
 and processing of the both form and data.
 
-.. figure:: ../Images/introduction_form_editor.png
+.. figure:: Images/introduction_form_editor.png
    :alt: The form creation wizard
 
    Form editor displaying a new form in the abstract view
@@ -54,7 +55,7 @@ Features List
 The following list names some features of the form framework:
 
 * form editor
-   * fully customisable editor for building complex forms
+   * fully customizable editor for building complex forms
    * replaceable and extendible form editor components
    * JS API to extend form editor
 * PHP API

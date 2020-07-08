@@ -1,30 +1,28 @@
 <?php
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Extbase\Tests\Unit\Property;
 
-/*                                                                        *
- * This script belongs to the Extbase framework.                          *
- *                                                                        *
- * It is free software; you can redistribute it and/or modify it under    *
- * the terms of the GNU Lesser General Public License as published by the *
- * Free Software Foundation, either version 3 of the License, or (at your *
- * option) any later version.                                             *
- *                                                                        *
- * This script is distributed in the hope that it will be useful, but     *
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHAN-    *
- * TABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser       *
- * General Public License for more details.                               *
- *                                                                        *
- * You should have received a copy of the GNU Lesser General Public       *
- * License along with the script.                                         *
- * If not, see http://www.gnu.org/licenses/lgpl.html                      *
- *                                                                        *
- * The TYPO3 project - inspiring people to share!                         *
- *                                                                        */
+use TYPO3\CMS\Extbase\Property\PropertyMappingConfiguration;
+use TYPO3\CMS\Extbase\Property\TypeConverterInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class PropertyMappingConfigurationTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Extbase\Property\PropertyMappingConfiguration
@@ -34,9 +32,10 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
     /**
      * Initialization
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->propertyMappingConfiguration = new \TYPO3\CMS\Extbase\Property\PropertyMappingConfiguration();
+        parent::setUp();
+        $this->propertyMappingConfiguration = new PropertyMappingConfiguration();
     }
 
     /**
@@ -45,8 +44,8 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function getTargetPropertyNameShouldReturnTheUnmodifiedPropertyNameWithoutConfiguration()
     {
-        $this->assertEquals('someSourceProperty', $this->propertyMappingConfiguration->getTargetPropertyName('someSourceProperty'));
-        $this->assertEquals('someOtherSourceProperty', $this->propertyMappingConfiguration->getTargetPropertyName('someOtherSourceProperty'));
+        self::assertEquals('someSourceProperty', $this->propertyMappingConfiguration->getTargetPropertyName('someSourceProperty'));
+        self::assertEquals('someOtherSourceProperty', $this->propertyMappingConfiguration->getTargetPropertyName('someOtherSourceProperty'));
     }
 
     /**
@@ -55,8 +54,8 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function shouldMapReturnsFalseByDefault()
     {
-        $this->assertFalse($this->propertyMappingConfiguration->shouldMap('someSourceProperty'));
-        $this->assertFalse($this->propertyMappingConfiguration->shouldMap('someOtherSourceProperty'));
+        self::assertFalse($this->propertyMappingConfiguration->shouldMap('someSourceProperty'));
+        self::assertFalse($this->propertyMappingConfiguration->shouldMap('someOtherSourceProperty'));
     }
 
     /**
@@ -66,8 +65,8 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
     public function shouldMapReturnsTrueIfConfigured()
     {
         $this->propertyMappingConfiguration->allowAllProperties();
-        $this->assertTrue($this->propertyMappingConfiguration->shouldMap('someSourceProperty'));
-        $this->assertTrue($this->propertyMappingConfiguration->shouldMap('someOtherSourceProperty'));
+        self::assertTrue($this->propertyMappingConfiguration->shouldMap('someSourceProperty'));
+        self::assertTrue($this->propertyMappingConfiguration->shouldMap('someOtherSourceProperty'));
     }
 
     /**
@@ -77,8 +76,8 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
     public function shouldMapReturnsTrueForAllowedProperties()
     {
         $this->propertyMappingConfiguration->allowProperties('someSourceProperty', 'someOtherProperty');
-        $this->assertTrue($this->propertyMappingConfiguration->shouldMap('someSourceProperty'));
-        $this->assertTrue($this->propertyMappingConfiguration->shouldMap('someOtherProperty'));
+        self::assertTrue($this->propertyMappingConfiguration->shouldMap('someSourceProperty'));
+        self::assertTrue($this->propertyMappingConfiguration->shouldMap('someOtherProperty'));
     }
 
     /**
@@ -88,10 +87,10 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
     public function shouldMapReturnsFalseForBlacklistedProperties()
     {
         $this->propertyMappingConfiguration->allowAllPropertiesExcept('someSourceProperty', 'someOtherProperty');
-        $this->assertFalse($this->propertyMappingConfiguration->shouldMap('someSourceProperty'));
-        $this->assertFalse($this->propertyMappingConfiguration->shouldMap('someOtherProperty'));
+        self::assertFalse($this->propertyMappingConfiguration->shouldMap('someSourceProperty'));
+        self::assertFalse($this->propertyMappingConfiguration->shouldMap('someOtherProperty'));
 
-        $this->assertTrue($this->propertyMappingConfiguration->shouldMap('someOtherPropertyWhichHasNotBeenConfigured'));
+        self::assertTrue($this->propertyMappingConfiguration->shouldMap('someOtherPropertyWhichHasNotBeenConfigured'));
     }
 
     /**
@@ -100,8 +99,8 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function shouldSkipReturnsFalseByDefault()
     {
-        $this->assertFalse($this->propertyMappingConfiguration->shouldSkip('someSourceProperty'));
-        $this->assertFalse($this->propertyMappingConfiguration->shouldSkip('someOtherSourceProperty'));
+        self::assertFalse($this->propertyMappingConfiguration->shouldSkip('someSourceProperty'));
+        self::assertFalse($this->propertyMappingConfiguration->shouldSkip('someOtherSourceProperty'));
     }
 
     /**
@@ -111,8 +110,8 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
     public function shouldSkipReturnsTrueIfConfigured()
     {
         $this->propertyMappingConfiguration->skipProperties('someSourceProperty', 'someOtherSourceProperty');
-        $this->assertTrue($this->propertyMappingConfiguration->shouldSkip('someSourceProperty'));
-        $this->assertTrue($this->propertyMappingConfiguration->shouldSkip('someOtherSourceProperty'));
+        self::assertTrue($this->propertyMappingConfiguration->shouldSkip('someSourceProperty'));
+        self::assertTrue($this->propertyMappingConfiguration->shouldSkip('someOtherSourceProperty'));
     }
 
     /**
@@ -120,11 +119,11 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function setTypeConverterOptionsCanBeRetrievedAgain()
     {
-        $mockTypeConverterClass = $this->getMockClass(\TYPO3\CMS\Extbase\Property\TypeConverterInterface::class);
+        $mockTypeConverterClass = $this->getMockClass(TypeConverterInterface::class);
 
         $this->propertyMappingConfiguration->setTypeConverterOptions($mockTypeConverterClass, ['k1' => 'v1', 'k2' => 'v2']);
-        $this->assertEquals('v1', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k1'));
-        $this->assertEquals('v2', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k2'));
+        self::assertEquals('v1', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k1'));
+        self::assertEquals('v2', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k2'));
     }
 
     /**
@@ -132,7 +131,7 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function nonexistentTypeConverterOptionsReturnNull()
     {
-        $this->assertNull($this->propertyMappingConfiguration->getConfigurationValue('foo', 'bar'));
+        self::assertNull($this->propertyMappingConfiguration->getConfigurationValue('foo', 'bar'));
     }
 
     /**
@@ -140,12 +139,12 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function setTypeConverterOptionsShouldOverrideAlreadySetOptions()
     {
-        $mockTypeConverterClass = $this->getMockClass(\TYPO3\CMS\Extbase\Property\TypeConverterInterface::class);
+        $mockTypeConverterClass = $this->getMockClass(TypeConverterInterface::class);
         $this->propertyMappingConfiguration->setTypeConverterOptions($mockTypeConverterClass, ['k1' => 'v1', 'k2' => 'v2']);
         $this->propertyMappingConfiguration->setTypeConverterOptions($mockTypeConverterClass, ['k3' => 'v3']);
 
-        $this->assertEquals('v3', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k3'));
-        $this->assertNull($this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k2'));
+        self::assertEquals('v3', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k3'));
+        self::assertNull($this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k2'));
     }
 
     /**
@@ -153,12 +152,12 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function setTypeConverterOptionShouldOverrideAlreadySetOptions()
     {
-        $mockTypeConverterClass = $this->getMockClass(\TYPO3\CMS\Extbase\Property\TypeConverterInterface::class);
+        $mockTypeConverterClass = $this->getMockClass(TypeConverterInterface::class);
         $this->propertyMappingConfiguration->setTypeConverterOptions($mockTypeConverterClass, ['k1' => 'v1', 'k2' => 'v2']);
         $this->propertyMappingConfiguration->setTypeConverterOption($mockTypeConverterClass, 'k1', 'v3');
 
-        $this->assertEquals('v3', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k1'));
-        $this->assertEquals('v2', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k2'));
+        self::assertEquals('v3', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k1'));
+        self::assertEquals('v2', $this->propertyMappingConfiguration->getConfigurationValue($mockTypeConverterClass, 'k2'));
     }
 
     /**
@@ -166,7 +165,7 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function getTypeConverterReturnsNullIfNoTypeConverterSet()
     {
-        $this->assertNull($this->propertyMappingConfiguration->getTypeConverter());
+        self::assertNull($this->propertyMappingConfiguration->getTypeConverter());
     }
 
     /**
@@ -174,9 +173,9 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function getTypeConverterReturnsTypeConverterIfItHasBeenSet()
     {
-        $mockTypeConverter = $this->createMock(\TYPO3\CMS\Extbase\Property\TypeConverterInterface::class);
+        $mockTypeConverter = $this->createMock(TypeConverterInterface::class);
         $this->propertyMappingConfiguration->setTypeConverter($mockTypeConverter);
-        $this->assertSame($mockTypeConverter, $this->propertyMappingConfiguration->getTypeConverter());
+        self::assertSame($mockTypeConverter, $this->propertyMappingConfiguration->getTypeConverter());
     }
 
     /**
@@ -196,8 +195,8 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
     public function getTargetPropertyNameShouldRespectMapping()
     {
         $this->propertyMappingConfiguration->setMapping('k1', 'k1a');
-        $this->assertEquals('k1a', $this->propertyMappingConfiguration->getTargetPropertyName('k1'));
-        $this->assertEquals('k2', $this->propertyMappingConfiguration->getTargetPropertyName('k2'));
+        self::assertEquals('k1a', $this->propertyMappingConfiguration->getTargetPropertyName('k1'));
+        self::assertEquals('k2', $this->propertyMappingConfiguration->getTargetPropertyName('k2'));
     }
 
     /**
@@ -205,7 +204,7 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
      */
     public function fluentInterfaceMethodsDataProvider()
     {
-        $mockTypeConverterClass = $this->getMockClass(\TYPO3\CMS\Extbase\Property\TypeConverterInterface::class);
+        $mockTypeConverterClass = $this->getMockClass(TypeConverterInterface::class);
 
         return [
             ['allowAllProperties'],
@@ -214,7 +213,7 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
             ['setMapping', ['k1', 'k1a']],
             ['setTypeConverterOptions', [$mockTypeConverterClass, ['k1' => 'v1', 'k2' => 'v2']]],
             ['setTypeConverterOption', [$mockTypeConverterClass, 'k1', 'v3']],
-            ['setTypeConverter', [$this->createMock(\TYPO3\CMS\Extbase\Property\TypeConverterInterface::class)]],
+            ['setTypeConverter', [$this->createMock(TypeConverterInterface::class)]],
         ];
     }
 
@@ -225,7 +224,7 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
     public function respectiveMethodsProvideFluentInterface($methodToTestForFluentInterface, array $argumentsForMethod = [])
     {
         $actualResult = call_user_func_array([$this->propertyMappingConfiguration, $methodToTestForFluentInterface], $argumentsForMethod);
-        $this->assertSame($this->propertyMappingConfiguration, $actualResult);
+        self::assertSame($this->propertyMappingConfiguration, $actualResult);
     }
 
     /**
@@ -237,7 +236,7 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
         $this->propertyMappingConfiguration->forProperty('items.*')->setTypeConverterOptions('stdClass', ['k1' => 'v1']);
 
         $configuration = $this->propertyMappingConfiguration->getConfigurationFor('items')->getConfigurationFor('6');
-        $this->assertSame('v1', $configuration->getConfigurationValue('stdClass', 'k1'));
+        self::assertSame('v1', $configuration->getConfigurationValue('stdClass', 'k1'));
     }
 
     /**
@@ -249,7 +248,7 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
         $this->propertyMappingConfiguration->forProperty('items.*.foo')->setTypeConverterOptions('stdClass', ['k1' => 'v1']);
 
         $configuration = $this->propertyMappingConfiguration->forProperty('items.6.foo');
-        $this->assertSame('v1', $configuration->getConfigurationValue('stdClass', 'k1'));
+        self::assertSame('v1', $configuration->getConfigurationValue('stdClass', 'k1'));
     }
 
     /**
@@ -260,6 +259,6 @@ class PropertyMappingConfigurationTest extends \TYPO3\TestingFramework\Core\Unit
         $this->propertyMappingConfiguration->forProperty('items.*')->setTypeConverterOptions('stdClass', ['k1' => 'v1']);
 
         $configuration = $this->propertyMappingConfiguration->forProperty('items');
-        $this->assertTrue($configuration->shouldMap(6));
+        self::assertTrue($configuration->shouldMap(6));
     }
 }

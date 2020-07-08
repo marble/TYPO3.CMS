@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tree\TableConfiguration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,21 +13,27 @@ namespace TYPO3\CMS\Core\Tree\TableConfiguration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tree\TableConfiguration;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Backend\Tree\SortedTreeNodeCollection;
+use TYPO3\CMS\Backend\Tree\TreeNode;
+use TYPO3\CMS\Backend\Tree\TreeNodeCollection;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
+use TYPO3\CMS\Core\Database\RelationHandler;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Tree\Event\ModifyTreeDataEvent;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * TCA tree data provider
  */
 class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvider
 {
-    const SIGNAL_PostProcessTreeData = 'PostProcessTreeData';
     const MODE_CHILDREN = 1;
     const MODE_PARENT = 2;
 
@@ -92,9 +97,14 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
     protected $generatedTSConfig = [];
 
     /**
-     * @var Dispatcher
+     * @var EventDispatcherInterface
      */
-    protected $signalSlotDispatcher;
+    protected $eventDispatcher;
+
+    public function __construct(EventDispatcherInterface $eventDispatcher)
+    {
+        $this->eventDispatcher = $eventDispatcher;
+    }
 
     /**
      * Sets the label field
@@ -180,9 +190,8 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
      * Gets the nodes
      *
      * @param \TYPO3\CMS\Backend\Tree\TreeNode $node
-     * @return \TYPO3\CMS\Backend\Tree\TreeNodeCollection
      */
-    public function getNodes(\TYPO3\CMS\Backend\Tree\TreeNode $node)
+    public function getNodes(TreeNode $node)
     {
     }
 
@@ -240,19 +249,19 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
      * Builds a complete node including childs
      *
      * @param \TYPO3\CMS\Backend\Tree\TreeNode $basicNode
-     * @param NULL|\TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeNode $parent
+     * @param \TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeNode|null $parent
      * @param int $level
      * @return \TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeNode Node object
      */
-    protected function buildRepresentationForNode(\TYPO3\CMS\Backend\Tree\TreeNode $basicNode, DatabaseTreeNode $parent = null, $level = 0)
+    protected function buildRepresentationForNode(TreeNode $basicNode, DatabaseTreeNode $parent = null, $level = 0)
     {
-        /** @var $node \TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeNode */
-        $node = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeNode::class);
+        /** @var \TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeNode $node */
+        $node = GeneralUtility::makeInstance(DatabaseTreeNode::class);
         $row = [];
         if ($basicNode->getId() == 0) {
             $node->setSelected(false);
             $node->setExpanded(true);
-            $node->setLabel($GLOBALS['LANG']->sL($GLOBALS['TCA'][$this->tableName]['ctrl']['title']));
+            $node->setLabel($this->getLanguageService()->sL($GLOBALS['TCA'][$this->tableName]['ctrl']['title']));
         } else {
             $row = BackendUtility::getRecordWSOL($this->tableName, $basicNode->getId(), '*', '', false);
             $node->setLabel(BackendUtility::getRecordTitle($this->tableName, $row) ?: $basicNode->getId());
@@ -267,8 +276,8 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
         $node->setParentNode($parent);
         if ($basicNode->hasChildNodes()) {
             $node->setHasChildren(true);
-            /** @var $childNodes \TYPO3\CMS\Backend\Tree\SortedTreeNodeCollection */
-            $childNodes = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Tree\SortedTreeNodeCollection::class);
+            /** @var \TYPO3\CMS\Backend\Tree\SortedTreeNodeCollection $childNodes */
+            $childNodes = GeneralUtility::makeInstance(SortedTreeNodeCollection::class);
             $tempNodes = [];
             foreach ($basicNode->getChildNodes() as $child) {
                 $tempNodes[] = $this->buildRepresentationForNode($child, $node, $level + 1);
@@ -291,9 +300,11 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
         if (isset($this->columnConfiguration['foreign_table']) && $this->columnConfiguration['foreign_table'] != $this->getTableName()) {
             throw new \InvalidArgumentException('TCA Tree configuration is invalid: tree for different node-Tables is not implemented yet', 1290944650);
         }
-        $this->treeData = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Tree\TreeNode::class);
+        $this->treeData = GeneralUtility::makeInstance(TreeNode::class);
         $this->loadTreeData();
-        $this->emitPostProcessTreeDataSignal();
+        /** @var ModifyTreeDataEvent $event */
+        $event = $this->eventDispatcher->dispatch(new ModifyTreeDataEvent($this->treeData, $this));
+        $this->treeData = $event->getTreeData();
     }
 
     /**
@@ -316,9 +327,9 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
      *
      * @param \TYPO3\CMS\Backend\Tree\TreeNode $node
      * @param int $level
-     * @return NULL|\TYPO3\CMS\Backend\Tree\TreeNodeCollection
+     * @return \TYPO3\CMS\Backend\Tree\TreeNodeCollection|null
      */
-    protected function getChildrenOf(\TYPO3\CMS\Backend\Tree\TreeNode $node, $level)
+    protected function getChildrenOf(TreeNode $node, $level)
     {
         $nodeData = null;
         if ($node->getId() !== 0) {
@@ -346,10 +357,10 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
         $storage = null;
         $children = $this->getRelatedRecords($nodeData);
         if (!empty($children)) {
-            /** @var $storage \TYPO3\CMS\Backend\Tree\TreeNodeCollection */
-            $storage = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Tree\TreeNodeCollection::class);
+            /** @var \TYPO3\CMS\Backend\Tree\TreeNodeCollection $storage */
+            $storage = GeneralUtility::makeInstance(TreeNodeCollection::class);
             foreach ($children as $child) {
-                $node = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Tree\TreeNode::class);
+                $node = GeneralUtility::makeInstance(TreeNode::class);
                 $node->setId($child);
                 if ($level < $this->levelMaximum) {
                     $children = $this->getChildrenOf($node, $level + 1);
@@ -400,8 +411,8 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
 
             case 'select':
                 if ($this->columnConfiguration['MM']) {
-                    /** @var $dbGroup \TYPO3\CMS\Core\Database\RelationHandler */
-                    $dbGroup = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\RelationHandler::class);
+                    /** @var \TYPO3\CMS\Core\Database\RelationHandler $dbGroup */
+                    $dbGroup = GeneralUtility::makeInstance(RelationHandler::class);
                     // Dummy field for setting "look from other site"
                     $this->columnConfiguration['MM_oppositeField'] = 'children';
                     $dbGroup->start($row[$this->getLookupField()], $this->getTableName(), $this->columnConfiguration['MM'], $uid, $this->getTableName(), $this->columnConfiguration);
@@ -434,7 +445,7 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
                 // Intentional fall-through
             case 'select':
                 if ($this->columnConfiguration['MM']) {
-                    $dbGroup = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\RelationHandler::class);
+                    $dbGroup = GeneralUtility::makeInstance(RelationHandler::class);
                     $dbGroup->start(
                         $value,
                         $this->getTableName(),
@@ -473,7 +484,7 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
     }
 
     /**
-     * Queries the table for an field which might contain a list.
+     * Queries the table for a field which might contain a list.
      *
      * @param string $fieldName the name of the field to be queried
      * @param int $queryId the uid to search for
@@ -507,37 +518,10 @@ class DatabaseTreeDataProvider extends AbstractTableConfigurationTreeDataProvide
     }
 
     /**
-     * Emits the post processing tree data signal.
+     * @return LanguageService|null
      */
-    protected function emitPostProcessTreeDataSignal()
+    protected function getLanguageService(): ?LanguageService
     {
-        $this->getSignalSlotDispatcher()->dispatch(
-            self::class,
-            self::SIGNAL_PostProcessTreeData,
-            [$this, $this->treeData]
-        );
-    }
-
-    /**
-     * Get the SignalSlot dispatcher
-     *
-     * @return Dispatcher
-     */
-    protected function getSignalSlotDispatcher()
-    {
-        if (!isset($this->signalSlotDispatcher)) {
-            $this->signalSlotDispatcher = $this->getObjectManager()->get(Dispatcher::class);
-        }
-        return $this->signalSlotDispatcher;
-    }
-
-    /**
-     * Get the ObjectManager
-     *
-     * @return ObjectManager
-     */
-    protected function getObjectManager()
-    {
-        return GeneralUtility::makeInstance(ObjectManager::class);
+        return $GLOBALS['LANG'] ?? null;
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Beuser\Tests\Unit\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,25 @@ namespace TYPO3\CMS\Beuser\Tests\Unit\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Beuser\Tests\Unit\Domain\Model;
+
+use TYPO3\CMS\Beuser\Domain\Model\BackendUser;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class BackendUserTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Beuser\Domain\Model\BackendUser
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = new \TYPO3\CMS\Beuser\Domain\Model\BackendUser();
+        parent::setUp();
+        $this->subject = new BackendUser();
     }
 
     /**
@@ -34,7 +39,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getUidReturnsInitialValueForInt()
     {
-        $this->assertTrue($this->subject->getUid() === null, 'Not uid set after initialization.');
+        self::assertTrue($this->subject->getUid() === null, 'Not uid set after initialization.');
     }
 
     /**
@@ -42,7 +47,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getUserNameReturnsInitialValueForString()
     {
-        $this->assertTrue($this->subject->getUserName() === '', 'Username not empty');
+        self::assertTrue($this->subject->getUserName() === '', 'Username not empty');
     }
 
     /**
@@ -52,7 +57,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $newUserName = 'DonJuan';
         $this->subject->setUserName($newUserName);
-        $this->assertSame($this->subject->getUserName(), $newUserName);
+        self::assertSame($this->subject->getUserName(), $newUserName);
     }
 
     /**
@@ -60,7 +65,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getRealNameReturnInitialValueForString()
     {
-        $this->assertTrue($this->subject->getRealName() === '', 'Real name not empty');
+        self::assertTrue($this->subject->getRealName() === '', 'Real name not empty');
     }
 
     /**
@@ -70,7 +75,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $realName = 'Conceived at T3CON2018';
         $this->subject->setRealName($realName);
-        $this->assertSame($this->subject->getRealName(), $realName);
+        self::assertSame($this->subject->getRealName(), $realName);
     }
 
     /**
@@ -78,7 +83,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getAdminReturnInitialValueForBoolean()
     {
-        $this->assertTrue($this->subject->getIsAdministrator() === false, 'Admin status is correct.');
+        self::assertTrue($this->subject->getIsAdministrator() === false, 'Admin status is correct.');
     }
 
     /**
@@ -87,7 +92,7 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setAdminToTrueSetsAdmin()
     {
         $this->subject->setIsAdministrator(true);
-        $this->assertTrue($this->subject->getIsAdministrator(), 'Admin status is not true, after setting to true.');
+        self::assertTrue($this->subject->getIsAdministrator(), 'Admin status is not true, after setting to true.');
     }
 
     /**
@@ -96,6 +101,6 @@ class BackendUserTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function setAdminToFalseSetsAdmin()
     {
         $this->subject->setIsAdministrator(false);
-        $this->assertFalse($this->subject->getIsAdministrator(), 'Admin status is not false, after setting to false.');
+        self::assertFalse($this->subject->getIsAdministrator(), 'Admin status is not false, after setting to false.');
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Widget;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,36 +12,37 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Widget;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\ViewHelpers\Widget;
+
+use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
- * A view helper for creating URIs to extbase actions within widgets.
+ * A ViewHelper for creating URIs to Extbase actions within widgets.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="URI to the show-action of the current controller">
- * <f:widget.uri action="show" />
- * </code>
- * <output>
- * index.php?id=123&tx_myextension_plugin[widgetIdentifier][action]=show&tx_myextension_plugin[widgetIdentifier][controller]=Standard&cHash=xyz
- * (depending on the current page, widget and your TS configuration)
- * </output>
+ * URI to the show-action of the current controller::
  *
- * @api
+ *    <f:widget.uri action="show" />
+ *
+ * ``/page/path/name.html?tx_myextension_plugin[widgetIdentifier][action]=show&tx_myextension_plugin[widgetIdentifier][controller]=Standard&cHash=xyz``
+ *
+ * Depending on current page, routing and page path configuration.
  */
-class UriViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper
+class UriViewHelper extends AbstractViewHelper
 {
     use CompileWithRenderStatic;
 
     /**
      * Initialize arguments
-     *
-     * @api
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('addQueryStringMethod', 'string', 'Method to be used for query string');
         $this->registerArgument('action', 'string', 'Target action');
         $this->registerArgument('arguments', 'array', 'Arguments', false, []);
@@ -63,9 +63,8 @@ class UriViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper
 
         if ($ajax === true) {
             return static::getAjaxUri($renderingContext, $arguments);
-        } else {
-            return static::getWidgetUri($renderingContext, $arguments);
         }
+        return static::getWidgetUri($renderingContext, $arguments);
     }
 
     /**
@@ -101,22 +100,29 @@ class UriViewHelper extends \TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper
     protected static function getWidgetUri(RenderingContextInterface $renderingContext, array $arguments)
     {
         $controllerContext = $renderingContext->getControllerContext();
+        /** @var UriBuilder $uriBuilder */
         $uriBuilder = $controllerContext->getUriBuilder();
         $argumentPrefix = $controllerContext->getRequest()->getArgumentPrefix();
         $parameters = $arguments['arguments'] ?? [];
         if ($arguments['action'] ?? false) {
             $parameters['action'] = $arguments['action'];
         }
-        if ($arguments['format'] ?? '' !== '') {
+        if (($arguments['format'] ?? '') !== '') {
             $parameters['format'] = $arguments['format'];
         }
-        return $uriBuilder->reset()
+        $uriBuilder->reset()
             ->setArguments([$argumentPrefix => $parameters])
             ->setSection($arguments['section'])
             ->setAddQueryString(true)
-            ->setAddQueryStringMethod($arguments['addQueryStringMethod'])
             ->setArgumentsToBeExcludedFromQueryString([$argumentPrefix, 'cHash'])
             ->setFormat($arguments['format'])
-            ->build();
+        ;
+
+        $addQueryStringMethod = $arguments['addQueryStringMethod'] ?? null;
+        if (is_string($addQueryStringMethod)) {
+            $uriBuilder->setAddQueryStringMethod($addQueryStringMethod);
+        }
+
+        return $uriBuilder->build();
     }
 }

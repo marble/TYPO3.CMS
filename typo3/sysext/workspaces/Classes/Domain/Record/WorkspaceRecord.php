@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Domain\Record;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,9 @@ namespace TYPO3\CMS\Workspaces\Domain\Record;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Workspaces\Domain\Record;
+
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Workspaces\Service\StagesService;
@@ -28,7 +30,7 @@ class WorkspaceRecord extends AbstractRecord
     protected $internalStages = [
         StagesService::STAGE_EDIT_ID => [
             'name' => 'edit',
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_editing'
+            'label' => 'LLL:EXT:workspaces/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_editing'
         ],
         StagesService::STAGE_PUBLISH_ID => [
             'name' => 'publish',
@@ -36,7 +38,7 @@ class WorkspaceRecord extends AbstractRecord
         ],
         StagesService::STAGE_PUBLISH_EXECUTE_ID => [
             'name' => 'execute',
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_publish'
+            'label' => 'LLL:EXT:workspaces/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_publish'
         ],
     ];
 
@@ -76,6 +78,8 @@ class WorkspaceRecord extends AbstractRecord
         } elseif (empty($record)) {
             $record = static::fetch('sys_workspace', $uid);
         }
+        // [phpstan] Unsafe usage of new static()
+        // todo: Either mark this class or its constructor final or use new self instead.
         return new static($record);
     }
 
@@ -142,7 +146,7 @@ class WorkspaceRecord extends AbstractRecord
 
     /**
      * @param int $stageId
-     * @return NULL|StageRecord
+     * @return StageRecord|null
      */
     public function getStage($stageId)
     {
@@ -156,7 +160,7 @@ class WorkspaceRecord extends AbstractRecord
 
     /**
      * @param int $stageId
-     * @return NULL|StageRecord
+     * @return StageRecord|null
      */
     public function getPreviousStage($stageId)
     {
@@ -175,7 +179,7 @@ class WorkspaceRecord extends AbstractRecord
 
     /**
      * @param int $stageId
-     * @return NULL|StageRecord
+     * @return StageRecord|null
      */
     public function getNextStage($stageId)
     {

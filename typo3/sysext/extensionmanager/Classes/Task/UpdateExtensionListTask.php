@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Task;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,19 @@ namespace TYPO3\CMS\Extensionmanager\Task;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Task;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
+use TYPO3\CMS\Extensionmanager\Utility\Repository\Helper;
+use TYPO3\CMS\Scheduler\Task\AbstractTask;
+
 /**
  * Update extension list from TER task
+ * @internal This class is a specific EXT:scheduler task implementation and is not part of the Public TYPO3 API.
  */
-class UpdateExtensionListTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask
+class UpdateExtensionListTask extends AbstractTask
 {
     /**
      * Public method, called by scheduler.
@@ -27,28 +35,9 @@ class UpdateExtensionListTask extends \TYPO3\CMS\Scheduler\Task\AbstractTask
     public function execute()
     {
         // Throws exceptions if something went wrong
-        $this->updateExtensionList();
-
+        $objectManager = GeneralUtility::makeInstance(ObjectManager::class);
+        $objectManager->get(Helper::class)->updateExtList();
+        $objectManager->get(PersistenceManager::class)->persistAll();
         return true;
-    }
-
-    /**
-     * Update extension list
-     *
-     * @TODO: Adapt to multiple repositories if the Helper can handle this
-     * @throws \TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException
-     */
-    protected function updateExtensionList()
-    {
-        /** @var $objectManager \TYPO3\CMS\Extbase\Object\ObjectManager */
-        $objectManager = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
-
-        /** @var $repositoryHelper \TYPO3\CMS\Extensionmanager\Utility\Repository\Helper */
-        $repositoryHelper = $objectManager->get(\TYPO3\CMS\Extensionmanager\Utility\Repository\Helper::class);
-        $repositoryHelper->updateExtList();
-
-        /** @var $persistenceManager \TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager */
-        $persistenceManager = $objectManager->get(\TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager::class);
-        $persistenceManager->persistAll();
     }
 }

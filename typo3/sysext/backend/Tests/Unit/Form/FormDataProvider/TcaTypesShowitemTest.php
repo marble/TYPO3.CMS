@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,24 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\TcaTypesShowitem;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class TcaTypesShowitemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TcaTypesShowitemTest extends UnitTestCase
 {
     /**
      * @var TcaTypesShowitem
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = new TcaTypesShowitem();
     }
 
@@ -56,7 +59,7 @@ class TcaTypesShowitemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
         $expected['processedTca']['types']['aType'] = [
             'showitem' => 'foo',
         ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -94,7 +97,7 @@ class TcaTypesShowitemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
                 ],
             ],
         ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -142,7 +145,7 @@ class TcaTypesShowitemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
                 ],
             ],
         ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -180,7 +183,7 @@ class TcaTypesShowitemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
                 ],
             ],
         ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -228,7 +231,7 @@ class TcaTypesShowitemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
                 ],
             ],
         ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -267,7 +270,7 @@ class TcaTypesShowitemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
                 ],
             ],
         ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 
     /**
@@ -287,7 +290,7 @@ class TcaTypesShowitemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
                         'bitmask_value_field' => 'theSubtypeValueField',
                         'bitmask_excludelist_bits' => [
                             '-2' => 'removeMe', // Remove if bit 2 is NOT set
-                            '+3' => 'removeMe2', // Remvoe if bit 3 is set
+                            '+3' => 'removeMe2', // Remove if bit 3 is set
                         ],
                     ],
                 ],
@@ -322,6 +325,6 @@ class TcaTypesShowitemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
                 ],
             ],
         ];
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 }

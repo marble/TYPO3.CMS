@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Backend\Form\FieldControl;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,9 +15,12 @@ namespace TYPO3\CMS\Backend\Form\FieldControl;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\FieldControl;
+
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 
 /**
  * Renders the icon "insert record from clipboard",
@@ -30,7 +33,7 @@ class InsertClipboard extends AbstractNode
      *
      * @return array As defined by FieldControl class
      */
-    public function render()
+    public function render(): array
     {
         $languageService = $this->getLanguageService();
 
@@ -47,39 +50,32 @@ class InsertClipboard extends AbstractNode
         }
 
         $title = '';
-        $clipboardOnClick = [];
-        if ($internalType === 'file_reference' || $internalType === 'file') {
-            $title = sprintf($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.clipInsert_file'), count($clipboardElements));
+        $dataAttributes = [
+            'element' => $elementName,
+            'clipboardItems' => [],
+        ];
+        if ($internalType === 'db') {
+            $title = sprintf($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.clipInsert_db'), count($clipboardElements));
             foreach ($clipboardElements as $clipboardElement) {
-                $value = $clipboardElement['value'];
-                $title = 'unescape(' . GeneralUtility::quoteJSvalue(rawurlencode(basename($clipboardElement['title']))) . ')';
-                $clipboardOnClick[] = 'setFormValueFromBrowseWin('
-                        . GeneralUtility::quoteJSvalue($elementName) . ','
-                        . 'unescape(' . GeneralUtility::quoteJSvalue(rawurlencode(str_replace('%20', ' ', $value))) . '),'
-                        . $title . ','
-                        . $title
-                    . ');';
-            }
-        } elseif ($internalType === 'db') {
-            $title = sprintf($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.clipInsert_db'), count($clipboardElements));
-            foreach ($clipboardElements as $clipboardElement) {
-                $value = $clipboardElement['value'];
-                $title = GeneralUtility::quoteJSvalue($clipboardElement['title']);
-                $clipboardOnClick[] = 'setFormValueFromBrowseWin('
-                        . GeneralUtility::quoteJSvalue($elementName) . ','
-                        . 'unescape(' . GeneralUtility::quoteJSvalue(rawurlencode(str_replace('%20', ' ', $value))) . '),'
-                        . $title . ','
-                        . $title
-                    . ');';
+                $dataAttributes['clipboardItems'][] = [
+                    'title' => $clipboardElement['title'],
+                    'value' => $clipboardElement['value'],
+                ];
             }
         }
-        $clipboardOnClick[] = 'return false;';
+
+        $id = StringUtility::getUniqueId('t3js-formengine-fieldcontrol-');
 
         return [
             'iconIdentifier' => 'actions-document-paste-into',
             'title' => $title,
             'linkAttributes' => [
-                'onClick' => implode('', $clipboardOnClick),
+                'id' => htmlspecialchars($id),
+                'data-element' => $dataAttributes['element'],
+                'data-clipboard-items' => json_encode($dataAttributes['clipboardItems']),
+            ],
+            'requireJsModules' => [
+                ['TYPO3/CMS/Backend/FormEngine/FieldControl/InsertClipboard' => 'function(FieldControl) {new FieldControl(' . GeneralUtility::quoteJSvalue('#' . $id) . ');}'],
             ],
         ];
     }
@@ -87,7 +83,7 @@ class InsertClipboard extends AbstractNode
     /**
      * @return LanguageService
      */
-    protected function getLanguageService()
+    protected function getLanguageService(): LanguageService
     {
         return $GLOBALS['LANG'];
     }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Log\Processor;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Log\Processor;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Log\Processor;
 
 use TYPO3\CMS\Core\Log\Exception\InvalidLogProcessorConfigurationException;
 
@@ -34,7 +35,7 @@ abstract class AbstractProcessor implements ProcessorInterface
             if (method_exists($this, $methodName)) {
                 $this->{$methodName}($optionValue);
             } else {
-                throw new InvalidLogProcessorConfigurationException('Invalid LogProcessor configuration option "' . $optionKey . '" for log processor of type "' . get_class($this) . '"', 1321696151);
+                throw new InvalidLogProcessorConfigurationException('Invalid LogProcessor configuration option "' . $optionKey . '" for log processor of type "' . static::class . '"', 1321696151);
             }
         }
     }

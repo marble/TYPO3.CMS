@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Error;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,10 @@ namespace TYPO3\CMS\Core\Error;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Error;
+
 /**
  * An exception which represents a PHP error.
- *
- * This file is a backport from FLOW3
  */
 class Exception extends \TYPO3\CMS\Core\Exception
 {

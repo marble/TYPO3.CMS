@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Container;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Container;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Container;
 
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -66,13 +67,13 @@ class FlexFormContainerContainer extends AbstractContainer
         $moveAndDeleteContent = [];
         $userHasAccessToDefaultLanguage = $this->getBackendUserAuthentication()->checkLanguageAccess(0);
         if ($userHasAccessToDefaultLanguage) {
-            $moveAndDeleteContent[] = '<span class="btn btn-default t3js-sortable-handle"><span title="' . htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:sortable.dragmove')) . '">' . $iconFactory->getIcon('actions-move-move', Icon::SIZE_SMALL)->render() . '</span></span>';
-            $moveAndDeleteContent[] = '<span class="btn btn-default t3js-delete"><span title="' . htmlspecialchars($languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_common.xlf:delete')) . '">' . $iconFactory->getIcon('actions-edit-delete', Icon::SIZE_SMALL)->render() . '</span></span>';
+            $moveAndDeleteContent[] = '<span class="btn btn-default t3js-sortable-handle"><span title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:sortable.dragmove')) . '">' . $iconFactory->getIcon('actions-move-move', Icon::SIZE_SMALL)->render() . '</span></span>';
+            $moveAndDeleteContent[] = '<span class="btn btn-default t3js-delete"><span title="' . htmlspecialchars($languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:delete')) . '">' . $iconFactory->getIcon('actions-edit-delete', Icon::SIZE_SMALL)->render() . '</span></span>';
         }
 
         $options = $this->data;
         // Append container specific stuff to field prefix
-        $options['flexFormFormPrefix'] =  $flexFormFormPrefix . '[' . $flexFormContainerIdentifier . '][' . $this->data['flexFormContainerName'] . '][el]';
+        $options['flexFormFormPrefix'] = $flexFormFormPrefix . '[' . $flexFormContainerIdentifier . '][' . $this->data['flexFormContainerName'] . '][el]';
         $options['flexFormDataStructureArray'] = $flexFormDataStructureArray['el'];
         $options['renderType'] = 'flexFormElementContainer';
         $containerContentResult = $this->nodeFactory->create($options)->render();
@@ -81,6 +82,8 @@ class FlexFormContainerContainer extends AbstractContainer
         if (!empty(trim($flexFormDataStructureArray['title']))) {
             $containerTitle = $languageService->sL(trim($flexFormDataStructureArray['title']));
         }
+
+        $resultArray = $this->initializeResultArray();
 
         $html = [];
         $html[] = '<div class="t3-form-field-container-flexsections t3-flex-section t3js-flex-section">';
@@ -113,7 +116,6 @@ class FlexFormContainerContainer extends AbstractContainer
         $html[] =    '</div>';
         $html[] = '</div>';
 
-        $resultArray = $this->initializeResultArray();
         $resultArray['html'] = implode(LF, $html);
         $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $containerContentResult, false);
 

@@ -1,43 +1,42 @@
 <?php
+
+declare(strict_types=1);
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Extbase\Property\TypeConverter;
 
-/*                                                                        *
- * This script belongs to the Extbase framework                           *
- *                                                                        *
- * It is free software; you can redistribute it and/or modify it under    *
- * the terms of the GNU Lesser General Public License as published by the *
- * Free Software Foundation, either version 3 of the License, or (at your *
- * option) any later version.                                             *
- *                                                                        *
- * This script is distributed in the hope that it will be useful, but     *
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHAN-    *
- * TABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser       *
- * General Public License for more details.                               *
- *                                                                        *
- * You should have received a copy of the GNU Lesser General Public       *
- * License along with the script.                                         *
- * If not, see http://www.gnu.org/licenses/lgpl.html                      *
- *                                                                        *
- * The TYPO3 project - inspiring people to share!                         *
- *                                                                        */
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+use TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface;
+use TYPO3\CMS\Extbase\Utility\TypeHandlingUtility;
 
 /**
  * Converter which transforms simple types to an ObjectStorage.
  *
- * @api
  * @todo Implement functionality for converting collection properties.
  */
 class ObjectStorageConverter extends AbstractTypeConverter
 {
     /**
-     * @var array<string>
+     * @var string[]
      */
     protected $sourceTypes = ['string', 'array'];
 
     /**
      * @var string
      */
-    protected $targetType = \TYPO3\CMS\Extbase\Persistence\ObjectStorage::class;
+    protected $targetType = ObjectStorage::class;
 
     /**
      * @var int
@@ -53,11 +52,10 @@ class ObjectStorageConverter extends AbstractTypeConverter
      * @param array $convertedChildProperties
      * @param \TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface $configuration
      * @return \TYPO3\CMS\Extbase\Persistence\ObjectStorage
-     * @api
      */
-    public function convertFrom($source, $targetType, array $convertedChildProperties = [], \TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface $configuration = null)
+    public function convertFrom($source, string $targetType, array $convertedChildProperties = [], PropertyMappingConfigurationInterface $configuration = null): ObjectStorage
     {
-        $objectStorage = new \TYPO3\CMS\Extbase\Persistence\ObjectStorage();
+        $objectStorage = new ObjectStorage();
         foreach ($convertedChildProperties as $subProperty) {
             $objectStorage->attach($subProperty);
         }
@@ -69,9 +67,8 @@ class ObjectStorageConverter extends AbstractTypeConverter
      *
      * @param mixed $source
      * @return array
-     * @api
      */
-    public function getSourceChildPropertiesToBeConverted($source)
+    public function getSourceChildPropertiesToBeConverted($source): array
     {
         if (is_array($source)) {
             return $source;
@@ -86,11 +83,10 @@ class ObjectStorageConverter extends AbstractTypeConverter
      * @param string $propertyName
      * @param \TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface $configuration
      * @return string
-     * @api
      */
-    public function getTypeOfChildProperty($targetType, $propertyName, \TYPO3\CMS\Extbase\Property\PropertyMappingConfigurationInterface $configuration)
+    public function getTypeOfChildProperty($targetType, string $propertyName, PropertyMappingConfigurationInterface $configuration): string
     {
-        $parsedTargetType = \TYPO3\CMS\Extbase\Utility\TypeHandlingUtility::parseType($targetType);
+        $parsedTargetType = TypeHandlingUtility::parseType($targetType);
         return $parsedTargetType['elementType'];
     }
 }

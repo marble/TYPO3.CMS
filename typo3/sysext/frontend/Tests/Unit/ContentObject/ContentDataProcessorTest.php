@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,32 +14,37 @@ namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\Tests\Unit\ContentObject;
+
 use TYPO3\CMS\Frontend\ContentObject\ContentDataProcessor;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\Tests\Unit\ContentObject\Fixtures\DataProcessorFixture;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for TYPO3\CMS\Frontend\ContentObject\ContentDataProcessor
  */
-class ContentDataProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ContentDataProcessorTest extends UnitTestCase
 {
     /**
      * @var ContentDataProcessor
      */
-    protected $contentDataProcessor = null;
+    protected $contentDataProcessor;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->contentDataProcessor = new ContentDataProcessor();
     }
 
     /**
      * @test
      */
-    public function throwsExceptionIfProcessorClassDoesNotExist()
+    public function throwsExceptionIfProcessorClassDoesNotExist(): void
     {
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1427455378);
@@ -55,14 +61,14 @@ class ContentDataProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function throwsExceptionIfProcessorClassDoesNotImplementInterface()
+    public function throwsExceptionIfProcessorClassDoesNotImplementInterface(): void
     {
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1427455377);
         $contentObjectRendererStub = new ContentObjectRenderer();
         $config = [
             'dataProcessing.' => [
-                '10' => get_class($this)
+                '10' => static::class
             ]
         ];
         $variables = [];
@@ -72,7 +78,7 @@ class ContentDataProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function processorIsCalled()
+    public function processorIsCalled(): void
     {
         $contentObjectRendererStub = new ContentObjectRenderer();
         $config = [
@@ -82,6 +88,9 @@ class ContentDataProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             ]
         ];
         $variables = [];
-        $this->assertSame(['foo' => 'bar'], $this->contentDataProcessor->process($contentObjectRendererStub, $config, $variables));
+        self::assertSame(
+            ['foo' => 'bar'],
+            $this->contentDataProcessor->process($contentObjectRendererStub, $config, $variables)
+        );
     }
 }

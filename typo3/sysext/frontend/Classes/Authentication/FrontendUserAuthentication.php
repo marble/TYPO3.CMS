@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Authentication;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,12 @@ namespace TYPO3\CMS\Frontend\Authentication;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Authentication;
+
 use TYPO3\CMS\Core\Authentication\AbstractUserAuthentication;
+use TYPO3\CMS\Core\Authentication\AuthenticationService;
+use TYPO3\CMS\Core\Configuration\Features;
+use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Session\Backend\Exception\SessionNotFoundException;
 use TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -25,6 +29,30 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class FrontendUserAuthentication extends AbstractUserAuthentication
 {
     /**
+     * Login type, used for services.
+     * @var string
+     */
+    public $loginType = 'FE';
+
+    /**
+     * Form field with login-name
+     * @var string
+     */
+    public $formfield_uname = 'user';
+
+    /**
+     * Form field with password
+     * @var string
+     */
+    public $formfield_uident = 'pass';
+
+    /**
+     * Form field with status: *'login', 'logout'. If empty login is not verified.
+     * @var string
+     */
+    public $formfield_status = 'logintype';
+
+    /**
      * form field with 0 or 1
      * 1 = permanent login enabled
      * 0 = session is valid for a browser session only
@@ -33,7 +61,7 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
     public $formfield_permanent = 'permalogin';
 
     /**
-     * Lifetime of session data in seconds.
+     * Lifetime of anonymous session data in seconds.
      * @var int
      */
     protected $sessionDataLifetime = 86400;
@@ -49,6 +77,36 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
     public $sessionTimeout = 6000;
 
     /**
+     * Table in database with user data
+     * @var string
+     */
+    public $user_table = 'fe_users';
+
+    /**
+     * Column for login-name
+     * @var string
+     */
+    public $username_column = 'username';
+
+    /**
+     * Column for password
+     * @var string
+     */
+    public $userident_column = 'password';
+
+    /**
+     * Column for user-id
+     * @var string
+     */
+    public $userid_column = 'uid';
+
+    /**
+     * Column name for last login timestamp
+     * @var string
+     */
+    public $lastLogin_column = 'lastlogin';
+
+    /**
      * @var string
      */
     public $usergroup_column = 'usergroup';
@@ -57,6 +115,17 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
      * @var string
      */
     public $usergroup_table = 'fe_groups';
+
+    /**
+     * Enable field columns of user table
+     * @var array
+     */
+    public $enablecolumns = [
+        'deleted' => 'deleted',
+        'disabled' => 'disable',
+        'starttime' => 'starttime',
+        'endtime' => 'endtime'
+    ];
 
     /**
      * @var array
@@ -104,39 +173,34 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
     protected $loginHidden = false;
 
     /**
-     * Default constructor.
+     * Will prevent the setting of the session cookie (takes precedence over forceSetCookie)
+     * Disable cookie by default, will be activated if saveSessionData() is called,
+     * a user is logging-in or an existing session is found
+     * @var bool
      */
+    public $dontSetCookie = true;
+
+    /**
+     * Send no-cache headers (disabled by default, if no fixed session is there)
+     * @var bool
+     */
+    public $sendNoCacheHeaders = false;
+
     public function __construct()
     {
-        parent::__construct();
-
-        // Disable cookie by default, will be activated if saveSessionData() is called,
-        // a user is logging-in or an existing session is found
-        $this->dontSetCookie = true;
-
         $this->name = self::getCookieName();
-        $this->get_name = 'ftu';
-        $this->loginType = 'FE';
-        $this->user_table = 'fe_users';
-        $this->username_column = 'username';
-        $this->userident_column = 'password';
-        $this->userid_column = 'uid';
-        $this->lastLogin_column = 'lastlogin';
-        $this->enablecolumns = [
-            'deleted' => 'deleted',
-            'disabled' => 'disable',
-            'starttime' => 'starttime',
-            'endtime' => 'endtime'
-        ];
-        $this->formfield_uname = 'user';
-        $this->formfield_uident = 'pass';
-        $this->formfield_status = 'logintype';
-        $this->sendNoCacheHeaders = false;
-        $this->getFallBack = true;
-        $this->getMethodEnabled = true;
-        $this->lockIP = $GLOBALS['TYPO3_CONF_VARS']['FE']['lockIP'];
         $this->checkPid = $GLOBALS['TYPO3_CONF_VARS']['FE']['checkFeUserPid'];
         $this->lifetime = (int)$GLOBALS['TYPO3_CONF_VARS']['FE']['lifetime'];
+        $this->sessionTimeout = (int)$GLOBALS['TYPO3_CONF_VARS']['FE']['sessionTimeout'];
+        if ($this->sessionTimeout > 0 && $this->sessionTimeout < $this->lifetime) {
+            // If server session timeout is non-zero but less than client session timeout: Copy this value instead.
+            $this->sessionTimeout = $this->lifetime;
+        }
+        $this->sessionDataLifetime = (int)$GLOBALS['TYPO3_CONF_VARS']['FE']['sessionDataLifetime'];
+        if ($this->sessionDataLifetime <= 0) {
+            $this->sessionDataLifetime = 86400;
+        }
+        parent::__construct();
     }
 
     /**
@@ -151,24 +215,6 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
             $configuredCookieName = 'fe_typo_user';
         }
         return $configuredCookieName;
-    }
-
-    /**
-     * Starts a user session
-     *
-     * @see AbstractUserAuthentication::start()
-     */
-    public function start()
-    {
-        if ((int)$this->sessionTimeout > 0 && $this->sessionTimeout < $this->lifetime) {
-            // If server session timeout is non-zero but less than client session timeout: Copy this value instead.
-            $this->sessionTimeout = $this->lifetime;
-        }
-        $this->sessionDataLifetime = (int)$GLOBALS['TYPO3_CONF_VARS']['FE']['sessionDataLifetime'];
-        if ($this->sessionDataLifetime <= 0) {
-            $this->sessionDataLifetime = 86400;
-        }
-        parent::start();
     }
 
     /**
@@ -217,11 +263,7 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
     {
         $loginData = parent::getLoginFormData();
         if ($GLOBALS['TYPO3_CONF_VARS']['FE']['permalogin'] == 0 || $GLOBALS['TYPO3_CONF_VARS']['FE']['permalogin'] == 1) {
-            if ($this->getMethodEnabled) {
-                $isPermanent = GeneralUtility::_GP($this->formfield_permanent);
-            } else {
-                $isPermanent = GeneralUtility::_POST($this->formfield_permanent);
-            }
+            $isPermanent = GeneralUtility::_POST($this->formfield_permanent);
             if (strlen($isPermanent) != 1) {
                 $isPermanent = $GLOBALS['TYPO3_CONF_VARS']['FE']['permalogin'];
             } elseif (!$isPermanent) {
@@ -278,55 +320,47 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
         $this->TSdataArray[] = $GLOBALS['TYPO3_CONF_VARS']['FE']['defaultUserTSconfig'];
         // Get the info data for auth services
         $authInfo = $this->getAuthInfoArray();
-        if ($this->writeDevLog) {
-            if (is_array($this->user)) {
-                GeneralUtility::devLog('Get usergroups for user: ' . GeneralUtility::arrayToLogString($this->user, [$this->userid_column, $this->username_column]), __CLASS__);
-            } else {
-                GeneralUtility::devLog('Get usergroups for "anonymous" user', __CLASS__);
-            }
+        if (is_array($this->user)) {
+            $this->logger->debug('Get usergroups for user', [
+                $this->userid_column => $this->user[$this->userid_column],
+                $this->username_column => $this->user[$this->username_column]
+            ]);
+        } else {
+            $this->logger->debug('Get usergroups for "anonymous" user');
         }
         $groupDataArr = [];
         // Use 'auth' service to find the groups for the user
-        $serviceChain = '';
         $subType = 'getGroups' . $this->loginType;
-        while (is_object($serviceObj = GeneralUtility::makeInstanceService('auth', $subType, $serviceChain))) {
-            $serviceChain .= ',' . $serviceObj->getServiceKey();
-            $serviceObj->initAuth($subType, [], $authInfo, $this);
+        /** @var AuthenticationService $serviceObj */
+        foreach ($this->getAuthServices($subType, [], $authInfo) as $serviceObj) {
             $groupData = $serviceObj->getGroups($this->user, $groupDataArr);
             if (is_array($groupData) && !empty($groupData)) {
                 // Keys in $groupData should be unique ids of the groups (like "uid") so this function will override groups.
                 $groupDataArr = $groupData + $groupDataArr;
             }
-            unset($serviceObj);
         }
-        if ($this->writeDevLog && $serviceChain) {
-            GeneralUtility::devLog($subType . ' auth services called: ' . $serviceChain, __CLASS__);
+        if (empty($groupDataArr)) {
+            $this->logger->debug('No usergroups found by services');
         }
-        if ($this->writeDevLog && empty($groupDataArr)) {
-            GeneralUtility::devLog('No usergroups found by services', __CLASS__);
-        }
-        if ($this->writeDevLog && !empty($groupDataArr)) {
-            GeneralUtility::devLog(count($groupDataArr) . ' usergroup records found by services', __CLASS__);
+        if (!empty($groupDataArr)) {
+            $this->logger->debug(count($groupDataArr) . ' usergroup records found by services');
         }
         // Use 'auth' service to check the usergroups if they are really valid
         foreach ($groupDataArr as $groupData) {
             // By default a group is valid
             $validGroup = true;
-            $serviceChain = '';
             $subType = 'authGroups' . $this->loginType;
-            while (is_object($serviceObj = GeneralUtility::makeInstanceService('auth', $subType, $serviceChain))) {
-                $serviceChain .= ',' . $serviceObj->getServiceKey();
-                $serviceObj->initAuth($subType, [], $authInfo, $this);
+            foreach ($this->getAuthServices($subType, [], $authInfo) as $serviceObj) {
+                // we assume that the service defines the authGroup function
                 if (!$serviceObj->authGroup($this->user, $groupData)) {
                     $validGroup = false;
-                    if ($this->writeDevLog) {
-                        GeneralUtility::devLog($subType . ' auth service did not auth group: ' . GeneralUtility::arrayToLogString($groupData, 'uid,title'), __CLASS__, 2);
-                    }
+                    $this->logger->debug($subType . ' auth service did not auth group', [
+                        'uid ' => $groupData['uid'],
+                        'title' => $groupData['title'],
+                    ]);
                     break;
                 }
-                unset($serviceObj);
             }
-            unset($serviceObj);
             if ($validGroup && (string)$groupData['uid'] !== '') {
                 $this->groupData['title'][$groupData['uid']] = $groupData['title'];
                 $this->groupData['uid'][$groupData['uid']] = $groupData['uid'];
@@ -378,7 +412,8 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
      * If the flag $this->userData_change has been set, the function ->writeUC is called (which will save persistent user session data)
      * If the flag $this->sesData_change has been set, the current session record is updated with the content of $this->sessionData
      *
-     * @see getKey(), setKey()
+     * @see getKey()
+     * @see setKey()
      */
     public function storeSessionData()
     {
@@ -441,7 +476,8 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
      * Thereby the current user (if any) is effectively logged out!
      * Additionally the cookie is removed, but only if there is no session data.
      * If session data exists, only the user information is removed and the session
-     * gets converted into an anonymous session.
+     * gets converted into an anonymous session if the feature toggle
+     * "security.frontend.keepSessionDataOnLogout" is set to true (default: false).
      */
     protected function performLogoff()
     {
@@ -455,12 +491,15 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
             // Leave uncaught, will unset cookie later in this method
         }
 
-        if (!empty($sessionData)) {
+        $keepSessionDataOnLogout = GeneralUtility::makeInstance(Features::class)
+            ->isFeatureEnabled('security.frontend.keepSessionDataOnLogout');
+
+        if ($keepSessionDataOnLogout && !empty($sessionData)) {
             // Regenerate session as anonymous
             $this->regenerateSessionId($oldSession, true);
-        } else {
             $this->user = null;
-            $this->getSessionBackend()->remove($this->id);
+        } else {
+            parent::performLogoff();
             if ($this->isCookieSet()) {
                 $this->removeCookie($this->name);
             }
@@ -524,7 +563,8 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
      * @param string $type Session data type; Either "user" (persistent, bound to fe_users profile) or "ses" (temporary, bound to current session cookie)
      * @param string $key Key from the data array to store incoming data in; The session data (in either case) is an array ($this->uc / $this->sessionData) and this value determines in which key the $data value will be stored.
      * @param mixed $data The data value to store in $key
-     * @see setKey(), storeSessionData()
+     * @see setKey()
+     * @see storeSessionData()
      */
     public function setKey($type, $key, $data)
     {
@@ -597,5 +637,25 @@ class FrontendUserAuthentication extends AbstractUserAuthentication
     {
         $this->user = null;
         $this->loginHidden = true;
+    }
+
+    /**
+     * Update the field "is_online" every 60 seconds of a logged-in user
+     *
+     * @internal
+     */
+    public function updateOnlineTimestamp()
+    {
+        if (!is_array($this->user) || !$this->user['uid']
+            || $this->user['is_online'] >= $GLOBALS['EXEC_TIME'] - 60) {
+            return;
+        }
+        $dbConnection = GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionForTable($this->user_table);
+        $dbConnection->update(
+            $this->user_table,
+            ['is_online' => $GLOBALS['EXEC_TIME']],
+            ['uid' => (int)$this->user['uid']]
+        );
+        $this->user['is_online'] = $GLOBALS['EXEC_TIME'];
     }
 }

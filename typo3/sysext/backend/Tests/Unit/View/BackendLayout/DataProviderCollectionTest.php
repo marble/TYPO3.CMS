@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\View\BackendLayout;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,18 @@ namespace TYPO3\CMS\Backend\Tests\Unit\View\BackendLayout;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\View\BackendLayout;
+
+use TYPO3\CMS\Backend\View\BackendLayout\BackendLayout;
+use TYPO3\CMS\Backend\View\BackendLayout\DataProviderCollection;
+use TYPO3\CMS\Backend\View\BackendLayout\DefaultDataProvider;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Testing collection of backend layout data providers.
  */
-class DataProviderCollectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DataProviderCollectionTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Backend\View\BackendLayout\DataProviderCollection
@@ -27,9 +34,10 @@ class DataProviderCollectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     /**
      * Sets up this test case.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->dataProviderCollection = new \TYPO3\CMS\Backend\View\BackendLayout\DataProviderCollection();
+        parent::setUp();
+        $this->dataProviderCollection = new DataProviderCollection();
     }
 
     /**
@@ -39,7 +47,7 @@ class DataProviderCollectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     {
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionCode(1381597629);
-        $identifier = $this->getUniqueId('identifier__');
+        $identifier = StringUtility::getUniqueId('identifier__');
         $dataProviderMock = $this->getMockBuilder('stdClass')->getMock();
 
         $this->dataProviderCollection->add($identifier, get_class($dataProviderMock));
@@ -52,7 +60,7 @@ class DataProviderCollectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     {
         $this->expectException(\LogicException::class);
         $this->expectExceptionCode(1381269811);
-        $identifier = $this->getUniqueId('identifier');
+        $identifier = StringUtility::getUniqueId('identifier');
         $dataProviderMock = $this->getMockBuilder('stdClass')->getMock();
 
         $this->dataProviderCollection->add($identifier, get_class($dataProviderMock));
@@ -63,24 +71,24 @@ class DataProviderCollectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
      */
     public function defaultBackendLayoutIsFound()
     {
-        $backendLayoutIdentifier = $this->getUniqueId('identifier');
+        $backendLayoutIdentifier = StringUtility::getUniqueId('identifier');
 
-        $dataProviderMock = $this->getMockBuilder(\TYPO3\CMS\Backend\View\BackendLayout\DefaultDataProvider::class)
+        $dataProviderMock = $this->getMockBuilder(DefaultDataProvider::class)
             ->setMethods(['getBackendLayout'])
             ->disableOriginalConstructor()
             ->getMock();
-        $backendLayoutMock = $this->getMockBuilder(\TYPO3\CMS\Backend\View\BackendLayout\BackendLayout::class)
+        $backendLayoutMock = $this->getMockBuilder(BackendLayout::class)
             ->setMethods(['getIdentifier'])
             ->disableOriginalConstructor()
             ->getMock();
-        $backendLayoutMock->expects($this->any())->method('getIdentifier')->will($this->returnValue($backendLayoutIdentifier));
-        $dataProviderMock->expects($this->once())->method('getBackendLayout')->will($this->returnValue($backendLayoutMock));
+        $backendLayoutMock->expects(self::any())->method('getIdentifier')->willReturn($backendLayoutIdentifier);
+        $dataProviderMock->expects(self::once())->method('getBackendLayout')->willReturn($backendLayoutMock);
 
         $this->dataProviderCollection->add('default', $dataProviderMock);
         $providedBackendLayout = $this->dataProviderCollection->getBackendLayout($backendLayoutIdentifier, 123);
 
-        $this->assertNotNull($providedBackendLayout);
-        $this->assertEquals($backendLayoutIdentifier, $providedBackendLayout->getIdentifier());
+        self::assertNotNull($providedBackendLayout);
+        self::assertEquals($backendLayoutIdentifier, $providedBackendLayout->getIdentifier());
     }
 
     /**
@@ -88,24 +96,24 @@ class DataProviderCollectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
      */
     public function providedBackendLayoutIsFound()
     {
-        $dataProviderIdentifier = $this->getUniqueId('custom');
-        $backendLayoutIdentifier = $this->getUniqueId('identifier');
+        $dataProviderIdentifier = StringUtility::getUniqueId('custom');
+        $backendLayoutIdentifier = StringUtility::getUniqueId('identifier');
 
-        $dataProviderMock = $this->getMockBuilder(\TYPO3\CMS\Backend\View\BackendLayout\DefaultDataProvider::class)
+        $dataProviderMock = $this->getMockBuilder(DefaultDataProvider::class)
             ->setMethods(['getBackendLayout'])
             ->disableOriginalConstructor()
             ->getMock();
-        $backendLayoutMock = $this->getMockBuilder(\TYPO3\CMS\Backend\View\BackendLayout\BackendLayout::class)
+        $backendLayoutMock = $this->getMockBuilder(BackendLayout::class)
             ->setMethods(['getIdentifier'])
             ->disableOriginalConstructor()
             ->getMock();
-        $backendLayoutMock->expects($this->any())->method('getIdentifier')->will($this->returnValue($backendLayoutIdentifier));
-        $dataProviderMock->expects($this->once())->method('getBackendLayout')->will($this->returnValue($backendLayoutMock));
+        $backendLayoutMock->expects(self::any())->method('getIdentifier')->willReturn($backendLayoutIdentifier);
+        $dataProviderMock->expects(self::once())->method('getBackendLayout')->willReturn($backendLayoutMock);
 
         $this->dataProviderCollection->add($dataProviderIdentifier, $dataProviderMock);
         $providedBackendLayout = $this->dataProviderCollection->getBackendLayout($dataProviderIdentifier . '__' . $backendLayoutIdentifier, 123);
 
-        $this->assertNotNull($providedBackendLayout);
-        $this->assertEquals($backendLayoutIdentifier, $providedBackendLayout->getIdentifier());
+        self::assertNotNull($providedBackendLayout);
+        self::assertEquals($backendLayoutIdentifier, $providedBackendLayout->getIdentifier());
     }
 }

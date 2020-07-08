@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Workspaces\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,14 @@ namespace TYPO3\CMS\Workspaces\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Workspaces\Service;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Workspaces\Domain\Record\StageRecord;
@@ -25,7 +29,7 @@ use TYPO3\CMS\Workspaces\Domain\Record\WorkspaceRecord;
 /**
  * Stages service
  */
-class StagesService implements \TYPO3\CMS\Core\SingletonInterface
+class StagesService implements SingletonInterface
 {
     const TABLE_STAGE = 'sys_workspace_stage';
     // if a record is in the "ready to publish" stage STAGE_PUBLISH_ID the nextStage is STAGE_PUBLISH_EXECUTE_ID, this id wont be saved at any time in db
@@ -33,9 +37,6 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
     // ready to publish stage
     const STAGE_PUBLISH_ID = -10;
     const STAGE_EDIT_ID = 0;
-    const MODE_NOTIFY_SOMEONE = 0;
-    const MODE_NOTIFY_ALL = 1;
-    const MODE_NOTIFY_ALL_STRICT = 2;
 
     /**
      * Path to the locallang file
@@ -90,7 +91,7 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
      */
     public function getPreviousStageForElementCollection(
         $workspaceItems,
-        array $byTableName = ['tt_content', 'pages', 'pages_language_overlay']
+        array $byTableName = ['tt_content', 'pages']
     ) {
         $currentStage = [];
         $previousStage = [];
@@ -138,7 +139,7 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
      */
     public function getNextStageForElementCollection(
         $workspaceItems,
-        array $byTableName = ['tt_content', 'pages', 'pages_language_overlay']
+        array $byTableName = ['tt_content', 'pages']
     ) {
         $currentStage = [];
         $usedStages = [];
@@ -202,11 +203,11 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
      */
     public function getStagesForWSUser()
     {
-        if ($GLOBALS['BE_USER']->isAdmin()) {
+        if ($this->getBackendUser()->isAdmin()) {
             return $this->getStagesForWS();
         }
 
-        /** @var $allowedStages StageRecord[] */
+        /** @var StageRecord[] $allowedStages */
         $allowedStages = [];
         $stageRecords = $this->getWorkspaceRecord()->getStages();
 
@@ -236,7 +237,7 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Prepares simplified stages array to be used in ExtJs components.
+     * Prepares simplified stages array
      *
      * @param StageRecord[] $stageRecords
      * @return array
@@ -250,9 +251,9 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
                 'label' => $stageRecord->getTitle(),
             ];
             if (!$stageRecord->isExecuteStage()) {
-                $stage['title'] = $GLOBALS['LANG']->sL(($this->pathToLocallang . ':actionSendToStage')) . ' "' . $stageRecord->getTitle() . '"';
+                $stage['title'] = $this->getLanguageService()->sL($this->pathToLocallang . ':actionSendToStage') . ' "' . $stageRecord->getTitle() . '"';
             } else {
-                $stage['title'] = $GLOBALS['LANG']->sL($this->pathToLocallang . ':publish_execute_action_option');
+                $stage['title'] = $this->getLanguageService()->sL($this->pathToLocallang . ':publish_execute_action_option');
             }
             $stagesArray[] = $stage;
         }
@@ -269,18 +270,18 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
     {
         switch ($ver_stage) {
             case self::STAGE_PUBLISH_EXECUTE_ID:
-                $stageTitle = $GLOBALS['LANG']->sL('LLL:EXT:lang/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_publish');
+                $stageTitle = $this->getLanguageService()->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_publish');
                 break;
             case self::STAGE_PUBLISH_ID:
-                $stageTitle = $GLOBALS['LANG']->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang_mod.xlf:stage_ready_to_publish');
+                $stageTitle = $this->getLanguageService()->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang_mod.xlf:stage_ready_to_publish');
                 break;
             case self::STAGE_EDIT_ID:
-                $stageTitle = $GLOBALS['LANG']->sL('LLL:EXT:lang/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_editing');
+                $stageTitle = $this->getLanguageService()->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_editing');
                 break;
             default:
                 $stageTitle = $this->getPropertyOfCurrentWorkspaceStage($ver_stage, 'title');
                 if ($stageTitle == null) {
-                    $stageTitle = $GLOBALS['LANG']->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:error.getStageTitle.stageNotFound');
+                    $stageTitle = $this->getLanguageService()->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:error.getStageTitle.stageNotFound');
                 }
         }
         return $stageTitle;
@@ -301,14 +302,14 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
      * Gets next stage in process for given stage id
      *
      * @param int $stageId Id of the stage to fetch the next one for
-     * @return int The next stage Id
+     * @return array The next stage (id + details)
      * @throws \InvalidArgumentException
      */
     public function getNextStage($stageId)
     {
         if (!MathUtility::canBeInterpretedAsInteger($stageId)) {
             throw new \InvalidArgumentException(
-                $GLOBALS['LANG']->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:error.stageId.integer'),
+                $this->getLanguageService()->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:error.stageId.integer'),
                 1291109987
             );
         }
@@ -316,7 +317,7 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
         $workspaceStageRecs = $this->getStagesForWS();
         if (is_array($workspaceStageRecs) && !empty($workspaceStageRecs)) {
             reset($workspaceStageRecs);
-            while (!is_null(($workspaceStageRecKey = key($workspaceStageRecs)))) {
+            while (key($workspaceStageRecs) !== null) {
                 $workspaceStageRec = current($workspaceStageRecs);
                 if ($workspaceStageRec['uid'] == $stageId) {
                     $nextStage = next($workspaceStageRecs);
@@ -328,8 +329,8 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
         if ($nextStage === false) {
             $nextStage[] = [
                 'uid' => self::STAGE_EDIT_ID,
-                'title' => $GLOBALS['LANG']->sL(($this->pathToLocallang . ':actionSendToStage')) . ' "'
-                    . $GLOBALS['LANG']->sL('LLL:EXT:lang/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_editing') . '"'
+                'title' => $this->getLanguageService()->sL($this->pathToLocallang . ':actionSendToStage') . ' "'
+                    . $this->getLanguageService()->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang_mod_user_ws.xlf:stage_editing') . '"'
             ];
         }
         return $nextStage;
@@ -347,38 +348,35 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
         // Current stage is "Ready to publish" - there is no next stage
         if ($stageId == self::STAGE_PUBLISH_ID) {
             return $nextStageArray;
-        } else {
-            $nextStageRecord = $this->getNextStage($stageId);
-            if (empty($nextStageRecord) || !is_array($nextStageRecord)) {
-                // There is no next stage
-                return $nextStageArray;
-            } else {
-                // Check if the user has the permission to for the current stage
-                // If this next stage record is the first next stage after the current the user
-                // has always the needed permission
-                if ($this->isStageAllowedForUser($stageId)) {
-                    $nextStageArray[] = $nextStageRecord;
-                    return $this->getNextStages($nextStageArray, $nextStageRecord['uid']);
-                } else {
-                    // He hasn't - return given next stage array
-                    return $nextStageArray;
-                }
-            }
         }
+        $nextStageRecord = $this->getNextStage($stageId);
+        if (empty($nextStageRecord) || !is_array($nextStageRecord)) {
+            // There is no next stage
+            return $nextStageArray;
+        }
+        // Check if the user has the permission to for the current stage
+        // If this next stage record is the first next stage after the current the user
+        // has always the needed permission
+        if ($this->isStageAllowedForUser($stageId)) {
+            $nextStageArray[] = $nextStageRecord;
+            return $this->getNextStages($nextStageArray, $nextStageRecord['uid']);
+        }
+        // He hasn't - return given next stage array
+        return $nextStageArray;
     }
 
     /**
      * Get next stage in process for given stage id
      *
      * @param int $stageId Id of the stage to fetch the previous one for
-     * @return int The previous stage Id
+     * @return bool|array The previous stage or false
      * @throws \InvalidArgumentException
      */
     public function getPrevStage($stageId)
     {
         if (!MathUtility::canBeInterpretedAsInteger($stageId)) {
             throw new \InvalidArgumentException(
-                $GLOBALS['LANG']->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:error.stageId.integer'),
+                $this->getLanguageService()->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:error.stageId.integer'),
                 1476048351
             );
         }
@@ -386,7 +384,7 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
         $workspaceStageRecs = $this->getStagesForWS();
         if (is_array($workspaceStageRecs) && !empty($workspaceStageRecs)) {
             end($workspaceStageRecs);
-            while (!is_null(($workspaceStageRecKey = key($workspaceStageRecs)))) {
+            while (key($workspaceStageRecs) !== null) {
                 $workspaceStageRec = current($workspaceStageRecs);
                 if ($workspaceStageRec['uid'] == $stageId) {
                     $prevStage = prev($workspaceStageRecs);
@@ -394,8 +392,8 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
                 }
                 prev($workspaceStageRecs);
             }
-        } else {
         }
+
         return $prevStage;
     }
 
@@ -543,9 +541,8 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
                 $stageRecord->getPreselectedRecipients(),
                 $this->getRecordService()->getCreateUserIds()
             );
-        } else {
-            return $stageRecord->getPreselectedRecipients();
         }
+        return $stageRecord->getPreselectedRecipients();
     }
 
     /**
@@ -557,24 +554,22 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * @param $grList
+     * @param string $grList
      * @param string $idList
      * @return array
      */
     private function fetchGroups($grList, $idList = '')
     {
         $cacheKey = md5($grList . $idList);
-        $groupList = [];
         if (isset($this->fetchGroupsCache[$cacheKey])) {
-            $groupList = $this->fetchGroupsCache[$cacheKey];
-        } else {
-            if ($idList === '') {
-                // we're at the beginning of the recursion and therefore we need to reset the userGroups member
-                $this->userGroups = [];
-            }
-            $groupList = $this->fetchGroupsRecursive($grList);
-            $this->fetchGroupsCache[$cacheKey] = $groupList;
+            return $this->fetchGroupsCache[$cacheKey];
         }
+        if ($idList === '') {
+            // we're at the beginning of the recursion and therefore we need to reset the userGroups member
+            $this->userGroups = [];
+        }
+        $groupList = $this->fetchGroupsRecursive($grList);
+        $this->fetchGroupsCache[$cacheKey] = $groupList;
         return $groupList;
     }
 
@@ -605,7 +600,7 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Fetches particular groups recursively.
      *
-     * @param $grList
+     * @param string $grList
      * @param string $idList
      * @return array
      */
@@ -630,11 +625,11 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
                     if (trim($row['subgroup'])) {
                         // Make integer list
                         $theList = implode(',', GeneralUtility::intExplode(',', $row['subgroup']));
-                        // Get the subarray
-                        $subbarray = $this->fetchGroups($theList, $idList . ',' . $uid);
-                        list($subUid, $subArray) = each($subbarray);
-                        // Merge the subarray to the already existing userGroups array
-                        $this->userGroups[$subUid] = $subArray;
+                        // Get the subgroups
+                        $subGroups = $this->fetchGroups($theList, $idList . ',' . $uid);
+                        // Merge the subgroups to the already existing userGroups array
+                        $subUid = key($subGroups);
+                        $this->userGroups[$subUid] = $subGroups[$subUid];
                     }
                 }
             }
@@ -655,7 +650,7 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
         $result = null;
         if (!MathUtility::canBeInterpretedAsInteger($stageId)) {
             throw new \InvalidArgumentException(
-                $GLOBALS['LANG']->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:error.stageId.integer'),
+                $this->getLanguageService()->sL('LLL:EXT:workspaces/Resources/Private/Language/locallang.xlf:error.stageId.integer'),
                 1476048371
             );
         }
@@ -741,19 +736,17 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * @param $stageId
+     * @param int $stageId
      * @return bool
      */
     protected function isStageAllowedForUser($stageId)
     {
         $cacheKey = $this->getWorkspaceId() . '_' . $stageId;
-        $isAllowed = false;
         if (isset($this->workspaceStageAllowedCache[$cacheKey])) {
-            $isAllowed = $this->workspaceStageAllowedCache[$cacheKey];
-        } else {
-            $isAllowed = $GLOBALS['BE_USER']->workspaceCheckStageForCurrent($stageId);
-            $this->workspaceStageAllowedCache[$cacheKey] = $isAllowed;
+            return $this->workspaceStageAllowedCache[$cacheKey];
         }
+        $isAllowed = $this->getBackendUser()->workspaceCheckStageForCurrent($stageId);
+        $this->workspaceStageAllowedCache[$cacheKey] = $isAllowed;
         return $isAllowed;
     }
 
@@ -788,10 +781,18 @@ class StagesService implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * @return \TYPO3\CMS\Core\Authentication\BackendUserAuthentication
+     * @return BackendUserAuthentication
      */
     protected function getBackendUser()
     {
         return $GLOBALS['BE_USER'];
+    }
+
+    /**
+     * @return LanguageService|null
+     */
+    protected function getLanguageService(): ?LanguageService
+    {
+        return $GLOBALS['LANG'] ?? null;
     }
 }

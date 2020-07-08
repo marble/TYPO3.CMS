@@ -10,35 +10,4 @@
  *
  * The TYPO3 project - inspiring people to share!
  */
-
-/**
- * Module: TYPO3/CMS/Backend/ToggleSearchToolbox
- * Toggle the search toolbox
- * @exports TYPO3/CMS/Backend/ToggleSearchToolbox
- */
-define(['jquery', 'TYPO3/CMS/Backend/DocumentHeader', 'TYPO3/CMS/Backend/jquery.clearable'], function($, DocumentHeader) {
-	'use strict';
-
-	$(function() {
-		var $toolbar = $('#db_list-searchbox-toolbar');
-		$('.t3js-toggle-search-toolbox').on('click', function() {
-			$toolbar.toggle();
-			DocumentHeader.reposition();
-			if ($toolbar.is(':visible')) {
-				$('#search_field').focus();
-			}
-		});
-
-		var $searchFields = $('#search_field');
-		var searchResultShown = ('' !== $searchFields.val());
-
-		// make search field clearable
-		$searchFields.clearable({
-			onClear: function() {
-				if (searchResultShown) {
-					$(this).closest('form').submit();
-				}
-			}
-		});
-	});
-});
+define(["require","exports","jquery","./DocumentHeader","TYPO3/CMS/Backend/Input/Clearable"],(function(e,t,i,l){"use strict";return new class{constructor(){i(()=>{this.initialize()})}initialize(){const e=i("#db_list-searchbox-toolbar");let t;if(i(".t3js-toggle-search-toolbox").on("click",()=>{e.toggle(),l.reposition(),e.is(":visible")&&i("#search_field").focus()}),null!==(t=document.getElementById("search_field"))){const e=""!==t.value;t.clearable({onClear:t=>{e&&t.closest("form").submit()}})}}}}));

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Mvc\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,17 @@ namespace TYPO3\CMS\Extbase\Mvc\View;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Mvc\View;
+
+use TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext;
+
 /**
  * An abstract View
- *
- * @api
  */
-abstract class AbstractView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
+abstract class AbstractView implements ViewInterface
 {
     /**
      * @var \TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext
-     * @api
      */
     protected $controllerContext;
 
@@ -40,7 +40,7 @@ abstract class AbstractView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
      *
      * @param \TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext
      */
-    public function setControllerContext(\TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext)
+    public function setControllerContext(ControllerContext $controllerContext)
     {
         $this->controllerContext = $controllerContext;
     }
@@ -52,7 +52,6 @@ abstract class AbstractView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
      * @param string $key Key of variable
      * @param mixed $value Value of object
      * @return \TYPO3\CMS\Extbase\Mvc\View\AbstractView an instance of $this, to enable chaining
-     * @api
      */
     public function assign($key, $value)
     {
@@ -65,7 +64,6 @@ abstract class AbstractView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
      *
      * @param array $values array in the format array(key1 => value1, key2 => value2).
      * @return \TYPO3\CMS\Extbase\Mvc\View\AbstractView an instance of $this, to enable chaining
-     * @api
      */
     public function assignMultiple(array $values)
     {
@@ -83,9 +81,8 @@ abstract class AbstractView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
      *
      * @param \TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext
      * @return bool TRUE if the view has something useful to display, otherwise FALSE
-     * @api
      */
-    public function canRender(\TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext)
+    public function canRender(ControllerContext $controllerContext)
     {
         return true;
     }
@@ -94,8 +91,6 @@ abstract class AbstractView implements \TYPO3\CMS\Extbase\Mvc\View\ViewInterface
      * Initializes this view.
      *
      * Override this method for initializing your concrete view implementation.
-     *
-     * @api
      */
     public function initializeView()
     {

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -67,13 +68,13 @@ class NodeFactory
 
         // Default single element classes
         'check' => Element\CheckboxElement::class,
+        'checkboxToggle' => Element\CheckboxToggleElement::class,
+        'checkboxLabeledToggle' => Element\CheckboxLabeledToggleElement::class,
         'group' => Element\GroupElement::class,
         'input' => Element\InputTextElement::class,
         'inputDateTime' => Element\InputDateTimeElement::class,
         'inputLink' => Element\InputLinkElement::class,
         'hidden' => Element\InputHiddenElement::class,
-        // rsaInput is defined with a fallback so extensions can use it even if ext:rsaauth is not loaded
-        'rsaInput' => Element\InputTextElement::class,
         'imageManipulation' => Element\ImageManipulationElement::class,
         'none' => Element\NoneElement::class,
         'radio' => Element\RadioElement::class,
@@ -89,18 +90,23 @@ class NodeFactory
         'textTable' => Element\TextTableElement::class,
         'unknown' => Element\UnknownElement::class,
         'user' => Element\UserElement::class,
+        // special renderType for type="user" on sys_file_storage is_public column
+        'userSysFileStorageIsPublic' => Element\UserSysFileStorageIsPublicElement::class,
         'fileInfo' => Element\FileInfoElement::class,
+        'slug' => Element\InputSlugElement::class,
+        'passthrough' => Element\PassThroughElement::class,
 
         // Default classes to enrich single elements
         'fieldControl' => NodeExpansion\FieldControl::class,
         'fieldInformation' => NodeExpansion\FieldInformation::class,
         'fieldWizard' => NodeExpansion\FieldWizard::class,
 
+        // Element information
+        'tcaDescription' => FieldInformation\TcaDescription::class,
+        'adminIsSystemMaintainer' => FieldInformation\AdminIsSystemMaintainer::class,
+
         // Element wizards
         'defaultLanguageDifferences' => FieldWizard\DefaultLanguageDifferences::class,
-        'fileThumbnails' => FieldWizard\FileThumbnails::class,
-        'fileTypeList' => FieldWizard\FileTypeList::class,
-        'fileUpload' => FieldWizard\FileUpload::class,
         'localizationStateSelector' => FieldWizard\LocalizationStateSelector::class,
         'otherLanguageContent' => FieldWizard\OtherLanguageContent::class,
         'recordsOverview' => FieldWizard\RecordsOverview::class,
@@ -138,13 +144,13 @@ class NodeFactory
     {
         if (empty($data['renderType'])) {
             throw new Exception(
-                'Missing "renderType" in TCA of field "[' . $data['tableName'] . '][' . $data['fieldName'] . ']".',
+                'Missing "renderType" in TCA of field "[' . ($data['tableName'] ?? 'unknown') . '][' . ($data['fieldName'] ?? 'unknown') . ']".',
                 1431452406
             );
         }
         $type = $data['renderType'];
 
-        $className = isset($this->nodeTypes[$type]) ? $this->nodeTypes[$type] : $this->nodeTypes['unknown'];
+        $className = $this->nodeTypes[$type] ?? $this->nodeTypes['unknown'];
 
         if (!empty($this->nodeResolver[$type])) {
             // Resolver with highest priority is called first. If it returns with a new class name,

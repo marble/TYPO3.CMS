@@ -1,39 +1,37 @@
 <?php
+
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
 namespace TYPO3\CMS\Extbase\Tests\Unit\Error;
 
-/*                                                                        *
- * This script belongs to the Extbase framework.                          *
- *                                                                        *
- * It is free software; you can redistribute it and/or modify it under    *
- * the terms of the GNU Lesser General Public License as published by the *
- * Free Software Foundation, either version 3 of the License, or (at your *
- * option) any later version.                                             *
- *                                                                        *
- * This script is distributed in the hope that it will be useful, but     *
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHAN-    *
- * TABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser       *
- * General Public License for more details.                               *
- *                                                                        *
- * You should have received a copy of the GNU Lesser General Public       *
- * License along with the script.                                         *
- * If not, see http://www.gnu.org/licenses/lgpl.html                      *
- *                                                                        *
- * The TYPO3 project - inspiring people to share!                         *
- *                                                                        */
+use TYPO3\CMS\Extbase\Error\Result;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ResultTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Extbase\Error\Result
      */
     protected $result;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->result = new \TYPO3\CMS\Extbase\Error\Result();
+        parent::setUp();
+        $this->result = new Result();
     }
 
     /**
@@ -50,7 +48,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
 
     /**
      * @param string $type
-     * @return \PHPUnit_Framework_MockObject_MockObject
+     * @return \PHPUnit\Framework\MockObject\MockObject
      */
     protected function getMockMessage($type)
     {
@@ -69,7 +67,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $addMethodName = 'add' . $dataTypeInSingular;
         $this->result->{$addMethodName}($message);
         $getterMethodName = 'get' . $dataTypeInPlural;
-        $this->assertEquals([$message], $this->result->{$getterMethodName}());
+        self::assertEquals([$message], $this->result->{$getterMethodName}());
     }
 
     /**
@@ -84,7 +82,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $addMethodName = 'add' . $dataTypeInSingular;
         $this->result->forProperty('foo')->{$addMethodName}($message);
         $getterMethodName = 'get' . $dataTypeInPlural;
-        $this->assertEquals([], $this->result->{$getterMethodName}());
+        self::assertEquals([], $this->result->{$getterMethodName}());
     }
 
     /**
@@ -101,7 +99,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $this->result->{$addMethodName}($message1);
         $this->result->{$addMethodName}($message2);
         $getterMethodName = 'getFirst' . $dataTypeInSingular;
-        $this->assertSame($message1, $this->result->{$getterMethodName}());
+        self::assertSame($message1, $this->result->{$getterMethodName}());
     }
 
     /**
@@ -110,8 +108,8 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function forPropertyShouldReturnSubResult()
     {
         $container2 = $this->result->forProperty('foo.bar');
-        $this->assertInstanceOf(\TYPO3\CMS\Extbase\Error\Result::class, $container2);
-        $this->assertSame($container2, $this->result->forProperty('foo')->forProperty('bar'));
+        self::assertInstanceOf(Result::class, $container2);
+        self::assertSame($container2, $this->result->forProperty('foo')->forProperty('bar'));
     }
 
     /**
@@ -120,7 +118,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function forPropertyWithEmptyStringShouldReturnSelf()
     {
         $container2 = $this->result->forProperty('');
-        $this->assertSame($container2, $this->result);
+        self::assertSame($container2, $this->result);
     }
 
     /**
@@ -129,7 +127,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function forPropertyWithNullShouldReturnSelf()
     {
         $container2 = $this->result->forProperty(null);
-        $this->assertSame($container2, $this->result);
+        self::assertSame($container2, $this->result);
     }
 
     /**
@@ -144,7 +142,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $addMethodName = 'add' . $dataTypeInSingular;
         $this->result->{$addMethodName}($message);
         $methodName = 'has' . $dataTypeInPlural;
-        $this->assertTrue($this->result->{$methodName}());
+        self::assertTrue($this->result->{$methodName}());
     }
 
     /**
@@ -159,7 +157,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $methodName = 'has' . $dataTypeInPlural;
         $message = $this->getMockMessage($dataTypeInSingular);
         $this->result->forProperty('foo.bar')->{$addMethodName}($message);
-        $this->assertTrue($this->result->{$methodName}());
+        self::assertTrue($this->result->{$methodName}());
     }
 
     /**
@@ -173,7 +171,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $methodName = 'has' . $dataTypeInPlural;
         $this->result->forProperty('foo.baz');
         $this->result->forProperty('foo.bar');
-        $this->assertFalse($this->result->{$methodName}());
+        self::assertFalse($this->result->{$methodName}());
     }
 
     /**
@@ -202,7 +200,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'foo.bar' => [$message1],
             'foo.baz' => [$message2]
         ];
-        $this->assertEquals($expected, $this->result->{$getMethodName}());
+        self::assertEquals($expected, $this->result->{$getMethodName}());
     }
 
     /**
@@ -223,7 +221,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'foo.bar' => [$message1],
             'foo.baz' => [$message2]
         ];
-        $this->assertEquals($expected, $this->result->{$getMethodName}());
+        self::assertEquals($expected, $this->result->{$getMethodName}());
     }
 
     /**
@@ -240,7 +238,7 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $error1 = $this->getMockMessage('Error');
         $error2 = $this->getMockMessage('Error');
         $error3 = $this->getMockMessage('Error');
-        $otherResult = new \TYPO3\CMS\Extbase\Error\Result();
+        $otherResult = new Result();
         $otherResult->addNotice($notice1);
         $otherResult->forProperty('foo.bar')->addNotice($notice2);
         $this->result->forProperty('foo')->addNotice($notice3);
@@ -251,11 +249,11 @@ class ResultTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $otherResult->forProperty('foo')->addError($error2);
         $otherResult->addError($error3);
         $this->result->merge($otherResult);
-        $this->assertSame([$notice1], $this->result->getNotices(), 'Notices are not merged correctly without recursion');
-        $this->assertSame([$notice3], $this->result->forProperty('foo')->getNotices(), 'Original sub-notices are overridden.');
-        $this->assertSame([$notice2], $this->result->forProperty('foo')->forProperty('bar')->getNotices(), 'Sub-notices are not copied.');
-        $this->assertSame([$warning2, $warning3, $warning1], $this->result->getWarnings());
-        $this->assertSame([$error3], $this->result->getErrors());
-        $this->assertSame([$error1, $error2], $this->result->forProperty('foo')->getErrors());
+        self::assertSame([$notice1], $this->result->getNotices(), 'Notices are not merged correctly without recursion');
+        self::assertSame([$notice3], $this->result->forProperty('foo')->getNotices(), 'Original sub-notices are overridden.');
+        self::assertSame([$notice2], $this->result->forProperty('foo')->forProperty('bar')->getNotices(), 'Sub-notices are not copied.');
+        self::assertSame([$warning2, $warning3, $warning1], $this->result->getWarnings());
+        self::assertSame([$error3], $this->result->getErrors());
+        self::assertSame([$error1, $error2], $this->result->forProperty('foo')->getErrors());
     }
 }

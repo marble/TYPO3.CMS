@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,10 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
@@ -43,18 +45,28 @@ class TcaSelectItems extends AbstractItemProvider implements FormDataProviderInt
                 continue;
             }
 
-            $fieldConfig['config']['items'] = $this->sanitizeItemArray($fieldConfig['config']['items'], $table, $fieldName);
-            $fieldConfig['config']['maxitems'] = MathUtility::forceIntegerInRange($fieldConfig['config']['maxitems'], 0, 99999);
+            $fieldConfig['config']['items'] = $this->sanitizeItemArray($fieldConfig['config']['items'] ?? [], $table, $fieldName);
+
+            $fieldConfig['config']['maxitems'] = MathUtility::forceIntegerInRange($fieldConfig['config']['maxitems'] ?? 0, 0, 99999);
             if ($fieldConfig['config']['maxitems'] === 0) {
                 $fieldConfig['config']['maxitems'] = 99999;
             }
 
             $fieldConfig['config']['items'] = $this->addItemsFromSpecial($result, $fieldName, $fieldConfig['config']['items']);
             $fieldConfig['config']['items'] = $this->addItemsFromFolder($result, $fieldName, $fieldConfig['config']['items']);
-            $staticItems = $fieldConfig['config']['items'];
 
             $fieldConfig['config']['items'] = $this->addItemsFromForeignTable($result, $fieldName, $fieldConfig['config']['items']);
-            $dynamicItems = array_diff_key($fieldConfig['config']['items'], $staticItems);
+
+            // Resolve "itemsProcFunc"
+            if (!empty($fieldConfig['config']['itemsProcFunc'])) {
+                $fieldConfig['config']['items'] = $this->resolveItemProcessorFunction($result, $fieldName, $fieldConfig['config']['items']);
+                // itemsProcFunc must not be used anymore
+                unset($fieldConfig['config']['itemsProcFunc']);
+            }
+
+            // removing items before $dynamicItems and $removedItems have been built results in having them
+            // not populated to the dynamic database row and displayed as "invalid value" in the forms view
+            $fieldConfig['config']['items'] = $this->removeItemsByUserStorageRestriction($result, $fieldName, $fieldConfig['config']['items']);
 
             $removedItems = $fieldConfig['config']['items'];
 
@@ -68,19 +80,23 @@ class TcaSelectItems extends AbstractItemProvider implements FormDataProviderInt
 
             $removedItems = array_diff_key($removedItems, $fieldConfig['config']['items']);
 
-            // Resolve "itemsProcFunc"
-            if (!empty($fieldConfig['config']['itemsProcFunc'])) {
-                $fieldConfig['config']['items'] = $this->resolveItemProcessorFunction($result, $fieldName, $fieldConfig['config']['items']);
-                // itemsProcFunc must not be used anymore
-                unset($fieldConfig['config']['itemsProcFunc']);
+            $currentDatabaseValuesArray = $this->processDatabaseFieldValue($result['databaseRow'], $fieldName);
+            // Check if it's a new record to respect TCAdefaults
+            if (!empty($fieldConfig['config']['MM']) && $result['command'] !== 'new') {
+                // Getting the current database value on a mm relation doesn't make sense since the amount of selected
+                // relations is stored in the field and not the uids of the items
+                $currentDatabaseValuesArray = [];
             }
 
-            // needed to determine the items for invalid values
-            $currentDatabaseValuesArray = $this->processDatabaseFieldValue($result['databaseRow'], $fieldName);
             $result['databaseRow'][$fieldName] = $currentDatabaseValuesArray;
 
-            $staticValues = $this->getStaticValues($fieldConfig['config']['items'], $dynamicItems);
-            $result['databaseRow'][$fieldName] = $this->processSelectFieldValue($result, $fieldName, $staticValues);
+            // add item values as keys to determine which items are stored in the database and should be preselected
+            $itemArrayValues = array_column($fieldConfig['config']['items'], 1);
+            $itemArray = array_fill_keys(
+                $itemArrayValues,
+                $fieldConfig['config']['items']
+            );
+            $result['databaseRow'][$fieldName] = $this->processSelectFieldValue($result, $fieldName, $itemArray);
 
             $fieldConfig['config']['items'] = $this->addInvalidItemsFromDatabase(
                 $result,
@@ -92,10 +108,19 @@ class TcaSelectItems extends AbstractItemProvider implements FormDataProviderInt
             );
 
             // Translate labels
-            $fieldConfig['config']['items'] = $this->translateLabels($result, $fieldConfig['config']['items'], $table, $fieldName);
+            // skip file of sys_file_metadata which is not rendered anyway but can use all memory
+            if (!($table === 'sys_file_metadata' && $fieldName === 'file')) {
+                $fieldConfig['config']['items'] = $this->translateLabels($result, $fieldConfig['config']['items'], $table, $fieldName);
+            }
 
             // Keys may contain table names, so a numeric array is created
             $fieldConfig['config']['items'] = array_values($fieldConfig['config']['items']);
+
+            $fieldConfig['config']['items'] = $this->groupAndSortItems(
+                $fieldConfig['config']['items'],
+                $fieldConfig['config']['itemGroups'] ?? [],
+                $fieldConfig['config']['sortItems'] ?? []
+            );
 
             $result['processedTca']['columns'][$fieldName] = $fieldConfig;
         }
@@ -120,8 +145,8 @@ class TcaSelectItems extends AbstractItemProvider implements FormDataProviderInt
         // Early return if there are no items or invalid values should not be displayed
         if (empty($fieldConf['config']['items'])
             || $fieldConf['config']['renderType'] !== 'selectSingle'
-            || $result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['disableNoMatchingValueElement']
-            || $fieldConf['config']['disableNoMatchingValueElement']
+            || ($result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['disableNoMatchingValueElement'] ?? false)
+            || ($fieldConf['config']['disableNoMatchingValueElement'] ?? false)
         ) {
             return $fieldConf['config']['items'];
         }
@@ -129,7 +154,7 @@ class TcaSelectItems extends AbstractItemProvider implements FormDataProviderInt
         $languageService = $this->getLanguageService();
         $noMatchingLabel = isset($result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['noMatchingValue_label'])
             ? $languageService->sL(trim($result['pageTsConfig']['TCEFORM.'][$table . '.'][$fieldName . '.']['noMatchingValue_label']))
-            : '[ ' . $languageService->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue') . ' ]';
+            : '[ ' . $languageService->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noMatchingValue') . ' ]';
 
         $unmatchedValues = array_diff(
             array_values($databaseValues),
@@ -140,7 +165,9 @@ class TcaSelectItems extends AbstractItemProvider implements FormDataProviderInt
         foreach ($unmatchedValues as $unmatchedValue) {
             $invalidItem = [
                 @sprintf($noMatchingLabel, $unmatchedValue),
-                $unmatchedValue
+                $unmatchedValue,
+                null,
+                'none' // put it in the very first position in the "none" group
             ];
             array_unshift($fieldConf['config']['items'], $invalidItem);
         }
@@ -157,5 +184,139 @@ class TcaSelectItems extends AbstractItemProvider implements FormDataProviderInt
     protected function isTargetRenderType(array $fieldConfig)
     {
         return $fieldConfig['config']['renderType'] !== 'selectTree';
+    }
+
+    /**
+     * Is used when --div-- elements in the item list are used, or if groups are defined via "groupItems" config array.
+     *
+     * This method takes the --div-- elements out of the list, and adds them to the group lists.
+     *
+     * A main "none" group is added, which is always on top, when items are not set to be in a group.
+     * All items without a groupId - which is defined by the fourth key of an item in the item array - are added
+     * to the "none" group, or to the last group used previously, to ensure ordering as much as possible as before.
+     *
+     * Then the found groups are iterated over the order in the [itemGroups] list,
+     * and items within a group can be sorted via "sortOrders" configuration.
+     *
+     * All grouped items are then "flattened" out and --div-- items are added for each group to keep backwards-compatibility.
+     *
+     * @param array $allItems all resolved items including the ones from foreign_table values. The group ID information can be found in fourth key [3] of an item.
+     * @param array $definedGroups [config][itemGroups]
+     * @param array $sortOrders [config][sortOrders]
+     * @return array
+     */
+    protected function groupAndSortItems(array $allItems, array $definedGroups, array $sortOrders): array
+    {
+        $groupedItems = [];
+        // Append defined groups at first, as their order is prioritized
+        $itemGroups = ['none' => ''];
+        foreach ($definedGroups as $groupId => $groupLabel) {
+            $itemGroups[$groupId] = $this->getLanguageService()->sL($groupLabel);
+        }
+        $currentGroup = 'none';
+        // Extract --div-- into itemGroups
+        foreach ($allItems as $key => $item) {
+            if ($item[1] === '--div--') {
+                // A divider is added as a group (existing groups will get their label overridden)
+                if (isset($item[3])) {
+                    $currentGroup = $item[3];
+                    $itemGroups[$currentGroup] = $item[0];
+                } else {
+                    $currentGroup = 'none';
+                }
+                continue;
+            }
+            // Put the given item in the currentGroup if no group has been given already
+            if (!isset($item[3])) {
+                $item[3] = $currentGroup;
+            }
+            $groupIdOfItem = !empty($item[3]) ? $item[3] : 'none';
+            // It is still possible to have items that have an "unassigned" group, so they are moved to the "none" group
+            if (!isset($itemGroups[$groupIdOfItem])) {
+                $itemGroups[$groupIdOfItem] = '';
+            }
+
+            // Put the item in its corresponding group (and create it if it does not exist yet)
+            if (!is_array($groupedItems[$groupIdOfItem] ?? null)) {
+                $groupedItems[$groupIdOfItem] = [];
+            }
+            $groupedItems[$groupIdOfItem][] = $item;
+        }
+        // Only "none" = no grouping used explicitly via "itemGroups" or via "--div--"
+        if (count($itemGroups) === 1) {
+            if (!empty($sortOrders)) {
+                $allItems = $this->sortItems($allItems, $sortOrders);
+            }
+            return $allItems;
+        }
+
+        // $groupedItems contains all items per group
+        // $itemGroups contains all groups in order of each group
+
+        // Let's add the --div-- items again ("unpacking")
+        // And use the group ordering given by the itemGroups
+        $finalItems = [];
+        foreach ($itemGroups as $groupId => $groupLabel) {
+            $itemsInGroup = $groupedItems[$groupId] ?? [];
+            if (empty($itemsInGroup)) {
+                continue;
+            }
+            // If sorting is defined, sort within each group now
+            if (!empty($sortOrders)) {
+                $itemsInGroup = $this->sortItems($itemsInGroup, $sortOrders);
+            }
+            // Add the --div-- if it is not the "none" default item
+            if ($groupId !== 'none') {
+                // Fall back to the groupId, if there is no label for it
+                $groupLabel = $groupLabel ?: $groupId;
+                $finalItems[] = [$groupLabel, '--div--', null, $groupId, null];
+            }
+            $finalItems = array_merge($finalItems, $itemsInGroup);
+        }
+        return $finalItems;
+    }
+
+    /**
+     * Sort given items by label or value or a custom user function built like
+     * "MyVendor\MyExtension\TcaSorter->sortItems" or a callable.
+     *
+     * @param array $items
+     * @param array $sortOrders should be something like like [label => desc]
+     * @return array the sorted items
+     */
+    protected function sortItems(array $items, array $sortOrders): array
+    {
+        foreach ($sortOrders as $order => $direction) {
+            switch ($order) {
+                case 'label':
+                    $direction = strtolower($direction);
+                    @usort(
+                        $items,
+                        function ($item1, $item2) use ($direction) {
+                            if ($direction === 'desc') {
+                                return strcasecmp($item1[0], $item2[0]) <= 0;
+                            }
+                            return strcasecmp($item1[0], $item2[0]);
+                        }
+                    );
+                    break;
+                case 'value':
+                    $direction = strtolower($direction);
+                    @usort(
+                        $items,
+                        function ($item1, $item2) use ($direction) {
+                            if ($direction === 'desc') {
+                                return strcasecmp($item1[1], $item2[1]) <= 0;
+                            }
+                            return strcasecmp($item1[1], $item2[1]);
+                        }
+                    );
+                    break;
+                default:
+                    $reference = null;
+                    GeneralUtility::callUserFunction($direction, $items, $reference);
+            }
+        }
+        return $items;
     }
 }

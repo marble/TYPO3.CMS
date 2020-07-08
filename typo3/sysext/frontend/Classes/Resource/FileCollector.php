@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,14 @@ namespace TYPO3\CMS\Frontend\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Log\LogManager;
+namespace TYPO3\CMS\Frontend\Resource;
+
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use TYPO3\CMS\Core\LinkHandling\LinkService;
+use TYPO3\CMS\Core\Resource\Collection\AbstractFileCollection;
 use TYPO3\CMS\Core\Resource\Exception;
+use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
 use TYPO3\CMS\Core\Resource\FileCollectionRepository;
 use TYPO3\CMS\Core\Resource\FileInterface;
 use TYPO3\CMS\Core\Resource\FileRepository;
@@ -30,9 +35,12 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * Use in FILES Content Object or for a Fluid Data Processor
  *
  * Is not persisted, use only in FE.
+ * @internal this is an internal TYPO3 implementation and solely used for EXT:frontend and not part of TYPO3's Core API.
  */
-class FileCollector implements \Countable
+class FileCollector implements \Countable, LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     /**
      * The files
      *
@@ -73,7 +81,7 @@ class FileCollector implements \Countable
                 try {
                     $this->addFileObject($this->getResourceFactory()->getFileObject($fileUid));
                 } catch (Exception $e) {
-                    $this->getLogger()->warning(
+                    $this->logger->warning(
                         'The file with uid  "' . $fileUid
                         . '" could not be found and won\'t be included in frontend output',
                         ['exception' => $e]
@@ -92,12 +100,7 @@ class FileCollector implements \Countable
      */
     public function addFilesFromRelation($relationTable, $relationField, array $referenceRecord)
     {
-        if (is_object($GLOBALS['TSFE']) && is_object($GLOBALS['TSFE']->sys_page)) {
-            $fileReferences = $GLOBALS['TSFE']->sys_page->getFileReferences($relationTable, $relationField, $referenceRecord);
-        } else {
-            $fileReferences = $this->getFileRepository()->findByRelation($relationTable, $relationField, $referenceRecord['uid']);
-        }
-
+        $fileReferences = $this->getFileReferences($relationTable, $relationField, $referenceRecord);
         if (!empty($fileReferences)) {
             $this->addFileObjects($fileReferences);
         }
@@ -139,14 +142,14 @@ class FileCollector implements \Countable
             try {
                 $fileCollection = $this->getFileCollectionRepository()->findByUid($fileCollectionUid);
 
-                if ($fileCollection instanceof \TYPO3\CMS\Core\Resource\Collection\AbstractFileCollection) {
+                if ($fileCollection instanceof AbstractFileCollection) {
                     $fileCollection->loadContents();
                     $files = $fileCollection->getItems();
 
                     $this->addFileObjects($files);
                 }
             } catch (Exception $e) {
-                $this->getLogger()->warning(
+                $this->logger->warning(
                     'The file-collection with uid  "' . $fileCollectionUid
                     . '" could not be found or contents could not be loaded and won\'t be included in frontend output.',
                     ['exception' => $e]
@@ -178,13 +181,20 @@ class FileCollector implements \Countable
     {
         if ($folderIdentifier) {
             try {
-                $folder = $this->getResourceFactory()->getFolderObjectFromCombinedIdentifier($folderIdentifier);
+                if (strpos($folderIdentifier, 't3://folder') === 0) {
+                    // a t3://folder link to a folder in FAL
+                    $linkService = GeneralUtility::makeInstance(LinkService::class);
+                    $data = $linkService->resolveByStringRepresentation($folderIdentifier);
+                    $folder = $data['folder'];
+                } else {
+                    $folder = $this->getResourceFactory()->getFolderObjectFromCombinedIdentifier($folderIdentifier);
+                }
                 if ($folder instanceof Folder) {
                     $files = $folder->getFiles(0, 0, Folder::FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS, $recursive);
                     $this->addFileObjects(array_values($files));
                 }
             } catch (Exception $e) {
-                $this->getLogger()->warning(
+                $this->logger->warning(
                     'The folder with identifier  "' . $folderIdentifier
                     . '" could not be found and won\'t be included in frontend output',
                     ['exception' => $e]
@@ -210,9 +220,8 @@ class FileCollector implements \Countable
                 ) use ($sortingProperty) {
                     if ($a->hasProperty($sortingProperty) && $b->hasProperty($sortingProperty)) {
                         return strnatcasecmp($a->getProperty($sortingProperty), $b->getProperty($sortingProperty));
-                    } else {
-                        return 0;
                     }
+                    return 0;
                 }
             );
 
@@ -268,11 +277,56 @@ class FileCollector implements \Countable
     }
 
     /**
-     * @return \TYPO3\CMS\Core\Log\Logger
+     * Gets file references for a given record field, also deal with translated elements,
+     * where file references could be attached.
+     *
+     * @param string $tableName Name of the table
+     * @param string $fieldName Name of the field
+     * @param array $element The parent element referencing to files
+     * @return array
      */
-    protected function getLogger()
+    protected function getFileReferences($tableName, $fieldName, array $element): array
     {
-        return GeneralUtility::makeInstance(LogManager::class)->getLogger(__CLASS__);
+        /** @var FileRepository $fileRepository */
+        $fileRepository = GeneralUtility::makeInstance(FileRepository::class);
+        $currentId = !empty($element['uid']) ? $element['uid'] : 0;
+
+        // Fetch the references of the default element
+        try {
+            $references = $fileRepository->findByRelation($tableName, $fieldName, $currentId);
+        } catch (FileDoesNotExistException $e) {
+            /**
+             * We just catch the exception here
+             * Reasoning: There is nothing an editor or even admin could do
+             */
+            return [];
+        } catch (\InvalidArgumentException $e) {
+            /**
+             * The storage does not exist anymore
+             * Log the exception message for admins as they maybe can restore the storage
+             */
+            $logMessage = $e->getMessage() . ' (table: "' . $tableName . '", fieldName: "' . $fieldName . '", currentId: ' . $currentId . ')';
+            $this->logger->error($logMessage, ['exception' => $e]);
+            return [];
+        }
+
+        $localizedId = null;
+        if (isset($element['_LOCALIZED_UID'])) {
+            $localizedId = $element['_LOCALIZED_UID'];
+        } elseif (isset($element['_PAGES_OVERLAY_UID'])) {
+            $localizedId = $element['_PAGES_OVERLAY_UID'];
+        }
+
+        $isTableLocalizable = (
+            !empty($GLOBALS['TCA'][$tableName]['ctrl']['languageField'])
+            && !empty($GLOBALS['TCA'][$tableName]['ctrl']['transOrigPointerField'])
+        );
+        if ($isTableLocalizable && $localizedId !== null) {
+            $localizedReferences = $fileRepository->findByRelation($tableName, $fieldName, $localizedId);
+            $references = $localizedReferences;
+        }
+
+        return $references;
     }
 
     /**

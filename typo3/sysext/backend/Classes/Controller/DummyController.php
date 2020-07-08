@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,61 +13,29 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Template\ModuleTemplate;
+use TYPO3\CMS\Core\Http\HtmlResponse;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
- * Script Class, creating the content for the dummy script - which is just blank output.
+ * '/empty' routing target returns dummy content.
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class DummyController
 {
     /**
-     * @var string
-     */
-    public $content;
-
-    /**
-     * Constructor
-     */
-    public function __construct()
-    {
-        $GLOBALS['SOBE'] = $this;
-    }
-
-    /**
-     * Injects the request object for the current request or subrequest
-     * As this controller goes only through the main() method, it is rather simple for now
+     * Return simple dummy content
      *
-     * @param ServerRequestInterface $request the current request
-     * @param ResponseInterface $response
      * @return ResponseInterface the response with the content
      */
-    public function mainAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function mainAction(): ResponseInterface
     {
-        $this->main();
-
-        $response->getBody()->write($this->content);
-        return $response;
-    }
-
-    /**
-     * Create content for the dummy script - outputting a blank page.
-     */
-    public function main()
-    {
-        // Start page
-        $this->content .= $this->getDocumentTemplate()->startPage('Dummy document');
-        // End page:
-        $this->content .= $this->getDocumentTemplate()->endPage();
-    }
-
-    /**
-     * Returns an instance of DocumentTemplate
-     *
-     * @return \TYPO3\CMS\Backend\Template\DocumentTemplate
-     */
-    protected function getDocumentTemplate()
-    {
-        return $GLOBALS['TBE_TEMPLATE'];
+        $moduleTemplate = GeneralUtility::makeInstance(ModuleTemplate::class);
+        $moduleTemplate->setTitle('Blank');
+        $moduleTemplate->getDocHeaderComponent()->disable();
+        return new HtmlResponse($moduleTemplate->renderContent());
     }
 }

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Mail;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,211 +15,310 @@ namespace TYPO3\CMS\Core\Tests\Unit\Mail;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Mail;
+
+use Symfony\Component\Mime\Address;
+use TYPO3\CMS\Core\Mail\MailMessage;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
- * Testcase for the TYPO3\CMS\Core\Mail\MailMessage class.
+ * Test case
  */
-class MailMessageTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class MailMessageTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Core\Mail\MailMessage
+     * @var bool Reset singletons created by subject
+     */
+    protected $resetSingletonInstances = true;
+
+    /**
+     * @var MailMessage
      */
     protected $subject;
 
-    protected function setUp()
+    /**
+     * Set up
+     */
+    protected function setUp(): void
     {
-        $this->subject = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Mail\MailMessage::class);
+        parent::setUp();
+        $this->subject = new MailMessage();
     }
 
     /**
-     * @returns array
+     * @test
      */
-    public function returnPathEmailAddressDataProvider()
+    public function isSentReturnsFalseIfMailWasNotSent(): void
+    {
+        self::assertFalse($this->subject->isSent());
+    }
+
+    /**
+     * @test
+     */
+    public function setSubjectWorksAsExpected(): void
+    {
+        $this->subject->setSubject('Test');
+        self::assertSame('Test', $this->subject->getSubject());
+        $this->subject->setSubject('Test2');
+        self::assertSame('Test2', $this->subject->getSubject());
+    }
+
+    /**
+     * @test
+     */
+    public function setDateWorksAsExpected(): void
+    {
+        $time = time();
+        $this->subject->setDate($time);
+        self::assertSame($time, (int)$this->subject->getDate()->format('U'));
+        $time++;
+        $this->subject->setDate($time);
+        self::assertSame($time, (int)$this->subject->getDate()->format('U'));
+    }
+
+    /**
+     * @test
+     */
+    public function setReturnPathWorksAsExpected(): void
+    {
+        $this->subject->setReturnPath('noreply@typo3.com');
+        self::assertInstanceOf(Address::class, $this->subject->getReturnPath());
+        self::assertSame('noreply@typo3.com', $this->subject->getReturnPath()->getAddress());
+        $this->subject->setReturnPath('no-reply@typo3.com');
+        self::assertInstanceOf(Address::class, $this->subject->getReturnPath());
+        self::assertSame('no-reply@typo3.com', $this->subject->getReturnPath()->getAddress());
+    }
+
+    public function setSenderAddressDataProvider(): array
     {
         return [
-            'string with ascii email address' => [
-                'john.doe@example.com',
-                'john.doe@example.com'
-            ],
-            'string with utf8 email address' => [
-                'john.doe@☺example.com',
-                'john.doe@xn--example-tc7d.com'
-            ]
+            'address without name' => ['admin@typo3.com', null, 'admin@typo3.com'],
+            'address with name' => ['admin@typo3.com', 'Admin', 'Admin <admin@typo3.com>'],
         ];
     }
 
     /**
      * @test
+     * @dataProvider setSenderAddressDataProvider
      * @param string $address
-     * @param string $expected
-     * @dataProvider returnPathEmailAddressDataProvider
+     * @param string $name
+     * @param string $expectedString
      */
-    public function setReturnPathIdnaEncodesAddresses($address, $expected)
+    public function setSenderWorksAsExpected($address, $name, $expectedString): void
     {
-        $this->subject->setReturnPath($address);
-
-        $this->assertSame($expected, $this->subject->getReturnPath());
+        $this->subject->setSender($address, $name);
+        self::assertInstanceOf(Address::class, $this->subject->getSender());
+        self::assertSame($address, $this->subject->getSender()->getAddress());
+        self::assertSame($expectedString, $this->subject->getSender()->toString());
     }
 
-    /**
-     * @returns array
-     */
-    public function senderEmailAddressDataProvider()
+    public function globalSetAddressDataProvider(): array
     {
         return [
-            'string with ascii email address' => [
-                'john.doe@example.com',
-                [
-                    'john.doe@example.com' => null,
-                ]
-            ],
-            'string with utf8 email address' => [
-                'john.doe@☺example.com',
-                [
-                    'john.doe@xn--example-tc7d.com' => null,
-                ]
-            ]
+            'address without name' => ['admin@typo3.com', null, ['admin@typo3.com']],
+            'address with name' => ['admin@typo3.com', 'Admin', ['Admin <admin@typo3.com>']],
+            'multiple addresses without name' => [['admin@typo3.com', 'system@typo3.com'], null, ['admin@typo3.com', 'system@typo3.com']],
+            'address as array' => [['admin@typo3.com' => 'Admin'], null, ['Admin <admin@typo3.com>']],
+            'multiple addresses as array' => [['admin@typo3.com' => 'Admin', 'system@typo3.com' => 'System'], null, ['Admin <admin@typo3.com>', 'System <system@typo3.com>']],
+            'multiple addresses as array mixed' => [['admin@typo3.com' => 'Admin', 'it@typo3.com', 'system@typo3.com' => 'System'], null, ['Admin <admin@typo3.com>', 'it@typo3.com', 'System <system@typo3.com>']],
         ];
     }
 
     /**
      * @test
+     * @dataProvider globalSetAddressDataProvider
      * @param string $address
-     * @param array $expected
-     * @dataProvider senderEmailAddressDataProvider
+     * @param string $name
+     * @param array $expectedAddresses
      */
-    public function setSenderIdnaEncodesAddresses($address, $expected)
+    public function setFromWorksAsExpected($address, $name, array $expectedAddresses): void
     {
-        $this->subject->setSender($address);
-
-        $this->assertSame($expected, $this->subject->getSender());
+        // We first add one address, because set should override / remove existing addresses
+        $this->subject->addFrom('foo@bar.com', 'Foo');
+        $this->subject->setFrom($address, $name);
+        $this->assertCorrectAddresses($this->subject->getFrom(), $expectedAddresses);
     }
 
     /**
-     * @returns array
+     * @test
+     * @dataProvider globalSetAddressDataProvider
+     * @param string $address
+     * @param string $name
+     * @param array $expectedAddresses
      */
-    public function emailAddressesDataProvider()
+    public function setReplyToWorksAsExpected($address, $name, array $expectedAddresses): void
+    {
+        // We first add one address, because set should override / remove existing addresses
+        $this->subject->addReplyTo('foo@bar.com', 'Foo');
+        $this->subject->setReplyTo($address, $name);
+        $this->assertCorrectAddresses($this->subject->getReplyTo(), $expectedAddresses);
+    }
+
+    /**
+     * @test
+     * @dataProvider globalSetAddressDataProvider
+     * @param string $address
+     * @param string $name
+     * @param array $expectedAddresses
+     */
+    public function setToToWorksAsExpected($address, $name, array $expectedAddresses): void
+    {
+        // We first add one address, because set should override / remove existing addresses
+        $this->subject->addTo('foo@bar.com', 'Foo');
+        $this->subject->setTo($address, $name);
+        $this->assertCorrectAddresses($this->subject->getTo(), $expectedAddresses);
+    }
+
+    /**
+     * @test
+     * @dataProvider globalSetAddressDataProvider
+     * @param string $address
+     * @param string $name
+     * @param array $expectedAddresses
+     */
+    public function setCcToWorksAsExpected($address, $name, array $expectedAddresses): void
+    {
+        // We first add one address, because set should override / remove existing addresses
+        $this->subject->addCc('foo@bar.com', 'Foo');
+        $this->subject->setCc($address, $name);
+        $this->assertCorrectAddresses($this->subject->getCc(), $expectedAddresses);
+    }
+
+    /**
+     * @test
+     * @dataProvider globalSetAddressDataProvider
+     * @param string $address
+     * @param string $name
+     * @param array $expectedAddresses
+     */
+    public function setBccToWorksAsExpected($address, $name, array $expectedAddresses): void
+    {
+        // We first add one address, because set should override / remove existing addresses
+        $this->subject->addBcc('foo@bar.com', 'Foo');
+        $this->subject->setBcc($address, $name);
+        $this->assertCorrectAddresses($this->subject->getBcc(), $expectedAddresses);
+    }
+
+    public function globalAddAddressDataProvider(): array
     {
         return [
-            'string with ascii email address' => [
-                'john.doe@example.com',
-                [
-                    'john.doe@example.com' => null
-                ]
-            ],
-            'string with utf8 email address' => [
-                'john.doe@☺example.com',
-                [
-                    'john.doe@xn--example-tc7d.com' => null
-                ]
-            ],
-            'array with ascii email addresses' => [
-                [
-                    'john.doe@example.com' => 'John Doe',
-                    'jane.doe@example.com'
-                ],
-                [
-                    'john.doe@example.com' => 'John Doe',
-                    'jane.doe@example.com' => null,
-                ],
-            ],
-            'array with utf8 email addresses' => [
-                [
-                    'john.doe@☺example.com' => 'John Doe',
-                    'jane.doe@äöu.com' => 'Jane Doe',
-                ],
-                [
-                    'john.doe@xn--example-tc7d.com' => 'John Doe',
-                    'jane.doe@xn--u-zfa8c.com' => 'Jane Doe',
-                ],
-            ],
-            'array with mixed email addresses' => [
-                [
-                    'john.doe@☺example.com' => 'John Doe',
-                    'jane.doe@example.com' => 'Jane Doe',
-                ],
-                [
-                    'john.doe@xn--example-tc7d.com' => 'John Doe',
-                    'jane.doe@example.com' => 'Jane Doe',
-                ],
-            ],
+            'address without name' => ['admin@typo3.com', null, ['admin@typo3.com']],
+            'address with name' => ['admin@typo3.com', 'Admin', ['Admin <admin@typo3.com>']],
+            'address as array' => [['admin@typo3.com' => 'Admin'], null, ['Admin <admin@typo3.com>']],
         ];
     }
 
     /**
      * @test
-     * @param string|array $addresses
-     * @param string|array $expected
-     * @dataProvider emailAddressesDataProvider
+     * @dataProvider globalAddAddressDataProvider
+     * @param string $address
+     * @param string $name
+     * @param array $expectedAddresses
      */
-    public function setFromIdnaEncodesAddresses($addresses, $expected)
+    public function addFromToWorksAsExpected($address, $name, array $expectedAddresses): void
     {
-        $this->subject->setFrom($addresses);
-
-        $this->assertSame($expected, $this->subject->getFrom());
+        $this->subject->addFrom($address, $name);
+        $this->assertCorrectAddresses($this->subject->getFrom(), $expectedAddresses);
     }
 
     /**
      * @test
-     * @param string|array $addresses
-     * @param string|array $expected
-     * @dataProvider emailAddressesDataProvider
+     * @dataProvider globalAddAddressDataProvider
+     * @param string $address
+     * @param string $name
+     * @param array $expectedAddresses
      */
-    public function setReplyToIdnaEncodesAddresses($addresses, $expected)
+    public function addReplyToToWorksAsExpected($address, $name, array $expectedAddresses): void
     {
-        $this->subject->setReplyTo($addresses);
-
-        $this->assertSame($expected, $this->subject->getReplyTo());
+        $this->subject->addReplyTo($address, $name);
+        $this->assertCorrectAddresses($this->subject->getReplyTo(), $expectedAddresses);
     }
 
     /**
      * @test
-     * @param string|array $addresses
-     * @param string|array $expected
-     * @dataProvider emailAddressesDataProvider
+     * @dataProvider globalAddAddressDataProvider
+     * @param string $address
+     * @param string $name
+     * @param array $expectedAddresses
      */
-    public function setToIdnaEncodesAddresses($addresses, $expected)
+    public function addToToWorksAsExpected($address, $name, array $expectedAddresses): void
     {
-        $this->subject->setTo($addresses);
-
-        $this->assertSame($expected, $this->subject->getTo());
+        $this->subject->addTo($address, $name);
+        $this->assertCorrectAddresses($this->subject->getTo(), $expectedAddresses);
     }
 
     /**
      * @test
-     * @param string|array $addresses
-     * @param string|array $expected
-     * @dataProvider emailAddressesDataProvider
+     * @dataProvider globalAddAddressDataProvider
+     * @param string $address
+     * @param string $name
+     * @param array $expectedAddresses
      */
-    public function setCcIdnaEncodesAddresses($addresses, $expected)
+    public function addCcToWorksAsExpected($address, $name, array $expectedAddresses): void
     {
-        $this->subject->setCc($addresses);
-
-        $this->assertSame($expected, $this->subject->getCc());
+        $this->subject->addCc($address, $name);
+        $this->assertCorrectAddresses($this->subject->getCc(), $expectedAddresses);
     }
 
     /**
      * @test
-     * @param string|array $addresses
-     * @param string|array $expected
-     * @dataProvider emailAddressesDataProvider
+     * @dataProvider globalAddAddressDataProvider
+     * @param string $address
+     * @param string $name
+     * @param array $expectedAddresses
      */
-    public function setBccIdnaEncodesAddresses($addresses, $expected)
+    public function addBccToWorksAsExpected($address, $name, array $expectedAddresses): void
     {
-        $this->subject->setBcc($addresses);
-
-        $this->assertSame($expected, $this->subject->getBcc());
+        $this->subject->addBcc($address, $name);
+        $this->assertCorrectAddresses($this->subject->getBcc(), $expectedAddresses);
     }
 
     /**
      * @test
-     * @param string|array $addresses
-     * @param string|array $expected
-     * @dataProvider emailAddressesDataProvider
      */
-    public function setReadReceiptToIdnaEncodesAddresses($addresses, $expected)
+    public function setReadReceiptToToWorksAsExpected(): void
     {
-        $this->subject->setReadReceiptTo($addresses);
+        $this->subject->setReadReceiptTo('foo@example.com');
+        self::assertSame('foo@example.com', $this->subject->getHeaders()->get('Disposition-Notification-To')->getAddress()->getAddress());
+    }
 
-        $this->assertSame($expected, $this->subject->getReadReceiptTo());
+    public function exceptionIsThrownForInvalidArgumentCombinationsDataProvider(): array
+    {
+        return [
+          'setFrom' => ['setFrom'],
+          'setReplyTo' => ['setReplyTo'],
+          'setTo' => ['setTo'],
+          'setCc' => ['setCc'],
+          'setBcc' => ['setBcc'],
+        ];
+    }
+
+    /**
+     * @test
+     * @dataProvider exceptionIsThrownForInvalidArgumentCombinationsDataProvider
+     * @param string $method
+     */
+    public function exceptionIsThrownForInvalidArgumentCombinations(string $method): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionCode(1570543657);
+        $this->subject->{$method}(['foo@example.com'], 'A name');
+    }
+
+    /**
+     * Assert that the correct address data are resolved after setting to the object.
+     * This is a helper method to prevent duplicated code in this test.
+     *
+     * @param array $dataToCheck
+     * @param array $expectedAddresses
+     */
+    protected function assertCorrectAddresses(array $dataToCheck, array $expectedAddresses): void
+    {
+        self::assertIsArray($dataToCheck);
+        self::assertCount(count($expectedAddresses), $dataToCheck);
+        foreach ($dataToCheck as $singleAddress) {
+            self::assertContains($singleAddress->toString(), $expectedAddresses);
+        }
     }
 }

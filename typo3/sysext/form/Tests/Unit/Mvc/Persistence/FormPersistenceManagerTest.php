@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Persistence;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +15,27 @@ namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Persistence;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Mvc\Persistence;
+
+use TYPO3\CMS\Core\Cache\Frontend\VariableFrontend;
 use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Form\Mvc\Persistence\Exception\NoUniqueIdentifierException;
 use TYPO3\CMS\Form\Mvc\Persistence\Exception\PersistenceManagerException;
 use TYPO3\CMS\Form\Mvc\Persistence\FormPersistenceManager;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FormPersistenceManagerTest extends UnitTestCase
 {
-
     /**
      * @test
      */
-    public function loadThrowsExceptionIfPersistenceIdentifierHasNoYamlExtension()
+    public function loadThrowsExceptionIfPersistenceIdentifierHasNoYamlExtension(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1477679819);
@@ -39,6 +44,18 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             'dummy'
         ], [], '', false);
 
+        $runtimeCache= $this->getMockBuilder(VariableFrontend::class)
+            ->setMethods(['get', 'set'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $runtimeCache
+            ->expects(self::any())
+            ->method('get')
+            ->willReturn(false);
+
+        $mockFormPersistenceManager->_set('runtimeCache', $runtimeCache);
+
         $input = '-1:/user_uploads/_example.php';
         $mockFormPersistenceManager->_call('load', $input);
     }
@@ -46,7 +63,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     /**
      * @test
      */
-    public function loadThrowsExceptionIfPersistenceIdentifierIsAExtensionLocationWhichIsNotAllowed()
+    public function loadThrowsExceptionIfPersistenceIdentifierIsAExtensionLocationWhichIsNotAllowed(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1484071985);
@@ -55,20 +72,32 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             'dummy'
         ], [], '', false);
 
+        $runtimeCache= $this->getMockBuilder(VariableFrontend::class)
+            ->setMethods(['get', 'set'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $runtimeCache
+            ->expects(self::any())
+            ->method('get')
+            ->willReturn(false);
+
+        $mockFormPersistenceManager->_set('runtimeCache', $runtimeCache);
+
         $mockFormPersistenceManager->_set('formSettings', [
             'persistenceManager' => [
                 'allowedExtensionPaths' => [],
             ],
         ]);
 
-        $input = 'EXT:form/Resources/Forms/_example.yaml';
+        $input = 'EXT:form/Resources/Forms/_example.form.yaml';
         $mockFormPersistenceManager->_call('load', $input);
     }
 
     /**
      * @test
      */
-    public function saveThrowsExceptionIfPersistenceIdentifierHasNoYamlExtension()
+    public function saveThrowsExceptionIfPersistenceIdentifierHasNoYamlExtension(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1477679820);
@@ -84,7 +113,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     /**
      * @test
      */
-    public function saveThrowsExceptionIfPersistenceIdentifierIsAExtensionLocationAndSaveToExtensionLocationIsNotAllowed()
+    public function saveThrowsExceptionIfPersistenceIdentifierIsAExtensionLocationAndSaveToExtensionLocationIsNotAllowed(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1477680881);
@@ -99,14 +128,14 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ],
         ]);
 
-        $input = 'EXT:form/Resources/Forms/_example.yaml';
+        $input = 'EXT:form/Resources/Forms/_example.form.yaml';
         $mockFormPersistenceManager->_call('save', $input, []);
     }
 
     /**
      * @test
      */
-    public function saveThrowsExceptionIfPersistenceIdentifierIsAExtensionLocationWhichIsNotAllowed()
+    public function saveThrowsExceptionIfPersistenceIdentifierIsAExtensionLocationWhichIsNotAllowed(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1484073571);
@@ -115,6 +144,18 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             'dummy'
         ], [], '', false);
 
+        $runtimeCache= $this->getMockBuilder(VariableFrontend::class)
+            ->setMethods(['get', 'set'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $runtimeCache
+            ->expects(self::any())
+            ->method('get')
+            ->willReturn(false);
+
+        $mockFormPersistenceManager->_set('runtimeCache', $runtimeCache);
+
         $mockFormPersistenceManager->_set('formSettings', [
             'persistenceManager' => [
                 'allowSaveToExtensionPaths' => true,
@@ -122,14 +163,14 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ],
         ]);
 
-        $input = 'EXT:form/Resources/Forms/_example.yaml';
+        $input = 'EXT:form/Resources/Forms/_example.form.yaml';
         $mockFormPersistenceManager->_call('save', $input, []);
     }
 
     /**
      * @test
      */
-    public function deleteThrowsExceptionIfPersistenceIdentifierHasNoYamlExtension()
+    public function deleteThrowsExceptionIfPersistenceIdentifierHasNoYamlExtension(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1472239534);
@@ -145,7 +186,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     /**
      * @test
      */
-    public function deleteThrowsExceptionIfPersistenceIdentifierFileDoesNotExists()
+    public function deleteThrowsExceptionIfPersistenceIdentifierFileDoesNotExists(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1472239535);
@@ -155,18 +196,18 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
         ], [], '', false);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('exists')
             ->willReturn(false);
 
-        $input = '-1:/user_uploads/_example.yaml';
+        $input = '-1:/user_uploads/_example.form.yaml';
         $mockFormPersistenceManager->_call('delete', $input);
     }
 
     /**
      * @test
      */
-    public function deleteThrowsExceptionIfPersistenceIdentifierIsExtensionLocationAndDeleteFromExtensionLocationsIsNotAllowed()
+    public function deleteThrowsExceptionIfPersistenceIdentifierIsExtensionLocationAndDeleteFromExtensionLocationsIsNotAllowed(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1472239536);
@@ -176,7 +217,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
         ], [], '', false);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('exists')
             ->willReturn(true);
 
@@ -186,14 +227,14 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ],
         ]);
 
-        $input = 'EXT:form/Resources/Forms/_example.yaml';
+        $input = 'EXT:form/Resources/Forms/_example.form.yaml';
         $mockFormPersistenceManager->_call('delete', $input);
     }
 
     /**
      * @test
      */
-    public function deleteThrowsExceptionIfPersistenceIdentifierIsExtensionLocationWhichIsNotAllowed()
+    public function deleteThrowsExceptionIfPersistenceIdentifierIsExtensionLocationWhichIsNotAllowed(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1484073878);
@@ -202,8 +243,20 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             'exists'
         ], [], '', false);
 
+        $runtimeCache= $this->getMockBuilder(VariableFrontend::class)
+            ->setMethods(['get', 'set'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $runtimeCache
+            ->expects(self::any())
+            ->method('get')
+            ->willReturn(false);
+
+        $mockFormPersistenceManager->_set('runtimeCache', $runtimeCache);
+
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('exists')
             ->willReturn(true);
 
@@ -214,14 +267,14 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ],
         ]);
 
-        $input = 'EXT:form/Resources/Forms/_example.yaml';
+        $input = 'EXT:form/Resources/Forms/_example.form.yaml';
         $mockFormPersistenceManager->_call('delete', $input);
     }
 
     /**
      * @test
      */
-    public function deleteThrowsExceptionIfPersistenceIdentifierIsStorageLocationAndDeleteFromStorageIsNotAllowed()
+    public function deleteThrowsExceptionIfPersistenceIdentifierIsStorageLocationAndDeleteFromStorageIsNotAllowed(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1472239516);
@@ -236,38 +289,50 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ->getMock();
 
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('checkFileActionPermission')
             ->willReturn(false);
 
-        $file = new File(['identifier' => '', 'mime_type' => ''], $mockStorage);
+        $file = new File(['name' => 'foo', 'identifier' => '', 'mime_type' => ''], $mockStorage);
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getFile')
             ->willReturn($file);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getStorageByUid')
             ->willReturn($mockStorage);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('exists')
             ->willReturn(true);
 
-        $input = '-1:/user_uploads/_example.yaml';
+        $input = '-1:/user_uploads/_example.form.yaml';
         $mockFormPersistenceManager->_call('delete', $input);
     }
 
     /**
      * @test
      */
-    public function existsReturnsTrueIfPersistenceIdentifierIsExtensionLocationAndFileExistsAndFileHasYamlExtension()
+    public function existsReturnsTrueIfPersistenceIdentifierIsExtensionLocationAndFileExistsAndFileHasYamlExtension(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'dummy'
         ], [], '', false);
+
+        $runtimeCache= $this->getMockBuilder(VariableFrontend::class)
+            ->setMethods(['get', 'set'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $runtimeCache
+            ->expects(self::any())
+            ->method('get')
+            ->willReturn(false);
+
+        $mockFormPersistenceManager->_set('runtimeCache', $runtimeCache);
 
         $mockFormPersistenceManager->_set('formSettings', [
             'persistenceManager' => [
@@ -277,27 +342,27 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ],
         ]);
 
-        $input = 'EXT:form/Tests/Unit/Mvc/Persistence/Fixtures/BlankForm.yaml';
-        $this->assertTrue($mockFormPersistenceManager->_call('exists', $input));
+        $input = 'EXT:form/Tests/Unit/Mvc/Persistence/Fixtures/BlankForm.form.yaml';
+        self::assertTrue($mockFormPersistenceManager->_call('exists', $input));
     }
 
     /**
      * @test
      */
-    public function existsReturnsFalseIfPersistenceIdentifierIsExtensionLocationAndFileExistsAndFileHasNoYamlExtension()
+    public function existsReturnsFalseIfPersistenceIdentifierIsExtensionLocationAndFileExistsAndFileHasNoYamlExtension(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'dummy'
         ], [], '', false);
 
         $input = 'EXT:form/Tests/Unit/Mvc/Persistence/Fixtures/BlankForm.txt';
-        $this->assertFalse($mockFormPersistenceManager->_call('exists', $input));
+        self::assertFalse($mockFormPersistenceManager->_call('exists', $input));
     }
 
     /**
      * @test
      */
-    public function existsReturnsFalseIfPersistenceIdentifierIsExtensionLocationAndFileExistsAndExtensionLocationIsNotAllowed()
+    public function existsReturnsFalseIfPersistenceIdentifierIsExtensionLocationAndFileExistsAndExtensionLocationIsNotAllowed(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'dummy'
@@ -310,26 +375,26 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
         ]);
 
         $input = 'EXT:form/Tests/Unit/Mvc/Persistence/Fixtures/BlankForm.yaml';
-        $this->assertFalse($mockFormPersistenceManager->_call('exists', $input));
+        self::assertFalse($mockFormPersistenceManager->_call('exists', $input));
     }
 
     /**
      * @test
      */
-    public function existsReturnsFalseIfPersistenceIdentifierIsExtensionLocationAndFileNotExistsAndFileHasYamlExtension()
+    public function existsReturnsFalseIfPersistenceIdentifierIsExtensionLocationAndFileNotExistsAndFileHasYamlExtension(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'dummy'
         ], [], '', false);
 
         $input = 'EXT:form/Tests/Unit/Mvc/Persistence/Fixtures/_BlankForm.yaml';
-        $this->assertFalse($mockFormPersistenceManager->_call('exists', $input));
+        self::assertFalse($mockFormPersistenceManager->_call('exists', $input));
     }
 
     /**
      * @test
      */
-    public function existsReturnsTrueIfPersistenceIdentifierIsStorageLocationAndFileExistsAndFileHasYamlExtension()
+    public function existsReturnsTrueIfPersistenceIdentifierIsStorageLocationAndFileExistsAndFileHasYamlExtension(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'getStorageByUid'
@@ -339,23 +404,23 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ->disableOriginalConstructor()
             ->getMock();
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('hasFile')
             ->willReturn(true);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getStorageByUid')
             ->willReturn($mockStorage);
 
-        $input = '-1:/user_uploads/_example.yaml';
-        $this->assertTrue($mockFormPersistenceManager->_call('exists', $input));
+        $input = '-1:/user_uploads/_example.form.yaml';
+        self::assertTrue($mockFormPersistenceManager->_call('exists', $input));
     }
 
     /**
      * @test
      */
-    public function existsReturnsFalseIfPersistenceIdentifierIsStorageLocationAndFileExistsAndFileNoYamlExtension()
+    public function existsReturnsFalseIfPersistenceIdentifierIsStorageLocationAndFileExistsAndFileNoYamlExtension(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'getStorageByUid'
@@ -365,23 +430,23 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ->disableOriginalConstructor()
             ->getMock();
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('hasFile')
             ->willReturn(true);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getStorageByUid')
             ->willReturn($mockStorage);
 
         $input = '-1:/user_uploads/_example.php';
-        $this->assertFalse($mockFormPersistenceManager->_call('exists', $input));
+        self::assertFalse($mockFormPersistenceManager->_call('exists', $input));
     }
 
     /**
      * @test
      */
-    public function existsReturnsFalseIfPersistenceIdentifierIsStorageLocationAndFileNotExistsAndFileHasYamlExtension()
+    public function existsReturnsFalseIfPersistenceIdentifierIsStorageLocationAndFileNotExistsAndFileHasYamlExtension(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'getStorageByUid'
@@ -391,52 +456,52 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ->disableOriginalConstructor()
             ->getMock();
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('hasFile')
             ->willReturn(false);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getStorageByUid')
             ->willReturn($mockStorage);
 
         $input = '-1:/user_uploads/_example.yaml';
-        $this->assertFalse($mockFormPersistenceManager->_call('exists', $input));
+        self::assertFalse($mockFormPersistenceManager->_call('exists', $input));
     }
 
     /**
      * @test
      */
-    public function getUniquePersistenceIdentifierAppendNumberIfPersistenceIdentifierExists()
+    public function getUniquePersistenceIdentifierAppendNumberIfPersistenceIdentifierExists(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'exists'
         ], [], '', false);
 
         $mockFormPersistenceManager
-            ->expects($this->at(0))
+            ->expects(self::at(0))
             ->method('exists')
             ->willReturn(true);
 
         $mockFormPersistenceManager
-            ->expects($this->at(1))
+            ->expects(self::at(1))
             ->method('exists')
             ->willReturn(true);
 
         $mockFormPersistenceManager
-            ->expects($this->at(2))
+            ->expects(self::at(2))
             ->method('exists')
             ->willReturn(false);
 
         $input = 'example';
-        $expected = '-1:/user_uploads/example_2.yaml';
-        $this->assertSame($expected, $mockFormPersistenceManager->_call('getUniquePersistenceIdentifier', $input, '-1:/user_uploads/'));
+        $expected = '-1:/user_uploads/example_2.form.yaml';
+        self::assertSame($expected, $mockFormPersistenceManager->_call('getUniquePersistenceIdentifier', $input, '-1:/user_uploads/'));
     }
 
     /**
      * @test
      */
-    public function getUniquePersistenceIdentifierAppendTimestampIfPersistenceIdentifierExists()
+    public function getUniquePersistenceIdentifierAppendTimestampIfPersistenceIdentifierExists(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'exists'
@@ -444,27 +509,27 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
 
         for ($attempts = 0; $attempts <= 99; $attempts++) {
             $mockFormPersistenceManager
-                ->expects($this->at($attempts))
+                ->expects(self::at($attempts))
                 ->method('exists')
                 ->willReturn(true);
         }
 
         $mockFormPersistenceManager
-            ->expects($this->at(100))
+            ->expects(self::at(100))
             ->method('exists')
             ->willReturn(false);
 
         $input = 'example';
-        $expected = '#^-1:/user_uploads/example_([0-9]{10}).yaml$#';
+        $expected = '#^-1:/user_uploads/example_([0-9]{10}).form.yaml$#';
 
         $returnValue = $mockFormPersistenceManager->_call('getUniquePersistenceIdentifier', $input, '-1:/user_uploads/');
-        $this->assertEquals(1, preg_match($expected, $returnValue));
+        self::assertEquals(1, preg_match($expected, $returnValue));
     }
 
     /**
      * @test
      */
-    public function getUniqueIdentifierThrowsExceptionIfIdentifierExists()
+    public function getUniqueIdentifierThrowsExceptionIfIdentifierExists(): void
     {
         $this->expectException(NoUniqueIdentifierException::class);
         $this->expectExceptionCode(1477688567);
@@ -474,7 +539,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
         ], [], '', false);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('checkForDuplicateIdentifier')
             ->willReturn(true);
 
@@ -485,7 +550,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     /**
      * @test
      */
-    public function getUniqueIdentifierAppendTimestampIfIdentifierExists()
+    public function getUniqueIdentifierAppendTimestampIfIdentifierExists(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'checkForDuplicateIdentifier'
@@ -493,13 +558,13 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
 
         for ($attempts = 0; $attempts <= 99; $attempts++) {
             $mockFormPersistenceManager
-                ->expects($this->at($attempts))
+                ->expects(self::at($attempts))
                 ->method('checkForDuplicateIdentifier')
                 ->willReturn(true);
         }
 
         $mockFormPersistenceManager
-            ->expects($this->at(100))
+            ->expects(self::at(100))
             ->method('checkForDuplicateIdentifier')
             ->willReturn(false);
 
@@ -507,20 +572,20 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
         $expected = '#^example_([0-9]{10})$#';
 
         $returnValue = $mockFormPersistenceManager->_call('getUniqueIdentifier', $input);
-        $this->assertEquals(1, preg_match($expected, $returnValue));
+        self::assertEquals(1, preg_match($expected, $returnValue));
     }
 
     /**
      * @test
      */
-    public function checkForDuplicateIdentifierReturnsTrueIfIdentifierIsUsed()
+    public function checkForDuplicateIdentifierReturnsTrueIfIdentifierIsUsed(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'listForms'
         ], [], '', false);
 
         $mockFormPersistenceManager
-            ->expects($this->at($attempts))
+            ->expects(self::at(0))
             ->method('listForms')
             ->willReturn([
                 0 => [
@@ -529,20 +594,20 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ]);
 
         $input = 'example';
-        $this->assertTrue($mockFormPersistenceManager->_call('checkForDuplicateIdentifier', $input));
+        self::assertTrue($mockFormPersistenceManager->_call('checkForDuplicateIdentifier', $input));
     }
 
     /**
      * @test
      */
-    public function checkForDuplicateIdentifierReturnsFalseIfIdentifierIsUsed()
+    public function checkForDuplicateIdentifierReturnsFalseIfIdentifierIsUsed(): void
     {
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
             'listForms'
         ], [], '', false);
 
         $mockFormPersistenceManager
-            ->expects($this->at($attempts))
+            ->expects(self::at(0))
             ->method('listForms')
             ->willReturn([
                 0 => [
@@ -551,49 +616,51 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ]);
 
         $input = 'other-example';
-        $this->assertFalse($mockFormPersistenceManager->_call('checkForDuplicateIdentifier', $input));
+        self::assertFalse($mockFormPersistenceManager->_call('checkForDuplicateIdentifier', $input));
     }
 
     /**
      * @test
      */
-    public function getFileByIdentifierThrowsExceptionIfReadFromStorageIsNotAllowed()
+    public function retrieveFileByPersistenceIdentifierThrowsExceptionIfReadFromStorageIsNotAllowed(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1471630578);
 
         $mockFormPersistenceManager = $this->getAccessibleMock(FormPersistenceManager::class, [
-            'getStorageByUid',
+            'dummy',
         ], [], '', false);
 
-        $mockStorage = $this->getMockBuilder(ResourceStorage::class)
+        $storage = $this->getMockBuilder(ResourceStorage::class)
             ->disableOriginalConstructor()
             ->getMock();
 
-        $mockStorage
-            ->expects($this->any())
+        $storage
+            ->expects(self::any())
             ->method('checkFileActionPermission')
             ->willReturn(false);
 
-        $file = new File(['identifier' => '', 'mime_type' => ''], $mockStorage);
-        $mockStorage
-            ->expects($this->any())
-            ->method('getFile')
+        $file = new File(['name' => 'foo', 'identifier' => '', 'mime_type' => ''], $storage);
+
+        $resourceFactory = $this->getMockBuilder(ResourceFactory::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $resourceFactory
+            ->expects(self::any())
+            ->method('retrieveFileOrFolderObject')
             ->willReturn($file);
 
-        $mockFormPersistenceManager
-            ->expects($this->any())
-            ->method('getStorageByUid')
-            ->willReturn($mockStorage);
+        $mockFormPersistenceManager->_set('resourceFactory', $resourceFactory);
 
         $input = '-1:/user_uploads/example.yaml';
-        $mockFormPersistenceManager->_call('getFileByIdentifier', $input);
+        $mockFormPersistenceManager->_call('retrieveFileByPersistenceIdentifier', $input);
     }
 
     /**
      * @test
      */
-    public function getOrCreateFileThrowsExceptionIfFolderNotExistsInStorage()
+    public function getOrCreateFileThrowsExceptionIfFolderNotExistsInStorage(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1471630579);
@@ -607,12 +674,12 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ->getMock();
 
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('hasFolder')
             ->willReturn(false);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getStorageByUid')
             ->willReturn($mockStorage);
 
@@ -623,7 +690,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     /**
      * @test
      */
-    public function getOrCreateFileThrowsExceptionIfWriteToStorageIsNotAllowed()
+    public function getOrCreateFileThrowsExceptionIfWriteToStorageIsNotAllowed(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1471630580);
@@ -637,23 +704,23 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ->getMock();
 
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('hasFolder')
             ->willReturn(true);
 
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('checkFileActionPermission')
             ->willReturn(false);
 
-        $file = new File(['identifier' => '', 'mime_type' => ''], $mockStorage);
+        $file = new File(['name' => 'foo', 'identifier' => '', 'mime_type' => ''], $mockStorage);
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getFile')
             ->willReturn($file);
 
         $mockFormPersistenceManager
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getStorageByUid')
             ->willReturn($mockStorage);
 
@@ -664,7 +731,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     /**
      * @test
      */
-    public function getStorageByUidThrowsExceptionIfStorageNotExists()
+    public function getStorageByUidThrowsExceptionIfStorageNotExists(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1471630581);
@@ -678,7 +745,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ->getMock();
 
         $mockStorageRepository
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('findByUid')
             ->willReturn(null);
 
@@ -689,7 +756,7 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
     /**
      * @test
      */
-    public function getStorageByUidThrowsExceptionIfStorageIsNotBrowsable()
+    public function getStorageByUidThrowsExceptionIfStorageIsNotBrowsable(): void
     {
         $this->expectException(PersistenceManagerException::class);
         $this->expectExceptionCode(1471630581);
@@ -707,12 +774,12 @@ class FormPersistenceManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitT
             ->getMock();
 
         $mockStorage
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('isBrowsable')
             ->willReturn(false);
 
         $mockStorageRepository
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('findByUid')
             ->willReturn($mockStorage);
 

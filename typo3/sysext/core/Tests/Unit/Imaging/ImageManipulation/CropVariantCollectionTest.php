@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Core\Tests\Unit\Imaging\ImageManipulation;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Imaging\ImageManipulation;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Imaging\ImageManipulation;
+
 use TYPO3\CMS\Core\Imaging\ImageManipulation\Area;
 use TYPO3\CMS\Core\Imaging\ImageManipulation\CropVariant;
 use TYPO3\CMS\Core\Imaging\ImageManipulation\CropVariantCollection;
@@ -27,7 +29,7 @@ class CropVariantCollectionTest extends UnitTestCase
      * @var array
      */
     private static $tca = [
-        'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.crop_variant.default',
+        'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.crop_variant.default',
         'cropArea' => [
             'x' => 0.0,
             'y' => 0.0,
@@ -36,19 +38,19 @@ class CropVariantCollectionTest extends UnitTestCase
         ],
         'allowedAspectRatios' => [
             '16:9' => [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.16_9',
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.16_9',
                 'value' => 1.777777777777777
             ],
             '4:3' => [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.4_3',
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.4_3',
                 'value' => 1.333333333333333
             ],
             '1:1' => [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.1_1',
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.1_1',
                 'value' => 1.0
             ],
             'free' => [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.free',
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_wizards.xlf:imwizard.ratio.free',
                 'value' => 0.0
             ],
         ],
@@ -77,7 +79,7 @@ class CropVariantCollectionTest extends UnitTestCase
         $cropVariant1 = self::$tca;
         $cropVariant2 = self::$tca;
         $cropVariantCollection = CropVariantCollection::create(json_encode(['default' => $cropVariant1, 'Second' => $cropVariant2]));
-        $this->assertInstanceOf(CropVariantCollection::class, $cropVariantCollection);
+        self::assertInstanceOf(CropVariantCollection::class, $cropVariantCollection);
 
         $assertSameValues = function ($expected, $actual) use (&$assertSameValues) {
             if (is_array($expected)) {
@@ -109,6 +111,15 @@ class CropVariantCollectionTest extends UnitTestCase
      */
     public function createEmptyWorks()
     {
-        $this->assertTrue(CropVariantCollection::create('')->getCropArea()->isEmpty());
+        self::assertTrue(CropVariantCollection::create('')->getCropArea()->isEmpty());
+    }
+
+    /**
+     * @test
+     */
+    public function castToStringReturnsJsonArrayOnEmptyInput(): void
+    {
+        $variants = new CropVariantCollection([]);
+        self::assertSame('[]', (string)$variants);
     }
 }

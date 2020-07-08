@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,30 +13,45 @@ namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Tests\Unit\Controller;
+
+use PHPUnit\Framework\MockObject\MockObject;
+use TYPO3\CMS\Extensionmanager\Controller\DownloadController;
+use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
+use TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException;
+use TYPO3\CMS\Extensionmanager\Utility\DownloadUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Download from TER controller test
  */
-class DownloadControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DownloadControllerTest extends UnitTestCase
 {
     /**
      * @test
      */
-    public function installFromTerReturnsArrayWithBooleanResultAndErrorArrayWhenExtensionManagerExceptionIsThrown()
+    public function installFromTerReturnsArrayWithBooleanResultAndErrorArrayWhenExtensionManagerExceptionIsThrown(): void
     {
         $dummyExceptionMessage = 'exception message';
-        $dummyException = new \TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException($dummyExceptionMessage, 1476108614);
+        $dummyException = new ExtensionManagerException($dummyExceptionMessage, 1476108614);
 
         $dummyExtensionName = 'dummy_extension';
-        $dummyExtension = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension::class)->getMock();
-        $dummyExtension->expects($this->any())->method('getExtensionKey')->will($this->returnValue($dummyExtensionName));
+        $dummyExtension = new Extension();
+        $dummyExtension->setExtensionKey($dummyExtensionName);
 
-        $downloadUtilityMock = $this->getMockBuilder(\TYPO3\CMS\Extensionmanager\Utility\DownloadUtility::class)->getMock();
-        $downloadUtilityMock->expects($this->any())->method('setDownloadPath')->willThrowException($dummyException);
+        /** @var \TYPO3\CMS\Extensionmanager\Utility\DownloadUtility|MockObject $downloadUtilityMock */
+        $downloadUtilityMock = $this->getMockBuilder(DownloadUtility::class)->getMock();
+        $downloadUtilityMock->expects(self::any())->method('setDownloadPath')->willThrowException($dummyException);
 
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Extensionmanager\Controller\DownloadController::class, ['dummy']);
-        $subject->_set('downloadUtility', $downloadUtilityMock);
+        /** @var \TYPO3\CMS\Extensionmanager\Controller\DownloadController $subject */
+        $subject = new DownloadController();
+        $subject->injectDownloadUtility($downloadUtilityMock);
 
-        $result = $subject->_call('installFromTer', $dummyExtension);
+        $reflectionClass = new \ReflectionClass($subject);
+        $reflectionMethod = $reflectionClass->getMethod('installFromTer');
+        $reflectionMethod->setAccessible(true);
+
+        $result = $reflectionMethod->invokeArgs($subject, [$dummyExtension]);
 
         $expectedResult = [
             false,
@@ -51,6 +65,6 @@ class DownloadControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
             ]
         ];
 
-        $this->assertSame($expectedResult, $result);
+        self::assertSame($expectedResult, $result);
     }
 }

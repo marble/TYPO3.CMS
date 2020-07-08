@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Frontend\Typolink;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Frontend\Typolink;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\Typolink;
 
 use TYPO3\CMS\Frontend\Exception;
 
@@ -33,9 +35,9 @@ class UnableToLinkException extends Exception
      * @param string $message [optional] The Exception message to throw.
      * @param int $code [optional] The Exception code.
      * @param \Throwable $previous [optional] The previous throwable used for the exception chaining.
-     * @param string $linkText
+     * @param string $linkText [optional]
      */
-    public function __construct($message = '', $code = 0, \Throwable $previous = null, $linkText = null)
+    public function __construct($message = '', $code = 0, \Throwable $previous = null, $linkText = '')
     {
         parent::__construct($message, $code, $previous);
         $this->linkText = $linkText;

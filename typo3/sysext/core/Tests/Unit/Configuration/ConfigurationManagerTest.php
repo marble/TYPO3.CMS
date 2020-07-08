@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,18 +15,26 @@ namespace TYPO3\CMS\Core\Tests\Unit\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Configuration;
+
+use TYPO3\CMS\Core\Configuration\ConfigurationManager;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class ConfigurationManagerTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Core\Configuration\ConfigurationManager|\PHPUnit_Framework_MockObject_MockObject
+     * @var ConfigurationManager|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->createSubjectWithMockedMethods(
             [
                 'getDefaultConfigurationFileLocation',
@@ -37,9 +46,9 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @param array $methods
      */
-    protected function createSubjectWithMockedMethods(array $methods)
+    protected function createSubjectWithMockedMethods(array $methods): void
     {
-        $this->subject = $this->getMockBuilder(\TYPO3\CMS\Core\Configuration\ConfigurationManager::class)
+        $this->subject = $this->getMockBuilder(ConfigurationManager::class)
             ->setMethods($methods)
             ->getMock();
     }
@@ -47,12 +56,12 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function getDefaultConfigurationExecutesDefinedDefaultConfigurationFile()
+    public function getDefaultConfigurationExecutesDefinedDefaultConfigurationFile(): void
     {
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionCode(1310203814);
 
-        $defaultConfigurationFile = PATH_site . 'typo3temp/var/tests/' . $this->getUniqueId('defaultConfiguration');
+        $defaultConfigurationFile = Environment::getVarPath() . '/tests/' . StringUtility::getUniqueId('defaultConfiguration');
         file_put_contents(
             $defaultConfigurationFile,
             '<?php throw new \RuntimeException(\'foo\', 1310203814); ?>'
@@ -60,20 +69,20 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $this->testFilesToDelete[] = $defaultConfigurationFile;
 
         $this->subject
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('getDefaultConfigurationFileLocation')
-            ->will($this->returnValue($defaultConfigurationFile));
+            ->willReturn($defaultConfigurationFile);
         $this->subject->getDefaultConfiguration();
     }
 
     /**
      * @test
      */
-    public function getLocalConfigurationExecutesDefinedConfigurationFile()
+    public function getLocalConfigurationExecutesDefinedConfigurationFile(): void
     {
         $this->expectException(\RuntimeException::class);
 
-        $configurationFile = PATH_site . 'typo3temp/var/tests/' . $this->getUniqueId('localConfiguration');
+        $configurationFile = Environment::getVarPath() . '/tests/' . StringUtility::getUniqueId('localConfiguration');
         file_put_contents(
             $configurationFile,
             '<?php throw new \RuntimeException(\'foo\', 1310203815); ?>'
@@ -81,16 +90,16 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $this->testFilesToDelete[] = $configurationFile;
 
         $this->subject
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('getLocalConfigurationFileLocation')
-            ->will($this->returnValue($configurationFile));
+            ->willReturn($configurationFile);
         $this->subject->getLocalConfiguration();
     }
 
     /**
      * @test
      */
-    public function updateLocalConfigurationWritesNewMergedLocalConfigurationArray()
+    public function updateLocalConfigurationWritesNewMergedLocalConfigurationArray(): void
     {
         $currentLocalConfiguration = [
             'notChanged' => 23,
@@ -112,12 +121,12 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                 'writeLocalConfiguration',
             ]
         );
-        $this->subject->expects($this->once())
-                ->method('getLocalConfiguration')
-                ->will($this->returnValue($currentLocalConfiguration));
-        $this->subject->expects($this->once())
-                ->method('writeLocalConfiguration')
-                ->with($expectedConfiguration);
+        $this->subject->expects(self::once())
+            ->method('getLocalConfiguration')
+            ->willReturn($currentLocalConfiguration);
+        $this->subject->expects(self::once())
+            ->method('writeLocalConfiguration')
+            ->with($expectedConfiguration);
 
         $this->subject->updateLocalConfiguration($overrideConfiguration);
     }
@@ -125,47 +134,49 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function getDefaultConfigurationValueByPathReturnsCorrectValue()
+    public function getDefaultConfigurationValueByPathReturnsCorrectValue(): void
     {
         $this->createSubjectWithMockedMethods(
             [
                 'getDefaultConfiguration',
             ]
         );
-        $this->subject->expects($this->once())
-                ->method('getDefaultConfiguration')
-                ->will($this->returnValue([
+        $this->subject->expects(self::once())
+            ->method('getDefaultConfiguration')
+            ->willReturn(
+                [
                     'path' => 'value',
                 ]
-            ));
+            );
 
-        $this->assertSame('value', $this->subject->getDefaultConfigurationValueByPath('path'));
+        self::assertSame('value', $this->subject->getDefaultConfigurationValueByPath('path'));
     }
 
     /**
      * @test
      */
-    public function getLocalConfigurationValueByPathReturnsCorrectValue()
+    public function getLocalConfigurationValueByPathReturnsCorrectValue(): void
     {
         $this->createSubjectWithMockedMethods(
             [
                 'getLocalConfiguration',
             ]
         );
-        $this->subject->expects($this->once())
-                ->method('getLocalConfiguration')
-                ->will($this->returnValue([
+        $this->subject->expects(self::once())
+            ->method('getLocalConfiguration')
+            ->willReturn(
+                [
                     'path' => 'value',
                 ]
-            ));
+            );
 
-        $this->assertSame('value', $this->subject->getLocalConfigurationValueByPath('path'));
+        self::assertSame('value', $this->subject->getLocalConfigurationValueByPath('path'));
     }
 
     /**
      * @test
      */
-    public function getConfigurationValueByPathReturnsCorrectValue()
+    public function getConfigurationValueByPathReturnsCorrectValue(): void
     {
         $this->createSubjectWithMockedMethods(
             [
@@ -173,41 +184,43 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                 'getLocalConfiguration',
             ]
         );
-        $this->subject->expects($this->once())
-                ->method('getDefaultConfiguration')
-                ->will($this->returnValue([
+        $this->subject->expects(self::once())
+            ->method('getDefaultConfiguration')
+            ->willReturn(
+                [
                     'path' => 'value',
                 ]
-            ));
-        $this->subject->expects($this->once())
-                ->method('getLocalConfiguration')
-                ->will($this->returnValue([
+            );
+        $this->subject->expects(self::once())
+            ->method('getLocalConfiguration')
+            ->willReturn(
+                [
                     'path' => 'valueOverride',
                 ]
-            ));
+            );
 
-        $this->assertSame('valueOverride', $this->subject->getConfigurationValueByPath('path'));
+        self::assertSame('valueOverride', $this->subject->getConfigurationValueByPath('path'));
     }
 
     /**
      * @test
      */
-    public function setLocalConfigurationValueByPathReturnFalseIfPathIsNotValid()
+    public function setLocalConfigurationValueByPathReturnFalseIfPathIsNotValid(): void
     {
         $this->createSubjectWithMockedMethods([
-                'isValidLocalConfigurationPath',
-            ]);
-        $this->subject->expects($this->once())
-                ->method('isValidLocalConfigurationPath')
-                ->will($this->returnValue(false));
+            'isValidLocalConfigurationPath',
+        ]);
+        $this->subject->expects(self::once())
+            ->method('isValidLocalConfigurationPath')
+            ->willReturn(false);
 
-        $this->assertFalse($this->subject->setLocalConfigurationValueByPath('path', 'value'));
+        self::assertFalse($this->subject->setLocalConfigurationValueByPath('path', 'value'));
     }
 
     /**
      * @test
      */
-    public function setLocalConfigurationValueByPathUpdatesValueDefinedByPath()
+    public function setLocalConfigurationValueByPathUpdatesValueDefinedByPath(): void
     {
         $currentLocalConfiguration = [
             'notChanged' => 23,
@@ -225,15 +238,15 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                 'writeLocalConfiguration',
             ]
         );
-        $this->subject->expects($this->once())
-                ->method('isValidLocalConfigurationPath')
-                ->will($this->returnValue(true));
-        $this->subject->expects($this->once())
-                ->method('getLocalConfiguration')
-                ->will($this->returnValue($currentLocalConfiguration));
-        $this->subject->expects($this->once())
-                ->method('writeLocalConfiguration')
-                ->with($expectedConfiguration);
+        $this->subject->expects(self::once())
+            ->method('isValidLocalConfigurationPath')
+            ->willReturn(true);
+        $this->subject->expects(self::once())
+            ->method('getLocalConfiguration')
+            ->willReturn($currentLocalConfiguration);
+        $this->subject->expects(self::once())
+            ->method('writeLocalConfiguration')
+            ->with($expectedConfiguration);
 
         $this->subject->setLocalConfigurationValueByPath('toUpdate', 'updated');
     }
@@ -241,7 +254,7 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function setLocalConfigurationValuesByPathValuePairsSetsPathValuePairs()
+    public function setLocalConfigurationValuesByPathValuePairsSetsPathValuePairs(): void
     {
         $currentLocalConfiguration = [
             'notChanged' => 23,
@@ -260,15 +273,15 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                 'writeLocalConfiguration',
             ]
         );
-        $this->subject->expects($this->any())
-                ->method('isValidLocalConfigurationPath')
-                ->will($this->returnValue(true));
-        $this->subject->expects($this->once())
-                ->method('getLocalConfiguration')
-                ->will($this->returnValue($currentLocalConfiguration));
-        $this->subject->expects($this->once())
-                ->method('writeLocalConfiguration')
-                ->with($expectedConfiguration);
+        $this->subject->expects(self::any())
+            ->method('isValidLocalConfigurationPath')
+            ->willReturn(true);
+        $this->subject->expects(self::once())
+            ->method('getLocalConfiguration')
+            ->willReturn($currentLocalConfiguration);
+        $this->subject->expects(self::once())
+            ->method('writeLocalConfiguration')
+            ->with($expectedConfiguration);
 
         $pairs = [
             'toUpdate' => 'updated',
@@ -280,7 +293,7 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function removeLocalConfigurationKeysByPathRemovesGivenPathsFromConfigurationAndReturnsTrue()
+    public function removeLocalConfigurationKeysByPathRemovesGivenPathsFromConfigurationAndReturnsTrue(): void
     {
         $currentLocalConfiguration = [
             'toRemove1' => 'foo',
@@ -297,10 +310,10 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                 'writeLocalConfiguration',
             ]
         );
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getLocalConfiguration')
-            ->will($this->returnValue($currentLocalConfiguration));
-        $this->subject->expects($this->once())
+            ->willReturn($currentLocalConfiguration);
+        $this->subject->expects(self::once())
             ->method('writeLocalConfiguration')
             ->with($expectedConfiguration);
 
@@ -308,13 +321,13 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
             'toRemove1',
             'toRemove2',
         ];
-        $this->assertTrue($this->subject->removeLocalConfigurationKeysByPath($removePaths));
+        self::assertTrue($this->subject->removeLocalConfigurationKeysByPath($removePaths));
     }
 
     /**
      * @test
      */
-    public function removeLocalConfigurationKeysByPathReturnsFalseIfNothingIsRemoved()
+    public function removeLocalConfigurationKeysByPathReturnsFalseIfNothingIsRemoved(): void
     {
         $currentLocalConfiguration = [
             'notChanged' => 23,
@@ -325,20 +338,20 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                 'writeLocalConfiguration',
             ]
         );
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getLocalConfiguration')
-            ->will($this->returnValue($currentLocalConfiguration));
-        $this->subject->expects($this->never())
+            ->willReturn($currentLocalConfiguration);
+        $this->subject->expects(self::never())
             ->method('writeLocalConfiguration');
 
         $removeNothing = [];
-        $this->assertFalse($this->subject->removeLocalConfigurationKeysByPath($removeNothing));
+        self::assertFalse($this->subject->removeLocalConfigurationKeysByPath($removeNothing));
     }
 
     /**
      * @test
      */
-    public function removeLocalConfigurationKeysByPathReturnsFalseIfSomethingInexistentIsRemoved()
+    public function removeLocalConfigurationKeysByPathReturnsFalseIfSomethingInexistentIsRemoved(): void
     {
         $currentLocalConfiguration = [
             'notChanged' => 23,
@@ -349,29 +362,30 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
                 'writeLocalConfiguration',
             ]
         );
-        $this->subject->expects($this->once())
+        $this->subject->expects(self::once())
             ->method('getLocalConfiguration')
-            ->will($this->returnValue($currentLocalConfiguration));
-        $this->subject->expects($this->never())
+            ->willReturn($currentLocalConfiguration);
+        $this->subject->expects(self::never())
             ->method('writeLocalConfiguration');
 
         $removeNonExisting = ['notPresent'];
-        $this->assertFalse($this->subject->removeLocalConfigurationKeysByPath($removeNonExisting));
+        self::assertFalse($this->subject->removeLocalConfigurationKeysByPath($removeNonExisting));
     }
 
     /**
      * @test
+     * @requires OSFAMILY Linux|Darwin
      */
-    public function canWriteConfigurationReturnsFalseIfLocalConfigurationFileIsNotWritable()
+    public function canWriteConfigurationReturnsFalseIfLocalConfigurationFileIsNotWritable(): void
     {
-        if (function_exists('posix_getegid') && posix_getegid() === 0) {
-            $this->markTestSkipped('Test skipped if run on linux as root');
+        if (\function_exists('posix_getegid') && posix_getegid() === 0) {
+            self::markTestSkipped('Test skipped if run on linux as root');
         }
-        /** @var $subject \TYPO3\CMS\Core\Configuration\ConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Configuration\ConfigurationManager::class, ['dummy']);
+        /** @var $subject ConfigurationManager|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $subject = $this->getAccessibleMock(ConfigurationManager::class, ['dummy']);
 
-        $file = 'typo3temp/var/tests/' . $this->getUniqueId('test_');
-        $absoluteFile = PATH_site . $file;
+        $file = StringUtility::getUniqueId('test_');
+        $absoluteFile = Environment::getVarPath() . '/tests/' . $file;
         touch($absoluteFile);
         $this->testFilesToDelete[] = $absoluteFile;
         chmod($absoluteFile, 0444);
@@ -383,23 +397,23 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
 
         chmod($absoluteFile, 0644);
 
-        $this->assertFalse($result);
+        self::assertFalse($result);
     }
 
     /**
      * @test
      */
-    public function canWriteConfigurationReturnsTrueIfDirectoryAndFilesAreWritable()
+    public function canWriteConfigurationReturnsTrueIfDirectoryAndFilesAreWritable(): void
     {
-        /** @var $subject \TYPO3\CMS\Core\Configuration\ConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Configuration\ConfigurationManager::class, ['dummy']);
+        /** @var $subject ConfigurationManager|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $subject = $this->getAccessibleMock(ConfigurationManager::class, ['dummy']);
 
-        $directory = 'typo3temp/var/tests/' . $this->getUniqueId('test_');
-        $absoluteDirectory = PATH_site . $directory;
+        $directory = StringUtility::getUniqueId('test_');
+        $absoluteDirectory = Environment::getVarPath() . '/tests/' . $directory;
         mkdir($absoluteDirectory);
 
-        $file = 'typo3temp/var/tests/' . $this->getUniqueId('test_');
-        $absoluteFile1 = PATH_site . $file;
+        $file = StringUtility::getUniqueId('test_');
+        $absoluteFile1 = Environment::getVarPath() . '/tests/' . $file;
         touch($absoluteFile1);
         $this->testFilesToDelete[] = $absoluteFile1;
         $subject->_set('localConfigurationFile', $absoluteFile1);
@@ -408,32 +422,35 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
 
         $result = $subject->canWriteConfiguration();
 
-        $this->assertTrue($result);
+        self::assertTrue($result);
         $this->testFilesToDelete[] = $absoluteDirectory;
     }
 
     /**
      * @test
      */
-    public function writeLocalConfigurationWritesSortedContentToConfigurationFile()
+    public function writeLocalConfigurationWritesSortedContentToConfigurationFile(): void
     {
-        $configurationFile = PATH_site . 'typo3temp/var/tests/' . $this->getUniqueId('localConfiguration');
+        $configurationFile = Environment::getVarPath() . '/tests/' . StringUtility::getUniqueId('localConfiguration');
         if (!is_file($configurationFile)) {
             if (!$fh = fopen($configurationFile, 'wb')) {
-                $this->markTestSkipped('Can not create file ' . $configurationFile . '. Please check your write permissions.');
+                self::markTestSkipped('Can not create file ' . $configurationFile . '. Please check your write permissions.');
             }
             fclose($fh);
         }
 
         if (!@is_file($configurationFile)) {
-            throw new \RuntimeException('File ' . $configurationFile . ' could not be found. Please check your write permissions', 1346364362);
+            throw new \RuntimeException(
+                'File ' . $configurationFile . ' could not be found. Please check your write permissions',
+                1346364362
+            );
         }
         $this->testFilesToDelete[] = $configurationFile;
 
         $this->subject
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getLocalConfigurationFileLocation')
-            ->will($this->returnValue($configurationFile));
+            ->willReturn($configurationFile);
 
         $pairs = [
             'foo' => 42,
@@ -441,28 +458,29 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         ];
         $expectedContent =
             '<?php' . LF .
-                'return [' . LF .
-                    '    \'bar\' => 23,' . LF .
-                    '    \'foo\' => 42,' . LF .
-                '];' . LF;
+            'return [' . LF .
+            '    \'bar\' => 23,' . LF .
+            '    \'foo\' => 42,' . LF .
+            '];' . LF;
 
         $this->subject->writeLocalConfiguration($pairs);
-        $this->assertSame($expectedContent, file_get_contents($configurationFile));
+        self::assertSame($expectedContent, file_get_contents($configurationFile));
     }
 
     /**
      * @test
      */
-    public function createLocalConfigurationFromFactoryConfigurationThrowsExceptionIfFileExists()
+    public function createLocalConfigurationFromFactoryConfigurationThrowsExceptionIfFileExists(): void
     {
         $this->expectException(\RuntimeException::class);
 
-        /** @var $subject \TYPO3\CMS\Core\Configuration\ConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Configuration\ConfigurationManager::class, ['dummy']);
+        /** @var $subject ConfigurationManager|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $subject = $this->getAccessibleMock(ConfigurationManager::class, ['getLocalConfigurationFileLocation']);
 
-        $file = 'typo3temp/var/tests/' . $this->getUniqueId('test_');
-        $absoluteFile = PATH_site . $file;
+        $file = 'tests/' . StringUtility::getUniqueId('test_');
+        $absoluteFile = Environment::getVarPath() . '/' . $file;
         touch($absoluteFile);
+        $subject->method('getLocalConfigurationFileLocation')->willReturn($absoluteFile);
         $this->testFilesToDelete[] = $absoluteFile;
         $subject->_set('localConfigurationFile', $file);
 
@@ -472,20 +490,23 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
     /**
      * @test
      */
-    public function createLocalConfigurationFromFactoryConfigurationWritesContentFromFactoryFile()
+    public function createLocalConfigurationFromFactoryConfigurationWritesContentFromFactoryFile(): void
     {
-        /** @var $subject \TYPO3\CMS\Core\Configuration\ConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Configuration\ConfigurationManager::class, ['writeLocalConfiguration']);
-        $subject->_set('localConfigurationFile', 'typo3temp/var/tests/' . $this->getUniqueId('dummy_'));
+        /** @var $subject ConfigurationManager|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $subject = $this->getAccessibleMock(ConfigurationManager::class, ['writeLocalConfiguration', 'getLocalConfigurationFileLocation', 'getFactoryConfigurationFileLocation']);
+        $localConfigurationFile = '/tests/' . StringUtility::getUniqueId('dummy_');
+        $subject->_set('localConfigurationFile', $localConfigurationFile);
+        $subject->method('getLocalConfigurationFileLocation')->willReturn(Environment::getVarPath() . '/' . $localConfigurationFile);
 
-        $factoryConfigurationFile = 'typo3temp/var/tests/' . $this->getUniqueId('test_') . '.php';
-        $factoryConfigurationAbsoluteFile = PATH_site . $factoryConfigurationFile;
-        $uniqueContentString = $this->getUniqueId('string_');
+        $factoryConfigurationFile = 'tests/' . StringUtility::getUniqueId('test_') . '.php';
+        $factoryConfigurationAbsoluteFile = Environment::getVarPath() . '/' . $factoryConfigurationFile;
+        $subject->method('getFactoryConfigurationFileLocation')->willReturn($factoryConfigurationAbsoluteFile);
+        $uniqueContentString = StringUtility::getUniqueId('string_');
         $validFactoryConfigurationFileContent =
             '<?php' . LF .
-                'return array(' . LF .
-                    $uniqueContentString . ' => foo,' . LF .
-                ');' . LF;
+            'return [' . LF .
+            '\'' . $uniqueContentString . '\' => \'foo\',' . LF .
+            '];' . LF;
         file_put_contents(
             $factoryConfigurationAbsoluteFile,
             $validFactoryConfigurationFileContent
@@ -495,26 +516,28 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $subject->_set('factoryConfigurationFile', $factoryConfigurationFile);
 
         $subject
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('writeLocalConfiguration')
-            ->with($this->arrayHasKey($uniqueContentString));
+            ->with(self::arrayHasKey($uniqueContentString));
         $subject->createLocalConfigurationFromFactoryConfiguration();
     }
 
     /**
      * @test
      */
-    public function createLocalConfigurationFromFactoryConfigurationMergesConfigurationWithAdditionalFactoryFile()
+    public function createLocalConfigurationFromFactoryConfigurationMergesConfigurationWithAdditionalFactoryFile(): void
     {
-        /** @var $subject \TYPO3\CMS\Core\Configuration\ConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Configuration\ConfigurationManager::class, ['writeLocalConfiguration']);
-        $subject->_set('localConfigurationFile', 'typo3temp/var/tests/' . $this->getUniqueId('dummy_'));
+        $subject = $this->getAccessibleMock(ConfigurationManager::class, ['writeLocalConfiguration', 'getLocalConfigurationFileLocation', 'getFactoryConfigurationFileLocation', 'getAdditionalFactoryConfigurationFileLocation']);
+        $localConfigurationFile = '/tests/' . StringUtility::getUniqueId('dummy_');
+        $subject->_set('localConfigurationFile', $localConfigurationFile);
+        $subject->method('getLocalConfigurationFileLocation')->willReturn(Environment::getVarPath() . '/' . $localConfigurationFile);
 
-        $factoryConfigurationFile = 'typo3temp/var/tests/' . $this->getUniqueId('test_') . '.php';
-        $factoryConfigurationAbsoluteFile = PATH_site . $factoryConfigurationFile;
+        $factoryConfigurationFile = 'tests/' . StringUtility::getUniqueId('test_') . '.php';
+        $factoryConfigurationAbsoluteFile = Environment::getVarPath() . '/' . $factoryConfigurationFile;
+        $subject->method('getFactoryConfigurationFileLocation')->willReturn($factoryConfigurationAbsoluteFile);
         $validFactoryConfigurationFileContent =
             '<?php' . LF .
-                'return [];' . LF;
+            'return [];' . LF;
         file_put_contents(
             $factoryConfigurationAbsoluteFile,
             $validFactoryConfigurationFileContent
@@ -522,14 +545,15 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $this->testFilesToDelete[] = $factoryConfigurationAbsoluteFile;
         $subject->_set('factoryConfigurationFile', $factoryConfigurationFile);
 
-        $additionalFactoryConfigurationFile = 'typo3temp/var/tests/' . $this->getUniqueId('test_') . '.php';
-        $additionalFactoryConfigurationAbsoluteFile = PATH_site . $additionalFactoryConfigurationFile;
-        $uniqueContentString = $this->getUniqueId('string_');
+        $additionalFactoryConfigurationFile = 'tests/' . StringUtility::getUniqueId('test_') . '.php';
+        $additionalFactoryConfigurationAbsoluteFile = Environment::getVarPath() . '/' . $additionalFactoryConfigurationFile;
+        $subject->method('getAdditionalFactoryConfigurationFileLocation')->willReturn($additionalFactoryConfigurationAbsoluteFile);
+        $uniqueContentString = StringUtility::getUniqueId('string_');
         $validAdditionalFactoryConfigurationFileContent =
             '<?php' . LF .
-                'return [' . LF .
-                    $uniqueContentString . ' => foo,' . LF .
-                '];' . LF;
+            'return [' . LF .
+            '\'' . $uniqueContentString . '\' => \'foo\',' . LF .
+            '];' . LF;
         file_put_contents(
             $additionalFactoryConfigurationAbsoluteFile,
             $validAdditionalFactoryConfigurationFileContent
@@ -538,31 +562,31 @@ class ConfigurationManagerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTes
         $subject->_set('additionalFactoryConfigurationFile', $additionalFactoryConfigurationFile);
 
         $subject
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('writeLocalConfiguration')
-            ->with($this->arrayHasKey($uniqueContentString));
+            ->with(self::arrayHasKey($uniqueContentString));
         $subject->createLocalConfigurationFromFactoryConfiguration();
     }
 
     /**
      * @test
      */
-    public function isValidLocalConfigurationPathAcceptsWhitelistedPath()
+    public function isValidLocalConfigurationPathAcceptsWhitelistedPath(): void
     {
-        /** @var $subject \TYPO3\CMS\Core\Configuration\ConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Configuration\ConfigurationManager::class, ['dummy']);
+        /** @var $subject ConfigurationManager|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $subject = $this->getAccessibleMock(ConfigurationManager::class, ['dummy']);
         $subject->_set('whiteListedLocalConfigurationPaths', ['foo/bar']);
-        $this->assertTrue($subject->_call('isValidLocalConfigurationPath', 'foo/bar/baz'));
+        self::assertTrue($subject->_call('isValidLocalConfigurationPath', 'foo/bar/baz'));
     }
 
     /**
      * @test
      */
-    public function isValidLocalConfigurationPathDeniesNotWhitelistedPath()
+    public function isValidLocalConfigurationPathDeniesNotWhitelistedPath(): void
     {
-        /** @var $subject \TYPO3\CMS\Core\Configuration\ConfigurationManager|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
-        $subject = $this->getAccessibleMock(\TYPO3\CMS\Core\Configuration\ConfigurationManager::class, ['dummy']);
+        /** @var $subject ConfigurationManager|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface */
+        $subject = $this->getAccessibleMock(ConfigurationManager::class, ['dummy']);
         $subject->_set('whiteListedLocalConfigurationPaths', ['foo/bar']);
-        $this->assertFalse($subject->_call('isValidLocalConfigurationPath', 'bar/baz'));
+        self::assertFalse($subject->_call('isValidLocalConfigurationPath', 'bar/baz'));
     }
 }

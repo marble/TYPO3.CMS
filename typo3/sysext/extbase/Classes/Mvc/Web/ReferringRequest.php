@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Mvc\Web;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,12 @@ namespace TYPO3\CMS\Extbase\Mvc\Web;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Mvc\Web;
+
+use TYPO3\CMS\Extbase\Mvc\Request;
+
 /**
  * Represents a referring web request.
- *
- * @api
  */
 class ReferringRequest extends Request
 {
@@ -46,9 +47,6 @@ class ReferringRequest extends Request
                 break;
             case '@format':
                 $this->setFormat($value);
-                break;
-            case '@vendor':
-                $this->setControllerVendorName($value);
                 break;
         }
     }

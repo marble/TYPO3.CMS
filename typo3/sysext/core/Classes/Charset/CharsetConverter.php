@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Charset;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Core\Charset;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Charset;
+
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -55,35 +57,28 @@ class CharsetConverter implements SingletonInterface
      *
      * @var int
      */
-    public $noCharByteVal = 63;
+    protected $noCharByteVal = 63;
 
     /**
      * This is the array where parsed conversion tables are stored (cached)
      *
      * @var array
      */
-    public $parsedCharsets = [];
-
-    /**
-     * An array where case folding data will be stored (cached)
-     *
-     * @var array
-     */
-    public $caseFolding = [];
+    protected $parsedCharsets = [];
 
     /**
      * An array where charset-to-ASCII mappings are stored (cached)
      *
      * @var array
      */
-    public $toASCII = [];
+    protected $toASCII = [];
 
     /**
      * This tells the converter which charsets has two bytes per char:
      *
      * @var array
      */
-    public $twoByteSets = [
+    protected $twoByteSets = [
         'ucs-2' => 1
     ];
 
@@ -92,118 +87,12 @@ class CharsetConverter implements SingletonInterface
      *
      * @var array
      */
-    public $eucBasedSets = [
+    protected $eucBasedSets = [
         'gb2312' => 1, // Chinese, simplified.
         'big5' => 1, // Chinese, traditional.
         'euc-kr' => 1, // Korean
         'shift_jis' => 1
     ];
-
-    /**
-     * @link http://developer.apple.com/documentation/macos8/TextIntlSvcs/TextEncodingConversionManager/TEC1.5/TEC.b0.html
-     * @link http://czyborra.com/charsets/iso8859.html
-     *
-     * @var array
-     */
-    public $synonyms = [
-        'us' => 'ascii',
-        'us-ascii' => 'ascii',
-        'cp819' => 'iso-8859-1',
-        'ibm819' => 'iso-8859-1',
-        'iso-ir-100' => 'iso-8859-1',
-        'iso-ir-101' => 'iso-8859-2',
-        'iso-ir-109' => 'iso-8859-3',
-        'iso-ir-110' => 'iso-8859-4',
-        'iso-ir-144' => 'iso-8859-5',
-        'iso-ir-127' => 'iso-8859-6',
-        'iso-ir-126' => 'iso-8859-7',
-        'iso-ir-138' => 'iso-8859-8',
-        'iso-ir-148' => 'iso-8859-9',
-        'iso-ir-157' => 'iso-8859-10',
-        'iso-ir-179' => 'iso-8859-13',
-        'iso-ir-199' => 'iso-8859-14',
-        'iso-ir-203' => 'iso-8859-15',
-        'csisolatin1' => 'iso-8859-1',
-        'csisolatin2' => 'iso-8859-2',
-        'csisolatin3' => 'iso-8859-3',
-        'csisolatin5' => 'iso-8859-9',
-        'csisolatin8' => 'iso-8859-14',
-        'csisolatin9' => 'iso-8859-15',
-        'csisolatingreek' => 'iso-8859-7',
-        'iso-celtic' => 'iso-8859-14',
-        'latin1' => 'iso-8859-1',
-        'latin2' => 'iso-8859-2',
-        'latin3' => 'iso-8859-3',
-        'latin5' => 'iso-8859-9',
-        'latin6' => 'iso-8859-10',
-        'latin8' => 'iso-8859-14',
-        'latin9' => 'iso-8859-15',
-        'l1' => 'iso-8859-1',
-        'l2' => 'iso-8859-2',
-        'l3' => 'iso-8859-3',
-        'l5' => 'iso-8859-9',
-        'l6' => 'iso-8859-10',
-        'l8' => 'iso-8859-14',
-        'l9' => 'iso-8859-15',
-        'cyrillic' => 'iso-8859-5',
-        'arabic' => 'iso-8859-6',
-        'tis-620' => 'iso-8859-11',
-        'win874' => 'windows-874',
-        'win1250' => 'windows-1250',
-        'win1251' => 'windows-1251',
-        'win1252' => 'windows-1252',
-        'win1253' => 'windows-1253',
-        'win1254' => 'windows-1254',
-        'win1255' => 'windows-1255',
-        'win1256' => 'windows-1256',
-        'win1257' => 'windows-1257',
-        'win1258' => 'windows-1258',
-        'cp1250' => 'windows-1250',
-        'cp1251' => 'windows-1251',
-        'cp1252' => 'windows-1252',
-        'ms-ee' => 'windows-1250',
-        'ms-ansi' => 'windows-1252',
-        'ms-greek' => 'windows-1253',
-        'ms-turk' => 'windows-1254',
-        'winbaltrim' => 'windows-1257',
-        'koi-8ru' => 'koi-8r',
-        'koi8r' => 'koi-8r',
-        'cp878' => 'koi-8r',
-        'mac' => 'macroman',
-        'macintosh' => 'macroman',
-        'euc-cn' => 'gb2312',
-        'x-euc-cn' => 'gb2312',
-        'euccn' => 'gb2312',
-        'cp936' => 'gb2312',
-        'big-5' => 'big5',
-        'cp950' => 'big5',
-        'eucjp' => 'euc-jp',
-        'sjis' => 'shift_jis',
-        'shift-jis' => 'shift_jis',
-        'cp932' => 'shift_jis',
-        'cp949' => 'euc-kr',
-        'utf7' => 'utf-7',
-        'utf8' => 'utf-8',
-        'utf16' => 'utf-16',
-        'utf32' => 'utf-32',
-        'ucs2' => 'ucs-2',
-        'ucs4' => 'ucs-4'
-    ];
-
-    /**
-     * Normalize - changes input character set to lowercase letters.
-     *
-     * @param string $charset Input charset
-     * @return string Normalized charset
-     */
-    public function parse_charset($charset)
-    {
-        $charset = trim(strtolower($charset));
-        if (isset($this->synonyms[$charset])) {
-            $charset = $this->synonyms[$charset];
-        }
-        return $charset;
-    }
 
     /********************************************
      *
@@ -216,17 +105,15 @@ class CharsetConverter implements SingletonInterface
      * @param string $inputString Input string
      * @param string $fromCharset From charset (the current charset of the string)
      * @param string $toCharset To charset (the output charset wanted)
-     * @param bool $useEntityForNoChar If set, then characters that are not available in the destination character set will be encoded as numeric entities
      * @return string Converted string
-     * @see convArray()
      */
-    public function conv($inputString, $fromCharset, $toCharset, $useEntityForNoChar = false)
+    public function conv($inputString, $fromCharset, $toCharset)
     {
         if ($fromCharset === $toCharset) {
             return $inputString;
         }
         // PHP-libs don't support fallback to SGML entities, but UTF-8 handles everything
-        if ($toCharset === 'utf-8' || !$useEntityForNoChar) {
+        if ($toCharset === 'utf-8') {
             // Returns FALSE for unsupported charsets
             $convertedString = mb_convert_encoding($inputString, $toCharset, $fromCharset);
             if (false !== $convertedString) {
@@ -237,30 +124,9 @@ class CharsetConverter implements SingletonInterface
             $inputString = $this->utf8_encode($inputString, $fromCharset);
         }
         if ($toCharset !== 'utf-8') {
-            $inputString = $this->utf8_decode($inputString, $toCharset, $useEntityForNoChar);
+            $inputString = $this->utf8_decode($inputString, $toCharset, true);
         }
         return $inputString;
-    }
-
-    /**
-     * Convert all elements in ARRAY with type string from one charset to another charset.
-     * NOTICE: Array is passed by reference!
-     *
-     * @param array $array Input array, possibly multidimensional
-     * @param string $fromCharset From charset (the current charset of the string)
-     * @param string $toCharset To charset (the output charset wanted)
-     * @param bool $useEntityForNoChar If set, then characters that are not available in the destination character set will be encoded as numeric entities
-     * @see conv()
-     */
-    public function convArray(&$array, $fromCharset, $toCharset, $useEntityForNoChar = false)
-    {
-        foreach ($array as $key => $value) {
-            if (is_array($array[$key])) {
-                $this->convArray($array[$key], $fromCharset, $toCharset, $useEntityForNoChar);
-            } elseif (is_string($array[$key])) {
-                $array[$key] = $this->conv($array[$key], $fromCharset, $toCharset, $useEntityForNoChar);
-            }
-        }
     }
 
     /**
@@ -286,6 +152,7 @@ class CharsetConverter implements SingletonInterface
                 $ord = ord($chr);
                 // If the charset has two bytes per char
                 if (isset($this->twoByteSets[$charset])) {
+                    // TYPO3 cannot convert from ucs-2 as the according conversion table is not present
                     $ord2 = ord($str[$a + 1]);
                     // Assume big endian
                     $ord = $ord << 8 | $ord2;
@@ -370,7 +237,7 @@ class CharsetConverter implements SingletonInterface
                             $mByte = $this->parsedCharsets[$charset]['utf8'][$buf];
                             // If the local number is greater than 255 we will need to split the byte (16bit word assumed) in two chars.
                             if ($mByte > 255) {
-                                $outStr .= chr(($mByte >> 8 & 255)) . chr(($mByte & 255));
+                                $outStr .= chr($mByte >> 8 & 255) . chr($mByte & 255);
                             } else {
                                 $outStr .= chr($mByte);
                             }
@@ -393,88 +260,6 @@ class CharsetConverter implements SingletonInterface
     }
 
     /**
-     * Converts all chars > 127 to numeric entities.
-     *
-     * @param string $str Input string
-     * @return string Output string
-     */
-    public function utf8_to_entities($str)
-    {
-        $strLen = strlen($str);
-        $outStr = '';
-        // Traverse each char in UTF-8 string.
-        for ($a = 0; $a < $strLen; $a++) {
-            $chr = substr($str, $a, 1);
-            $ord = ord($chr);
-            // This means multibyte! (first byte!)
-            if ($ord > 127) {
-                // Since the first byte must have the 7th bit set we check that. Otherwise we might be in the middle of a byte sequence.
-                if ($ord & 64) {
-                    // Add first byte
-                    $buf = $chr;
-                    // For each byte in multibyte string...
-                    for ($b = 0; $b < 8; $b++) {
-                        // Shift it left and ...
-                        $ord = $ord << 1;
-                        // ... and with 8th bit - if that is set, then there are still bytes in sequence.
-                        if ($ord & 128) {
-                            $a++;
-                            // ... and add the next char.
-                            $buf .= substr($str, $a, 1);
-                        } else {
-                            break;
-                        }
-                    }
-                    $outStr .= '&#' . $this->utf8CharToUnumber($buf, true) . ';';
-                } else {
-                    $outStr .= chr($this->noCharByteVal);
-                }
-            } else {
-                $outStr .= $chr;
-            }
-        }
-        return $outStr;
-    }
-
-    /**
-     * Converts numeric entities (UNICODE, eg. decimal (&#1234;) or hexadecimal (&#x1b;)) to UTF-8 multibyte chars.
-     * All string-HTML entities (like &amp; or &pound;) will be converted as well
-     * @param string $str Input string, UTF-8
-     * @return string Output string
-     */
-    public function entities_to_utf8($str)
-    {
-        $trans_tbl = array_flip(get_html_translation_table(HTML_ENTITIES, ENT_COMPAT));
-        $token = md5(microtime());
-        $parts = explode($token, preg_replace('/(&([#[:alnum:]]*);)/', $token . '${2}' . $token, $str));
-        foreach ($parts as $k => $v) {
-            // Only take every second element
-            if ($k % 2 === 0) {
-                continue;
-            }
-            $position = 0;
-            // Dec or hex entities
-            if (substr($v, $position, 1) === '#') {
-                $position++;
-                if (substr($v, $position, 1) === 'x') {
-                    $v = hexdec(substr($v, ++$position));
-                } else {
-                    $v = substr($v, $position);
-                }
-                $parts[$k] = $this->UnumberToChar($v);
-            } elseif (isset($trans_tbl['&' . $v . ';'])) {
-                // Other entities:
-                $v = $trans_tbl['&' . $v . ';'];
-                $parts[$k] = $v;
-            } else {
-                // No conversion:
-                $parts[$k] = '&' . $v . ';';
-            }
-        }
-        return implode('', $parts);
-    }
-
-    /**
      * Converts all chars in the input UTF-8 string into integer numbers returned in an array.
      * All HTML entities (like &amp; or &pound; or &#123; or &#x3f5d;) will be detected as characters.
      * Also, instead of integer numbers the real UTF-8 char is returned.
@@ -485,7 +270,7 @@ class CharsetConverter implements SingletonInterface
     public function utf8_to_numberarray($str)
     {
         // Entities must be registered as well
-        $str = $this->entities_to_utf8($str);
+        $str = html_entity_decode($str, ENT_COMPAT, 'utf-8');
 
         // Do conversion:
         $strLen = strlen($str);
@@ -604,12 +389,12 @@ class CharsetConverter implements SingletonInterface
                 $ord = $ord << 1;
                 // ... and with 8th bit - if that is set, then there are still bytes in sequence.
                 if ($ord & 128) {
-                    $binBuf .= substr('00000000' . decbin(ord(substr($str, ($b + 1), 1))), -6);
+                    $binBuf .= substr('00000000' . decbin(ord(substr($str, $b + 1, 1))), -6);
                 } else {
                     break;
                 }
             }
-            $binBuf = substr(('00000000' . decbin(ord($str[0]))), -(6 - $b)) . $binBuf;
+            $binBuf = substr('00000000' . decbin(ord($str[0])), -(6 - $b)) . $binBuf;
             $int = bindec($binBuf);
         } else {
             $int = $ord;
@@ -629,22 +414,22 @@ class CharsetConverter implements SingletonInterface
      * PLEASE SEE: http://www.unicode.org/Public/MAPPINGS/
      *
      * @param string $charset The charset to be initialized. Use lowercase charset always (the charset must match exactly with a filename in csconvtbl/ folder ([charset].tbl)
-     * @return int Returns '1' if already loaded. Returns FALSE if charset conversion table was not found. Returns '2' if the charset conversion table was found and parsed.
-     * @access private
+     * @return int Returns '1' if already loaded, '2' if the charset conversion table was found and parsed.
+     * @throws UnknownCharsetException if no charset table was found
      */
-    public function initCharset($charset)
+    protected function initCharset($charset)
     {
         // Only process if the charset is not yet loaded:
-        if (!is_array($this->parsedCharsets[$charset])) {
+        if (empty($this->parsedCharsets[$charset])) {
             // Conversion table filename:
             $charsetConvTableFile = ExtensionManagementUtility::extPath('core') . 'Resources/Private/Charsets/csconvtbl/' . $charset . '.tbl';
             // If the conversion table is found:
             if ($charset && GeneralUtility::validPathStr($charsetConvTableFile) && @is_file($charsetConvTableFile)) {
                 // Cache file for charsets:
                 // Caching brought parsing time for gb2312 down from 2400 ms to 150 ms. For other charsets we are talking 11 ms down to zero.
-                $cacheFile = GeneralUtility::getFileAbsFileName('typo3temp/var/charset/charset_' . $charset . '.tbl');
+                $cacheFile = Environment::getVarPath() . '/charset/charset_' . $charset . '.tbl';
                 if ($cacheFile && @is_file($cacheFile)) {
-                    $this->parsedCharsets[$charset] = unserialize(file_get_contents($cacheFile));
+                    $this->parsedCharsets[$charset] = unserialize(file_get_contents($cacheFile), ['allowed_classes' => false]);
                 } else {
                     // Parse conversion table into lines:
                     $lines = GeneralUtility::trimExplode(LF, file_get_contents($charsetConvTableFile), true);
@@ -658,15 +443,19 @@ class CharsetConverter implements SingletonInterface
                             // Detect type if not done yet: (Done on first real line)
                             // The "whitespaced" type is on the syntax 	"0x0A	0x000A	#LINE FEED" 	while 	"ms-token" is like 		"B9 = U+00B9 : SUPERSCRIPT ONE"
                             if (!$detectedType) {
-                                $detectedType = preg_match('/[[:space:]]*0x([[:alnum:]]*)[[:space:]]+0x([[:alnum:]]*)[[:space:]]+/', $value) ? 'whitespaced' : 'ms-token';
+                                $detectedType = preg_match('/[[:space:]]*0x([[:xdigit:]]*)[[:space:]]+0x([[:xdigit:]]*)[[:space:]]+/', $value) ? 'whitespaced' : 'ms-token';
                             }
                             $hexbyte = '';
                             $utf8 = '';
                             if ($detectedType === 'ms-token') {
-                                list($hexbyte, $utf8) = preg_split('/[=:]/', $value, 3);
+                                [$hexbyte, $utf8] = preg_split('/[=:]/', $value, 3);
                             } elseif ($detectedType === 'whitespaced') {
                                 $regA = [];
-                                preg_match('/[[:space:]]*0x([[:alnum:]]*)[[:space:]]+0x([[:alnum:]]*)[[:space:]]+/', $value, $regA);
+                                preg_match('/[[:space:]]*0x([[:xdigit:]]*)[[:space:]]+0x([[:xdigit:]]*)[[:space:]]+/', $value, $regA);
+                                if (empty($regA)) {
+                                    // No match => skip this item
+                                    continue;
+                                }
                                 $hexbyte = $regA[1];
                                 $utf8 = 'U+' . $regA[2];
                             }
@@ -683,12 +472,10 @@ class CharsetConverter implements SingletonInterface
                     }
                 }
                 return 2;
-            } else {
-                return false;
             }
-        } else {
-            return 1;
+            throw new UnknownCharsetException(sprintf('Unknown charset "%s"', $charset), 1508916031);
         }
+        return 1;
     }
 
     /**
@@ -696,37 +483,20 @@ class CharsetConverter implements SingletonInterface
      *
      * PLEASE SEE: http://www.unicode.org/Public/UNIDATA/
      *
-     * @param string $mode Mode ("case", "ascii", ...)
      * @return int Returns FALSE on error, a TRUE value on success: 1 table already loaded, 2, cached version, 3 table parsed (and cached).
-     * @access private
      */
-    public function initUnicodeData($mode = null)
+    protected function initUnicodeData()
     {
-        // Cache files
-        $cacheFileCase = GeneralUtility::getFileAbsFileName('typo3temp/var/charset/cscase_utf-8.tbl');
-        $cacheFileASCII = GeneralUtility::getFileAbsFileName('typo3temp/var/charset/csascii_utf-8.tbl');
+        // Cache file
+        $cacheFileASCII = Environment::getVarPath() . '/charset/csascii_utf-8.tbl';
         // Only process if the tables are not yet loaded
-        switch ($mode) {
-            case 'case':
-                if (is_array($this->caseFolding['utf-8'])) {
-                    return 1;
-                }
-                // Use cached version if possible
-                if ($cacheFileCase && @is_file($cacheFileCase)) {
-                    $this->caseFolding['utf-8'] = unserialize(file_get_contents($cacheFileCase));
-                    return 2;
-                }
-                break;
-            case 'ascii':
-                if (is_array($this->toASCII['utf-8'])) {
-                    return 1;
-                }
-                // Use cached version if possible
-                if ($cacheFileASCII && @is_file($cacheFileASCII)) {
-                    $this->toASCII['utf-8'] = unserialize(file_get_contents($cacheFileASCII));
-                    return 2;
-                }
-                break;
+        if (isset($this->toASCII['utf-8']) && is_array($this->toASCII['utf-8'])) {
+            return 1;
+        }
+        // Use cached version if possible
+        if ($cacheFileASCII && @is_file($cacheFileASCII)) {
+            $this->toASCII['utf-8'] = unserialize(file_get_contents($cacheFileASCII), ['allowed_classes' => false]);
+            return 2;
         }
         // Process main Unicode data file
         $unicodeDataFile = ExtensionManagementUtility::extPath('core') . 'Resources/Private/Charsets/unidata/UnicodeData.txt';
@@ -737,14 +507,6 @@ class CharsetConverter implements SingletonInterface
         if (!$fh) {
             return false;
         }
-        // key = utf8 char (single codepoint), value = utf8 string (codepoint sequence)
-        // Note: we use the UTF-8 characters here and not the Unicode numbers to avoid conversion roundtrip in utf8_strtolower/-upper)
-        $this->caseFolding['utf-8'] = [];
-        $utf8CaseFolding = &$this->caseFolding['utf-8'];
-        // a shorthand
-        $utf8CaseFolding['toUpper'] = [];
-        $utf8CaseFolding['toLower'] = [];
-        $utf8CaseFolding['toTitle'] = [];
         // Array of temp. decompositions
         $decomposition = [];
         // Array of chars that are marks (eg. composing accents)
@@ -756,22 +518,11 @@ class CharsetConverter implements SingletonInterface
         while (!feof($fh)) {
             $line = fgets($fh, 4096);
             // Has a lot of info
-            list($char, $name, $cat, , , $decomp, , , $num, , , , $upper, $lower, $title, ) = explode(';', rtrim($line));
+            [$char, $name, $cat, , , $decomp, , , $num] = explode(';', rtrim($line));
             $ord = hexdec($char);
             if ($ord > 65535) {
                 // Only process the BMP
                 break;
-            }
-            $utf8_char = $this->UnumberToChar($ord);
-            if ($upper) {
-                $utf8CaseFolding['toUpper'][$utf8_char] = $this->UnumberToChar(hexdec($upper));
-            }
-            if ($lower) {
-                $utf8CaseFolding['toLower'][$utf8_char] = $this->UnumberToChar(hexdec($lower));
-            }
-            // Store "title" only when different from "upper" (only a few)
-            if ($title && $title !== $upper) {
-                $utf8CaseFolding['toTitle'][$utf8_char] = $this->UnumberToChar(hexdec($title));
             }
             switch ($cat[0]) {
                 case 'M':
@@ -822,44 +573,6 @@ class CharsetConverter implements SingletonInterface
             }
         }
         fclose($fh);
-        // Process additional Unicode data for casing (allow folded characters to expand into a sequence)
-        $specialCasingFile = ExtensionManagementUtility::extPath('core') . 'Resources/Private/Charsets/unidata/SpecialCasing.txt';
-        if (GeneralUtility::validPathStr($specialCasingFile) && @is_file($specialCasingFile)) {
-            $fh = fopen($specialCasingFile, 'rb');
-            if ($fh) {
-                while (!feof($fh)) {
-                    $line = fgets($fh, 4096);
-                    if ($line[0] !== '#' && trim($line) !== '') {
-                        list($char, $lower, $title, $upper, $cond) = GeneralUtility::trimExplode(';', $line);
-                        if ($cond === '' || $cond[0] === '#') {
-                            $utf8_char = $this->UnumberToChar(hexdec($char));
-                            if ($char !== $lower) {
-                                $arr = explode(' ', $lower);
-                                for ($i = 0; isset($arr[$i]); $i++) {
-                                    $arr[$i] = $this->UnumberToChar(hexdec($arr[$i]));
-                                }
-                                $utf8CaseFolding['toLower'][$utf8_char] = implode('', $arr);
-                            }
-                            if ($char !== $title && $title !== $upper) {
-                                $arr = explode(' ', $title);
-                                for ($i = 0; isset($arr[$i]); $i++) {
-                                    $arr[$i] = $this->UnumberToChar(hexdec($arr[$i]));
-                                }
-                                $utf8CaseFolding['toTitle'][$utf8_char] = implode('', $arr);
-                            }
-                            if ($char !== $upper) {
-                                $arr = explode(' ', $upper);
-                                for ($i = 0; isset($arr[$i]); $i++) {
-                                    $arr[$i] = $this->UnumberToChar(hexdec($arr[$i]));
-                                }
-                                $utf8CaseFolding['toUpper'][$utf8_char] = implode('', $arr);
-                            }
-                        }
-                    }
-                }
-                fclose($fh);
-            }
-        }
         // Process custom decompositions
         $customTranslitFile = ExtensionManagementUtility::extPath('core') . 'Resources/Private/Charsets/unidata/Translit.txt';
         if (GeneralUtility::validPathStr($customTranslitFile) && @is_file($customTranslitFile)) {
@@ -867,8 +580,11 @@ class CharsetConverter implements SingletonInterface
             if ($fh) {
                 while (!feof($fh)) {
                     $line = fgets($fh, 4096);
+                    if ($line === false) {
+                        continue;
+                    }
                     if ($line[0] !== '#' && trim($line) !== '') {
-                        list($char, $translit) = GeneralUtility::trimExplode(';', $line);
+                        [$char, $translit] = GeneralUtility::trimExplode(';', $line);
                         if (!$translit) {
                             $omit['U+' . $char] = 1;
                         }
@@ -900,94 +616,27 @@ class CharsetConverter implements SingletonInterface
         }
         // Create ascii only mapping
         $this->toASCII['utf-8'] = [];
-        $ascii = &$this->toASCII['utf-8'];
         foreach ($decomposition as $from => $to) {
             $code_decomp = [];
             while ($code_value = array_shift($to)) {
                 $ord = hexdec($code_value);
                 if ($ord > 127) {
                     continue 2;
-                } else {
-                    // Skip decompositions containing non-ASCII chars
-                    $code_decomp[] = chr($ord);
                 }
+                // Skip decompositions containing non-ASCII chars
+                $code_decomp[] = chr($ord);
             }
-            $ascii[$this->UnumberToChar(hexdec($from))] = implode('', $code_decomp);
+            $this->toASCII['utf-8'][$this->UnumberToChar(hexdec(substr($from, 2)))] = implode('', $code_decomp);
         }
         // Add numeric decompositions
         foreach ($number as $from => $to) {
-            $utf8_char = $this->UnumberToChar(hexdec($from));
-            if (!isset($ascii[$utf8_char])) {
-                $ascii[$utf8_char] = $to;
+            $utf8_char = $this->UnumberToChar(hexdec(substr($from, 2)));
+            if (!isset($this->toASCII['utf-8'][$utf8_char])) {
+                $this->toASCII['utf-8'][$utf8_char] = $to;
             }
-        }
-        if ($cacheFileCase) {
-            GeneralUtility::writeFileToTypo3tempDir($cacheFileCase, serialize($utf8CaseFolding));
         }
         if ($cacheFileASCII) {
-            GeneralUtility::writeFileToTypo3tempDir($cacheFileASCII, serialize($ascii));
-        }
-        return 3;
-    }
-
-    /**
-     * This function initializes the folding table for a charset other than UTF-8.
-     * This function is automatically called by the case folding functions.
-     *
-     * @param string $charset Charset for which to initialize case folding.
-     * @return int Returns FALSE on error, a TRUE value on success: 1 table already loaded, 2, cached version, 3 table parsed (and cached).
-     * @access private
-     */
-    public function initCaseFolding($charset)
-    {
-        // Only process if the case table is not yet loaded:
-        if (is_array($this->caseFolding[$charset])) {
-            return 1;
-        }
-        // Use cached version if possible
-        $cacheFile = GeneralUtility::getFileAbsFileName('typo3temp/var/charset/cscase_' . $charset . '.tbl');
-        if ($cacheFile && @is_file($cacheFile)) {
-            $this->caseFolding[$charset] = unserialize(file_get_contents($cacheFile));
-            return 2;
-        }
-        // init UTF-8 conversion for this charset
-        if (!$this->initCharset($charset)) {
-            return false;
-        }
-        // UTF-8 case folding is used as the base conversion table
-        if (!$this->initUnicodeData('case')) {
-            return false;
-        }
-        $nochar = chr($this->noCharByteVal);
-        foreach ($this->parsedCharsets[$charset]['local'] as $ci => $utf8) {
-            // Reconvert to charset (don't use chr() of numeric value, might be muli-byte)
-            $c = $this->utf8_decode($utf8, $charset);
-            $cc = $this->utf8_decode($this->caseFolding['utf-8']['toUpper'][$utf8], $charset);
-            if ($cc !== '' && $cc !== $nochar) {
-                $this->caseFolding[$charset]['toUpper'][$c] = $cc;
-            }
-            $cc = $this->utf8_decode($this->caseFolding['utf-8']['toLower'][$utf8], $charset);
-            if ($cc !== '' && $cc !== $nochar) {
-                $this->caseFolding[$charset]['toLower'][$c] = $cc;
-            }
-            $cc = $this->utf8_decode($this->caseFolding['utf-8']['toTitle'][$utf8], $charset);
-            if ($cc !== '' && $cc !== $nochar) {
-                $this->caseFolding[$charset]['toTitle'][$c] = $cc;
-            }
-        }
-        // Add the ASCII case table
-        $start = ord('a');
-        $end = ord('z');
-        for ($i = $start; $i <= $end; $i++) {
-            $this->caseFolding[$charset]['toUpper'][chr($i)] = chr($i - 32);
-        }
-        $start = ord('A');
-        $end = ord('Z');
-        for ($i = $start; $i <= $end; $i++) {
-            $this->caseFolding[$charset]['toLower'][chr($i)] = chr($i + 32);
-        }
-        if ($cacheFile) {
-            GeneralUtility::writeFileToTypo3tempDir($cacheFile, serialize($this->caseFolding[$charset]));
+            GeneralUtility::writeFileToTypo3tempDir($cacheFileASCII, serialize($this->toASCII['utf-8']));
         }
         return 3;
     }
@@ -998,18 +647,17 @@ class CharsetConverter implements SingletonInterface
      *
      * @param string $charset Charset for which to initialize conversion.
      * @return int Returns FALSE on error, a TRUE value on success: 1 table already loaded, 2, cached version, 3 table parsed (and cached).
-     * @access private
      */
-    public function initToASCII($charset)
+    protected function initToASCII($charset)
     {
         // Only process if the case table is not yet loaded:
-        if (is_array($this->toASCII[$charset])) {
+        if (isset($this->toASCII[$charset]) && is_array($this->toASCII[$charset])) {
             return 1;
         }
         // Use cached version if possible
-        $cacheFile = GeneralUtility::getFileAbsFileName('typo3temp/var/charset/csascii_' . $charset . '.tbl');
+        $cacheFile = Environment::getVarPath() . '/charset/csascii_' . $charset . '.tbl';
         if ($cacheFile && @is_file($cacheFile)) {
-            $this->toASCII[$charset] = unserialize(file_get_contents($cacheFile));
+            $this->toASCII[$charset] = unserialize(file_get_contents($cacheFile), ['allowed_classes' => false]);
             return 2;
         }
         // Init UTF-8 conversion for this charset
@@ -1017,7 +665,7 @@ class CharsetConverter implements SingletonInterface
             return false;
         }
         // UTF-8/ASCII transliteration is used as the base conversion table
-        if (!$this->initUnicodeData('ascii')) {
+        if (!$this->initUnicodeData()) {
             return false;
         }
         foreach ($this->parsedCharsets[$charset]['local'] as $ci => $utf8) {
@@ -1038,48 +686,6 @@ class CharsetConverter implements SingletonInterface
      * String operation functions
      *
      ********************************************/
-
-    /**
-     * Truncates a string and pre-/appends a string.
-     * Unit tested by Kasper
-     *
-     * @param string $charset The character set
-     * @param string $string Character string
-     * @param int $len Length (in characters)
-     * @param string $crop Crop signifier
-     * @return string The shortened string
-     * @see substr(), mb_strimwidth()
-     */
-    public function crop($charset, $string, $len, $crop = '')
-    {
-        if ((int)$len === 0 || mb_strlen($string, $charset) <= abs($len)) {
-            return $string;
-        }
-        if ($len > 0) {
-            $string = mb_substr($string, 0, $len, $charset) . $crop;
-        } else {
-            $string = $crop . mb_substr($string, $len, mb_strlen($string, $charset), $charset);
-        }
-        return $string;
-    }
-
-    /**
-     * Equivalent of lcfirst/ucfirst but using character set.
-     *
-     * @param string $charset
-     * @param string $string
-     * @param string $case can be 'toLower' or 'toUpper'
-     * @return string
-     */
-    public function convCaseFirst($charset, $string, $case)
-    {
-        $firstChar = mb_substr($string, 0, 1, $charset);
-        $firstChar = $case === 'toLower'
-            ? mb_strtolower($firstChar, $charset)
-            : mb_strtoupper($firstChar, $charset);
-        $remainder = mb_substr($string, 1, null, $charset);
-        return $firstChar . $remainder;
-    }
 
     /**
      * Converts special chars (like æøåÆØÅ, umlauts etc) to ascii equivalents (usually double-bytes, like æ => ae etc.)
@@ -1139,61 +745,14 @@ class CharsetConverter implements SingletonInterface
      ********************************************/
 
     /**
-     * Translates a character position into an 'absolute' byte position.
-     * Unit tested by Kasper.
-     *
-     * @param string $str UTF-8 string
-     * @param int $pos Character position (negative values start from the end)
-     * @return int Byte position
-     */
-    public function utf8_char2byte_pos($str, $pos)
-    {
-        // Number of characters found
-        $n = 0;
-        // Number of characters wanted
-        $p = abs($pos);
-        if ($pos >= 0) {
-            $i = 0;
-            $d = 1;
-        } else {
-            $i = strlen($str) - 1;
-            $d = -1;
-        }
-        for (; isset($str[$i]) && $n < $p; $i += $d) {
-            $c = (int)ord($str[$i]);
-            // single-byte (0xxxxxx)
-            if (!($c & 128)) {
-                $n++;
-            } elseif (($c & 192) === 192) {
-                // Multi-byte starting byte (11xxxxxx)
-                $n++;
-            }
-        }
-        if (!isset($str[$i])) {
-            // Offset beyond string length
-            return false;
-        }
-        if ($pos >= 0) {
-            // Skip trailing multi-byte data bytes
-            while (ord($str[$i]) & 128 && !(ord($str[$i]) & 64)) {
-                $i++;
-            }
-        } else {
-            // Correct offset
-            $i++;
-        }
-        return $i;
-    }
-
-    /**
-     * Maps all characters of an UTF-8 string.
+     * Maps all characters of a UTF-8 string.
      *
      * @param string $str UTF-8 string
      * @return string The converted string
      */
     public function utf8_char_mapping($str)
     {
-        if (!$this->initUnicodeData('ascii')) {
+        if (!$this->initUnicodeData()) {
             // Do nothing
             return $str;
         }

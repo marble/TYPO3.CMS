@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Http;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,96 +14,82 @@ namespace TYPO3\CMS\Backend\Http;
  *
  * The TYPO3 project - inspiring people to share!
  */
-use TYPO3\CMS\Core\Core\ApplicationInterface;
-use TYPO3\CMS\Core\Core\Bootstrap;
+
+namespace TYPO3\CMS\Backend\Http;
+
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use TYPO3\CMS\Core\Configuration\ConfigurationManager;
+use TYPO3\CMS\Core\Context\Context;
+use TYPO3\CMS\Core\Context\DateTimeAspect;
+use TYPO3\CMS\Core\Context\VisibilityAspect;
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Http\AbstractApplication;
+use TYPO3\CMS\Core\Http\RedirectResponse;
 
 /**
  * Entry point for the TYPO3 Backend (HTTP requests)
  */
-class Application implements ApplicationInterface
+class Application extends AbstractApplication
 {
     /**
-     * @var Bootstrap
+     * @var ConfigurationManager
      */
-    protected $bootstrap;
+    protected $configurationManager;
 
     /**
-     * Number of subdirectories where the entry script is located, relative to PATH_site
-     * Usually this is equal to PATH_site = 0
-     * @var int
+     * @var Context
      */
-    protected $entryPointLevel = 1;
+    protected $context;
 
-    /**
-     * @var \Psr\Http\Message\ServerRequestInterface
-     */
-    protected $request;
+    public function __construct(
+        RequestHandlerInterface $requestHandler,
+        ConfigurationManager $configurationManager,
+        Context $context
+    ) {
+        $this->requestHandler = $requestHandler;
+        $this->configurationManager = $configurationManager;
+        $this->context = $context;
+    }
 
-    /**
-     * All available request handlers that can handle backend requests (non-CLI)
-     * @var array
-     */
-    protected $availableRequestHandlers = [
-        \TYPO3\CMS\Backend\Http\RequestHandler::class,
-        \TYPO3\CMS\Backend\Http\BackendModuleRequestHandler::class,
-        \TYPO3\CMS\Backend\Http\AjaxRequestHandler::class
-    ];
-
-    /**
-     * Constructor setting up legacy constant and register available Request Handlers
-     *
-     * @param \Composer\Autoload\ClassLoader $classLoader an instance of the class loader
-     */
-    public function __construct($classLoader)
+    protected function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $this->defineLegacyConstants();
-
-        $this->bootstrap = Bootstrap::getInstance()
-            ->initializeClassLoader($classLoader)
-            ->setRequestType(TYPO3_REQUESTTYPE_BE | (!empty($_GET['ajaxID']) ? TYPO3_REQUESTTYPE_AJAX : 0))
-            ->baseSetup($this->entryPointLevel);
-
-        // Redirect to install tool if base configuration is not found
-        if (!$this->bootstrap->checkIfEssentialConfigurationExists()) {
-            $this->bootstrap->redirectToInstallTool($this->entryPointLevel);
+        if (!$this->checkIfEssentialConfigurationExists()) {
+            return $this->installToolRedirect();
         }
-
-        foreach ($this->availableRequestHandlers as $requestHandler) {
-            $this->bootstrap->registerRequestHandlerImplementation($requestHandler);
-        }
-
-        $this->bootstrap->configure();
+        // Set up the initial context
+        $this->initializeContext();
+        return parent::handle($request);
     }
 
     /**
-     * Set up the application and shut it down afterwards
+     * Check if LocalConfiguration.php and PackageStates.php exist
      *
-     * @param callable $execute
+     * @return bool TRUE when the essential configuration is available, otherwise FALSE
      */
-    public function run(callable $execute = null)
+    protected function checkIfEssentialConfigurationExists(): bool
     {
-        $this->request = \TYPO3\CMS\Core\Http\ServerRequestFactory::fromGlobals();
-        // see below when this option is set and Bootstrap::defineTypo3RequestTypes() for more details
-        if (TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_AJAX) {
-            $this->request = $this->request->withAttribute('isAjaxRequest', true);
-        } elseif (isset($this->request->getQueryParams()['M'])) {
-            $this->request = $this->request->withAttribute('isModuleRequest', true);
-        }
-
-        $this->bootstrap->handleRequest($this->request);
-
-        if ($execute !== null) {
-            call_user_func($execute);
-        }
-
-        $this->bootstrap->shutdown();
+        return file_exists($this->configurationManager->getLocalConfigurationFileLocation())
+            && file_exists(Environment::getLegacyConfigPath() . '/PackageStates.php');
     }
 
     /**
-     * Define constants and variables
+     * Create a PSR-7 Response that redirects to the install tool
+     *
+     * @return ResponseInterface
      */
-    protected function defineLegacyConstants()
+    protected function installToolRedirect(): ResponseInterface
     {
-        define('TYPO3_MODE', 'BE');
+        return new RedirectResponse('./install.php', 302);
+    }
+
+    /**
+     * Initializes the Context used for accessing data and finding out the current state of the application
+     */
+    protected function initializeContext(): void
+    {
+        $this->context->setAspect('date', new DateTimeAspect(new \DateTimeImmutable('@' . $GLOBALS['EXEC_TIME'])));
+        $this->context->setAspect('visibility', new VisibilityAspect(true, true));
     }
 }

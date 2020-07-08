@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Imaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,17 +13,21 @@ namespace TYPO3\CMS\Core\Tests\Unit\Imaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Imaging;
+
+use TYPO3\CMS\Core\Imaging\Dimension;
 use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Imaging\Dimension
  */
-class DimensionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DimensionTest extends UnitTestCase
 {
     /**
      * @var \TYPO3\CMS\Core\Imaging\Dimension
      */
-    protected $subject = null;
+    protected $subject;
 
     /**
      * @var int
@@ -39,9 +42,10 @@ class DimensionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->subject = new \TYPO3\CMS\Core\Imaging\Dimension(Icon::SIZE_DEFAULT);
+        parent::setUp();
+        $this->subject = new Dimension(Icon::SIZE_DEFAULT);
     }
 
     /**
@@ -50,8 +54,8 @@ class DimensionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getWidthReturnsValidInteger()
     {
         $value = $this->subject->getWidth();
-        $this->assertEquals($this->width, $value);
-        $this->assertInternalType('int', $value);
+        self::assertEquals($this->width, $value);
+        self::assertIsInt($value);
     }
 
     /**
@@ -60,7 +64,7 @@ class DimensionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getHeightReturnsValidInteger()
     {
         $value = $this->subject->getHeight();
-        $this->assertEquals($this->height, $value);
-        $this->assertInternalType('int', $value);
+        self::assertEquals($this->height, $value);
+        self::assertIsInt($value);
     }
 }

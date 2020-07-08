@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,177 +15,196 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Mapper;
+
+use TYPO3\CMS\Core\DataHandling\TableColumnSubType;
+use TYPO3\CMS\Core\DataHandling\TableColumnType;
+
 /**
  * A column map to map a column configured in $TCA on a property of a domain object.
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class ColumnMap
 {
     /**
-     * Constants reflecting the type of relation
+     * @var string
      */
-    const RELATION_NONE = 'RELATION_NONE';
-    const RELATION_HAS_ONE = 'RELATION_HAS_ONE';
-    const RELATION_HAS_MANY = 'RELATION_HAS_MANY';
-    const RELATION_BELONGS_TO_MANY = 'RELATION_BELONGS_TO_MANY';
-    const RELATION_HAS_AND_BELONGS_TO_MANY = 'RELATION_HAS_AND_BELONGS_TO_MANY';
+    public const RELATION_NONE = 'RELATION_NONE';
 
     /**
-     * Constants reflecting how the relation information is stored
+     * @var string
      */
-    const RELATION_PARENT_FOREIGN_KEY = 'RELATION_PARENT_FOREIGN_KEY';
-    const RELATION_CHILD_FOREIGN_KEY = 'RELATION_CHILD_FOREIGN_KEY';
-    const RELATION_PARENT_CSV = 'RELATION_PARENT_CSV';
-    const RELATION_INTERMEDIATE_TABLE = 'RELATION_INTERMEDIATE_TABLE';
+    public const RELATION_HAS_ONE = 'RELATION_HAS_ONE';
 
     /**
-     * Constants reflecting the loading strategy
+     * @var string
      */
-    const STRATEGY_EAGER = 'eager';
-    const STRATEGY_LAZY_PROXY = 'proxy';
-    const STRATEGY_LAZY_STORAGE = 'storage';
+    public const RELATION_HAS_MANY = 'RELATION_HAS_MANY';
+
+    /**
+     * @var string
+     */
+    public const RELATION_BELONGS_TO_MANY = 'RELATION_BELONGS_TO_MANY';
+
+    /**
+     * @var string
+     */
+    public const RELATION_HAS_AND_BELONGS_TO_MANY = 'RELATION_HAS_AND_BELONGS_TO_MANY';
 
     /**
      * The property name corresponding to the table name
      *
      * @var string
      */
-    protected $propertyName;
+    private $propertyName;
 
     /**
      * The column name
      *
      * @var string
      */
-    protected $columnName;
+    private $columnName;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
      * The type of relation
      *
-     * @var string
+     * @var string|null
      */
-    protected $typeOfRelation;
+    private $typeOfRelation;
 
     /**
-     * The name of the child's class
-     *
-     * @var string
-     */
-    protected $childClassName;
-
-    /**
+     * todo: Check if this property should support null. If not, set default value.
      * The name of the child's table
      *
-     * @var string
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Select.html#foreign-table
+     * @var string|null
      */
-    protected $childTableName;
+    private $childTableName;
 
     /**
-     * The where clause to narrow down the selected child records
-     *
-     * @var string
-     */
-    protected $childTableWhereStatement;
-
-    /**
+     * todo: Check if this property should support null. If not, set default value.
      * The name of the field the results from the child's table are sorted by
      *
-     * @var string
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Inline.html#foreign-sortby
+     * @var string|null
      */
-    protected $childSortByFieldName;
+    private $childSortByFieldName;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
      * The name of the relation table
      *
-     * @var string
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Inline.html#mm
+     * @var string|null
      */
-    protected $relationTableName;
+    private $relationTableName;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
      * The name of the column  of the relation table holding the page id
      *
-     * @var string
+     * @var string|null
      */
-    protected $relationTablePageIdColumnName;
+    private $relationTablePageIdColumnName;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
      * An array of field => value pairs to both insert and match against when writing/reading MM relations
      *
-     * @var array
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Inline.html#foreign-match-fields
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Inline.html#mm-match-fields
+     * @var array|null
      */
-    protected $relationTableMatchFields;
+    private $relationTableMatchFields;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
      * Array of field=>value pairs to insert when writing new MM relations
      *
-     * @var array
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Group.html#mm-insert-fields
+     * @var array|null
      */
-    protected $relationTableInsertFields;
+    private $relationTableInsertFields;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
+     *
+     * todo: Check if this property should be dropped as it's not in use. Basically we have to answer the question if
+     * todo: MM_table_where should have any impact on Extbase at all.
      * The where clause to narrow down the selected relation table records
      *
-     * @var string
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Select.html#mm-table-where
+     * @var string|null
      */
-    protected $relationTableWhereStatement;
+    private $relationTableWhereStatement;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
      * The name of the field holding the parents key
      *
-     * @var string
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Inline.html#foreign-field
+     * @var string|null
      */
-    protected $parentKeyFieldName;
+    private $parentKeyFieldName;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
      * The name of the field holding the name of the table of the parent's records
      *
-     * @var string
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Inline.html#foreign-table-field
+     * @var string|null
      */
-    protected $parentTableFieldName;
+    private $parentTableFieldName;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
      * The name of the field holding the children key
      *
-     * @var string
+     * @var string|null
      */
-    protected $childKeyFieldName;
+    private $childKeyFieldName;
 
     /**
+     * todo: Check if this property should support null. If not, set default value.
      * Alternative format for storing DataTime formats
      * (instead of using unix-time stamps). Allowed values
-     * are 'date' and 'datetime'
+     * are 'date', 'datetime' and 'time'
      *
-     * @var string
+     * @see https://docs.typo3.org/m/typo3/reference-tca/master/en-us/ColumnsConfig/Type/Input.html#dbtype
+     * @var string|null
      */
-    protected $dateTimeStorageFormat;
+    private $dateTimeStorageFormat;
 
     /**
-     * @var \TYPO3\CMS\Core\DataHandling\TableColumnType
+     * todo: Check if this property should support null. If not, set default value.
+     * @var TableColumnType|null
      */
-    protected $type;
+    private $type;
 
     /**
-     * @var \TYPO3\CMS\Core\DataHandling\TableColumnSubType
+     * todo: Check if this property should support null. If not, set default value.
+     * @var TableColumnSubType|null
      */
-    protected $internalType;
+    private $internalType;
 
     /**
      * Constructs a Column Map
      *
      * @param string $columnName The column name
      * @param string $propertyName The property name
-     * @return \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\ColumnMap
      */
-    public function __construct($columnName, $propertyName)
+    public function __construct(string $columnName, string $propertyName)
     {
         // @todo Enable aliases (tx_anotherextension_addedcolumn -> theAddedColumn)
-        $this->setColumnName($columnName);
-        $this->setPropertyName($propertyName);
+        $this->columnName = $columnName;
+        $this->propertyName = $propertyName;
     }
 
     /**
      * @param string $typeOfRelation
      */
-    public function setTypeOfRelation($typeOfRelation)
+    public function setTypeOfRelation(string $typeOfRelation): void
     {
         $this->typeOfRelation = $typeOfRelation;
     }
@@ -192,103 +212,71 @@ class ColumnMap
     /**
      * @return string
      */
-    public function getTypeOfRelation()
+    public function getTypeOfRelation(): string
     {
         return $this->typeOfRelation;
     }
 
     /**
-     * @param string $propertyName
-     */
-    public function setPropertyName($propertyName)
-    {
-        $this->propertyName = $propertyName;
-    }
-
-    /**
      * @return string
      */
-    public function getPropertyName()
+    public function getPropertyName(): string
     {
         return $this->propertyName;
     }
 
     /**
-     * @param string $columnName
-     */
-    public function setColumnName($columnName)
-    {
-        $this->columnName = $columnName;
-    }
-
-    /**
      * @return string
      */
-    public function getColumnName()
+    public function getColumnName(): string
     {
         return $this->columnName;
     }
 
     /**
-     * @param string $childTableName
+     * @param string|null $childTableName
      */
-    public function setChildTableName($childTableName)
+    public function setChildTableName(?string $childTableName): void
     {
         $this->childTableName = $childTableName;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getChildTableName()
+    public function getChildTableName(): ?string
     {
         return $this->childTableName;
     }
 
     /**
-     * @param string $childTableWhereStatement
+     * @param string|null $childSortByFieldName
      */
-    public function setChildTableWhereStatement($childTableWhereStatement)
-    {
-        $this->childTableWhereStatement = $childTableWhereStatement;
-    }
-
-    /**
-     * @return string
-     */
-    public function getChildTableWhereStatement()
-    {
-        return $this->childTableWhereStatement;
-    }
-
-    /**
-     * @param string $childSortByFieldName
-     */
-    public function setChildSortByFieldName($childSortByFieldName)
+    public function setChildSortByFieldName(?string $childSortByFieldName): void
     {
         $this->childSortByFieldName = $childSortByFieldName;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getChildSortByFieldName()
+    public function getChildSortByFieldName(): ?string
     {
         return $this->childSortByFieldName;
     }
 
     /**
-     * @param string $relationTableName
+     * @param string|null $relationTableName
      */
-    public function setRelationTableName($relationTableName)
+    public function setRelationTableName(?string $relationTableName): void
     {
         $this->relationTableName = $relationTableName;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getRelationTableName()
+    public function getRelationTableName(): ?string
     {
         return $this->relationTableName;
     }
@@ -296,31 +284,31 @@ class ColumnMap
     /**
      * @param string $relationTablePageIdColumnName
      */
-    public function setRelationTablePageIdColumnName($relationTablePageIdColumnName)
+    public function setRelationTablePageIdColumnName(string $relationTablePageIdColumnName): void
     {
         $this->relationTablePageIdColumnName = $relationTablePageIdColumnName;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getRelationTablePageIdColumnName()
+    public function getRelationTablePageIdColumnName(): ?string
     {
         return $this->relationTablePageIdColumnName;
     }
 
     /**
-     * @param array $relationTableMatchFields
+     * @param array|null $relationTableMatchFields
      */
-    public function setRelationTableMatchFields(array $relationTableMatchFields)
+    public function setRelationTableMatchFields(?array $relationTableMatchFields): void
     {
         $this->relationTableMatchFields = $relationTableMatchFields;
     }
 
     /**
-     * @return array
+     * @return array|null
      */
-    public function getRelationTableMatchFields()
+    public function getRelationTableMatchFields(): ?array
     {
         return $this->relationTableMatchFields;
     }
@@ -328,63 +316,47 @@ class ColumnMap
     /**
      * @param array $relationTableInsertFields
      */
-    public function setRelationTableInsertFields(array $relationTableInsertFields)
+    public function setRelationTableInsertFields(array $relationTableInsertFields): void
     {
         $this->relationTableInsertFields = $relationTableInsertFields;
     }
 
     /**
-     * @return array
+     * @return array|null
      */
-    public function getRelationTableInsertFields()
+    public function getRelationTableInsertFields(): ?array
     {
         return $this->relationTableInsertFields;
     }
 
     /**
-     * @param string $relationTableWhereStatement
+     * @param string|null $parentKeyFieldName
      */
-    public function setRelationTableWhereStatement($relationTableWhereStatement)
-    {
-        $this->relationTableWhereStatement = $relationTableWhereStatement;
-    }
-
-    /**
-     * @return string
-     */
-    public function getRelationTableWhereStatement()
-    {
-        return $this->relationTableWhereStatement;
-    }
-
-    /**
-     * @param string $parentKeyFieldName
-     */
-    public function setParentKeyFieldName($parentKeyFieldName)
+    public function setParentKeyFieldName(?string $parentKeyFieldName): void
     {
         $this->parentKeyFieldName = $parentKeyFieldName;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getParentKeyFieldName()
+    public function getParentKeyFieldName(): ?string
     {
         return $this->parentKeyFieldName;
     }
 
     /**
-     * @param string $parentTableFieldName
+     * @param string|null $parentTableFieldName
      */
-    public function setParentTableFieldName($parentTableFieldName)
+    public function setParentTableFieldName(?string $parentTableFieldName): void
     {
         $this->parentTableFieldName = $parentTableFieldName;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getParentTableFieldName()
+    public function getParentTableFieldName(): ?string
     {
         return $this->parentTableFieldName;
     }
@@ -392,63 +364,63 @@ class ColumnMap
     /**
      * @param string $childKeyFieldName
      */
-    public function setChildKeyFieldName($childKeyFieldName)
+    public function setChildKeyFieldName(string $childKeyFieldName): void
     {
         $this->childKeyFieldName = $childKeyFieldName;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getChildKeyFieldName()
+    public function getChildKeyFieldName(): ?string
     {
         return $this->childKeyFieldName;
     }
 
     /**
-     * @param string $dateTimeStorageFormat
+     * @param string|null $dateTimeStorageFormat
      */
-    public function setDateTimeStorageFormat($dateTimeStorageFormat)
+    public function setDateTimeStorageFormat(?string $dateTimeStorageFormat): void
     {
         $this->dateTimeStorageFormat = $dateTimeStorageFormat;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
-    public function getDateTimeStorageFormat()
+    public function getDateTimeStorageFormat(): ?string
     {
         return $this->dateTimeStorageFormat;
     }
 
     /**
-     * @param \TYPO3\CMS\Core\DataHandling\TableColumnSubType $internalType
+     * @param TableColumnSubType $internalType
      */
-    public function setInternalType($internalType)
+    public function setInternalType(TableColumnSubType $internalType): void
     {
         $this->internalType = $internalType;
     }
 
     /**
-     * @return \TYPO3\CMS\Core\DataHandling\TableColumnSubType
+     * @return TableColumnSubType|null
      */
-    public function getInternalType()
+    public function getInternalType(): ?TableColumnSubType
     {
         return $this->internalType;
     }
 
     /**
-     * @param \TYPO3\CMS\Core\DataHandling\TableColumnType $type
+     * @param TableColumnType $type
      */
-    public function setType($type)
+    public function setType(TableColumnType $type): void
     {
         $this->type = $type;
     }
 
     /**
-     * @return \TYPO3\CMS\Core\DataHandling\TableColumnType
+     * @return TableColumnType|null
      */
-    public function getType()
+    public function getType(): ?TableColumnType
     {
         return $this->type;
     }

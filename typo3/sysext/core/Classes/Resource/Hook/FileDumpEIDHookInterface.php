@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Hook;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,11 @@ namespace TYPO3\CMS\Core\Resource\Hook;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Hook;
+
+use Psr\Http\Message\ResponseInterface;
+use TYPO3\CMS\Core\Resource\ResourceInterface;
+
 /**
  * Interface for FileDumpEID Hook to perform some custom security/access checks
  * when accessing file thought FileDumpEID
@@ -23,9 +27,11 @@ interface FileDumpEIDHookInterface
     /**
      * Perform custom security/access when accessing file
      * Method should issue 403 if access is rejected
-     * or 401 if authentication is required
+     * or 401 if authentication is required via an authorized HTTP authorization scheme.
+     * A 401 header must be accompanied by a www-authenticate header!
      *
      * @param \TYPO3\CMS\Core\Resource\ResourceInterface $file
+     * @return ResponseInterface|null
      */
-    public function checkFileAccess(\TYPO3\CMS\Core\Resource\ResourceInterface $file);
+    public function checkFileAccess(ResourceInterface $file);
 }

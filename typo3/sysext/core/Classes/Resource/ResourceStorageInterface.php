@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,38 +13,13 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
 /**
  * The interface for a resource storage containing all constants
  */
 interface ResourceStorageInterface
 {
-    const SIGNAL_SanitizeFileName = 'sanitizeFileName';
-    const SIGNAL_PreFileAdd = 'preFileAdd';
-    const SIGNAL_PostFileAdd = 'postFileAdd';
-    const SIGNAL_PostFileCreate = 'postFileCreate';
-    const SIGNAL_PreFileCopy = 'preFileCopy';
-    const SIGNAL_PostFileCopy = 'postFileCopy';
-    const SIGNAL_PreFileMove = 'preFileMove';
-    const SIGNAL_PostFileMove = 'postFileMove';
-    const SIGNAL_PreFileDelete = 'preFileDelete';
-    const SIGNAL_PostFileDelete = 'postFileDelete';
-    const SIGNAL_PreFileRename = 'preFileRename';
-    const SIGNAL_PostFileRename = 'postFileRename';
-    const SIGNAL_PreFileReplace = 'preFileReplace';
-    const SIGNAL_PostFileReplace = 'postFileReplace';
-    const SIGNAL_PostFileSetContents = 'postFileSetContents';
-    const SIGNAL_PreFolderAdd = 'preFolderAdd';
-    const SIGNAL_PostFolderAdd = 'postFolderAdd';
-    const SIGNAL_PreFolderCopy = 'preFolderCopy';
-    const SIGNAL_PostFolderCopy = 'postFolderCopy';
-    const SIGNAL_PreFolderMove = 'preFolderMove';
-    const SIGNAL_PostFolderMove = 'postFolderMove';
-    const SIGNAL_PreFolderDelete = 'preFolderDelete';
-    const SIGNAL_PostFolderDelete = 'postFolderDelete';
-    const SIGNAL_PreFolderRename = 'preFolderRename';
-    const SIGNAL_PostFolderRename = 'postFolderRename';
-    const SIGNAL_PreGeneratePublicUrl = 'preGeneratePublicUrl';
-
     /**
      * Capability for being browsable by (backend) users
      */
@@ -59,6 +33,10 @@ interface ResourceStorageInterface
      * general - this might also be further limited by configuration.
      */
     const CAPABILITY_WRITABLE = 4;
+    /**
+     * Whether identifiers contain hierarchy information (folder structure).
+     */
+    const CAPABILITY_HIERARCHICAL_IDENTIFIERS = 8;
     /**
      * Name of the default processing folder
      */

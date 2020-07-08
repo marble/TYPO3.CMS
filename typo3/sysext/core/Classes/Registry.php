@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core;
 
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -55,7 +56,7 @@ class Registry implements SingletonInterface
         if (!$this->isNamespaceLoaded($namespace)) {
             $this->loadEntriesByNamespace($namespace);
         }
-        return isset($this->entries[$namespace][$key]) ? $this->entries[$namespace][$key] : $defaultValue;
+        return $this->entries[$namespace][$key] ?? $defaultValue;
     }
 
     /**

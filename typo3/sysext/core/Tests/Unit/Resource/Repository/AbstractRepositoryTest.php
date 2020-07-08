@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource\Repository;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,9 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource\Repository;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\Resource\Repository;
+
 use Doctrine\DBAL\Driver\Statement;
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Database\Connection;
@@ -21,11 +23,12 @@ use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Resource\AbstractRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class AbstractRepositoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractRepositoryTest extends UnitTestCase
 {
     /**
      * @var AbstractRepository
@@ -49,8 +52,9 @@ class AbstractRepositoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestC
         return $queryBuilderProphet;
     }
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->subject = $this->getMockForAbstractClass(AbstractRepository::class, [], '', false);
     }
 

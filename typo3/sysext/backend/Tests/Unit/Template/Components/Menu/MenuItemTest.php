@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Template\Components\Menu;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Backend\Tests\Template\Components\Menu;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Template\Components\Menu;
+
 use TYPO3\CMS\Backend\Template\Components\Menu\MenuItem;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case for MenuItem
  */
-class MenuItemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class MenuItemTest extends UnitTestCase
 {
     /**
      * Try a blank menu Item
@@ -30,7 +32,7 @@ class MenuItemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $menuItem = new MenuItem();
         $isValid = $menuItem->isValid($menuItem);
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -43,7 +45,7 @@ class MenuItemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $menuItem = new MenuItem();
         $menuItem->setTitle('huhu');
         $isValid = $menuItem->isValid($menuItem);
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -56,7 +58,7 @@ class MenuItemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $menuItem = new MenuItem();
         $menuItem->setHref('husel');
         $isValid = $menuItem->isValid($menuItem);
-        $this->assertFalse($isValid);
+        self::assertFalse($isValid);
     }
 
     /**
@@ -69,6 +71,6 @@ class MenuItemTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $menuItem = new MenuItem();
         $menuItem->setTitle('husel')->setHref('husel');
         $isValid = $menuItem->isValid($menuItem);
-        $this->assertTrue($isValid);
+        self::assertTrue($isValid);
     }
 }

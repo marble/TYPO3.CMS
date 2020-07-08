@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,17 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
+use TYPO3\CMS\Core\Configuration\FlexForm\Exception\InvalidIdentifierException;
+use TYPO3\CMS\Core\Configuration\FlexForm\Exception\InvalidParentRowException;
+use TYPO3\CMS\Core\Configuration\FlexForm\Exception\InvalidParentRowLoopException;
+use TYPO3\CMS\Core\Configuration\FlexForm\Exception\InvalidParentRowRootException;
+use TYPO3\CMS\Core\Configuration\FlexForm\Exception\InvalidPointerFieldValueException;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Migrations\TcaMigration;
+use TYPO3\CMS\Core\Preparations\TcaPreparation;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -65,15 +72,23 @@ class TcaFlexPrepare implements FormDataProviderInterface
     {
         if (!isset($result['processedTca']['columns'][$fieldName]['config']['dataStructureIdentifier'])) {
             $flexFormTools = GeneralUtility::makeInstance(FlexFormTools::class);
-            $dataStructureIdentifier = $flexFormTools->getDataStructureIdentifier(
-                $result['processedTca']['columns'][$fieldName],
-                $result['tableName'],
-                $fieldName,
-                $result['databaseRow']
-            );
-            // Add the identifier to TCA to use it later during rendering
-            $result['processedTca']['columns'][$fieldName]['config']['dataStructureIdentifier'] = $dataStructureIdentifier;
-            $dataStructureArray = $flexFormTools->parseDataStructureByIdentifier($dataStructureIdentifier);
+
+            $dataStructureArray = ['sheets' => ['sDEF' => []]];
+
+            try {
+                $dataStructureIdentifier = $flexFormTools->getDataStructureIdentifier(
+                    $result['processedTca']['columns'][$fieldName],
+                    $result['tableName'],
+                    $fieldName,
+                    $result['databaseRow']
+                );
+                $dataStructureArray = $flexFormTools->parseDataStructureByIdentifier($dataStructureIdentifier);
+            } catch (InvalidParentRowException|InvalidParentRowLoopException|InvalidParentRowRootException|InvalidPointerFieldValueException|InvalidIdentifierException $e) {
+                $dataStructureIdentifier = null;
+            } finally {
+                // Add the identifier to TCA to use it later during rendering
+                $result['processedTca']['columns'][$fieldName]['config']['dataStructureIdentifier'] = $dataStructureIdentifier;
+            }
         } else {
             // Assume the data structure has been given from outside if the data structure identifier is already set.
             $dataStructureArray = $result['processedTca']['columns'][$fieldName]['config']['ds'];
@@ -202,9 +217,9 @@ class TcaFlexPrepare implements FormDataProviderInterface
             if ($key === 'el' && is_array($value)) {
                 $newSubStructure = [];
                 $tcaMigration = GeneralUtility::makeInstance(TcaMigration::class);
+                $tcaPreparation = GeneralUtility::makeInstance(TcaPreparation::class);
                 foreach ($value as $subKey => $subValue) {
-                    // On-the-fly migration for flex form "TCA"
-                    // @deprecated since TYPO3 CMS 7. Not removed in TYPO3 CMS 8 though. This call will stay for now to allow further TCA migrations in 8.
+                    // On-the-fly migration for flex form "TCA". Call the TcaMigration and log any deprecations.
                     $dummyTca = [
                         'dummyTable' => [
                             'columns' => [
@@ -218,9 +233,10 @@ class TcaFlexPrepare implements FormDataProviderInterface
                         $context = 'FormEngine did an on-the-fly migration of a flex form data structure. This is deprecated and will be removed.'
                             . ' Merge the following changes into the flex form definition of table "' . $table . '"" in field "' . $fieldName . '"":';
                         array_unshift($messages, $context);
-                        GeneralUtility::deprecationLog(implode(LF, $messages));
+                        trigger_error(implode(LF, $messages), E_USER_DEPRECATED);
                     }
-                    $newSubStructure[$subKey] = $migratedTca['dummyTable']['columns']['dummyField'];
+                    $preparedTca = $tcaPreparation->prepare($migratedTca);
+                    $newSubStructure[$subKey] = $preparedTca['dummyTable']['columns']['dummyField'];
                 }
                 $value = $newSubStructure;
             }

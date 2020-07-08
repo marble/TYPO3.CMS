@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Driver;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,8 @@ namespace TYPO3\CMS\Core\Resource\Driver;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Charset\CharsetConverter;
+namespace TYPO3\CMS\Core\Resource\Driver;
+
 use TYPO3\CMS\Core\Resource\Exception\InvalidPathException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
@@ -24,24 +24,6 @@ use TYPO3\CMS\Core\Utility\PathUtility;
  */
 abstract class AbstractHierarchicalFilesystemDriver extends AbstractDriver
 {
-    /**
-     * @var CharsetConverter
-     */
-    protected $charsetConversion;
-
-    /**
-     * Gets the charset conversion object.
-     *
-     * @return CharsetConverter
-     */
-    protected function getCharsetConversion()
-    {
-        if (!isset($this->charsetConversion)) {
-            $this->charsetConversion = GeneralUtility::makeInstance(CharsetConverter::class);
-        }
-        return $this->charsetConversion;
-    }
-
     /**
      * Wrapper for \TYPO3\CMS\Core\Utility\GeneralUtility::validPathStr()
      *
@@ -67,7 +49,7 @@ abstract class AbstractHierarchicalFilesystemDriver extends AbstractDriver
 
         // filePath must be valid
         // Special case is required by vfsStream in Unit Test context
-        if (!$this->isPathValid($filePath) && substr($filePath, 0, 6) !== 'vfs://') {
+        if (!$this->isPathValid($filePath) && strpos($filePath, 'vfs://') !== 0) {
             throw new InvalidPathException('File ' . $filePath . ' is not valid (".." and "//" is not allowed in path).', 1320286857);
         }
         return $filePath;
@@ -117,6 +99,6 @@ abstract class AbstractHierarchicalFilesystemDriver extends AbstractDriver
     public function getParentFolderIdentifierOfIdentifier($fileIdentifier)
     {
         $fileIdentifier = $this->canonicalizeAndCheckFileIdentifier($fileIdentifier);
-        return PathUtility::dirname($fileIdentifier) . '/';
+        return rtrim(GeneralUtility::fixWindowsFilePath(PathUtility::dirname($fileIdentifier)), '/') . '/';
     }
 }

@@ -10,25 +10,4 @@
  *
  * The TYPO3 project - inspiring people to share!
  */
-
-/**
- * Module: TYPO3/CMS/Recordlist/FieldSelectBox
- * Check-all / uncheck-all for the Database Recordlist fieldSelectBox
- * @exports TYPO3/CMS/Recordlist/FieldSelectBox
- */
-define(['jquery'], function($) {
-	'use strict';
-
-	$(function() {
-		$('.fieldSelectBox .checkAll').change(function() {
-			var checked = $(this).prop('checked');
-			var $checkboxes = $('.fieldSelectBox tbody').find(':checkbox');
-			$checkboxes.each(function() {
-				if (!$(this).prop('disabled')) {
-					$(this).prop('checked', checked);
-				}
-			});
-		});
-	});
-
-});
+define(["require","exports","jquery"],(function(e,c,r){"use strict";return new class{constructor(){r(()=>{r(".fieldSelectBox .checkAll").change(e=>{const c=r(e.currentTarget).prop("checked");r(".fieldSelectBox tbody").find(":checkbox").each((e,t)=>{r(t).prop("disabled")||r(t).prop("checked",c)})})})}}}));

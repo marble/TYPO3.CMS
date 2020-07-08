@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,13 @@ namespace TYPO3\CMS\Install;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install;
+
+use TYPO3\CMS\Core\Exception as CoreException;
+
 /**
- * A generic install exception
+ * A generic Install exception
  */
-class Exception extends \Exception
+class Exception extends CoreException
 {
 }

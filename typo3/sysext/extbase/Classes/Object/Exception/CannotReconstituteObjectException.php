@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Object\Exception;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +15,13 @@ namespace TYPO3\CMS\Extbase\Object\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Object\Exception;
+
+use TYPO3\CMS\Extbase\Object\Exception;
+
 /**
  * "Cannot reconstitute object" Exception
  */
-class CannotReconstituteObjectException extends \TYPO3\CMS\Extbase\Object\Exception
+class CannotReconstituteObjectException extends Exception
 {
 }

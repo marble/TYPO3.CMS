@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,12 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
+use TYPO3\CMS\Core\Resource\Exception\InsufficientFolderAccessPermissionsException;
+use TYPO3\CMS\Core\Resource\Exception\ResourcePermissionsUnavailableException;
+use TYPO3\CMS\Core\Resource\Search\FileSearchDemand;
+use TYPO3\CMS\Core\Resource\Search\Result\FileSearchResultInterface;
 use TYPO3\CMS\Core\Utility\PathUtility;
 
 /**
@@ -75,8 +80,8 @@ class Folder implements FolderInterface
      * Initialization of the folder
      *
      * @param ResourceStorage $storage
-     * @param $identifier
-     * @param $name
+     * @param string $identifier
+     * @param string $name
      */
     public function __construct(ResourceStorage $storage, $identifier, $name)
     {
@@ -120,7 +125,7 @@ class Folder implements FolderInterface
         if ($this->identifier !== $rootId) {
             try {
                 $readablePath = $this->getParentFolder()->getReadablePath($rootId);
-            } catch (Exception\InsufficientFolderAccessPermissionsException $e) {
+            } catch (InsufficientFolderAccessPermissionsException $e) {
                 // May no access to parent folder (e.g. because of mount point)
                 $readablePath = '/';
             }
@@ -189,7 +194,7 @@ class Folder implements FolderInterface
      * web-based authentication. You have to take care of this yourself.
      *
      * @param bool $relativeToCurrentScript Determines whether the URL returned should be relative to the current script, in case it is relative at all (only for the LocalDriver)
-     * @return string
+     * @return string|null NULL if file is missing or deleted, the generated url otherwise
      */
     public function getPublicUrl($relativeToCurrentScript = false)
     {
@@ -221,7 +226,7 @@ class Folder implements FolderInterface
             $useFilters = false;
             $backedUpFilters = [];
         } else {
-            list($backedUpFilters, $useFilters) = $this->prepareFiltersInStorage($filterMode);
+            [$backedUpFilters, $useFilters] = $this->prepareFiltersInStorage($filterMode);
         }
 
         $fileObjects = $this->storage->getFilesInFolder($this, $start, $numberOfItems, $useFilters, $recursive, $sort, $sortRev);
@@ -229,6 +234,23 @@ class Folder implements FolderInterface
         $this->restoreBackedUpFiltersInStorage($backedUpFilters);
 
         return $fileObjects;
+    }
+
+    /**
+     * Returns a file search result based on the given demand.
+     * The result also includes matches in meta data fields that are defined in TCA.
+     *
+     * @param FileSearchDemand $searchDemand
+     * @param int $filterMode The filter mode to use for the found files
+     * @return FileSearchResultInterface
+     */
+    public function searchFiles(FileSearchDemand $searchDemand, int $filterMode = self::FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS): FileSearchResultInterface
+    {
+        [$backedUpFilters, $useFilters] = $this->prepareFiltersInStorage($filterMode);
+        $searchResult = $this->storage->searchFiles($searchDemand, $this, $useFilters);
+        $this->restoreBackedUpFiltersInStorage($backedUpFilters);
+
+        return $searchResult;
     }
 
     /**
@@ -271,7 +293,7 @@ class Folder implements FolderInterface
      */
     public function getSubfolders($start = 0, $numberOfItems = 0, $filterMode = self::FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS, $recursive = false)
     {
-        list($backedUpFilters, $useFilters) = $this->prepareFiltersInStorage($filterMode);
+        [$backedUpFilters, $useFilters] = $this->prepareFiltersInStorage($filterMode);
         $folderObjects = $this->storage->getFoldersInFolder($this, $start, $numberOfItems, $useFilters, $recursive);
         $this->restoreBackedUpFiltersInStorage($backedUpFilters);
         return $folderObjects;
@@ -288,7 +310,7 @@ class Folder implements FolderInterface
      */
     public function addFile($localFilePath, $fileName = null, $conflictMode = DuplicationBehavior::CANCEL)
     {
-        $fileName = $fileName ? $fileName : PathUtility::basename($localFilePath);
+        $fileName = $fileName ?: PathUtility::basename($localFilePath);
         return $this->storage->addFile($localFilePath, $this, $fileName, $conflictMode);
     }
 
@@ -406,7 +428,7 @@ class Folder implements FolderInterface
     {
         try {
             return $this->getStorage()->checkFolderActionPermission($action, $this);
-        } catch (Exception\ResourcePermissionsUnavailableException $e) {
+        } catch (ResourcePermissionsUnavailableException $e) {
             return false;
         }
     }
@@ -513,7 +535,7 @@ class Folder implements FolderInterface
      *
      * The parent folder of the root folder is the root folder.
      *
-     * @return Folder
+     * @return FolderInterface
      */
     public function getParentFolder()
     {

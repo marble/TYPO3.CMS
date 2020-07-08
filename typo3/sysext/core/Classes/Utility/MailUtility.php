@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,9 @@ namespace TYPO3\CMS\Core\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Query\Restriction\HiddenRestriction;
+namespace TYPO3\CMS\Core\Utility;
+
+use TYPO3\CMS\Core\Mail\Rfc822AddressesParser;
 
 /**
  * Class to handle mail specific functionality
@@ -35,11 +35,11 @@ class MailUtility
         $name = self::getSystemFromName();
         if (!$address) {
             return null;
-        } elseif ($name) {
-            return [$address => $name];
-        } else {
-            return [$address];
         }
+        if ($name) {
+            return [$address => $name];
+        }
+        return [$address];
     }
 
     /**
@@ -53,9 +53,8 @@ class MailUtility
     {
         if ($GLOBALS['TYPO3_CONF_VARS']['MAIL']['defaultMailFromName']) {
             return $GLOBALS['TYPO3_CONF_VARS']['MAIL']['defaultMailFromName'];
-        } else {
-            return null;
         }
+        return null;
     }
 
     /**
@@ -76,43 +75,38 @@ class MailUtility
         // default, first check the localconf setting
         $address = $GLOBALS['TYPO3_CONF_VARS']['MAIL']['defaultMailFromAddress'];
         if (!GeneralUtility::validEmail($address)) {
-            // just get us a domain record we can use as the host
-            $host = '';
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                ->getQueryBuilderForTable('sys_domain');
-
-            $queryBuilder->getRestrictions()
-                ->removeAll()
-                ->add(GeneralUtility::makeInstance(HiddenRestriction::class));
-
-            $domainRecord = $queryBuilder
-                ->select('domainName')
-                ->from('sys_domain')
-                ->orderBy('pid', 'ASC')
-                ->orderBy('sorting', 'ASC')
-                ->execute()
-                ->fetch();
-
-            if (!empty($domainRecord['domainName'])) {
-                $tempUrl = $domainRecord['domainName'];
-                if (!GeneralUtility::isFirstPartOfStr($tempUrl, 'http')) {
-                    // shouldn't be the case anyways, but you never know
-                    // ... there're crazy people out there
-                    $tempUrl = 'http://' . $tempUrl;
-                }
-                $host = parse_url($tempUrl, PHP_URL_HOST);
-            }
-            $address = 'no-reply@' . $host;
+            // still nothing, get host name from server
+            $address = 'no-reply@' . php_uname('n');
             if (!GeneralUtility::validEmail($address)) {
-                // still nothing, get host name from server
-                $address = 'no-reply@' . php_uname('n');
-                if (!GeneralUtility::validEmail($address)) {
-                    // if everything fails use a dummy address
-                    $address = 'no-reply@example.com';
-                }
+                // if everything fails use a dummy address
+                $address = 'no-reply@example.com';
             }
         }
         return $address;
+    }
+
+    /**
+     * Gets a default "reply-to" for mail messages (email and name).
+     *
+     * Ready to be passed to $mail->setReplyTo()
+     *
+     * @return array List of email-addresses. Specifying a realname can be done in the form of "replyToName <replyTo@example.com>".
+     */
+    public static function getSystemReplyTo(): array
+    {
+        $mailConfiguration = $GLOBALS['TYPO3_CONF_VARS']['MAIL'];
+        $replyToAddress = $mailConfiguration['defaultMailReplyToAddress'];
+        if (empty($replyToAddress) || !GeneralUtility::validEmail($replyToAddress)) {
+            return [];
+        }
+
+        if (!empty($mailConfiguration['defaultMailReplyToName'])) {
+            $replyTo = [$replyToAddress => $mailConfiguration['defaultMailReplyToName']];
+        } else {
+            $replyTo = [$replyToAddress];
+        }
+
+        return $replyTo;
     }
 
     /**
@@ -122,7 +116,7 @@ class MailUtility
      * @param string $str The string to break up
      * @param string $newlineChar The string to implode the broken lines with (default/typically \n)
      * @param int $lineWidth The line width
-     * @return string Reformated text
+     * @return string Reformatted text
      */
     public static function breakLinesForEmail($str, $newlineChar = LF, $lineWidth = 76)
     {
@@ -176,9 +170,9 @@ class MailUtility
      */
     public static function parseAddresses($rawAddresses)
     {
-        /** @var $addressParser \TYPO3\CMS\Core\Mail\Rfc822AddressesParser */
+        /** @var \TYPO3\CMS\Core\Mail\Rfc822AddressesParser $addressParser */
         $addressParser = GeneralUtility::makeInstance(
-            \TYPO3\CMS\Core\Mail\Rfc822AddressesParser::class,
+            Rfc822AddressesParser::class,
             $rawAddresses
         );
         $addresses = $addressParser->parseAddressList();

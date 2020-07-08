@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +15,22 @@ namespace TYPO3\CMS\Extbase\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Configuration;
+
+use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\TypoScript\TypoScriptService;
+use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
+use TYPO3\CMS\Extbase\Service\EnvironmentService;
+use TYPO3\CMS\Extbase\Utility\FrontendSimulatorUtility;
+use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+
 /**
  * Abstract base class for a general purpose configuration manager
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
-abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\SingletonInterface
+abstract class AbstractConfigurationManager implements SingletonInterface
 {
     /**
      * Default backend storage PID
@@ -74,45 +87,33 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
 
     /**
      * @param \TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager
-     */
-    public function injectObjectManager(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager)
-    {
-        $this->objectManager = $objectManager;
-    }
-
-    /**
      * @param \TYPO3\CMS\Core\TypoScript\TypoScriptService $typoScriptService
-     */
-    public function injectTypoScriptService(\TYPO3\CMS\Core\TypoScript\TypoScriptService $typoScriptService)
-    {
-        $this->typoScriptService = $typoScriptService;
-    }
-
-    /**
      * @param \TYPO3\CMS\Extbase\Service\EnvironmentService $environmentService
      */
-    public function injectEnvironmentService(\TYPO3\CMS\Extbase\Service\EnvironmentService $environmentService)
-    {
+    public function __construct(
+        ObjectManagerInterface $objectManager,
+        TypoScriptService $typoScriptService,
+        EnvironmentService $environmentService
+    ) {
+        $this->objectManager = $objectManager;
+        $this->typoScriptService = $typoScriptService;
         $this->environmentService = $environmentService;
     }
 
     /**
      * @param \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer $contentObject
      */
-    public function setContentObject(\TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer $contentObject = null)
+    public function setContentObject(ContentObjectRenderer $contentObject): void
     {
         $this->contentObject = $contentObject;
     }
 
     /**
-     * @return \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer|NULL
+     * @return \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer|null
      */
-    public function getContentObject()
+    public function getContentObject(): ?ContentObjectRenderer
     {
-        if ($this->contentObject !== null) {
-            return $this->contentObject;
-        }
-        return null;
+        return $this->contentObject;
     }
 
     /**
@@ -121,12 +122,12 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
      *
      * @param array $configuration The new configuration
      */
-    public function setConfiguration(array $configuration = [])
+    public function setConfiguration(array $configuration = []): void
     {
         // reset 1st level cache
         $this->configurationCache = [];
-        $this->extensionName = isset($configuration['extensionName']) ? $configuration['extensionName'] : null;
-        $this->pluginName = isset($configuration['pluginName']) ? $configuration['pluginName'] : null;
+        $this->extensionName = $configuration['extensionName'] ?? null;
+        $this->pluginName = $configuration['pluginName'] ?? null;
         $this->configuration = $this->typoScriptService->convertTypoScriptArrayToPlainArray($configuration);
     }
 
@@ -136,11 +137,11 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
      * The Extbase framework configuration HAS TO be retrieved using this method, as they are come from different places than the normal settings.
      * Framework configuration is, in contrast to normal settings, needed for the Extbase framework to operate correctly.
      *
-     * @param string $extensionName if specified, the configuration for the given extension will be returned (plugin.tx_extensionname)
-     * @param string $pluginName if specified, the configuration for the given plugin will be returned (plugin.tx_extensionname_pluginname)
+     * @param string|null $extensionName if specified, the configuration for the given extension will be returned (plugin.tx_extensionname)
+     * @param string|null $pluginName if specified, the configuration for the given plugin will be returned (plugin.tx_extensionname_pluginname)
      * @return array the Extbase framework configuration
      */
-    public function getConfiguration($extensionName = null, $pluginName = null)
+    public function getConfiguration(?string $extensionName = null, ?string $pluginName = null): array
     {
         // 1st level cache
         $configurationCacheKey = strtolower(($extensionName ?: $this->extensionName) . '_' . ($pluginName ?: $this->pluginName));
@@ -151,19 +152,19 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
         if (!isset($frameworkConfiguration['persistence']['storagePid'])) {
             $frameworkConfiguration['persistence']['storagePid'] = $this->getDefaultBackendStoragePid();
         }
-        // only merge $this->configuration and override switchableControllerActions when retrieving configuration of the current plugin
+        // only merge $this->configuration and override controller configuration when retrieving configuration of the current plugin
         if ($extensionName === null || $extensionName === $this->extensionName && $pluginName === $this->pluginName) {
-            $pluginConfiguration = $this->getPluginConfiguration($this->extensionName, $this->pluginName);
-            \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($pluginConfiguration, $this->configuration);
-            $pluginConfiguration['controllerConfiguration'] = $this->getSwitchableControllerActions($this->extensionName, $this->pluginName);
+            $pluginConfiguration = $this->getPluginConfiguration((string)$this->extensionName, (string)$this->pluginName);
+            ArrayUtility::mergeRecursiveWithOverrule($pluginConfiguration, $this->configuration);
+            $pluginConfiguration['controllerConfiguration'] = $this->getControllerConfiguration((string)$this->extensionName, (string)$this->pluginName);
             if (isset($this->configuration['switchableControllerActions'])) {
-                $this->overrideSwitchableControllerActions($pluginConfiguration, $this->configuration['switchableControllerActions']);
+                $this->overrideControllerConfigurationWithSwitchableControllerActions($pluginConfiguration, $this->configuration['switchableControllerActions']);
             }
         } else {
-            $pluginConfiguration = $this->getPluginConfiguration($extensionName, $pluginName);
-            $pluginConfiguration['controllerConfiguration'] = $this->getSwitchableControllerActions($extensionName, $pluginName);
+            $pluginConfiguration = $this->getPluginConfiguration((string)$extensionName, (string)$pluginName);
+            $pluginConfiguration['controllerConfiguration'] = $this->getControllerConfiguration((string)$extensionName, (string)$pluginName);
         }
-        \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($frameworkConfiguration, $pluginConfiguration);
+        ArrayUtility::mergeRecursiveWithOverrule($frameworkConfiguration, $pluginConfiguration);
         // only load context specific configuration when retrieving configuration of the current plugin
         if ($extensionName === null || $extensionName === $this->extensionName && $pluginName === $this->pluginName) {
             $frameworkConfiguration = $this->getContextSpecificFrameworkConfiguration($frameworkConfiguration);
@@ -171,34 +172,34 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
 
         if (!empty($frameworkConfiguration['persistence']['storagePid'])) {
             if (is_array($frameworkConfiguration['persistence']['storagePid'])) {
-                /**
-                    * We simulate the frontend to enable the use of cObjects in
-                    * stdWrap. Than we convert the configuration to normal TypoScript
-                    * and apply the stdWrap to the storagePid
-                    */
+                // We simulate the frontend to enable the use of cObjects in
+                // stdWrap. Than we convert the configuration to normal TypoScript
+                // and apply the stdWrap to the storagePid
                 if (!$this->environmentService->isEnvironmentInFrontendMode()) {
-                    \TYPO3\CMS\Extbase\Utility\FrontendSimulatorUtility::simulateFrontendEnvironment($this->getContentObject());
+                    FrontendSimulatorUtility::simulateFrontendEnvironment($this->getContentObject());
                 }
                 $conf = $this->typoScriptService->convertPlainArrayToTypoScriptArray($frameworkConfiguration['persistence']);
                 $frameworkConfiguration['persistence']['storagePid'] = $GLOBALS['TSFE']->cObj->stdWrap($conf['storagePid'], $conf['storagePid.']);
                 if (!$this->environmentService->isEnvironmentInFrontendMode()) {
-                    \TYPO3\CMS\Extbase\Utility\FrontendSimulatorUtility::resetFrontendEnvironment();
+                    FrontendSimulatorUtility::resetFrontendEnvironment();
                 }
             }
 
             if (!empty($frameworkConfiguration['persistence']['recursive'])) {
                 // All implementations of getTreeList allow to pass the ids negative to include them into the result
                 // otherwise only childpages are returned
-                $storagePids = \TYPO3\CMS\Core\Utility\GeneralUtility::intExplode(',', $frameworkConfiguration['persistence']['storagePid']);
+                $storagePids = GeneralUtility::intExplode(',', $frameworkConfiguration['persistence']['storagePid']);
                 array_walk($storagePids, function (&$storagePid) {
                     if ($storagePid > 0) {
                         $storagePid = -$storagePid;
                     }
                 });
-                $frameworkConfiguration['persistence']['storagePid'] = $this->getRecursiveStoragePids(
-                    implode(',', $storagePids),
+                $storagePids = $this->getRecursiveStoragePids(
+                    $storagePids,
                     (int)$frameworkConfiguration['persistence']['recursive']
                 );
+
+                $frameworkConfiguration['persistence']['storagePid'] = implode(',', $storagePids);
             }
         }
         // 1st level cache
@@ -211,7 +212,7 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
      *
      * @return array
      */
-    protected function getExtbaseConfiguration()
+    protected function getExtbaseConfiguration(): array
     {
         $setup = $this->getTypoScriptSetup();
         $extbaseConfiguration = [];
@@ -224,26 +225,106 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
     /**
      * Returns the default backend storage pid
      *
-     * @return string
+     * @return int
      */
-    public function getDefaultBackendStoragePid()
+    public function getDefaultBackendStoragePid(): int
     {
         return self::DEFAULT_BACKEND_STORAGE_PID;
     }
 
     /**
-     * @param array &$frameworkConfiguration
+     * This method possibly overrides the controller configuration with an alternative configuration passed along via
+     * $frameworkConfiguration.
+     *
+     * If called by \TYPO3\CMS\Extbase\Configuration\AbstractConfigurationManager::getConfiguration,
+     * $switchableControllerActions may contain an alternative controller configuration defined via typoscript:
+     *
+     * Example:
+     * tt_content.list.20.indexedsearch_pi2.switchableControllerActions {
+     *     Search {
+     *         0 = search
+     *     }
+     * }
+     *
+     * If called by \TYPO3\CMS\Extbase\Configuration\FrontendConfigurationManager::overrideSwitchableControllerActionsFromFlexForm,
+     * $switchableControllerActions may contain an alternative controller configuration defined via plugin flexform.
+     *
+     * @param array $frameworkConfiguration
      * @param array $switchableControllerActions
+     * @deprecated since TYPO3 v10, will be removed in one of the next major versions of TYPO3, probably version 11.0 or 12.0.
      */
-    protected function overrideSwitchableControllerActions(array &$frameworkConfiguration, array $switchableControllerActions)
+    protected function overrideControllerConfigurationWithSwitchableControllerActions(array &$frameworkConfiguration, array $switchableControllerActions): void
     {
-        $overriddenSwitchableControllerActions = [];
+        trigger_error(
+            sprintf(
+                'Plugin "%s" of extension "%s" uses switchable controller actions which has been marked as deprecated as of version TYPO3 10 and will be removed in one of the next major versions of TYPO3, probably version 11.0 or 12.0',
+                $frameworkConfiguration['pluginName'],
+                $frameworkConfiguration['extensionName']
+            ),
+            E_USER_DEPRECATED
+        );
+
+        $controllerAliasToClass = [];
+        foreach ($frameworkConfiguration['controllerConfiguration'] as $controllerClass => $controllerConfiguration) {
+            $controllerAliasToClass[$controllerConfiguration['alias']] = $controllerClass;
+        }
+
+        $overriddenControllerConfiguration = [];
         foreach ($switchableControllerActions as $controllerName => $actions) {
-            if (!isset($frameworkConfiguration['controllerConfiguration'][$controllerName])) {
+            // Trim leading backslashes if a fully qualified controller class name with leading slashes is used.
+            $controllerName = ltrim($controllerName, '\\');
+
+            $controllerIsConfigured = false;
+            if (array_key_exists($controllerName, $controllerAliasToClass)) {
+                /*
+                 * If $controllerName can be found in the keys of $controllerAliasToClass, $controllerName is a
+                 * controller alias and not a FQCN. In this case switchable controller actions have been defined with
+                 * controller aliases as such:
+                 *
+                 * tt_content.list.20.indexedsearch_pi2.switchableControllerActions {
+                 *     Search {
+                 *         0 = search
+                 *     }
+                 * }
+                 */
+                $controllerIsConfigured = true;
+                $controllerClassName = $controllerAliasToClass[$controllerName];
+                $controllerAlias = $controllerName;
+            }
+
+            if (in_array($controllerName, $controllerAliasToClass, true)) {
+                /*
+                 * If $controllerName can be found in the values of $controllerAliasToClass, $controllerName is a
+                 * FQCN. In this case switchable controller actions have been defined with fully qualified controller
+                 * class names as such:
+                 *
+                 * tt_content.list.20.indexedsearch_pi2.switchableControllerActions {
+                 *     TYPO3\CMS\IndexedSearch\Controller\SearchController {
+                 *         0 = search
+                 *     }
+                 * }
+                 */
+                $controllerIsConfigured = true;
+                $controllerClassName = $controllerName;
+                $controllerAlias = $frameworkConfiguration['controllerConfiguration'][$controllerName]['alias'];
+            }
+
+            if (!$controllerIsConfigured) {
                 continue;
             }
-            $overriddenSwitchableControllerActions[$controllerName] = ['actions' => $actions];
-            $nonCacheableActions = $frameworkConfiguration['controllerConfiguration'][$controllerName]['nonCacheableActions'];
+
+            if (!isset($overriddenControllerConfiguration[$controllerClassName])) {
+                $overriddenControllerConfiguration[$controllerClassName] = [
+                    'alias' => $controllerAlias,
+                    'className' => $controllerClassName,
+                    'actions' => []
+                ];
+            }
+            $overriddenControllerConfiguration[$controllerClassName]['actions'] = array_merge(
+                $overriddenControllerConfiguration[$controllerClassName]['actions'],
+                $actions
+            );
+            $nonCacheableActions = $frameworkConfiguration['controllerConfiguration'][$controllerClassName]['nonCacheableActions'] ?? null;
             if (!is_array($nonCacheableActions)) {
                 // There are no non-cacheable actions, thus we can directly continue
                 // with the next controller name.
@@ -251,10 +332,10 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
             }
             $overriddenNonCacheableActions = array_intersect($nonCacheableActions, $actions);
             if (!empty($overriddenNonCacheableActions)) {
-                $overriddenSwitchableControllerActions[$controllerName]['nonCacheableActions'] = $overriddenNonCacheableActions;
+                $overriddenControllerConfiguration[$controllerClassName]['nonCacheableActions'] = $overriddenNonCacheableActions;
             }
         }
-        $frameworkConfiguration['controllerConfiguration'] = $overriddenSwitchableControllerActions;
+        $frameworkConfiguration['controllerConfiguration'] = $overriddenControllerConfiguration;
     }
 
     /**
@@ -268,14 +349,14 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
      * @param array $frameworkConfiguration The framework configuration until now
      * @return array context specific configuration which will override the configuration obtained by TypoScript
      */
-    abstract protected function getContextSpecificFrameworkConfiguration(array $frameworkConfiguration);
+    abstract protected function getContextSpecificFrameworkConfiguration(array $frameworkConfiguration): array;
 
     /**
      * Returns TypoScript Setup array from current Environment.
      *
      * @return array the TypoScript setup
      */
-    abstract public function getTypoScriptSetup();
+    abstract public function getTypoScriptSetup(): array;
 
     /**
      * Returns the TypoScript configuration found in plugin.tx_yourextension_yourplugin / module.tx_yourextension_yourmodule
@@ -285,10 +366,10 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
      * @param string $pluginName in FE mode this is the specified plugin name, in BE mode this is the full module signature
      * @return array
      */
-    abstract protected function getPluginConfiguration($extensionName, $pluginName = null);
+    abstract protected function getPluginConfiguration(string $extensionName, string $pluginName = null): array;
 
     /**
-     * Returns the configured controller/action pairs of the specified plugin/module in the format
+     * Returns the configured controller/action configuration of the specified plugin/module in the format
      * array(
      * 'Controller1' => array('action1', 'action2'),
      * 'Controller2' => array('action3', 'action4')
@@ -298,15 +379,15 @@ abstract class AbstractConfigurationManager implements \TYPO3\CMS\Core\Singleton
      * @param string $pluginName in FE mode this is the specified plugin name, in BE mode this is the full module signature
      * @return array
      */
-    abstract protected function getSwitchableControllerActions($extensionName, $pluginName);
+    abstract protected function getControllerConfiguration(string $extensionName, string $pluginName): array;
 
     /**
      * The implementation of the methods to return a list of storagePid that are below a certain
      * storage pid.
      *
-     * @param string $storagePid Storage PID to start at; multiple PIDs possible as comma-separated list
+     * @param array|int[] $storagePids Storage PIDs to start at; multiple PIDs possible as comma-separated list
      * @param int $recursionDepth Maximum number of levels to search, 0 to disable recursive lookup
-     * @return string storage PIDs
+     * @return array|int[] storage PIDs
      */
-    abstract protected function getRecursiveStoragePids($storagePid, $recursionDepth = 0);
+    abstract protected function getRecursiveStoragePids(array $storagePids, int $recursionDepth = 0): array;
 }

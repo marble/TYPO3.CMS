@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Filter;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Core\Resource\Filter;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Filter;
+
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Resource\Driver\DriverInterface;
+use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -29,14 +31,14 @@ class FileExtensionFilter
      *
      * @var array
      */
-    protected $allowedFileExtensions = null;
+    protected $allowedFileExtensions;
 
     /**
      * Disallowed file extensions. If NULL, no extension is disallowed (i.e. all are allowed).
      *
      * @var array
      */
-    protected $disallowedFileExtensions = null;
+    protected $disallowedFileExtensions;
 
     /**
      * Entry method for use as DataHandler "inline" field filter
@@ -62,13 +64,17 @@ class FileExtensionFilter
                 }
                 $parts = GeneralUtility::revExplode('_', $value, 2);
                 $fileReferenceUid = $parts[count($parts) - 1];
-                $fileReference = ResourceFactory::getInstance()->getFileReferenceObject($fileReferenceUid);
-                $file = $fileReference->getOriginalFile();
-                if ($this->isAllowed($file->getName())) {
-                    $cleanValues[] = $value;
-                } else {
-                    // Remove the erroneously created reference record again
-                    $dataHandler->deleteAction('sys_file_reference', $fileReferenceUid);
+                try {
+                    $fileReference = GeneralUtility::makeInstance(ResourceFactory::class)->getFileReferenceObject($fileReferenceUid);
+                    $file = $fileReference->getOriginalFile();
+                    if ($this->isAllowed($file->getExtension())) {
+                        $cleanValues[] = $value;
+                    } else {
+                        // Remove the erroneously created reference record again
+                        $dataHandler->deleteAction('sys_file_reference', $fileReferenceUid);
+                    }
+                } catch (FileDoesNotExistException $e) {
+                    // do nothing
                 }
             }
         }
@@ -97,7 +103,12 @@ class FileExtensionFilter
         }
         // Check that this is a file and not a folder
         if ($driver->fileExists($itemIdentifier)) {
-            if (!$this->isAllowed($itemName)) {
+            try {
+                $fileInfo = $driver->getFileInfoByIdentifier($itemIdentifier, ['extension']);
+            } catch (\InvalidArgumentException $e) {
+                $fileInfo = [];
+            }
+            if (!$this->isAllowed($fileInfo['extension'] ?? '')) {
                 $returnCode = -1;
             }
         }
@@ -107,13 +118,13 @@ class FileExtensionFilter
     /**
      * Checks whether a file is allowed according to the criteria defined in the class variables ($this->allowedFileExtensions etc.)
      *
-     * @param string $fileName
+     * @param string $fileExt
      * @return bool
      */
-    protected function isAllowed($fileName)
+    protected function isAllowed($fileExt)
     {
+        $fileExt = strtolower($fileExt);
         $result = true;
-        $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
         // Check allowed file extensions
         if ($this->allowedFileExtensions !== null && !empty($this->allowedFileExtensions) && !in_array($fileExt, $this->allowedFileExtensions)) {
             $result = false;

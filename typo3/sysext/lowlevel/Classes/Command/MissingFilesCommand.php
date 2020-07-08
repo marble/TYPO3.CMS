@@ -1,6 +1,6 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Lowlevel\Command;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,16 @@ namespace TYPO3\CMS\Lowlevel\Command;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Lowlevel\Command;
+
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use TYPO3\CMS\Backend\Command\ProgressListener\ReferenceIndexProgressListener;
 use TYPO3\CMS\Core\Core\Bootstrap;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\ReferenceIndex;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -78,11 +82,12 @@ If you want to get more detailed information, use the --verbose option.')
      *
      * @param InputInterface $input
      * @param OutputInterface $output
+     * @return int
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         // Make sure the _cli_ user is loaded
-        Bootstrap::getInstance()->initializeBackendAuthentication();
+        Bootstrap::initializeBackendAuthentication();
 
         $io = new SymfonyStyle($input, $output);
         $io->title($this->getDescription());
@@ -111,6 +116,7 @@ If you want to get more detailed information, use the --verbose option.')
         if (!count($missingSoftReferencedFiles) && !count($missingReferencedFiles)) {
             $io->success('Nothing to do, no missing files found. Everything is in place.');
         }
+        return 0;
     }
 
     /**
@@ -136,8 +142,10 @@ If you want to get more detailed information, use the --verbose option.')
 
         // Update the reference index
         if ($updateReferenceIndex) {
+            $progressListener = GeneralUtility::makeInstance(ReferenceIndexProgressListener::class);
+            $progressListener->initialize($io);
             $referenceIndex = GeneralUtility::makeInstance(ReferenceIndex::class);
-            $referenceIndex->updateIndex(false, !$io->isQuiet());
+            $referenceIndex->updateIndex(false, $progressListener);
         } else {
             $io->writeln('Reference index is assumed to be up to date, continuing.');
         }
@@ -168,8 +176,8 @@ If you want to get more detailed information, use the --verbose option.')
 
         // Traverse the references and check if the files exists
         while ($record = $result->fetch()) {
-            $fileName = $record['ref_string'];
-            if (empty($record['softref_key']) && !@is_file((PATH_site . $fileName))) {
+            $fileName = $this->getFileNameWithoutAnchor($record['ref_string']);
+            if (empty($record['softref_key']) && !@is_file(Environment::getPublicPath() . '/' . $fileName)) {
                 $missingReferences[$fileName][$record['hash']] = $this->formatReferenceIndexEntryToString($record);
             }
         }
@@ -201,12 +209,26 @@ If you want to get more detailed information, use the --verbose option.')
 
         // Traverse the references and check if the files exists
         while ($record = $result->fetch()) {
-            $fileName = $record['ref_string'];
-            if (!@is_file((PATH_site . $fileName))) {
+            $fileName = $this->getFileNameWithoutAnchor($record['ref_string']);
+            if (!@is_file(Environment::getPublicPath() . '/' . $fileName)) {
                 $missingReferences[] = $fileName . ' - ' . $record['hash'] . ' - ' . $this->formatReferenceIndexEntryToString($record);
             }
         }
         return $missingReferences;
+    }
+
+    /**
+     * Remove a possible anchor like 'my-path/file.pdf#page15'
+     *
+     * @param string $fileName a filename as found in sys_refindex.ref_string
+     * @return string the filename but leaving everything behind #page15 behind
+     */
+    protected function getFileNameWithoutAnchor(string $fileName): string
+    {
+        if (strpos($fileName, '#') !== false) {
+            [$fileName] = explode('#', $fileName);
+        }
+        return $fileName;
     }
 
     /**

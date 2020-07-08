@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,12 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Core\Http\JsonResponse;
+use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
@@ -26,6 +29,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Class OnlineMediaController handles uploading online media
+ * @internal This class is a specific Backend controller implementation and is not considered part of the Public TYPO3 API.
  */
 class OnlineMediaController
 {
@@ -33,10 +37,9 @@ class OnlineMediaController
      * AJAX endpoint for storing the URL as a sys_file record
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
      */
-    public function createAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function createAction(ServerRequestInterface $request): ResponseInterface
     {
         $url = $request->getParsedBody()['url'];
         $targetFolderIdentifier = $request->getParsedBody()['targetFolder'];
@@ -48,23 +51,24 @@ class OnlineMediaController
             if ($file !== null) {
                 $data['file'] = $file->getUid();
             } else {
-                $data['error'] = $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:online_media.error.invalid_url');
+                $data['error'] = $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:online_media.error.invalid_url');
             }
-            $response->getBody()->write(json_encode($data));
+            return new JsonResponse($data);
         }
-        return $response;
+        return new JsonResponse();
     }
 
     /**
-     * Process add media request
+     * Process add media request, and redirects to the previous page
      *
      * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
      * @return ResponseInterface
+     * @throws \RuntimeException
      */
-    public function mainAction(ServerRequestInterface $request, ResponseInterface $response)
+    public function mainAction(ServerRequestInterface $request): ResponseInterface
     {
-        $files = $request->getParsedBody()['file'];
+        $files = $request->getParsedBody()['data'];
+        $redirect = $request->getParsedBody()['redirect'];
         $newMedia = [];
         if (isset($files['newMedia'])) {
             $newMedia = (array)$files['newMedia'];
@@ -78,46 +82,46 @@ class OnlineMediaController
                     $flashMessage = GeneralUtility::makeInstance(
                         FlashMessage::class,
                         $file->getName(),
-                        $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:online_media.new_media.added'),
+                        $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:online_media.new_media.added'),
                         FlashMessage::OK,
                         true
                     );
                 } else {
                     $flashMessage = GeneralUtility::makeInstance(
                         FlashMessage::class,
-                        $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:online_media.error.invalid_url'),
-                        $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:online_media.error.new_media.failed'),
+                        $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:online_media.error.invalid_url'),
+                        $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:online_media.error.new_media.failed'),
                         FlashMessage::ERROR,
                         true
                     );
                 }
                 $this->addFlashMessage($flashMessage);
+                if (empty($redirect) && $media['redirect']) {
+                    $redirect = $media['redirect'];
+                }
             }
         }
 
-        $redirect = isset($request->getParsedBody()['redirect']) ? $request->getParsedBody()['redirect'] : $request->getQueryParams()['redirect'];
         $redirect = GeneralUtility::sanitizeLocalUrl($redirect);
         if ($redirect) {
-            $response = $response
-                ->withHeader('Location', GeneralUtility::locationHeaderUrl($redirect))
-                ->withStatus(303);
+            return new RedirectResponse($redirect, 303);
         }
 
-        return $response;
+        throw new \RuntimeException('No redirect after uploading a media found, probably a mis-use of the template not sending the proper Return URL.', 1511945040);
     }
 
     /**
      * @param string $url
      * @param string $targetFolderIdentifier
      * @param string[] $allowedExtensions
-     * @return File|NULL
+     * @return File|null
      */
     protected function addMediaFromUrl($url, $targetFolderIdentifier, array $allowedExtensions = [])
     {
         $targetFolder = null;
         if ($targetFolderIdentifier) {
             try {
-                $targetFolder = ResourceFactory::getInstance()->getFolderObjectFromCombinedIdentifier($targetFolderIdentifier);
+                $targetFolder = GeneralUtility::makeInstance(ResourceFactory::class)->getFolderObjectFromCombinedIdentifier($targetFolderIdentifier);
             } catch (\Exception $e) {
                 $targetFolder = null;
             }
@@ -135,10 +139,10 @@ class OnlineMediaController
      */
     protected function addFlashMessage(FlashMessage $flashMessage)
     {
-        /** @var $flashMessageService FlashMessageService */
+        /** @var FlashMessageService $flashMessageService */
         $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
 
-        /** @var $defaultFlashMessageQueue \TYPO3\CMS\Core\Messaging\FlashMessageQueue */
+        /** @var \TYPO3\CMS\Core\Messaging\FlashMessageQueue $defaultFlashMessageQueue */
         $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
         $defaultFlashMessageQueue->enqueue($flashMessage);
     }

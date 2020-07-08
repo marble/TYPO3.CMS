@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,135 +15,147 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Controller\Event\AfterFormEnginePageInitializedEvent;
+use TYPO3\CMS\Backend\Controller\Event\BeforeFormEnginePageInitializedEvent;
 use TYPO3\CMS\Backend\Form\Exception\AccessDeniedException;
+use TYPO3\CMS\Backend\Form\Exception\DatabaseRecordException;
 use TYPO3\CMS\Backend\Form\FormDataCompiler;
 use TYPO3\CMS\Backend\Form\FormDataGroup\TcaDatabaseRecord;
 use TYPO3\CMS\Backend\Form\FormResultCompiler;
 use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Backend\Form\Utility\FormEngineUtility;
-use TYPO3\CMS\Backend\Module\AbstractModule;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
+use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Database\Query\Restriction\BackendWorkspaceRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
-use TYPO3\CMS\Core\Database\Query\Restriction\HiddenRestriction;
+use TYPO3\CMS\Core\Database\ReferenceIndex;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Exception\SiteNotFoundException;
+use TYPO3\CMS\Core\Http\HtmlResponse;
+use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
-use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Routing\UnableToLinkToPageException;
+use TYPO3\CMS\Core\Site\Entity\NullSite;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
-use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
-use TYPO3\CMS\Frontend\Page\PageRepository;
 
 /**
- * Script Class: Drawing the editing form for editing records in TYPO3.
- * Notice: It does NOT use tce_db.php to submit data to, rather it handles submissions itself
+ * Main backend controller almost always used if some database record is edited in the backend.
+ *
+ * Main job of this controller is to evaluate and sanitize $request parameters,
+ * call the DataHandler if records should be created or updated and
+ * execute FormEngine for record rendering.
  */
-class EditDocumentController extends AbstractModule
+class EditDocumentController
 {
-    const DOCUMENT_CLOSE_MODE_DEFAULT = 0;
-    const DOCUMENT_CLOSE_MODE_REDIRECT = 1; // works like DOCUMENT_CLOSE_MODE_DEFAULT
-    const DOCUMENT_CLOSE_MODE_CLEAR_ALL = 3;
-    const DOCUMENT_CLOSE_MODE_NO_REDIRECT = 4;
+    protected const DOCUMENT_CLOSE_MODE_DEFAULT = 0;
+    // works like DOCUMENT_CLOSE_MODE_DEFAULT
+    protected const DOCUMENT_CLOSE_MODE_REDIRECT = 1;
+    protected const DOCUMENT_CLOSE_MODE_CLEAR_ALL = 3;
+    protected const DOCUMENT_CLOSE_MODE_NO_REDIRECT = 4;
 
     /**
-     * GPvar "edit": Is an array looking approx like [tablename][list-of-ids]=command, eg.
-     * "&edit[pages][123]=edit". See \TYPO3\CMS\Backend\Utility\BackendUtility::editOnClick(). Value can be seen
-     * modified internally (converting NEW keyword to id, workspace/versioning etc).
+     * An array looking approx like [tablename][list-of-ids]=command, eg. "&edit[pages][123]=edit".
      *
      * @var array
      */
-    public $editconf;
+    protected $editconf = [];
 
     /**
-     * Commalist of fieldnames to edit. The point is IF you specify this list, only those
-     * fields will be rendered in the form. Otherwise all (available) fields in the record
-     * is shown according to the types configuration in $GLOBALS['TCA']
+     * Comma list of field names to edit. If specified, only those fields will be rendered.
+     * Otherwise all (available) fields in the record are shown according to the TCA type.
      *
-     * @var bool
+     * @var string|null
      */
-    public $columnsOnly;
+    protected $columnsOnly;
 
     /**
-     * Default values for fields (array with tablenames, fields etc. as keys).
-     * Can be seen modified internally.
+     * Default values for fields
      *
-     * @var array
+     * @var array|null [table][field]
      */
-    public $defVals;
+    protected $defVals;
 
     /**
-     * Array of values to force being set (as hidden fields). Will be set as $this->defVals
-     * IF defVals does not exist.
+     * Array of values to force being set as hidden fields in FormEngine
      *
-     * @var array
+     * @var array|null [table][field]
      */
-    public $overrideVals;
+    protected $overrideVals;
 
     /**
-     * If set, this value will be set in $this->retUrl (which is used quite many places
-     * as the return URL). If not set, "dummy.php" will be set in $this->retUrl
+     * If set, this value will be set in $this->retUrl as "returnUrl", if not,
+     * $this->retUrl will link to dummy controller
+     *
+     * @var string|null
+     */
+    protected $returnUrl;
+
+    /**
+     * Prepared return URL. Contains the URL that we should return to from FormEngine if
+     * close button is clicked. Usually passed along as 'returnUrl', but falls back to
+     * "dummy" controller.
      *
      * @var string
      */
-    public $returnUrl;
+    protected $retUrl;
 
     /**
-     * Close-document command. Not really sure of all options...
+     * Close document command. One of the DOCUMENT_CLOSE_MODE_* constants above
      *
      * @var int
      */
-    public $closeDoc;
+    protected $closeDoc;
 
     /**
-     * Quite simply, if this variable is set, then the processing of incoming data will be performed
-     * as if a save-button is pressed. Used in the forms as a hidden field which can be set through
-     * JavaScript if the form is somehow submitted by JavaScript).
+     * If true, the processing of incoming data will be performed as if a save-button is pressed.
+     * Used in the forms as a hidden field which can be set through
+     * JavaScript if the form is somehow submitted by JavaScript.
      *
      * @var bool
      */
-    public $doSave;
+    protected $doSave;
 
     /**
-     * The data array from which the data comes...
+     * Main DataHandler datamap array
      *
      * @var array
+     * @todo: Will be set protected later, still used by ConditionMatcher
+     * @internal Will be removed / protected in TYPO3 v10.x without further notice
      */
     public $data;
 
     /**
-     * @var string
-     */
-    public $cmd;
-
-    /**
+     * Main DataHandler cmdmap array
+     *
      * @var array
      */
-    public $mirror;
+    protected $cmd;
 
     /**
-     * Clear-cache cmd.
+     * DataHandler 'mirror' input
      *
-     * @var string
+     * @var array
      */
-    public $cacheCmd;
-
-    /**
-     * Redirect (not used???)
-     *
-     * @var string
-     */
-    public $redirect;
+    protected $mirror;
 
     /**
      * Boolean: If set, then the GET var "&id=" will be added to the
@@ -150,185 +163,143 @@ class EditDocumentController extends AbstractModule
      *
      * @var bool
      */
-    public $returnNewPageId;
+    protected $returnNewPageId = false;
 
     /**
-     * update BE_USER->uc
+     * Updated values for backendUser->uc. Used for new inline records to mark them
+     * as expanded: uc[inlineView][...]
      *
-     * @var array
+     * @var array|null
      */
-    public $uc;
+    protected $uc;
 
     /**
-     * ID for displaying the page in the frontend (used for SAVE/VIEW operations)
+     * ID for displaying the page in the frontend, "save and view"
      *
      * @var int
      */
-    public $popViewId;
-
-    /**
-     * Additional GET vars for the link, eg. "&L=xxx"
-     *
-     * @var string
-     */
-    public $popViewId_addParams;
+    protected $popViewId;
 
     /**
      * Alternative URL for viewing the frontend pages.
      *
      * @var string
      */
-    public $viewUrl;
+    protected $viewUrl;
 
     /**
      * Alternative title for the document handler.
      *
      * @var string
      */
-    public $recTitle;
+    protected $recTitle;
 
     /**
-     * If set, then no SAVE/VIEW button is printed
+     * If set, then no save & view button is printed
      *
      * @var bool
      */
-    public $noView;
+    protected $noView;
 
     /**
      * @var string
      */
-    public $perms_clause;
+    protected $perms_clause;
 
     /**
-     * If set, the $this->editconf array is returned to the calling script
-     * (used by wizard_add.php for instance)
+     * If true, $this->editconf array is added a redirect response, used by Wizard/AddController
      *
      * @var bool
      */
-    public $returnEditConf;
+    protected $returnEditConf;
 
     /**
      * Workspace used for the editing action.
      *
-     * @var NULL|int
+     * @var string|null
      */
     protected $workspace;
 
     /**
-     * document template object
-     *
-     * @var \TYPO3\CMS\Backend\Template\DocumentTemplate
-     */
-    public $doc;
-
-    /**
-     * a static HTML template, usually in templates/alt_doc.html
-     *
-     * @var string
-     */
-    public $template;
-
-    /**
-     * Content accumulation
-     *
-     * @var string
-     */
-    public $content;
-
-    /**
-     * Return URL script, processed. This contains the script (if any) that we should
-     * RETURN TO from the FormEngine script IF we press the close button. Thus this
-     * variable is normally passed along from the calling script so we can properly return if needed.
-     *
-     * @var string
-     */
-    public $retUrl;
-
-    /**
-     * Contains the parts of the REQUEST_URI (current url). By parts we mean the result of resolving
-     * REQUEST_URI (current url) by the parse_url() function. The result is an array where eg. "path"
-     * is the script path and "query" is the parameters...
+     * parse_url() of current requested URI, contains ['path'] and ['query'] parts.
      *
      * @var array
      */
-    public $R_URL_parts;
+    protected $R_URL_parts;
 
     /**
-     * Contains the current GET vars array; More specifically this array is the foundation for creating
-     * the R_URI internal var (which becomes the "url of this script" to which we submit the forms etc.)
+     * Contains $request query parameters. This array is the foundation for creating
+     * the R_URI internal var which becomes the url to which forms are submitted
      *
      * @var array
      */
-    public $R_URL_getvars;
+    protected $R_URL_getvars;
 
     /**
-     * Set to the URL of this script including variables which is needed to re-display the form. See main()
+     * Set to the URL of this script including variables which is needed to re-display the form.
      *
      * @var string
      */
-    public $R_URI;
+    protected $R_URI;
 
     /**
      * @var array
      */
-    public $MCONF;
+    protected $pageinfo;
 
     /**
-     * @var array
-     */
-    public $pageinfo;
-
-    /**
-     * Is loaded with the "title" of the currently "open document" - this is used in the
-     * Document Selector box. (see makeDocSel())
+     * Is loaded with the "title" of the currently "open document"
+     * used for the open document toolbar
      *
      * @var string
      */
-    public $storeTitle = '';
+    protected $storeTitle = '';
 
     /**
      * Contains an array with key/value pairs of GET parameters needed to reach the
-     * current document displayed - used in the Document Selector box. (see compileStoreDat())
+     * current document displayed - used in the 'open documents' toolbar.
      *
      * @var array
      */
-    public $storeArray;
+    protected $storeArray;
 
     /**
-     * Contains storeArray, but imploded into a GET parameter string (see compileStoreDat())
+     * $this->storeArray imploded to url
      *
      * @var string
      */
-    public $storeUrl;
+    protected $storeUrl;
 
     /**
-     * Hashed value of storeURL (see compileStoreDat())
+     * md5 hash of storeURL, used to identify a single open document in backend user uc
      *
      * @var string
      */
-    public $storeUrlMd5;
+    protected $storeUrlMd5;
 
     /**
-     * Module session data
+     * Backend user session data of this module
      *
      * @var array
      */
-    public $docDat;
+    protected $docDat;
 
     /**
      * An array of the "open documents" - keys are md5 hashes (see $storeUrlMd5) identifying
      * the various documents on the GET parameter list needed to open it. The values are
-     * arrays with 0,1,2 keys with information about the document (see compileStoreDat()).
+     * arrays with 0,1,2 keys with information about the document (see compileStoreData()).
      * The docHandler variable is stored in the $docDat session data, key "0".
      *
      * @var array
      */
-    public $docHandler;
+    protected $docHandler;
 
     /**
      * Array of the elements to create edit forms for.
      *
      * @var array
+     * @todo: Will be set protected later, still used by ConditionMatcher
+     * @internal Will be removed / protected in TYPO3 v10.x without further notice
      */
     public $elementsData;
 
@@ -337,21 +308,21 @@ class EditDocumentController extends AbstractModule
      *
      * @var array
      */
-    public $firstEl;
+    protected $firstEl;
 
     /**
      * Counter, used to count the number of errors (when users do not have edit permissions)
      *
      * @var int
      */
-    public $errorC;
+    protected $errorC;
 
     /**
      * Counter, used to count the number of new record forms displayed
      *
      * @var int
      */
-    public $newC;
+    protected $newC;
 
     /**
      * Is set to the pid value of the last shown record - thus indicating which page to
@@ -359,21 +330,14 @@ class EditDocumentController extends AbstractModule
      *
      * @var int
      */
-    public $viewId;
+    protected $viewId;
 
     /**
      * Is set to additional parameters (like "&L=xxx") if the record supports it.
      *
      * @var string
      */
-    public $viewId_addParams;
-
-    /**
-     * Module TSconfig, loaded from main() based on the page id value of viewId
-     *
-     * @var array
-     */
-    public $modTSconfig;
+    protected $viewId_addParams;
 
     /**
      * @var FormResultCompiler
@@ -383,14 +347,9 @@ class EditDocumentController extends AbstractModule
     /**
      * Used internally to disable the storage of the document reference (eg. new records)
      *
-     * @var bool
+     * @var int
      */
-    public $dontStoreDocumentRef = 0;
-
-    /**
-     * @var \TYPO3\CMS\Extbase\SignalSlot\Dispatcher
-     */
-    protected $signalSlotDispatcher;
+    protected $dontStoreDocumentRef = 0;
 
     /**
      * Stores information needed to preview the currently saved record
@@ -400,84 +359,136 @@ class EditDocumentController extends AbstractModule
     protected $previewData = [];
 
     /**
-     * Constructor
+     * ModuleTemplate object
+     *
+     * @var ModuleTemplate
      */
-    public function __construct()
+    protected $moduleTemplate;
+
+    /**
+     * Check if a record has been saved
+     *
+     * @var bool
+     */
+    protected $isSavedRecord;
+
+    /**
+     * Check if a page in free translation mode
+     *
+     * @var bool
+     */
+    protected $isPageInFreeTranslationMode = false;
+
+    /**
+     * @var EventDispatcherInterface
+     */
+    protected $eventDispatcher;
+
+    /**
+     * @var UriBuilder
+     */
+    protected $uriBuilder;
+
+    public function __construct(EventDispatcherInterface $eventDispatcher)
     {
-        parent::__construct();
+        $this->eventDispatcher = $eventDispatcher;
+        $this->uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
+        $this->moduleTemplate = GeneralUtility::makeInstance(ModuleTemplate::class);
         $this->moduleTemplate->setUiBlock(true);
+        // @todo Used by TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching
         $GLOBALS['SOBE'] = $this;
-        $this->getLanguageService()->includeLLFile('EXT:lang/Resources/Private/Language/locallang_alt_doc.xlf');
+        $this->getLanguageService()->includeLLFile('EXT:backend/Resources/Private/Language/locallang_alt_doc.xlf');
     }
 
     /**
-     * Get the SignalSlot dispatcher
+     * Main dispatcher entry method registered as "record_edit" end point
      *
-     * @return \TYPO3\CMS\Extbase\SignalSlot\Dispatcher
+     * @param ServerRequestInterface $request the current request
+     * @return ResponseInterface the response with the content
      */
-    protected function getSignalSlotDispatcher()
+    public function mainAction(ServerRequestInterface $request): ResponseInterface
     {
-        if (!isset($this->signalSlotDispatcher)) {
-            $this->signalSlotDispatcher = GeneralUtility::makeInstance(Dispatcher::class);
+        // Unlock all locked records
+        BackendUtility::lockRecords();
+        if ($response = $this->preInit($request)) {
+            return $response;
         }
-        return $this->signalSlotDispatcher;
+
+        // Process incoming data via DataHandler?
+        $parsedBody = $request->getParsedBody();
+        if ($this->doSave
+            || isset($parsedBody['_savedok'])
+            || isset($parsedBody['_saveandclosedok'])
+            || isset($parsedBody['_savedokview'])
+            || isset($parsedBody['_savedoknew'])
+            || isset($parsedBody['_duplicatedoc'])
+        ) {
+            if ($response = $this->processData($request)) {
+                return $response;
+            }
+        }
+
+        $this->init($request);
+        $this->main($request);
+
+        return new HtmlResponse($this->moduleTemplate->renderContent());
     }
 
     /**
-     * Emits a signal after a function was executed
+     * First initialization, always called, even before processData() executes DataHandler processing.
      *
-     * @param string $signalName
+     * @param ServerRequestInterface $request
+     * @return ResponseInterface Possible redirect response
      */
-    protected function emitFunctionAfterSignal($signalName)
+    protected function preInit(ServerRequestInterface $request): ?ResponseInterface
     {
-        $this->getSignalSlotDispatcher()->dispatch(__CLASS__, $signalName . 'After', [$this]);
-    }
-
-    /**
-     * First initialization.
-     */
-    public function preInit()
-    {
-        if (GeneralUtility::_GP('justLocalized')) {
-            $this->localizationRedirect(GeneralUtility::_GP('justLocalized'));
+        if ($response = $this->localizationRedirect($request)) {
+            return $response;
         }
-        // Setting GPvars:
-        $this->editconf = GeneralUtility::_GP('edit');
-        $this->defVals = GeneralUtility::_GP('defVals');
-        $this->overrideVals = GeneralUtility::_GP('overrideVals');
-        $this->columnsOnly = GeneralUtility::_GP('columnsOnly');
-        $this->returnUrl = GeneralUtility::sanitizeLocalUrl(GeneralUtility::_GP('returnUrl'));
-        $this->closeDoc = (int)GeneralUtility::_GP('closeDoc');
-        $this->doSave = GeneralUtility::_GP('doSave');
-        $this->returnEditConf = GeneralUtility::_GP('returnEditConf');
-        $this->workspace = GeneralUtility::_GP('workspace');
-        $this->uc = GeneralUtility::_GP('uc');
-        // Setting override values as default if defVals does not exist.
+
+        $parsedBody = $request->getParsedBody();
+        $queryParams = $request->getQueryParams();
+
+        $this->editconf = $parsedBody['edit'] ?? $queryParams['edit'] ?? [];
+        $this->defVals = $parsedBody['defVals'] ?? $queryParams['defVals'] ?? null;
+        $this->overrideVals = $parsedBody['overrideVals'] ?? $queryParams['overrideVals'] ?? null;
+        $this->columnsOnly = $parsedBody['columnsOnly'] ?? $queryParams['columnsOnly'] ?? null;
+        $this->returnUrl = GeneralUtility::sanitizeLocalUrl($parsedBody['returnUrl'] ?? $queryParams['returnUrl'] ?? null);
+        $this->closeDoc = (int)($parsedBody['closeDoc'] ?? $queryParams['closeDoc'] ?? self::DOCUMENT_CLOSE_MODE_DEFAULT);
+        $this->doSave = (bool)($parsedBody['doSave'] ?? $queryParams['doSave'] ?? false);
+        $this->returnEditConf = (bool)($parsedBody['returnEditConf'] ?? $queryParams['returnEditConf'] ?? false);
+        $this->workspace = $parsedBody['workspace'] ?? $queryParams['workspace'] ?? null;
+        $this->uc = $parsedBody['uc'] ?? $queryParams['uc'] ?? null;
+
+        // Set overrideVals as default values if defVals does not exist.
+        // @todo: Why?
         if (!is_array($this->defVals) && is_array($this->overrideVals)) {
             $this->defVals = $this->overrideVals;
         }
-        // Setting return URL
-        $this->retUrl = $this->returnUrl ?: BackendUtility::getModuleUrl('dummy');
-        // Fix $this->editconf if versioning applies to any of the records
+        $this->addSlugFieldsToColumnsOnly($queryParams);
+
+        // Set final return URL
+        $this->retUrl = $this->returnUrl ?: (string)$this->uriBuilder->buildUriFromRoute('dummy');
+
+        // Change $this->editconf if versioning applies to any of the records
         $this->fixWSversioningInEditConf();
-        // Make R_URL (request url) based on input GETvars:
-        $this->R_URL_parts = parse_url(GeneralUtility::getIndpEnv('REQUEST_URI'));
-        $this->R_URL_getvars = GeneralUtility::_GET();
+
+        // Prepare R_URL (request url)
+        $this->R_URL_parts = parse_url($request->getAttribute('normalizedParams')->getRequestUri());
+        $this->R_URL_getvars = $queryParams;
         $this->R_URL_getvars['edit'] = $this->editconf;
-        // MAKE url for storing
-        $this->compileStoreDat();
-        // Get session data for the module:
+
+        // Prepare 'open documents' url, this is later modified again various times
+        $this->compileStoreData();
+        // Backend user session data of this module
         $this->docDat = $this->getBackendUser()->getModuleData('FormEngine', 'ses');
         $this->docHandler = $this->docDat[0];
-        // If a request for closing the document has been sent, act accordingly:
+
+        // Close document if a request for closing the document has been sent
         if ((int)$this->closeDoc > self::DOCUMENT_CLOSE_MODE_DEFAULT) {
-            $this->closeDocument($this->closeDoc);
-        }
-        // If NO vars are sent to the script, try to read first document:
-        // Added !is_array($this->editconf) because editConf must not be set either.
-        // Anyways I can't figure out when this situation here will apply...
-        if (is_array($this->R_URL_getvars) && count($this->R_URL_getvars) < 2 && !is_array($this->editconf)) {
-            $this->setDocument($this->docDat[1]);
+            if ($response = $this->closeDocument($this->closeDoc, $request)) {
+                return $response;
+            }
         }
 
         // Sets a temporary workspace, this request is based on
@@ -485,319 +496,457 @@ class EditDocumentController extends AbstractModule
             $this->getBackendUser()->setTemporaryWorkspace($this->workspace);
         }
 
-        $this->emitFunctionAfterSignal(__FUNCTION__);
+        $event = new BeforeFormEnginePageInitializedEvent($this, $request);
+        $this->eventDispatcher->dispatch($event);
+        return null;
     }
 
     /**
-     * Detects, if a save command has been triggered.
+     * Always add required fields of slug field
      *
-     * @return bool TRUE, then save the document (data submitted)
+     * @param array $queryParams
      */
-    public function doProcessData()
+    protected function addSlugFieldsToColumnsOnly(array $queryParams): void
     {
-        $out = $this->doSave
-            || isset($_POST['_savedok'])
-            || isset($_POST['_saveandclosedok'])
-            || isset($_POST['_savedokview'])
-            || isset($_POST['_savedoknew'])
-            || isset($_POST['_translation_savedok'])
-            || isset($_POST['_translation_savedokclear']);
-        return $out;
+        $data = $queryParams['edit'] ?? [];
+        $data = array_keys($data);
+        $table = reset($data);
+        if ($this->columnsOnly && $table !== false && isset($GLOBALS['TCA'][$table])) {
+            $fields = GeneralUtility::trimExplode(',', $this->columnsOnly, true);
+            foreach ($fields as $field) {
+                if (isset($GLOBALS['TCA'][$table]['columns'][$field]) && $GLOBALS['TCA'][$table]['columns'][$field]['config']['type'] === 'slug') {
+                    foreach ($GLOBALS['TCA'][$table]['columns'][$field]['config']['generatorOptions']['fields'] as $fields) {
+                        $this->columnsOnly .= ',' . (is_array($fields) ? implode(',', $fields) : $fields);
+                    }
+                }
+            }
+        }
     }
 
     /**
-     * Do processing of data, submitting it to DataHandler.
+     * Do processing of data, submitting it to DataHandler. May return a RedirectResponse
+     *
+     * @param ServerRequestInterface $request
+     * @return ResponseInterface|null
      */
-    public function processData()
+    protected function processData(ServerRequestInterface $request): ?ResponseInterface
     {
+        $parsedBody = $request->getParsedBody();
+        $queryParams = $request->getQueryParams();
+
         $beUser = $this->getBackendUser();
-        // GPvars specifically for processing:
-        $control = GeneralUtility::_GP('control');
-        $this->data = GeneralUtility::_GP('data');
-        $this->cmd = GeneralUtility::_GP('cmd');
-        $this->mirror = GeneralUtility::_GP('mirror');
-        $this->cacheCmd = GeneralUtility::_GP('cacheCmd');
-        $this->redirect = GeneralUtility::_GP('redirect');
-        $this->returnNewPageId = GeneralUtility::_GP('returnNewPageId');
-        // See tce_db.php for relevate options here:
-        // Only options related to $this->data submission are included here.
-        /** @var $tce \TYPO3\CMS\Core\DataHandling\DataHandler */
+
+        // Processing related GET / POST vars
+        $this->data = $parsedBody['data'] ?? $queryParams['data'] ?? [];
+        $this->cmd = $parsedBody['cmd'] ?? $queryParams['cmd'] ?? [];
+        $this->mirror = $parsedBody['mirror'] ?? $queryParams['mirror'] ?? [];
+        $this->returnNewPageId = (bool)($parsedBody['returnNewPageId'] ?? $queryParams['returnNewPageId'] ?? false);
+
+        // Only options related to $this->data submission are included here
         $tce = GeneralUtility::makeInstance(DataHandler::class);
 
-        if (!empty($control)) {
-            $tce->setControl($control);
-        }
-        if (isset($_POST['_translation_savedok'])) {
-            $tce->updateModeL10NdiffData = 'FORCE_FFUPD';
-        }
-        if (isset($_POST['_translation_savedokclear'])) {
-            $tce->updateModeL10NdiffData = 'FORCE_FFUPD';
-            $tce->updateModeL10NdiffDataClear = true;
-        }
-        // Setting default values specific for the user:
-        $TCAdefaultOverride = $beUser->getTSConfigProp('TCAdefaults');
-        if (is_array($TCAdefaultOverride)) {
-            $tce->setDefaultsFromUserTS($TCAdefaultOverride);
-        }
-        // Setting internal vars:
-        if ($beUser->uc['neverHideAtCopy']) {
+        $tce->setControl($parsedBody['control'] ?? $queryParams['control'] ?? []);
+
+        // Set internal vars
+        if (isset($beUser->uc['neverHideAtCopy']) && $beUser->uc['neverHideAtCopy']) {
             $tce->neverHideAtCopy = 1;
         }
-        // Loading DataHandler with data:
+        // Load DataHandler with data
         $tce->start($this->data, $this->cmd);
         if (is_array($this->mirror)) {
             $tce->setMirror($this->mirror);
         }
-        // Checking referer / executing
-        $refInfo = parse_url(GeneralUtility::getIndpEnv('HTTP_REFERER'));
-        $httpHost = GeneralUtility::getIndpEnv('TYPO3_HOST_ONLY');
-        if ($httpHost != $refInfo['host']
-            && !$GLOBALS['TYPO3_CONF_VARS']['SYS']['doNotCheckReferer']
-        ) {
-            $tce->log(
-                '',
-                0,
-                0,
-                0,
-                1,
-                'Referer host \'%s\' and server host \'%s\' did not match!',
-                1,
-                [$refInfo['host'], $httpHost]
-            );
-            debug('Error: Referer host did not match with server host.');
-        } else {
-            // Perform the saving operation with DataHandler:
-            $tce->process_uploads($_FILES);
+
+        // Perform the saving operation with DataHandler:
+        if ($this->doSave === true) {
             $tce->process_datamap();
             $tce->process_cmdmap();
-            // If pages are being edited, we set an instruction about updating the page tree after this operation.
-            if ($tce->pagetreeNeedsRefresh
-                && (isset($this->data['pages']) || $beUser->workspace != 0 && !empty($this->data))
-            ) {
+        }
+        // If pages are being edited, we set an instruction about updating the page tree after this operation.
+        if ($tce->pagetreeNeedsRefresh
+            && (isset($this->data['pages']) || $beUser->workspace != 0 && !empty($this->data))
+        ) {
+            BackendUtility::setUpdateSignal('updatePageTree');
+        }
+        // If there was saved any new items, load them:
+        if (!empty($tce->substNEWwithIDs_table)) {
+            // Save the expanded/collapsed states for new inline records, if any
+            FormEngineUtility::updateInlineView($this->uc, $tce);
+            $newEditConf = [];
+            foreach ($this->editconf as $tableName => $tableCmds) {
+                $keys = array_keys($tce->substNEWwithIDs_table, $tableName);
+                if (!empty($keys)) {
+                    foreach ($keys as $key) {
+                        $editId = $tce->substNEWwithIDs[$key];
+                        // Check if the $editId isn't a child record of an IRRE action
+                        if (!(is_array($tce->newRelatedIDs[$tableName])
+                            && in_array($editId, $tce->newRelatedIDs[$tableName]))
+                        ) {
+                            // Translate new id to the workspace version
+                            if ($versionRec = BackendUtility::getWorkspaceVersionOfRecord(
+                                $beUser->workspace,
+                                $tableName,
+                                $editId,
+                                'uid'
+                            )) {
+                                $editId = $versionRec['uid'];
+                            }
+                            $newEditConf[$tableName][$editId] = 'edit';
+                        }
+                        // Traverse all new records and forge the content of ->editconf so we can continue to edit these records!
+                        if ($tableName === 'pages'
+                            && $this->retUrl !== (string)$this->uriBuilder->buildUriFromRoute('dummy')
+                            && $this->retUrl !== $this->getCloseUrl()
+                            && $this->returnNewPageId
+                        ) {
+                            $this->retUrl .= '&id=' . $tce->substNEWwithIDs[$key];
+                        }
+                    }
+                } else {
+                    $newEditConf[$tableName] = $tableCmds;
+                }
+            }
+            // Reset editconf if newEditConf has values
+            if (!empty($newEditConf)) {
+                $this->editconf = $newEditConf;
+            }
+            // Finally, set the editconf array in the "getvars" so they will be passed along in URLs as needed.
+            $this->R_URL_getvars['edit'] = $this->editconf;
+            // Unset default values since we don't need them anymore.
+            unset($this->R_URL_getvars['defVals']);
+            // Recompile the store* values since editconf changed
+            $this->compileStoreData();
+        }
+        // See if any records was auto-created as new versions?
+        if (!empty($tce->autoVersionIdMap)) {
+            $this->fixWSversioningInEditConf($tce->autoVersionIdMap);
+        }
+        // If a document is saved and a new one is created right after.
+        if (isset($parsedBody['_savedoknew']) && is_array($this->editconf)) {
+            if ($redirect = $this->closeDocument(self::DOCUMENT_CLOSE_MODE_NO_REDIRECT, $request)) {
+                return $redirect;
+            }
+            // Find the current table
+            reset($this->editconf);
+            $nTable = key($this->editconf);
+            // Finding the first id, getting the records pid+uid
+            reset($this->editconf[$nTable]);
+            $nUid = key($this->editconf[$nTable]);
+            $recordFields = 'pid,uid';
+            if (BackendUtility::isTableWorkspaceEnabled($nTable)) {
+                $recordFields .= ',t3ver_oid';
+            }
+            $nRec = BackendUtility::getRecord($nTable, $nUid, $recordFields);
+            // Determine insertion mode: 'top' is self-explaining,
+            // otherwise new elements are inserted after one using a negative uid
+            $insertRecordOnTop = ($this->getTsConfigOption($nTable, 'saveDocNew') === 'top');
+            // Setting a blank editconf array for a new record:
+            $this->editconf = [];
+            // Determine related page ID for regular live context
+            if ((int)$nRec['t3ver_oid'] === 0) {
+                if ($insertRecordOnTop) {
+                    $relatedPageId = $nRec['pid'];
+                } else {
+                    $relatedPageId = -$nRec['uid'];
+                }
+            } else {
+                // Determine related page ID for workspace context
+                if ($insertRecordOnTop) {
+                    // Fetch live version of workspace version since the pid value is always -1 in workspaces
+                    $liveRecord = BackendUtility::getRecord($nTable, $nRec['t3ver_oid'], $recordFields);
+                    $relatedPageId = $liveRecord['pid'];
+                } else {
+                    // Use uid of live version of workspace version
+                    $relatedPageId = -$nRec['t3ver_oid'];
+                }
+            }
+            $this->editconf[$nTable][$relatedPageId] = 'new';
+            // Finally, set the editconf array in the "getvars" so they will be passed along in URLs as needed.
+            $this->R_URL_getvars['edit'] = $this->editconf;
+            // Recompile the store* values since editconf changed...
+            $this->compileStoreData();
+        }
+        // If a document should be duplicated.
+        if (isset($parsedBody['_duplicatedoc']) && is_array($this->editconf)) {
+            $this->closeDocument(self::DOCUMENT_CLOSE_MODE_NO_REDIRECT, $request);
+            // Find current table
+            reset($this->editconf);
+            $nTable = key($this->editconf);
+            // Find the first id, getting the records pid+uid
+            reset($this->editconf[$nTable]);
+            $nUid = key($this->editconf[$nTable]);
+            if (!MathUtility::canBeInterpretedAsInteger($nUid)) {
+                $nUid = $tce->substNEWwithIDs[$nUid];
+            }
+
+            $recordFields = 'pid,uid';
+            if (!BackendUtility::isTableWorkspaceEnabled($nTable)) {
+                $recordFields .= ',t3ver_oid';
+            }
+            $nRec = BackendUtility::getRecord($nTable, $nUid, $recordFields);
+
+            // Setting a blank editconf array for a new record:
+            $this->editconf = [];
+
+            if ((int)$nRec['t3ver_oid'] === 0) {
+                $relatedPageId = -$nRec['uid'];
+            } else {
+                $relatedPageId = -$nRec['t3ver_oid'];
+            }
+
+            /** @var \TYPO3\CMS\Core\DataHandling\DataHandler $duplicateTce */
+            $duplicateTce = GeneralUtility::makeInstance(DataHandler::class);
+
+            $duplicateCmd = [
+                $nTable => [
+                    $nUid => [
+                        'copy' => $relatedPageId
+                    ]
+                ]
+            ];
+
+            $duplicateTce->start([], $duplicateCmd);
+            $duplicateTce->process_cmdmap();
+
+            $duplicateMappingArray = $duplicateTce->copyMappingArray;
+            $duplicateUid = $duplicateMappingArray[$nTable][$nUid];
+
+            if ($nTable === 'pages') {
                 BackendUtility::setUpdateSignal('updatePageTree');
             }
-            // If there was saved any new items, load them:
-            if (!empty($tce->substNEWwithIDs_table)) {
-                // save the expanded/collapsed states for new inline records, if any
-                FormEngineUtility::updateInlineView($this->uc, $tce);
-                $newEditConf = [];
-                foreach ($this->editconf as $tableName => $tableCmds) {
-                    $keys = array_keys($tce->substNEWwithIDs_table, $tableName);
-                    if (!empty($keys)) {
-                        foreach ($keys as $key) {
-                            $editId = $tce->substNEWwithIDs[$key];
-                            // Check if the $editId isn't a child record of an IRRE action
-                            if (!(is_array($tce->newRelatedIDs[$tableName])
-                                && in_array($editId, $tce->newRelatedIDs[$tableName]))
-                            ) {
-                                // Translate new id to the workspace version:
-                                if ($versionRec = BackendUtility::getWorkspaceVersionOfRecord(
-                                    $beUser->workspace,
-                                    $tableName,
-                                    $editId,
-                                    'uid'
-                                )) {
-                                    $editId = $versionRec['uid'];
-                                }
-                                $newEditConf[$tableName][$editId] = 'edit';
-                            }
-                            // Traverse all new records and forge the content of ->editconf so we can continue to EDIT
-                            // these records!
-                            if ($tableName === 'pages'
-                                && $this->retUrl != BackendUtility::getModuleUrl('dummy')
-                                && $this->returnNewPageId
-                            ) {
-                                $this->retUrl .= '&id=' . $tce->substNEWwithIDs[$key];
-                            }
-                        }
-                    } else {
-                        $newEditConf[$tableName] = $tableCmds;
-                    }
-                }
-                // Resetting editconf if newEditConf has values:
-                if (!empty($newEditConf)) {
-                    $this->editconf = $newEditConf;
-                }
-                // Finally, set the editconf array in the "getvars" so they will be passed along in URLs as needed.
-                $this->R_URL_getvars['edit'] = $this->editconf;
-                // Unsetting default values since we don't need them anymore.
-                unset($this->R_URL_getvars['defVals']);
-                // Re-compile the store* values since editconf changed...
-                $this->compileStoreDat();
-            }
-            // See if any records was auto-created as new versions?
-            if (!empty($tce->autoVersionIdMap)) {
-                $this->fixWSversioningInEditConf($tce->autoVersionIdMap);
-            }
-            // If a document is saved and a new one is created right after.
-            if (isset($_POST['_savedoknew']) && is_array($this->editconf)) {
-                $this->closeDocument(self::DOCUMENT_CLOSE_MODE_NO_REDIRECT);
-                // Finding the current table:
-                reset($this->editconf);
-                $nTable = key($this->editconf);
-                // Finding the first id, getting the records pid+uid
-                reset($this->editconf[$nTable]);
-                $nUid = key($this->editconf[$nTable]);
-                $recordFields = 'pid,uid';
-                if (!empty($GLOBALS['TCA'][$nTable]['ctrl']['versioningWS'])) {
-                    $recordFields .= ',t3ver_oid';
-                }
-                $nRec = BackendUtility::getRecord($nTable, $nUid, $recordFields);
-                // Determine insertion mode ('top' is self-explaining,
-                // otherwise new elements are inserted after one using a negative uid)
-                $insertRecordOnTop = ($this->getNewIconMode($nTable) === 'top');
-                // Setting a blank editconf array for a new record:
-                $this->editconf = [];
-                // Determine related page ID for regular live context
-                if ($nRec['pid'] != -1) {
-                    if ($insertRecordOnTop) {
-                        $relatedPageId = $nRec['pid'];
-                    } else {
-                        $relatedPageId = -$nRec['uid'];
-                    }
-                // Determine related page ID for workspace context
-                } else {
-                    if ($insertRecordOnTop) {
-                        // Fetch live version of workspace version since the pid value is always -1 in workspaces
-                        $liveRecord = BackendUtility::getRecord($nTable, $nRec['t3ver_oid'], $recordFields);
-                        $relatedPageId = $liveRecord['pid'];
-                    } else {
-                        // Use uid of live version of workspace version
-                        $relatedPageId = -$nRec['t3ver_oid'];
-                    }
-                }
-                $this->editconf[$nTable][$relatedPageId] = 'new';
-                // Finally, set the editconf array in the "getvars" so they will be passed along in URLs as needed.
-                $this->R_URL_getvars['edit'] = $this->editconf;
-                // Re-compile the store* values since editconf changed...
-                $this->compileStoreDat();
-            }
-            // If a preview is requested
-            if (isset($_POST['_savedokview'])) {
-                // Get the first table and id of the data array from DataHandler
-                $table = reset(array_keys($this->data));
-                $id = reset(array_keys($this->data[$table]));
-                if (!MathUtility::canBeInterpretedAsInteger($id)) {
-                    $id = $tce->substNEWwithIDs[$id];
-                }
-                // Store this information for later use
-                $this->previewData['table'] = $table;
-                $this->previewData['id'] = $id;
-            }
-            $tce->printLogErrorMessages(isset($_POST['_saveandclosedok']) || isset($_POST['_translation_savedok']) ? $this->retUrl : $this->R_URL_parts['path'] . '?' . GeneralUtility::implodeArrayForUrl('', $this->R_URL_getvars));
+
+            $this->editconf[$nTable][$duplicateUid] = 'edit';
+            // Finally, set the editconf array in the "getvars" so they will be passed along in URLs as needed.
+            $this->R_URL_getvars['edit'] = $this->editconf;
+            // Recompile the store* values since editconf changed...
+            $this->compileStoreData();
+
+            // Inform the user of the duplication
+            $flashMessage = GeneralUtility::makeInstance(
+                FlashMessage::class,
+                $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.recordDuplicated'),
+                '',
+                FlashMessage::OK
+            );
+            $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
+            $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
+            $defaultFlashMessageQueue->enqueue($flashMessage);
         }
-        //  || count($tce->substNEWwithIDs)... If any new items has been save, the document is CLOSED
-        // because if not, we just get that element re-listed as new. And we don't want that!
+        // If a preview is requested
+        if (isset($parsedBody['_savedokview'])) {
+            $array_keys = array_keys($this->data);
+            // Get the first table and id of the data array from DataHandler
+            $table = reset($array_keys);
+            $array_keys = array_keys($this->data[$table]);
+            $id = reset($array_keys);
+            if (!MathUtility::canBeInterpretedAsInteger($id)) {
+                $id = $tce->substNEWwithIDs[$id];
+            }
+            // Store this information for later use
+            $this->previewData['table'] = $table;
+            $this->previewData['id'] = $id;
+        }
+        $tce->printLogErrorMessages();
+
         if ((int)$this->closeDoc < self::DOCUMENT_CLOSE_MODE_DEFAULT
-            || isset($_POST['_saveandclosedok'])
-            || isset($_POST['_translation_savedok'])
+            || isset($parsedBody['_saveandclosedok'])
         ) {
-            $this->closeDocument(abs($this->closeDoc));
+            // Redirect if element should be closed after save
+            return $this->closeDocument((int)abs($this->closeDoc), $request);
         }
+        return null;
     }
 
     /**
-     * Initialize the normal module operation
+     * Initialize the view part of the controller logic.
+     *
+     * @param ServerRequestInterface $request
      */
-    public function init()
+    protected function init(ServerRequestInterface $request): void
     {
+        $parsedBody = $request->getParsedBody();
+        $queryParams = $request->getQueryParams();
+
         $beUser = $this->getBackendUser();
-        // Setting more GPvars:
-        $this->popViewId = GeneralUtility::_GP('popViewId');
-        $this->popViewId_addParams = GeneralUtility::_GP('popViewId_addParams');
-        $this->viewUrl = GeneralUtility::_GP('viewUrl');
-        $this->recTitle = GeneralUtility::_GP('recTitle');
-        $this->noView = GeneralUtility::_GP('noView');
+
+        $this->popViewId = (int)($parsedBody['popViewId'] ?? $queryParams['popViewId'] ?? 0);
+        $this->viewUrl = (string)($parsedBody['viewUrl'] ?? $queryParams['viewUrl'] ?? '');
+        $this->recTitle = (string)($parsedBody['recTitle'] ?? $queryParams['recTitle'] ?? '');
+        $this->noView = (bool)($parsedBody['noView'] ?? $queryParams['noView'] ?? false);
         $this->perms_clause = $beUser->getPagePermsClause(Permission::PAGE_SHOW);
         // Set other internal variables:
         $this->R_URL_getvars['returnUrl'] = $this->retUrl;
-        $this->R_URI = $this->R_URL_parts['path'] . '?' . ltrim(GeneralUtility::implodeArrayForUrl(
-            '',
-            $this->R_URL_getvars
-        ), '&');
-        // Setting virtual document name
-        $this->MCONF['name'] = 'xMOD_alt_doc.php';
+        $this->R_URI = $this->R_URL_parts['path'] . HttpUtility::buildQueryString($this->R_URL_getvars, '?');
 
-        // Create an instance of the document template object
-        $this->doc = $GLOBALS['TBE_TEMPLATE'];
         $pageRenderer = GeneralUtility::makeInstance(PageRenderer::class);
-        $pageRenderer->addInlineLanguageLabelFile('EXT:lang/Resources/Private/Language/locallang_alt_doc.xlf');
-        // override the default jumpToUrl
+        $pageRenderer->addInlineLanguageLabelFile('EXT:backend/Resources/Private/Language/locallang_alt_doc.xlf');
+
         $this->moduleTemplate->addJavaScriptCode(
-            'jumpToUrl',
-            '
-			function jumpToUrl(URL,formEl) {
-				if (!TBE_EDITOR.isFormChanged()) {
-					window.location.href = URL;
-				} else if (formEl && formEl.type=="checkbox") {
-					formEl.checked = formEl.checked ? 0 : 1;
-				}
-			}
-'
+            'previewCode',
+            (isset($parsedBody['_savedokview']) && $this->popViewId ? $this->generatePreviewCode() : '')
         );
-        $t3Configuration = [];
-
-        $javascript = '
-			TYPO3.configuration = ' . json_encode($t3Configuration) . ';
-			// Object: TS:
-			// TS object overwrites the object declared in tbe_editor.js
-			function typoSetup() {	//
-				this.uniqueID = "";
-			}
-			var TS = new typoSetup();
-
-				// Info view:
-			function launchView(table,uid) {	//
-				var thePreviewWindow = window.open(
-					' . GeneralUtility::quoteJSvalue(BackendUtility::getModuleUrl('show_item') . '&table=') . ' + encodeURIComponent(table) + "&uid=" + encodeURIComponent(uid),
-					"ShowItem" + TS.uniqueID,
-					"height=300,width=410,status=0,menubar=0,resizable=0,location=0,directories=0,scrollbars=1,toolbar=0"
-				);
-				if (thePreviewWindow && thePreviewWindow.focus) {
-					thePreviewWindow.focus();
-				}
-			}
-			function deleteRecord(table,id,url) {	//
-				window.location.href = ' . GeneralUtility::quoteJSvalue(BackendUtility::getModuleUrl('tce_db') . '&cmd[') . '+table+"]["+id+"][delete]=1&redirect="+escape(url)+"&prErr=1&uPT=1";
-			}
-		';
-
-        $previewCode = isset($_POST['_savedokview']) && $this->popViewId ? $this->generatePreviewCode() : '';
-        $this->moduleTemplate->addJavaScriptCode(
-            'PreviewCode',
-            $javascript . $previewCode
-        );
-        // Setting up the context sensitive menu:
+        // Set context sensitive menu
         $this->moduleTemplate->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/ContextMenu');
 
-        $this->emitFunctionAfterSignal(__FUNCTION__);
+        $event = new AfterFormEnginePageInitializedEvent($this, $request);
+        $this->eventDispatcher->dispatch($event);
     }
 
     /**
+     * Generate the Javascript for opening the preview window
+     *
      * @return string
      */
-    protected function generatePreviewCode()
+    protected function generatePreviewCode(): string
     {
-        $table = $this->previewData['table'];
-        $recordId = $this->previewData['id'];
+        $previewPageId = $this->getPreviewPageId();
+        $previewPageRootLine = BackendUtility::BEgetRootLine($previewPageId);
+        $anchorSection = $this->getPreviewUrlAnchorSection();
 
-        if ($table === 'pages') {
-            $currentPageId = $recordId;
-        } else {
-            $currentPageId = MathUtility::convertToPositiveInteger($this->popViewId);
+        try {
+            $previewUrlParameters = $this->getPreviewUrlParameters($previewPageId);
+            return '
+            if (window.opener) {
+                '
+                . BackendUtility::viewOnClick(
+                    $previewPageId,
+                    '',
+                    $previewPageRootLine,
+                    $anchorSection,
+                    $this->viewUrl,
+                    $previewUrlParameters,
+                    false
+                )
+                . '
+            } else {
+            '
+                . BackendUtility::viewOnClick(
+                    $previewPageId,
+                    '',
+                    $previewPageRootLine,
+                    $anchorSection,
+                    $this->viewUrl,
+                    $previewUrlParameters
+                )
+                . '
+            }';
+        } catch (UnableToLinkToPageException $e) {
+            return '';
         }
+    }
 
-        $pageTsConfig = BackendUtility::getPagesTSconfig($currentPageId);
-        $previewConfiguration = isset($pageTsConfig['TCEMAIN.']['preview.'][$table . '.'])
-            ? $pageTsConfig['TCEMAIN.']['preview.'][$table . '.']
-            : [];
-
+    /**
+     * Returns the parameters for the preview URL
+     *
+     * @param int $previewPageId
+     * @return string
+     */
+    protected function getPreviewUrlParameters(int $previewPageId): string
+    {
+        $linkParameters = [];
+        $table = $this->previewData['table'] ?: $this->firstEl['table'];
+        $recordId = $this->previewData['id'] ?: $this->firstEl['uid'];
+        $previewConfiguration = BackendUtility::getPagesTSconfig($previewPageId)['TCEMAIN.']['preview.'][$table . '.'] ?? [];
         $recordArray = BackendUtility::getRecord($table, $recordId);
 
-        // find the right preview page id
+        // language handling
+        $languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'] ?? '';
+        if ($languageField && !empty($recordArray[$languageField])) {
+            $recordId = $this->resolvePreviewRecordId($table, $recordArray, $previewConfiguration);
+            $language = $recordArray[$languageField];
+            if ($language > 0) {
+                $linkParameters['L'] = $language;
+            }
+        }
+
+        // Always use live workspace record uid for the preview
+        if (BackendUtility::isTableWorkspaceEnabled($table) && $recordArray['t3ver_oid'] > 0) {
+            $recordId = $recordArray['t3ver_oid'];
+        }
+
+        // map record data to GET parameters
+        if (isset($previewConfiguration['fieldToParameterMap.'])) {
+            foreach ($previewConfiguration['fieldToParameterMap.'] as $field => $parameterName) {
+                $value = $recordArray[$field];
+                if ($field === 'uid') {
+                    $value = $recordId;
+                }
+                $linkParameters[$parameterName] = $value;
+            }
+        }
+
+        // add/override parameters by configuration
+        if (isset($previewConfiguration['additionalGetParameters.'])) {
+            $additionalGetParameters = [];
+            $this->parseAdditionalGetParameters(
+                $additionalGetParameters,
+                $previewConfiguration['additionalGetParameters.']
+            );
+            $linkParameters = array_replace($linkParameters, $additionalGetParameters);
+        }
+
+        return HttpUtility::buildQueryString($linkParameters, '&');
+    }
+
+    /**
+     * @param string $table
+     * @param array $recordArray
+     * @param array $previewConfiguration
+     *
+     * @return int
+     */
+    protected function resolvePreviewRecordId(string $table, array $recordArray, array $previewConfiguration): int
+    {
+        $l10nPointer = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'] ?? '';
+        if ($l10nPointer
+            && !empty($recordArray[$l10nPointer])
+            && (
+                // not set -> default to true
+                !isset($previewConfiguration['useDefaultLanguageRecord'])
+                // or set -> use value
+                || $previewConfiguration['useDefaultLanguageRecord']
+            )
+        ) {
+            return $recordArray[$l10nPointer];
+        }
+        return $recordArray['uid'];
+    }
+
+    /**
+     * Returns the anchor section for the preview url
+     *
+     * @return string
+     */
+    protected function getPreviewUrlAnchorSection(): string
+    {
+        $table = $this->previewData['table'] ?: $this->firstEl['table'];
+        $recordId = $this->previewData['id'] ?: $this->firstEl['uid'];
+
+        return $table === 'tt_content' ? '#c' . (int)$recordId : '';
+    }
+
+    /**
+     * Returns the preview page id
+     *
+     * @return int
+     */
+    protected function getPreviewPageId(): int
+    {
         $previewPageId = 0;
+        $table = $this->previewData['table'] ?: $this->firstEl['table'];
+        $recordId = $this->previewData['id'] ?: $this->firstEl['uid'];
+        $pageId = $this->popViewId ?: $this->viewId;
+
+        if ($table === 'pages') {
+            $currentPageId = (int)$recordId;
+        } else {
+            $currentPageId = MathUtility::convertToPositiveInteger($pageId);
+        }
+
+        $previewConfiguration = BackendUtility::getPagesTSconfig($currentPageId)['TCEMAIN.']['preview.'][$table . '.'] ?? [];
+
         if (isset($previewConfiguration['previewPageId'])) {
-            $previewPageId = $previewConfiguration['previewPageId'];
+            $previewPageId = (int)$previewConfiguration['previewPageId'];
         }
         // if no preview page was configured
         if (!$previewPageId) {
@@ -823,78 +972,9 @@ class EditDocumentController extends AbstractModule
             }
         }
 
-        $linkParameters = [
-            'no_cache' => 1,
-        ];
-
-        // language handling
-        $languageField = isset($GLOBALS['TCA'][$table]['ctrl']['languageField'])
-            ? $GLOBALS['TCA'][$table]['ctrl']['languageField']
-            : '';
-        if ($languageField && !empty($recordArray[$languageField])) {
-            $l18nPointer = isset($GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'])
-                ? $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField']
-                : '';
-            if ($l18nPointer && !empty($recordArray[$l18nPointer])
-                && isset($previewConfiguration['useDefaultLanguageRecord'])
-                && !$previewConfiguration['useDefaultLanguageRecord']
-            ) {
-                // use parent record
-                $recordId = $recordArray[$l18nPointer];
-            }
-            $linkParameters['L'] = $recordArray[$languageField];
-        }
-
-        // map record data to GET parameters
-        if (isset($previewConfiguration['fieldToParameterMap.'])) {
-            foreach ($previewConfiguration['fieldToParameterMap.'] as $field => $parameterName) {
-                $value = $recordArray[$field];
-                if ($field === 'uid') {
-                    $value = $recordId;
-                }
-                $linkParameters[$parameterName] = $value;
-            }
-        }
-
-        // add/override parameters by configuration
-        if (isset($previewConfiguration['additionalGetParameters.'])) {
-            $additionalGetParameters = [];
-            $this->parseAdditionalGetParameters(
-                $additionalGetParameters,
-                $previewConfiguration['additionalGetParameters.']
-            );
-            $linkParameters = array_replace($linkParameters, $additionalGetParameters);
-        }
-
         $this->popViewId = $previewPageId;
-        $this->popViewId_addParams = GeneralUtility::implodeArrayForUrl('', $linkParameters, '', false, true);
 
-        $previewPageRootline = BackendUtility::BEgetRootLine($this->popViewId);
-        return '
-				if (window.opener) {
-				'
-            . BackendUtility::viewOnClick(
-                $this->popViewId,
-                '',
-                $previewPageRootline,
-                '',
-                $this->viewUrl,
-                $this->popViewId_addParams,
-                false
-            )
-            . '
-				} else {
-				'
-            . BackendUtility::viewOnClick(
-                $this->popViewId,
-                '',
-                $previewPageRootline,
-                '',
-                $this->viewUrl,
-                $this->popViewId_addParams
-            )
-            . '
-				}';
+        return $previewPageId;
     }
 
     /**
@@ -921,13 +1001,14 @@ class EditDocumentController extends AbstractModule
 
     /**
      * Main module operation
+     *
+     * @param ServerRequestInterface $request
      */
-    public function main()
+    protected function main(ServerRequestInterface $request): void
     {
         $body = '';
-        // Begin edit:
+        // Begin edit
         if (is_array($this->editconf)) {
-            /** @var FormResultCompiler formResultCompiler */
             $this->formResultCompiler = GeneralUtility::makeInstance(FormResultCompiler::class);
 
             // Creating the editing form, wrap it with buttons, document selector etc.
@@ -935,8 +1016,7 @@ class EditDocumentController extends AbstractModule
             if ($editForm) {
                 $this->firstEl = reset($this->elementsData);
                 // Checking if the currently open document is stored in the list of "open documents" - if not, add it:
-                if (($this->docDat[1] !== $this->storeUrlMd5
-                        || !isset($this->docHandler[$this->storeUrlMd5]))
+                if (($this->docDat[1] !== $this->storeUrlMd5 || !isset($this->docHandler[$this->storeUrlMd5]))
                     && !$this->dontStoreDocumentRef
                 ) {
                     $this->docHandler[$this->storeUrlMd5] = [
@@ -948,11 +1028,6 @@ class EditDocumentController extends AbstractModule
                     $this->getBackendUser()->pushModuleData('FormEngine', [$this->docHandler, $this->storeUrlMd5]);
                     BackendUtility::setUpdateSignal('OpendocsController::updateNumber', count($this->docHandler));
                 }
-                // Module configuration
-                $this->modTSconfig = $this->viewId ? BackendUtility::getModTSconfig(
-                    $this->viewId,
-                    'mod.xMOD_alt_doc'
-                ) : [];
                 $body = $this->formResultCompiler->addCssFiles();
                 $body .= $this->compileForm($editForm);
                 $body .= $this->formResultCompiler->printNeededJSFunctions();
@@ -965,36 +1040,33 @@ class EditDocumentController extends AbstractModule
         if ($this->pageinfo) {
             $this->moduleTemplate->getDocHeaderComponent()->setMetaInformation($this->pageinfo);
         }
-        // Setting up the buttons and markers for docheader
-        $this->getButtons();
-        $this->languageSwitch($this->firstEl['table'], $this->firstEl['uid'], $this->firstEl['pid']);
+        // Setting up the buttons and markers for doc header
+        $this->getButtons($request);
+        $this->languageSwitch(
+            (string)($this->firstEl['table'] ?? ''),
+            (int)($this->firstEl['uid'] ?? 0),
+            isset($this->firstEl['pid']) ? (int)$this->firstEl['pid'] : null
+        );
         $this->moduleTemplate->setContent($body);
     }
 
-    /***************************
-     *
-     * Sub-content functions, rendering specific parts of the module content.
-     *
-     ***************************/
     /**
-     * Creates the editing form with FormEnigne, based on the input from GPvars.
+     * Creates the editing form with FormEngine, based on the input from GPvars.
      *
      * @return string HTML form elements wrapped in tables
      */
-    public function makeEditForm()
+    protected function makeEditForm(): string
     {
-        // Initialize variables:
+        // Initialize variables
         $this->elementsData = [];
         $this->errorC = 0;
         $this->newC = 0;
         $editForm = '';
-        $trData = null;
         $beUser = $this->getBackendUser();
-        // Traverse the GPvar edit array
-        // Tables:
+        // Traverse the GPvar edit array tables
         foreach ($this->editconf as $table => $conf) {
             if (is_array($conf) && $GLOBALS['TCA'][$table] && $beUser->check('tables_modify', $table)) {
-                // Traverse the keys/comments of each table (keys can be a commalist of uids)
+                // Traverse the keys/comments of each table (keys can be a comma list of uids)
                 foreach ($conf as $cKey => $command) {
                     if ($command === 'edit' || $command === 'new') {
                         // Get the ids:
@@ -1006,14 +1078,11 @@ class EditDocumentController extends AbstractModule
                                 $this->dontStoreDocumentRef = 1;
                             }
 
-                            /** @var TcaDatabaseRecord $formDataGroup */
-                            $formDataGroup = GeneralUtility::makeInstance(TcaDatabaseRecord::class);
-                            /** @var FormDataCompiler $formDataCompiler */
-                            $formDataCompiler = GeneralUtility::makeInstance(FormDataCompiler::class, $formDataGroup);
-                            /** @var NodeFactory $nodeFactory */
-                            $nodeFactory = GeneralUtility::makeInstance(NodeFactory::class);
-
                             try {
+                                $formDataGroup = GeneralUtility::makeInstance(TcaDatabaseRecord::class);
+                                $formDataCompiler = GeneralUtility::makeInstance(FormDataCompiler::class, $formDataGroup);
+                                $nodeFactory = GeneralUtility::makeInstance(NodeFactory::class);
+
                                 // Reset viewId - it should hold data of last entry only
                                 $this->viewId = 0;
                                 $this->viewId_addParams = '';
@@ -1026,6 +1095,9 @@ class EditDocumentController extends AbstractModule
                                 ];
                                 if (is_array($this->overrideVals) && is_array($this->overrideVals[$table])) {
                                     $formDataCompilerInput['overrideValues'] = $this->overrideVals[$table];
+                                }
+                                if (!empty($this->defVals) && is_array($this->defVals)) {
+                                    $formDataCompilerInput['defaultValues'] = $this->defVals;
                                 }
 
                                 $formData = $formDataCompiler->compile($formDataCompilerInput);
@@ -1053,7 +1125,10 @@ class EditDocumentController extends AbstractModule
 
                                 // Determine if delete button can be shown
                                 $deleteAccess = false;
-                                if ($command === 'edit') {
+                                if (
+                                    $command === 'edit'
+                                    || $command === 'new'
+                                ) {
                                     $permission = $formData['userPermissionOnPage'];
                                     if ($formData['tableName'] === 'pages') {
                                         $deleteAccess = $permission & Permission::PAGE_DELETE ? true : false;
@@ -1062,20 +1137,17 @@ class EditDocumentController extends AbstractModule
                                     }
                                 }
 
-                                // Display "is-locked" message:
+                                // Display "is-locked" message
                                 if ($command === 'edit') {
                                     $lockInfo = BackendUtility::isRecordLocked($table, $formData['databaseRow']['uid']);
                                     if ($lockInfo) {
-                                        /** @var $flashMessage \TYPO3\CMS\Core\Messaging\FlashMessage */
                                         $flashMessage = GeneralUtility::makeInstance(
                                             FlashMessage::class,
                                             $lockInfo['msg'],
                                             '',
                                             FlashMessage::WARNING
                                         );
-                                        /** @var $flashMessageService \TYPO3\CMS\Core\Messaging\FlashMessageService */
                                         $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
-                                        /** @var $defaultFlashMessageQueue FlashMessageQueue */
                                         $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
                                         $defaultFlashMessageQueue->enqueue($flashMessage);
                                     }
@@ -1138,13 +1210,12 @@ class EditDocumentController extends AbstractModule
                                 $this->errorC++;
                                 // Try to fetch error message from "recordInternals" be user object
                                 // @todo: This construct should be logged and localized and de-uglified
-                                $message = $beUser->errorMsg;
-                                if (empty($message)) {
-                                    // Create message from exception.
-                                    $message = $e->getMessage() . ' ' . $e->getCode();
-                                }
-                                $editForm .= htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.noEditPermission'))
-                                    . '<br /><br />' . htmlspecialchars($message) . '<br /><br />';
+                                $message = (!empty($beUser->errorMsg)) ? $beUser->errorMsg : $message = $e->getMessage() . ' ' . $e->getCode();
+                                $title = $this->getLanguageService()
+                                    ->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noEditPermission');
+                                $editForm .= $this->getInfobox($message, $title);
+                            } catch (DatabaseRecordException $e) {
+                                $editForm .= $this->getInfobox($e->getMessage());
                             }
                         } // End of for each uid
                     }
@@ -1155,296 +1226,593 @@ class EditDocumentController extends AbstractModule
     }
 
     /**
+     * Helper function for rendering an Infobox
+     *
+     * @param string $message
+     * @param string|null $title
+     * @return string
+     */
+    protected function getInfobox(string $message, ?string $title = null): string
+    {
+        return '<div class="callout callout-danger">' .
+                '<div class="media">' .
+                    '<div class="media-left">' .
+                        '<span class="fa-stack fa-lg callout-icon">' .
+                            '<i class="fa fa-circle fa-stack-2x"></i>' .
+                            '<i class="fa fa-times fa-stack-1x"></i>' .
+                        '</span>' .
+                    '</div>' .
+                    '<div class="media-body">' .
+                        ($title ? '<h4 class="callout-title">' . htmlspecialchars($title) . '</h4>' : '') .
+                        '<div class="callout-body">' . htmlspecialchars($message) . '</div>' .
+                    '</div>' .
+                '</div>' .
+            '</div>';
+    }
+
+    /**
      * Create the panel of buttons for submitting the form or otherwise perform operations.
      *
-     * @return array All available buttons as an assoc. array
+     * @param ServerRequestInterface $request
      */
-    protected function getButtons()
+    protected function getButtons(ServerRequestInterface $request): void
     {
-        $lang = $this->getLanguageService();
-        // Render SAVE type buttons:
-        // The action of each button is decided by its name attribute. (See doProcessData())
-        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
-        if (!$this->errorC && !$GLOBALS['TCA'][$this->firstEl['table']]['ctrl']['readOnly']) {
-            $saveSplitButton = $buttonBar->makeSplitButton();
-            // SAVE button:
-            $saveButton = $buttonBar->makeInputButton()
-                ->setTitle($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.saveDoc'))
-                ->setName('_savedok')
-                ->setValue('1')
-                ->setForm('EditDocumentController')
-                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon('actions-document-save', Icon::SIZE_SMALL));
-            $saveSplitButton->addItem($saveButton, true);
+        $record = BackendUtility::getRecord($this->firstEl['table'], $this->firstEl['uid']);
+        $TCActrl = $GLOBALS['TCA'][$this->firstEl['table']]['ctrl'];
 
-            // SAVE / VIEW button:
-            if ($this->viewId && !$this->noView && $this->getNewIconMode($this->firstEl['table'], 'saveDocView')) {
-                $pagesTSconfig = BackendUtility::getPagesTSconfig($this->pageinfo['uid']);
-                if (isset($pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'])) {
-                    $excludeDokTypes = GeneralUtility::intExplode(
-                        ',',
-                        $pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'],
-                        true
-                    );
-                } else {
-                    // exclude sysfolders, spacers and recycler by default
-                    $excludeDokTypes = [
-                        PageRepository::DOKTYPE_RECYCLER,
-                        PageRepository::DOKTYPE_SYSFOLDER,
-                        PageRepository::DOKTYPE_SPACER
-                    ];
-                }
-                if (!in_array((int)$this->pageinfo['doktype'], $excludeDokTypes, true)
-                    || isset($pagesTSconfig['TCEMAIN.']['preview.'][$this->firstEl['table'] . '.']['previewPageId'])
-                ) {
-                    $saveAndOpenButton = $buttonBar->makeInputButton()
-                        ->setTitle($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.saveDocShow'))
-                        ->setName('_savedokview')
-                        ->setValue('1')
-                        ->setForm('EditDocumentController')
-                        ->setOnClick("window.open('', 'newTYPO3frontendWindow');")
-                        ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                            'actions-document-save-view',
-                            Icon::SIZE_SMALL
-                        ));
-                    $saveSplitButton->addItem($saveAndOpenButton);
-                }
-            }
-            // SAVE / NEW button:
-            if (count($this->elementsData) === 1 && $this->getNewIconMode($this->firstEl['table'])) {
-                $saveAndNewButton = $buttonBar->makeInputButton()
-                    ->setName('_savedoknew')
-                    ->setClasses('t3js-editform-submitButton')
-                    ->setValue('1')
-                    ->setForm('EditDocumentController')
-                    ->setTitle($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.saveNewDoc'))
-                    ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                        'actions-document-save-new',
-                        Icon::SIZE_SMALL
-                    ));
-                $saveSplitButton->addItem($saveAndNewButton);
-            }
-            // SAVE / CLOSE
-            $saveAndCloseButton = $buttonBar->makeInputButton()
-                ->setName('_saveandclosedok')
-                ->setClasses('t3js-editform-submitButton')
-                ->setValue('1')
-                ->setForm('EditDocumentController')
-                ->setTitle($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.saveCloseDoc'))
-                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                    'actions-document-save-close',
-                    Icon::SIZE_SMALL
-                ));
-            $saveSplitButton->addItem($saveAndCloseButton);
-            // FINISH TRANSLATION / SAVE / CLOSE
-            if ($GLOBALS['TYPO3_CONF_VARS']['BE']['explicitConfirmationOfTranslation']) {
-                $saveTranslationButton = $buttonBar->makeInputButton()
-                    ->setName('_translation_savedok')
-                    ->setValue('1')
-                    ->setForm('EditDocumentController')
-                    ->setTitle($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.translationSaveDoc'))
-                    ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                        'actions-document-save-cleartranslationcache',
-                        Icon::SIZE_SMALL
-                    ));
-                $saveSplitButton->addItem($saveTranslationButton);
-                $saveAndClearTranslationButton = $buttonBar->makeInputButton()
-                    ->setName('_translation_savedokclear')
-                    ->setValue('1')
-                    ->setForm('EditDocumentController')
-                    ->setTitle($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.translationSaveDocClear'))
-                    ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                        'actions-document-save-cleartranslationcache',
-                        Icon::SIZE_SMALL
-                    ));
-                $saveSplitButton->addItem($saveAndClearTranslationButton);
-            }
-            $buttonBar->addButton($saveSplitButton, ButtonBar::BUTTON_POSITION_LEFT, 2);
+        $this->setIsSavedRecord();
+
+        $sysLanguageUid = 0;
+        if (
+            $this->isSavedRecord
+            && isset($TCActrl['languageField'], $record[$TCActrl['languageField']])
+        ) {
+            $sysLanguageUid = (int)$record[$TCActrl['languageField']];
+        } elseif (isset($this->defVals['sys_language_uid'])) {
+            $sysLanguageUid = (int)$this->defVals['sys_language_uid'];
         }
-        // CLOSE button:
+
+        $l18nParent = isset($TCActrl['transOrigPointerField'], $record[$TCActrl['transOrigPointerField']])
+            ? (int)$record[$TCActrl['transOrigPointerField']]
+            : 0;
+
+        $this->setIsPageInFreeTranslationMode($record, $sysLanguageUid);
+
+        $buttonBar = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar();
+
+        $this->registerCloseButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 1);
+
+        // Show buttons when table is not read-only
+        if (
+            !$this->errorC
+            && !$GLOBALS['TCA'][$this->firstEl['table']]['ctrl']['readOnly']
+        ) {
+            $this->registerSaveButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 2);
+            $this->registerViewButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 3);
+            if ($this->firstEl['cmd'] !== 'new') {
+                $this->registerNewButtonToButtonBar(
+                    $buttonBar,
+                    ButtonBar::BUTTON_POSITION_LEFT,
+                    4,
+                    $sysLanguageUid,
+                    $l18nParent
+                );
+                $this->registerDuplicationButtonToButtonBar(
+                    $buttonBar,
+                    ButtonBar::BUTTON_POSITION_LEFT,
+                    5,
+                    $sysLanguageUid,
+                    $l18nParent
+                );
+            }
+            $this->registerDeleteButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 6);
+            $this->registerColumnsOnlyButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_LEFT, 7);
+            $this->registerHistoryButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_RIGHT, 1);
+        }
+
+        $this->registerOpenInNewWindowButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_RIGHT, 2);
+        $this->registerShortcutButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_RIGHT, 3);
+        $this->registerCshButtonToButtonBar($buttonBar, ButtonBar::BUTTON_POSITION_RIGHT, 4);
+    }
+
+    /**
+     * Set the boolean to check if the record is saved
+     */
+    protected function setIsSavedRecord()
+    {
+        if (!is_bool($this->isSavedRecord)) {
+            $this->isSavedRecord = (
+                $this->firstEl['cmd'] !== 'new'
+                && MathUtility::canBeInterpretedAsInteger($this->firstEl['uid'])
+            );
+        }
+    }
+
+    /**
+     * Returns if inconsistent language handling is allowed
+     *
+     * @return bool
+     */
+    protected function isInconsistentLanguageHandlingAllowed(): bool
+    {
+        $allowInconsistentLanguageHandling = BackendUtility::getPagesTSconfig(
+            $this->pageinfo['uid']
+        )['mod']['web_layout']['allowInconsistentLanguageHandling'];
+
+        return $allowInconsistentLanguageHandling['value'] === '1';
+    }
+
+    /**
+     * Set the boolean to check if the page is in free translation mode
+     *
+     * @param array|null $record
+     * @param int $sysLanguageUid
+     */
+    protected function setIsPageInFreeTranslationMode($record, int $sysLanguageUid)
+    {
+        if ($this->firstEl['table'] === 'tt_content') {
+            if (!$this->isSavedRecord) {
+                $this->isPageInFreeTranslationMode = $this->getFreeTranslationMode(
+                    (int)$this->pageinfo['uid'],
+                    (int)$this->defVals['colPos'],
+                    $sysLanguageUid
+                );
+            } else {
+                $this->isPageInFreeTranslationMode = $this->getFreeTranslationMode(
+                    (int)$this->pageinfo['uid'],
+                    (int)$record['colPos'],
+                    $sysLanguageUid
+                );
+            }
+        }
+    }
+
+    /**
+     * Check if the page is in free translation mode
+     *
+     * @param int $page
+     * @param int $column
+     * @param int $language
+     * @return bool
+     */
+    protected function getFreeTranslationMode(int $page, int $column, int $language): bool
+    {
+        $freeTranslationMode = false;
+
+        if (
+            $this->getConnectedContentElementTranslationsCount($page, $column, $language) === 0
+            && $this->getStandAloneContentElementTranslationsCount($page, $column, $language) >= 0
+        ) {
+            $freeTranslationMode = true;
+        }
+
+        return $freeTranslationMode;
+    }
+
+    /**
+     * Register the close button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     */
+    protected function registerCloseButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group)
+    {
         $closeButton = $buttonBar->makeLinkButton()
             ->setHref('#')
             ->setClasses('t3js-editform-close')
-            ->setTitle($lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:rm.closeDoc'))
+            ->setTitle($this->getLanguageService()->sL(
+                'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.closeDoc'
+            ))
+            ->setShowLabelText(true)
             ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
                 'actions-close',
                 Icon::SIZE_SMALL
             ));
-        $buttonBar->addButton($closeButton);
-        // DELETE + UNDO buttons:
-        if (!$this->errorC
-            && !$GLOBALS['TCA'][$this->firstEl['table']]['ctrl']['readOnly']
-            && count($this->elementsData) === 1
+
+        $buttonBar->addButton($closeButton, $position, $group);
+    }
+
+    /**
+     * Register the save button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     */
+    protected function registerSaveButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group)
+    {
+        $saveButton = $buttonBar->makeInputButton()
+            ->setForm('EditDocumentController')
+            ->setIcon($this->moduleTemplate->getIconFactory()->getIcon('actions-document-save', Icon::SIZE_SMALL))
+            ->setName('_savedok')
+            ->setShowLabelText(true)
+            ->setTitle($this->getLanguageService()->sL(
+                'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.saveDoc'
+            ))
+            ->setValue('1');
+
+        $buttonBar->addButton($saveButton, $position, $group);
+    }
+
+    /**
+     * Register the view button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     */
+    protected function registerViewButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group)
+    {
+        if (
+            $this->viewId // Pid to show the record
+            && !$this->noView // Passed parameter
+            && !empty($this->firstEl['table']) // No table
+
+            // @TODO: TsConfig option should change to viewDoc
+            && $this->getTsConfigOption($this->firstEl['table'], 'saveDocView')
         ) {
-            if ($this->firstEl['cmd'] !== 'new' && MathUtility::canBeInterpretedAsInteger($this->firstEl['uid'])) {
-                // Delete:
-                if ($this->firstEl['deleteAccess']
-                    && !$GLOBALS['TCA'][$this->firstEl['table']]['ctrl']['readOnly']
-                    && !$this->getNewIconMode($this->firstEl['table'], 'disableDelete')
-                ) {
-                    $returnUrl = $this->retUrl;
-                    if ($this->firstEl['table'] === 'pages') {
-                        parse_str((string)parse_url($returnUrl, PHP_URL_QUERY), $queryParams);
-                        if (isset($queryParams['M'])
-                            && isset($queryParams['id'])
-                            && (string)$this->firstEl['uid'] === (string)$queryParams['id']
-                        ) {
-                            // TODO: Use the page's pid instead of 0, this requires a clean API to manipulate the page
-                            // tree from the outside to be able to mark the pid as active
-                            $returnUrl = BackendUtility::getModuleUrl($queryParams['M'], ['id' => 0]);
-                        }
-                    }
-                    $deleteButton = $buttonBar->makeLinkButton()
-                        ->setHref('#')
-                        ->setClasses('t3js-editform-delete-record')
-                        ->setTitle($lang->getLL('deleteItem'))
+            $classNames = 't3js-editform-view';
+
+            $pagesTSconfig = BackendUtility::getPagesTSconfig($this->pageinfo['uid']);
+
+            if (isset($pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'])) {
+                $excludeDokTypes = GeneralUtility::intExplode(
+                    ',',
+                    $pagesTSconfig['TCEMAIN.']['preview.']['disableButtonForDokType'],
+                    true
+                );
+            } else {
+                // exclude sysfolders, spacers and recycler by default
+                $excludeDokTypes = [
+                    PageRepository::DOKTYPE_RECYCLER,
+                    PageRepository::DOKTYPE_SYSFOLDER,
+                    PageRepository::DOKTYPE_SPACER
+                ];
+            }
+
+            if (
+                !in_array((int)$this->pageinfo['doktype'], $excludeDokTypes, true)
+                || isset($pagesTSconfig['TCEMAIN.']['preview.'][$this->firstEl['table'] . '.']['previewPageId'])
+            ) {
+                $previewPageId = $this->getPreviewPageId();
+                try {
+                    $previewUrl = BackendUtility::getPreviewUrl(
+                        $previewPageId,
+                        '',
+                        BackendUtility::BEgetRootLine($previewPageId),
+                        $this->getPreviewUrlAnchorSection(),
+                        $this->viewUrl,
+                        $this->getPreviewUrlParameters($previewPageId)
+                    );
+
+                    $viewButton = $buttonBar->makeLinkButton()
+                        ->setHref($previewUrl)
                         ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                            'actions-edit-delete',
+                            'actions-view',
                             Icon::SIZE_SMALL
                         ))
-                        ->setDataAttributes([
-                            'return-url' => $returnUrl,
-                            'uid' => $this->firstEl['uid'],
-                            'table' => $this->firstEl['table']
-                        ]);
-                    $buttonBar->addButton($deleteButton, ButtonBar::BUTTON_POSITION_LEFT, 3);
-                }
-                // Undo:
-                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                    ->getQueryBuilderForTable('sys_history');
+                        ->setShowLabelText(true)
+                        ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.viewDoc'));
 
-                $undoButtonR = $queryBuilder->select('tstamp')
-                    ->from('sys_history')
-                    ->where(
-                        $queryBuilder->expr()->eq(
-                            'tablename',
-                            $queryBuilder->createNamedParameter($this->firstEl['table'], \PDO::PARAM_STR)
-                        ),
-                        $queryBuilder->expr()->eq(
-                            'recuid',
-                            $queryBuilder->createNamedParameter($this->firstEl['uid'], \PDO::PARAM_INT)
-                        )
-                    )
-                    ->orderBy('tstamp', 'DESC')
-                    ->setMaxResults(1)
-                    ->execute()
-                    ->fetch();
+                    if (!$this->isSavedRecord) {
+                        if ($this->firstEl['table'] === 'pages') {
+                            $viewButton->setDataAttributes(['is-new' => '']);
+                        }
+                    }
 
-                if ($undoButtonR !== false) {
-                    $aOnClick = 'window.location.href=' .
-                        GeneralUtility::quoteJSvalue(
-                            BackendUtility::getModuleUrl(
-                                'record_history',
-                                [
-                                    'element' => $this->firstEl['table'] . ':' . $this->firstEl['uid'],
-                                    'revert' => 'ALL_FIELDS',
-                                    'returnUrl' => $this->R_URI,
-                                ]
-                            )
-                        ) . '; return false;';
+                    if ($classNames !== '') {
+                        $viewButton->setClasses($classNames);
+                    }
 
-                    $undoButton = $buttonBar->makeLinkButton()
-                        ->setHref('#')
-                        ->setOnClick($aOnClick)
-                        ->setTitle(
-                            sprintf(
-                                $lang->getLL('undoLastChange'),
-                                BackendUtility::calcAge(
-                                    ($GLOBALS['EXEC_TIME'] - $undoButtonR['tstamp']),
-                                    $lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.minutesHoursDaysYears')
-                                )
-                            )
-                        )
-                        ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                            'actions-document-history-open',
-                            Icon::SIZE_SMALL
-                        ));
-                    $buttonBar->addButton($undoButton, ButtonBar::BUTTON_POSITION_LEFT, 3);
-                }
-                if ($this->getNewIconMode($this->firstEl['table'], 'showHistory')) {
-                    $aOnClick = 'window.location.href=' .
-                        GeneralUtility::quoteJSvalue(
-                            BackendUtility::getModuleUrl(
-                                'record_history',
-                                [
-                                    'element' => $this->firstEl['table'] . ':' . $this->firstEl['uid'],
-                                    'returnUrl' => $this->R_URI,
-                                ]
-                            )
-                        ) . '; return false;';
-
-                    $historyButton = $buttonBar->makeLinkButton()
-                        ->setHref('#')
-                        ->setOnClick($aOnClick)
-                        ->setTitle('Open history of this record')
-                        ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                            'actions-document-history-open',
-                            Icon::SIZE_SMALL
-                        ));
-                    $buttonBar->addButton($historyButton, ButtonBar::BUTTON_POSITION_LEFT, 3);
-                }
-                // If only SOME fields are shown in the form, this will link the user to the FULL form:
-                if ($this->columnsOnly) {
-                    $columnsOnlyButton = $buttonBar->makeLinkButton()
-                        ->setHref($this->R_URI . '&columnsOnly=')
-                        ->setTitle($lang->getLL('editWholeRecord'))
-                        ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
-                            'actions-open',
-                            Icon::SIZE_SMALL
-                        ));
-                    $buttonBar->addButton($columnsOnlyButton, ButtonBar::BUTTON_POSITION_LEFT, 3);
+                    $buttonBar->addButton($viewButton, $position, $group);
+                } catch (UnableToLinkToPageException $e) {
+                    // Do not add any button
                 }
             }
         }
-        $cshButton = $buttonBar->makeHelpButton()->setModuleName('xMOD_csh_corebe')->setFieldName('TCEforms');
-        $buttonBar->addButton($cshButton);
-        $this->shortCutLink();
-        $this->openInNewWindowLink();
     }
 
     /**
-     * Put together the various elements (buttons, selectors, form) into a table
+     * Register the new button to the button bar
      *
-     * @param string $editForm HTML form.
-     * @return string Composite HTML
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     * @param int $sysLanguageUid
+     * @param int $l18nParent
      */
-    public function compileForm($editForm)
-    {
-        $formContent = '
-			<!-- EDITING FORM -->
-			<form
-            action="' . htmlspecialchars($this->R_URI) . '"
-            method="post"
-            enctype="multipart/form-data"
-            name="editform"
-            id="EditDocumentController"
-            onsubmit="TBE_EDITOR.checkAndDoSubmit(1); return false;">
-			' . $editForm . '
+    protected function registerNewButtonToButtonBar(
+        ButtonBar $buttonBar,
+        string $position,
+        int $group,
+        int $sysLanguageUid,
+        int $l18nParent
+    ) {
+        if (
+            $this->firstEl['table'] !== 'sys_file_metadata'
+            && !empty($this->firstEl['table'])
+            && (
+                (
+                    (
+                        $this->isInconsistentLanguageHandlingAllowed()
+                        || $this->isPageInFreeTranslationMode
+                    )
+                    && $this->firstEl['table'] === 'tt_content'
+                )
+                || (
+                    $this->firstEl['table'] !== 'tt_content'
+                    && (
+                        $sysLanguageUid === 0
+                        || $l18nParent === 0
+                    )
+                )
+            )
+        ) {
+            $classNames = 't3js-editform-new';
 
-			<input type="hidden" name="returnUrl" value="' . htmlspecialchars($this->retUrl) . '" />
-			<input type="hidden" name="viewUrl" value="' . htmlspecialchars($this->viewUrl) . '" />';
-        if ($this->returnNewPageId) {
-            $formContent .= '<input type="hidden" name="returnNewPageId" value="1" />';
+            $newButton = $buttonBar->makeLinkButton()
+                ->setHref('#')
+                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
+                    'actions-add',
+                    Icon::SIZE_SMALL
+                ))
+                ->setShowLabelText(true)
+                ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.newDoc'));
+
+            if (!$this->isSavedRecord) {
+                $newButton->setDataAttributes(['is-new' => '']);
+            }
+
+            if ($classNames !== '') {
+                $newButton->setClasses($classNames);
+            }
+
+            $buttonBar->addButton($newButton, $position, $group);
         }
-        $formContent .= '<input type="hidden" name="popViewId" value="' . htmlspecialchars($this->viewId) . '" />';
-        if ($this->viewId_addParams) {
-            $formContent .= '<input type="hidden" name="popViewId_addParams" value="' . htmlspecialchars($this->viewId_addParams) . '" />';
-        }
-        $formContent .= '
-			<input type="hidden" name="closeDoc" value="0" />
-			<input type="hidden" name="doSave" value="0" />
-			<input type="hidden" name="_serialNumber" value="' . md5(microtime()) . '" />
-			<input type="hidden" name="_scrollPosition" value="" />';
-        return $formContent;
     }
 
     /**
-     * Create shortcut icon
+     * Register the duplication button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     * @param int $sysLanguageUid
+     * @param int $l18nParent
      */
-    public function shortCutLink()
+    protected function registerDuplicationButtonToButtonBar(
+        ButtonBar $buttonBar,
+        string $position,
+        int $group,
+        int $sysLanguageUid,
+        int $l18nParent
+    ) {
+        if (
+            $this->firstEl['table'] !== 'sys_file_metadata'
+            && !empty($this->firstEl['table'])
+            && (
+                (
+                    (
+                        $this->isInconsistentLanguageHandlingAllowed()
+                        || $this->isPageInFreeTranslationMode
+                    )
+                    && $this->firstEl['table'] === 'tt_content'
+                )
+                || (
+                    $this->firstEl['table'] !== 'tt_content'
+                    && (
+                        $sysLanguageUid === 0
+                        || $l18nParent === 0
+                    )
+                )
+            )
+            && $this->getTsConfigOption($this->firstEl['table'], 'showDuplicate')
+        ) {
+            $classNames = 't3js-editform-duplicate';
+
+            $duplicateButton = $buttonBar->makeLinkButton()
+                ->setHref('#')
+                ->setShowLabelText(true)
+                ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:rm.duplicateDoc'))
+                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
+                    'actions-document-duplicates-select',
+                    Icon::SIZE_SMALL
+                ));
+
+            if (!$this->isSavedRecord) {
+                $duplicateButton->setDataAttributes(['is-new' => '']);
+            }
+
+            if ($classNames !== '') {
+                $duplicateButton->setClasses($classNames);
+            }
+
+            $buttonBar->addButton($duplicateButton, $position, $group);
+        }
+    }
+
+    /**
+     * Register the delete button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     */
+    protected function registerDeleteButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group)
     {
-        if ($this->returnUrl !== ExtensionManagementUtility::siteRelPath('backend') . 'Resources/Private/Templates/Close.html') {
+        if (
+            $this->firstEl['deleteAccess']
+            && !$this->getDisableDelete()
+            && $this->isSavedRecord
+            && count($this->elementsData) === 1
+        ) {
+            $classNames = 't3js-editform-delete-record';
+            $returnUrl = $this->retUrl;
+            if ($this->firstEl['table'] === 'pages') {
+                parse_str((string)parse_url($returnUrl, PHP_URL_QUERY), $queryParams);
+                if (
+                    isset($queryParams['route'], $queryParams['id'])
+                    && (string)$this->firstEl['uid'] === (string)$queryParams['id']
+                ) {
+                    // TODO: Use the page's pid instead of 0, this requires a clean API to manipulate the page
+                    // tree from the outside to be able to mark the pid as active
+                    $returnUrl = (string)$this->uriBuilder->buildUriFromRoutePath($queryParams['route'], ['id' => 0]);
+                }
+            }
+
+            /** @var ReferenceIndex $referenceIndex */
+            $referenceIndex = GeneralUtility::makeInstance(ReferenceIndex::class);
+            $numberOfReferences = $referenceIndex->getNumberOfReferencedRecords(
+                $this->firstEl['table'],
+                (int)$this->firstEl['uid']
+            );
+
+            $referenceCountMessage = BackendUtility::referenceCount(
+                $this->firstEl['table'],
+                (int)$this->firstEl['uid'],
+                $this->getLanguageService()->sL(
+                    'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.referencesToRecord'
+                ),
+                $numberOfReferences
+            );
+            $translationCountMessage = BackendUtility::translationCount(
+                $this->firstEl['table'],
+                (int)$this->firstEl['uid'],
+                $this->getLanguageService()->sL(
+                    'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.translationsOfRecord'
+                )
+            );
+
+            $deleteUrl = (string)$this->uriBuilder->buildUriFromRoute('tce_db', [
+                'cmd' => [
+                    $this->firstEl['table'] => [
+                        $this->firstEl['uid'] => [
+                            'delete' => '1'
+                        ]
+                    ]
+                ],
+                'redirect' => $this->retUrl
+            ]);
+
+            $deleteButton = $buttonBar->makeLinkButton()
+                ->setClasses($classNames)
+                ->setDataAttributes([
+                    'return-url' => $returnUrl,
+                    'uid' => $this->firstEl['uid'],
+                    'table' => $this->firstEl['table'],
+                    'reference-count-message' => $referenceCountMessage,
+                    'translation-count-message' => $translationCountMessage
+                ])
+                ->setHref($deleteUrl)
+                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
+                    'actions-edit-delete',
+                    Icon::SIZE_SMALL
+                ))
+                ->setShowLabelText(true)
+                ->setTitle($this->getLanguageService()->getLL('deleteItem'));
+
+            $buttonBar->addButton($deleteButton, $position, $group);
+        }
+    }
+
+    /**
+     * Register the history button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     */
+    protected function registerHistoryButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group)
+    {
+        if (
+            count($this->elementsData) === 1
+            && !empty($this->firstEl['table'])
+            && $this->getTsConfigOption($this->firstEl['table'], 'showHistory')
+        ) {
+            $historyUrl = (string)$this->uriBuilder->buildUriFromRoute('record_history', [
+                'element' => $this->firstEl['table'] . ':' . $this->firstEl['uid'],
+                'returnUrl' => $this->R_URI,
+            ]);
+            $historyButton = $buttonBar->makeLinkButton()
+                ->setHref($historyUrl)
+                ->setTitle('Open history of this record')
+                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
+                    'actions-document-history-open',
+                    Icon::SIZE_SMALL
+                ));
+
+            $buttonBar->addButton($historyButton, $position, $group);
+        }
+    }
+
+    /**
+     * Register the columns only button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     */
+    protected function registerColumnsOnlyButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group)
+    {
+        if (
+            $this->columnsOnly
+            && count($this->elementsData) === 1
+        ) {
+            $columnsOnlyButton = $buttonBar->makeLinkButton()
+                ->setHref($this->R_URI . '&columnsOnly=')
+                ->setTitle($this->getLanguageService()->getLL('editWholeRecord'))
+                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
+                    'actions-open',
+                    Icon::SIZE_SMALL
+                ));
+
+            $buttonBar->addButton($columnsOnlyButton, $position, $group);
+        }
+    }
+
+    /**
+     * Register the open in new window button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     */
+    protected function registerOpenInNewWindowButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group)
+    {
+        $closeUrl = $this->getCloseUrl();
+        if ($this->returnUrl !== $closeUrl) {
+            $requestUri = GeneralUtility::linkThisScript([
+                'returnUrl' => $closeUrl,
+            ]);
+            $aOnClick = 'vHWin=window.open('
+                . GeneralUtility::quoteJSvalue($requestUri) . ','
+                . GeneralUtility::quoteJSvalue(md5($this->R_URI))
+                . ',\'width=670,height=500,status=0,menubar=0,scrollbars=1,resizable=1\');vHWin.focus();return false;';
+
+            $openInNewWindowButton = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar()
+                ->makeLinkButton()
+                ->setHref('#')
+                ->setTitle($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.openInNewWindow'))
+                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon('actions-window-open', Icon::SIZE_SMALL))
+                ->setOnClick($aOnClick);
+
+            $buttonBar->addButton($openInNewWindowButton, $position, $group);
+        }
+    }
+
+    /**
+     * Register the shortcut button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
+     */
+    protected function registerShortcutButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group)
+    {
+        if ($this->returnUrl !== $this->getCloseUrl()) {
             $shortCutButton = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar()->makeShortcutButton();
-            $shortCutButton->setModuleName($this->MCONF['name'])
+            $shortCutButton->setModuleName('xMOD_alt_doc.php')
                 ->setGetVariables([
                     'returnUrl',
                     'edit',
@@ -1453,34 +1821,174 @@ class EditDocumentController extends AbstractModule
                     'columnsOnly',
                     'returnNewPageId',
                     'noView']);
-            $this->moduleTemplate->getDocHeaderComponent()->getButtonBar()->addButton($shortCutButton);
+
+            $buttonBar->addButton($shortCutButton, $position, $group);
         }
     }
 
     /**
-     * Creates open-in-window link
+     * Register the CSH button to the button bar
+     *
+     * @param ButtonBar $buttonBar
+     * @param string $position
+     * @param int $group
      */
-    public function openInNewWindowLink()
+    protected function registerCshButtonToButtonBar(ButtonBar $buttonBar, string $position, int $group)
     {
-        $closeUrl = ExtensionManagementUtility::siteRelPath('backend') . 'Resources/Private/Templates/Close.html';
-        if ($this->returnUrl !== $closeUrl) {
-            $aOnClick = 'vHWin=window.open(' . GeneralUtility::quoteJSvalue(GeneralUtility::linkThisScript(
-                ['returnUrl' => PathUtility::getAbsoluteWebPath($closeUrl)]
-            ))
-                . ','
-                . GeneralUtility::quoteJSvalue(md5($this->R_URI))
-                . ',\'width=670,height=500,status=0,menubar=0,scrollbars=1,resizable=1\');vHWin.focus();return false;';
-            $openInNewWindowButton = $this->moduleTemplate->getDocHeaderComponent()->getButtonBar()
-                ->makeLinkButton()
-                ->setHref('#')
-                ->setTitle($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.openInNewWindow'))
-                ->setIcon($this->moduleTemplate->getIconFactory()->getIcon('actions-window-open', Icon::SIZE_SMALL))
-                ->setOnClick($aOnClick);
-            $this->moduleTemplate->getDocHeaderComponent()->getButtonBar()->addButton(
-                $openInNewWindowButton,
-                ButtonBar::BUTTON_POSITION_RIGHT
+        $cshButton = $buttonBar->makeHelpButton()->setModuleName('xMOD_csh_corebe')->setFieldName('TCEforms');
+
+        $buttonBar->addButton($cshButton, $position, $group);
+    }
+
+    /**
+     * Get the count of connected translated content elements
+     *
+     * @param int $page
+     * @param int $column
+     * @param int $language
+     * @return int
+     */
+    protected function getConnectedContentElementTranslationsCount(int $page, int $column, int $language): int
+    {
+        $queryBuilder = $this->getQueryBuilderForTranslationMode($page, $column, $language);
+
+        return (int)$queryBuilder
+            ->andWhere(
+                $queryBuilder->expr()->gt(
+                    $GLOBALS['TCA']['tt_content']['ctrl']['transOrigPointerField'],
+                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                )
+            )
+            ->execute()
+            ->fetchColumn(0);
+    }
+
+    /**
+     * Get the count of standalone translated content elements
+     *
+     * @param int $page
+     * @param int $column
+     * @param int $language
+     * @return int
+     */
+    protected function getStandAloneContentElementTranslationsCount(int $page, int $column, int $language): int
+    {
+        $queryBuilder = $this->getQueryBuilderForTranslationMode($page, $column, $language);
+
+        return (int)$queryBuilder
+            ->andWhere(
+                $queryBuilder->expr()->eq(
+                    $GLOBALS['TCA']['tt_content']['ctrl']['transOrigPointerField'],
+                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
+                )
+            )
+            ->execute()
+            ->fetchColumn(0);
+    }
+
+    /**
+     * Get the query builder for the translation mode
+     *
+     * @param int $page
+     * @param int $column
+     * @param int $language
+     * @return QueryBuilder
+     */
+    protected function getQueryBuilderForTranslationMode(int $page, int $column, int $language): QueryBuilder
+    {
+        $languageField = $GLOBALS['TCA']['tt_content']['ctrl']['languageField'];
+
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getQueryBuilderForTable('tt_content');
+
+        $queryBuilder->getRestrictions()
+            ->removeAll()
+            ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
+            ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
+
+        return $queryBuilder
+            ->count('uid')
+            ->from('tt_content')
+            ->where(
+                $queryBuilder->expr()->eq(
+                    'pid',
+                    $queryBuilder->createNamedParameter($page, \PDO::PARAM_INT)
+                ),
+                $queryBuilder->expr()->eq(
+                    $languageField,
+                    $queryBuilder->createNamedParameter($language, \PDO::PARAM_INT)
+                ),
+                $queryBuilder->expr()->eq(
+                    'colPos',
+                    $queryBuilder->createNamedParameter($column, \PDO::PARAM_INT)
+                )
             );
+    }
+
+    /**
+     * Put together the various elements (buttons, selectors, form) into a table
+     *
+     * @param string $editForm HTML form.
+     * @return string Composite HTML
+     */
+    protected function compileForm(string $editForm): string
+    {
+        $formContent = '
+            <form
+                action="' . htmlspecialchars($this->R_URI) . '"
+                method="post"
+                enctype="multipart/form-data"
+                name="editform"
+                id="EditDocumentController"
+            >
+            ' . $editForm . '
+            <input type="hidden" name="returnUrl" value="' . htmlspecialchars($this->retUrl) . '" />
+            <input type="hidden" name="viewUrl" value="' . htmlspecialchars($this->viewUrl) . '" />
+            <input type="hidden" name="popViewId" value="' . htmlspecialchars((string)$this->viewId) . '" />
+            <input type="hidden" name="closeDoc" value="0" />
+            <input type="hidden" name="doSave" value="0" />
+            <input type="hidden" name="_serialNumber" value="' . md5(microtime()) . '" />
+            <input type="hidden" name="_scrollPosition" value="" />';
+        if ($this->returnNewPageId) {
+            $formContent .= '<input type="hidden" name="returnNewPageId" value="1" />';
         }
+        if ($this->viewId_addParams) {
+            $formContent .= '<input type="hidden" name="popViewId_addParams" value="' . htmlspecialchars($this->viewId_addParams) . '" />';
+        }
+        return $formContent;
+    }
+
+    /**
+     * Returns if delete for the current table is disabled by configuration.
+     * For sys_file_metadata in default language delete is always disabled.
+     *
+     * @return bool
+     */
+    protected function getDisableDelete(): bool
+    {
+        $disableDelete = false;
+        if ($this->firstEl['table'] === 'sys_file_metadata') {
+            $row = BackendUtility::getRecord('sys_file_metadata', $this->firstEl['uid'], 'sys_language_uid');
+            $languageUid = $row['sys_language_uid'];
+            if ($languageUid === 0) {
+                $disableDelete = true;
+            }
+        } else {
+            $disableDelete = (bool)$this->getTsConfigOption($this->firstEl['table'] ?? '', 'disableDelete');
+        }
+        return $disableDelete;
+    }
+
+    /**
+     * Returns the URL (usually for the "returnUrl") which closes the current window.
+     * Used when editing a record in a popup.
+     *
+     * @return string
+     */
+    protected function getCloseUrl(): string
+    {
+        $closeUrl = GeneralUtility::getFileAbsFileName('EXT:backend/Resources/Public/Html/Close.html');
+        return PathUtility::getAbsoluteWebPath($closeUrl);
     }
 
     /***************************
@@ -1495,9 +2003,9 @@ class EditDocumentController extends AbstractModule
      *
      * @param string $table Table name
      * @param int $uid Uid for which to create a new language
-     * @param int $pid Pid of the record
+     * @param int|null $pid Pid of the record
      */
-    public function languageSwitch($table, $uid, $pid = null)
+    protected function languageSwitch(string $table, int $uid, $pid = null)
     {
         $languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
         $transOrigPointerField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
@@ -1505,16 +2013,25 @@ class EditDocumentController extends AbstractModule
         if ($this->getBackendUser()->check('tables_modify', $table)
             && $languageField
             && $transOrigPointerField
-            && $table !== 'pages_language_overlay'
         ) {
-            if (is_null($pid)) {
+            if ($pid === null) {
                 $row = BackendUtility::getRecord($table, $uid, 'pid');
                 $pid = $row['pid'];
             }
             // Get all available languages for the page
-            $langRows = $this->getLanguages($pid);
+            // If editing a page, the translations of the current UID need to be fetched
+            if ($table === 'pages') {
+                $row = BackendUtility::getRecord($table, $uid, $GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']);
+                // Ensure the check is always done against the default language page
+                $availableLanguages = $this->getLanguages(
+                    (int)$row[$GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField']] ?: $uid,
+                    $table
+                );
+            } else {
+                $availableLanguages = $this->getLanguages((int)$pid, $table);
+            }
             // Page available in other languages than default language?
-            if (is_array($langRows) && count($langRows) > 1) {
+            if (count($availableLanguages) > 1) {
                 $rowsByLang = [];
                 $fetchFields = 'uid,' . $languageField . ',' . $transOrigPointerField;
                 // Get record in current language
@@ -1577,40 +2094,51 @@ class EditDocumentController extends AbstractModule
                     }
                     $languageMenu = $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->makeMenu();
                     $languageMenu->setIdentifier('_langSelector');
-                    foreach ($langRows as $lang) {
-                        if ($this->getBackendUser()->checkLanguageAccess($lang['uid'])) {
-                            $newTranslation = isset($rowsByLang[$lang['uid']]) ? '' : ' [' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.new')) . ']';
-                            // Create url for creating a localized record
-                            $addOption = true;
-                            if ($newTranslation) {
-                                $redirectUrl = BackendUtility::getModuleUrl('record_edit', [
-                                    'justLocalized' => $table . ':' . $rowsByLang[0]['uid'] . ':' . $lang['uid'],
-                                    'returnUrl' => $this->retUrl
-                                ]);
+                    foreach ($availableLanguages as $language) {
+                        $languageId = $language->getLanguageId();
+                        $selectorOptionLabel = $language->getTitle();
+                        // Create url for creating a localized record
+                        $addOption = true;
+                        $href = '';
+                        if (!isset($rowsByLang[$languageId])) {
+                            // Translation in this language does not exist
+                            $selectorOptionLabel .= ' [' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.new')) . ']';
+                            $redirectUrl = (string)$this->uriBuilder->buildUriFromRoute('record_edit', [
+                                'justLocalized' => $table . ':' . $rowsByLang[0]['uid'] . ':' . $languageId,
+                                'returnUrl' => $this->retUrl
+                            ]);
 
-                                if (array_key_exists(0, $rowsByLang)) {
-                                    $href = BackendUtility::getLinkToDataHandlerAction(
-                                        '&cmd[' . $table . '][' . $rowsByLang[0]['uid'] . '][localize]=' . $lang['uid'],
-                                        $redirectUrl
-                                    );
-                                } else {
-                                    $addOption = false;
-                                }
+                            if (array_key_exists(0, $rowsByLang)) {
+                                $href = BackendUtility::getLinkToDataHandlerAction(
+                                    '&cmd[' . $table . '][' . $rowsByLang[0]['uid'] . '][localize]=' . $languageId,
+                                    $redirectUrl
+                                );
                             } else {
-                                $href = BackendUtility::getModuleUrl('record_edit', [
-                                    'edit[' . $table . '][' . $rowsByLang[$lang['uid']]['uid'] . ']' => 'edit',
-                                    'returnUrl' => $this->retUrl
-                                ]);
+                                $addOption = false;
                             }
-                            if ($addOption) {
-                                $menuItem = $languageMenu->makeMenuItem()
-                                                         ->setTitle($lang['title'] . $newTranslation)
-                                                         ->setHref($href);
-                                if ((int)$lang['uid'] === $currentLanguage) {
-                                    $menuItem->setActive(true);
-                                }
-                                $languageMenu->addMenuItem($menuItem);
+                        } else {
+                            $params = [
+                                'edit[' . $table . '][' . $rowsByLang[$languageId]['uid'] . ']' => 'edit',
+                                'returnUrl' => $this->retUrl
+                            ];
+                            if ($table === 'pages') {
+                                // Disallow manual adjustment of the language field for pages
+                                $params['overrideVals'] = [
+                                    'pages' => [
+                                        'sys_language_uid' => $languageId
+                                    ]
+                                ];
                             }
+                            $href = (string)$this->uriBuilder->buildUriFromRoute('record_edit', $params);
+                        }
+                        if ($addOption) {
+                            $menuItem = $languageMenu->makeMenuItem()
+                                ->setTitle($selectorOptionLabel)
+                                ->setHref($href);
+                            if ($languageId === $currentLanguage) {
+                                $menuItem->setActive(true);
+                            }
+                            $languageMenu->addMenuItem($menuItem);
                         }
                     }
                     $this->moduleTemplate->getDocHeaderComponent()->getMenuRegistry()->addMenu($languageMenu);
@@ -1622,22 +2150,31 @@ class EditDocumentController extends AbstractModule
     /**
      * Redirects to FormEngine with new parameters to edit a just created localized record
      *
-     * @param string $justLocalized String passed by GET &justLocalized=
+     * @param ServerRequestInterface $request Incoming request object
+     * @return ResponseInterface|null Possible redirect response
      */
-    public function localizationRedirect($justLocalized)
+    protected function localizationRedirect(ServerRequestInterface $request): ?ResponseInterface
     {
-        list($table, $origUid, $language) = explode(':', $justLocalized);
+        $justLocalized = $request->getQueryParams()['justLocalized'];
+
+        if (empty($justLocalized)) {
+            return null;
+        }
+
+        [$table, $origUid, $language] = explode(':', $justLocalized);
+
         if ($GLOBALS['TCA'][$table]
             && $GLOBALS['TCA'][$table]['ctrl']['languageField']
             && $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField']
         ) {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                ->getQueryBuilderForTable($table);
+            $parsedBody = $request->getParsedBody();
+            $queryParams = $request->getQueryParams();
+
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
             $queryBuilder->getRestrictions()
                 ->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
                 ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
-
             $localizedRecord = $queryBuilder->select('uid')
                 ->from($table)
                 ->where(
@@ -1652,101 +2189,106 @@ class EditDocumentController extends AbstractModule
                 )
                 ->execute()
                 ->fetch();
-
+            $returnUrl = $parsedBody['returnUrl'] ?? $queryParams['returnUrl'] ?? '';
             if (is_array($localizedRecord)) {
-                // Create parameters and finally run the classic page module for creating a new page translation
-                $location = BackendUtility::getModuleUrl('record_edit', [
-                    'edit[' . $table . '][' . $localizedRecord['uid'] . ']' => 'edit',
-                    'returnUrl' => GeneralUtility::sanitizeLocalUrl(GeneralUtility::_GP('returnUrl'))
-                ]);
-                HttpUtility::redirect($location);
+                // Create redirect response to self to edit just created record
+                return new RedirectResponse(
+                    (string)$this->uriBuilder->buildUriFromRoute(
+                        'record_edit',
+                        [
+                            'edit[' . $table . '][' . $localizedRecord['uid'] . ']' => 'edit',
+                            'returnUrl' => GeneralUtility::sanitizeLocalUrl($returnUrl)
+                        ]
+                    ),
+                    303
+                );
             }
         }
+        return null;
     }
 
     /**
-     * Returns sys_language records available for record translations on given page.
+     * Returns languages  available for record translations on given page.
      *
      * @param int $id Page id: If zero, the query will select all sys_language records from root level which are NOT
      *                hidden. If set to another value, the query will select all sys_language records that has a
-     *                pages_language_overlay record on that page (and is not hidden, unless you are admin user)
-     * @return array Language records including faked record for default language
+     *                translation record on that page (and is not hidden, unless you are admin user)
+     * @param string $table For pages we want all languages, for other records the languages of the page translations
+     * @return SiteLanguage[] Language
      */
-    public function getLanguages($id)
+    protected function getLanguages(int $id, string $table): array
     {
-        $modSharedTSconfig = BackendUtility::getModTSconfig($id, 'mod.SHARED');
-        // Fallback non sprite-configuration
-        if (preg_match('/\\.gif$/', $modSharedTSconfig['properties']['defaultLanguageFlag'])) {
-            $modSharedTSconfig['properties']['defaultLanguageFlag'] = str_replace(
-                '.gif',
-                '',
-                $modSharedTSconfig['properties']['defaultLanguageFlag']
-            );
+        // This usually happens when a non-pages record is added after another, so we are fetching the proper page ID
+        if ($id < 0 && $table !== 'pages') {
+            $pageId = $this->pageinfo['uid'] ?? null;
+            if ($pageId !== null) {
+                $pageId = (int)$pageId;
+            } else {
+                $fullRecord = BackendUtility::getRecord($table, abs($id));
+                $pageId = (int)$fullRecord['pid'];
+            }
+        } else {
+            if ($table === 'pages' && $id > 0) {
+                $fullRecord = BackendUtility::getRecordWSOL('pages', $id);
+                $id = (int)($fullRecord['t3ver_oid'] ?: $fullRecord['uid']);
+            }
+            $pageId = $id;
         }
-        $languages = [
-            0 => [
-                'uid' => 0,
-                'pid' => 0,
-                'hidden' => 0,
-                'title' => $modSharedTSconfig['properties']['defaultLanguageLabel'] !== ''
-                        ? $modSharedTSconfig['properties']['defaultLanguageLabel'] . ' (' . $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:defaultLanguage') . ')'
-                        : $this->getLanguageService()->sL('LLL:EXT:lang/Resources/Private/Language/locallang_mod_web_list.xlf:defaultLanguage'),
-                'flag' => $modSharedTSconfig['properties']['defaultLanguageFlag']
-            ]
-        ];
+        try {
+            $site = GeneralUtility::makeInstance(SiteFinder::class)->getSiteByPageId($pageId);
+        } catch (SiteNotFoundException $e) {
+            $site = new NullSite();
+        }
 
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable('sys_language');
-
-        $queryBuilder->select('s.uid', 's.pid', 's.hidden', 's.title', 's.flag')
-            ->from('sys_language', 's')
-            ->groupBy('s.uid', 's.pid', 's.hidden', 's.title', 's.flag')
-            ->orderBy('s.sorting');
-
-        if ($id) {
-            $queryBuilder->getRestrictions()
-                ->removeAll()
+        // Fetch the current translations of this page, to only show the ones where there is a page translation
+        $allLanguages = $site->getAvailableLanguages($this->getBackendUser(), false, $pageId);
+        if ($table !== 'pages' && $id > 0) {
+            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('pages');
+            $queryBuilder->getRestrictions()->removeAll()
                 ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
                 ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
+            $statement = $queryBuilder->select('uid', $GLOBALS['TCA']['pages']['ctrl']['languageField'])
+                ->from('pages')
+                ->where(
+                    $queryBuilder->expr()->eq(
+                        $GLOBALS['TCA']['pages']['ctrl']['transOrigPointerField'],
+                        $queryBuilder->createNamedParameter($pageId, \PDO::PARAM_INT)
+                    )
+                )
+                ->execute();
 
-            if (!$this->getBackendUser()->isAdmin()) {
-                $queryBuilder->getRestrictions()->add(GeneralUtility::makeInstance(HiddenRestriction::class));
+            $availableLanguages = [];
+
+            if ($allLanguages[0] ?? false) {
+                $availableLanguages = [
+                    0 => $allLanguages[0]
+                ];
             }
 
-            // Add join with pages_languages_overlay table to only show active languages
-            $queryBuilder->from('pages_language_overlay', 'o')
-                ->where(
-                    $queryBuilder->expr()->eq('o.sys_language_uid', $queryBuilder->quoteIdentifier('s.uid')),
-                    $queryBuilder->expr()->eq('o.pid', $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT))
-                );
+            while ($row = $statement->fetch()) {
+                $languageId = (int)$row[$GLOBALS['TCA']['pages']['ctrl']['languageField']];
+                if (isset($allLanguages[$languageId])) {
+                    $availableLanguages[$languageId] = $allLanguages[$languageId];
+                }
+            }
+            return $availableLanguages;
         }
-
-        $result = $queryBuilder->execute();
-        while ($row = $result->fetch()) {
-            $languages[$row['uid']] = $row;
-        }
-
-        return $languages;
+        return $allLanguages;
     }
 
-    /***************************
-     *
-     * Other functions
-     *
-     ***************************/
     /**
      * Fix $this->editconf if versioning applies to any of the records
      *
      * @param array|bool $mapArray Mapping between old and new ids if auto-versioning has been performed.
      */
-    public function fixWSversioningInEditConf($mapArray = false)
+    protected function fixWSversioningInEditConf($mapArray = false): void
     {
         // Traverse the editConf array
         if (is_array($this->editconf)) {
             // Tables:
             foreach ($this->editconf as $table => $conf) {
                 if (is_array($conf) && $GLOBALS['TCA'][$table]) {
-                    // Traverse the keys/comments of each table (keys can be a commalist of uids)
+                    // Traverse the keys/comments of each table (keys can be a comma list of uids)
                     $newConf = [];
                     foreach ($conf as $cKey => $cmd) {
                         if ($cmd === 'edit') {
@@ -1759,7 +2301,7 @@ class EditDocumentController extends AbstractModule
                                     }
                                 } else {
                                     // Default, look for versions in workspace for record:
-                                    $calcPRec = $this->getRecordForEdit($table, $theUid);
+                                    $calcPRec = $this->getRecordForEdit((string)$table, (int)$theUid);
                                     if (is_array($calcPRec)) {
                                         // Setting UID again if it had changed, eg. due to workspace versioning.
                                         $ids[$idKey] = $calcPRec['uid'];
@@ -1784,77 +2326,75 @@ class EditDocumentController extends AbstractModule
      *
      * @param string $table Table name
      * @param int $theUid Record UID
-     * @return array Returns record to edit, FALSE if none
+     * @return array|false Returns record to edit, false if none
      */
-    public function getRecordForEdit($table, $theUid)
+    protected function getRecordForEdit(string $table, int $theUid)
     {
+        $tableSupportsVersioning = BackendUtility::isTableWorkspaceEnabled($table);
         // Fetch requested record:
-        $reqRecord = BackendUtility::getRecord($table, $theUid, 'uid,pid');
+        $reqRecord = BackendUtility::getRecord($table, $theUid, 'uid,pid' . ($tableSupportsVersioning ? ',t3ver_oid' : ''));
         if (is_array($reqRecord)) {
             // If workspace is OFFLINE:
             if ($this->getBackendUser()->workspace != 0) {
                 // Check for versioning support of the table:
-                if ($GLOBALS['TCA'][$table] && $GLOBALS['TCA'][$table]['ctrl']['versioningWS']) {
+                if ($tableSupportsVersioning) {
                     // If the record is already a version of "something" pass it by.
-                    if ($reqRecord['pid'] == -1) {
+                    if ($reqRecord['t3ver_oid'] > 0) {
                         // (If it turns out not to be a version of the current workspace there will be trouble, but
                         // that is handled inside DataHandler then and in the interface it would clearly be an error of
                         // links if the user accesses such a scenario)
                         return $reqRecord;
-                    } else {
-                        // The input record was online and an offline version must be found or made:
-                        // Look for version of this workspace:
-                        $versionRec = BackendUtility::getWorkspaceVersionOfRecord(
-                            $this->getBackendUser()->workspace,
-                            $table,
-                            $reqRecord['uid'],
-                            'uid,pid,t3ver_oid'
-                        );
-                        return is_array($versionRec) ? $versionRec : $reqRecord;
                     }
-                } else {
-                    // This means that editing cannot occur on this record because it was not supporting versioning
-                    // which is required inside an offline workspace.
-                    return false;
+                    // The input record was online and an offline version must be found or made:
+                    // Look for version of this workspace:
+                    $versionRec = BackendUtility::getWorkspaceVersionOfRecord(
+                        $this->getBackendUser()->workspace,
+                        $table,
+                        $reqRecord['uid'],
+                        'uid,pid,t3ver_oid'
+                    );
+                    return is_array($versionRec) ? $versionRec : $reqRecord;
                 }
-            } else {
-                // In ONLINE workspace, just return the originally requested record:
-                return $reqRecord;
+                // This means that editing cannot occur on this record because it was not supporting versioning
+                // which is required inside an offline workspace.
+                return false;
             }
-        } else {
-            // Return FALSE because the table/uid was not found anyway.
-            return false;
+            // In ONLINE workspace, just return the originally requested record:
+            return $reqRecord;
         }
+        // Return FALSE because the table/uid was not found anyway.
+        return false;
     }
 
     /**
      * Populates the variables $this->storeArray, $this->storeUrl, $this->storeUrlMd5
-     *
-     * @see makeDocSel()
+     * to prepare 'open documents' urls
      */
-    public function compileStoreDat()
+    protected function compileStoreData(): void
     {
+        // @todo: Refactor in TYPO3 v10: This GeneralUtility method fiddles with _GP()
         $this->storeArray = GeneralUtility::compileSelectedGetVarsFromArray(
             'edit,defVals,overrideVals,columnsOnly,noView,workspace',
             $this->R_URL_getvars
         );
-        $this->storeUrl = GeneralUtility::implodeArrayForUrl('', $this->storeArray);
+        $this->storeUrl = HttpUtility::buildQueryString($this->storeArray, '&');
         $this->storeUrlMd5 = md5($this->storeUrl);
     }
 
     /**
-     * Function used to look for configuration of buttons in the form: Fx. disabling buttons or showing them at various
-     * positions.
+     * Get a TSConfig 'option.' array, possibly for a specific table.
      *
-     * @param string $table The table for which the configuration may be specific
-     * @param string $key The option for look for. Default is checking if the saveDocNew button should be displayed.
-     * @return string Return value fetched from USER TSconfig
+     * @param string $table Table name
+     * @param string $key Options key
+     * @return string
      */
-    public function getNewIconMode($table, $key = 'saveDocNew')
+    protected function getTsConfigOption(string $table, string $key): string
     {
-        $TSconfig = $this->getBackendUser()->getTSConfig('options.' . $key);
-        $output = trim(isset($TSconfig['properties'][$table]) ? $TSconfig['properties'][$table] : $TSconfig['value']);
-        return $output;
+        return \trim((string)(
+            $this->getBackendUser()->getTSConfig()['options.'][$key . '.'][$table]
+            ?? $this->getBackendUser()->getTSConfig()['options.'][$key]
+            ?? ''
+        ));
     }
 
     /**
@@ -1866,9 +2406,12 @@ class EditDocumentController extends AbstractModule
      * - other values will call setDocument with ->retUrl
      *
      * @param int $mode the close mode: one of self::DOCUMENT_CLOSE_MODE_*
+     * @param ServerRequestInterface $request Incoming request
+     * @return ResponseInterface|null Redirect response if needed
      */
-    public function closeDocument($mode = self::DOCUMENT_CLOSE_MODE_DEFAULT)
+    protected function closeDocument($mode, ServerRequestInterface $request): ?ResponseInterface
     {
+        $setupArr = [];
         $mode = (int)$mode;
         // If current document is found in docHandler,
         // then unset it, possibly unset it ALL and finally, write it to the session data
@@ -1893,76 +2436,29 @@ class EditDocumentController extends AbstractModule
             $this->getBackendUser()->pushModuleData('FormEngine', [$this->docHandler, $this->docDat[1]]);
             BackendUtility::setUpdateSignal('OpendocsController::updateNumber', count($this->docHandler));
         }
-        if ($mode !== self::DOCUMENT_CLOSE_MODE_NO_REDIRECT) {
-            // If ->returnEditConf is set, then add the current content of editconf to the ->retUrl variable: (used by
-            // other scripts, like wizard_add, to know which records was created or so...)
-            if ($this->returnEditConf && $this->retUrl != BackendUtility::getModuleUrl('dummy')) {
-                $this->retUrl .= '&returnEditConf=' . rawurlencode(json_encode($this->editconf));
-            }
-
-            // If mode is NOT set (means 0) OR set to 1, then make a header location redirect to $this->retUrl
-            if ($mode === self::DOCUMENT_CLOSE_MODE_DEFAULT || $mode === self::DOCUMENT_CLOSE_MODE_REDIRECT) {
-                HttpUtility::redirect($this->retUrl);
-            } else {
-                $this->setDocument('', $this->retUrl);
-            }
+        if ($mode === self::DOCUMENT_CLOSE_MODE_NO_REDIRECT) {
+            return null;
         }
-    }
-
-    /**
-     * Redirects to the document pointed to by $currentDocFromHandlerMD5 OR $retUrl (depending on some internal
-     * calculations).
-     * Most likely you will get a header-location redirect from this function.
-     *
-     * @param string $currentDocFromHandlerMD5 Pointer to the document in the docHandler array
-     * @param string $retUrl Alternative/Default retUrl
-     */
-    public function setDocument($currentDocFromHandlerMD5 = '', $retUrl = '')
-    {
-        if ($retUrl === '') {
-            return;
+        // If ->returnEditConf is set, then add the current content of editconf to the ->retUrl variable: used by
+        // other scripts, like wizard_add, to know which records was created or so...
+        if ($this->returnEditConf && $this->retUrl != (string)$this->uriBuilder->buildUriFromRoute('dummy')) {
+            $this->retUrl .= '&returnEditConf=' . rawurlencode(json_encode($this->editconf));
         }
-        if (!$this->modTSconfig['properties']['disableDocSelector']
-            && is_array($this->docHandler)
-            && !empty($this->docHandler)
-        ) {
-            if (isset($this->docHandler[$currentDocFromHandlerMD5])) {
-                $setupArr = $this->docHandler[$currentDocFromHandlerMD5];
-            } else {
-                $setupArr = reset($this->docHandler);
-            }
-            if ($setupArr[2]) {
-                $sParts = parse_url(GeneralUtility::getIndpEnv('REQUEST_URI'));
+        // If mode is NOT set (means 0) OR set to 1, then make a header location redirect to $this->retUrl
+        if ($mode === self::DOCUMENT_CLOSE_MODE_DEFAULT || $mode === self::DOCUMENT_CLOSE_MODE_REDIRECT) {
+            return new RedirectResponse($this->retUrl, 303);
+        }
+        if ($this->retUrl === '') {
+            return null;
+        }
+        $retUrl = $this->returnUrl;
+        if (is_array($this->docHandler) && !empty($this->docHandler)) {
+            if (!empty($setupArr[2])) {
+                $sParts = parse_url($request->getAttribute('normalizedParams')->getRequestUri());
                 $retUrl = $sParts['path'] . '?' . $setupArr[2] . '&returnUrl=' . rawurlencode($retUrl);
             }
         }
-        HttpUtility::redirect($retUrl);
-    }
-
-    /**
-     * Injects the request object for the current request or subrequest
-     *
-     * @param ServerRequestInterface $request the current request
-     * @param ResponseInterface $response
-     * @return ResponseInterface the response with the content
-     */
-    public function mainAction(ServerRequestInterface $request, ResponseInterface $response)
-    {
-        BackendUtility::lockRecords();
-
-        // Preprocessing, storing data if submitted to
-        $this->preInit();
-
-        // Checks, if a save button has been clicked (or the doSave variable is sent)
-        if ($this->doProcessData()) {
-            $this->processData();
-        }
-
-        $this->init();
-        $this->main();
-
-        $response->getBody()->write($this->moduleTemplate->renderContent());
-        return $response;
+        return new RedirectResponse($retUrl, 303);
     }
 
     /**

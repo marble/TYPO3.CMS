@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Reflection;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +15,67 @@ namespace TYPO3\CMS\Extbase\Reflection;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Extbase\Utility\TypeHandlingUtility;
+namespace TYPO3\CMS\Extbase\Reflection;
+
+use Doctrine\Common\Annotations\AnnotationReader;
+use phpDocumentor\Reflection\DocBlock\Tags\Param;
+use phpDocumentor\Reflection\DocBlockFactory;
+use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
+use Symfony\Component\PropertyInfo\Extractor\ReflectionExtractor;
+use Symfony\Component\PropertyInfo\PropertyInfoExtractor;
+use Symfony\Component\PropertyInfo\Type;
+use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\Type\BitSet;
+use TYPO3\CMS\Core\Utility\ClassNamingUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\CMS\Extbase\Annotation\IgnoreValidation;
+use TYPO3\CMS\Extbase\Annotation\Inject;
+use TYPO3\CMS\Extbase\Annotation\ORM\Cascade;
+use TYPO3\CMS\Extbase\Annotation\ORM\Lazy;
+use TYPO3\CMS\Extbase\Annotation\ORM\Transient;
+use TYPO3\CMS\Extbase\Annotation\Validate;
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
+use TYPO3\CMS\Extbase\DomainObject\AbstractValueObject;
+use TYPO3\CMS\Extbase\Mvc\Controller\ControllerInterface;
+use TYPO3\CMS\Extbase\Reflection\ClassSchema\Exception\NoSuchMethodException;
+use TYPO3\CMS\Extbase\Reflection\ClassSchema\Exception\NoSuchPropertyException;
+use TYPO3\CMS\Extbase\Reflection\ClassSchema\Method;
+use TYPO3\CMS\Extbase\Reflection\ClassSchema\Property;
+use TYPO3\CMS\Extbase\Reflection\ClassSchema\PropertyCharacteristics;
+use TYPO3\CMS\Extbase\Reflection\DocBlock\Tags\Null_;
+use TYPO3\CMS\Extbase\Validation\Exception\InvalidTypeHintException;
+use TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationConfigurationException;
+use TYPO3\CMS\Extbase\Validation\ValidatorClassNameResolver;
 
 /**
  * A class schema
- *
- * @license http://www.gnu.org/licenses/lgpl.html GNU Lesser General Public License, version 3 or later
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class ClassSchema
 {
+    private const BIT_CLASS_IS_ENTITY = 1 << 0;
+    private const BIT_CLASS_IS_VALUE_OBJECT = 1 << 1;
+    private const BIT_CLASS_IS_AGGREGATE_ROOT = 1 << 2;
+    private const BIT_CLASS_IS_CONTROLLER = 1 << 3;
+    private const BIT_CLASS_IS_SINGLETON = 1 << 4;
+    private const BIT_CLASS_HAS_CONSTRUCTOR = 1 << 5;
+    private const BIT_CLASS_HAS_INJECT_METHODS = 1 << 6;
+    private const BIT_CLASS_HAS_INJECT_PROPERTIES = 1 << 7;
+
     /**
-     * Available model types
+     * @var BitSet
      */
-    const MODELTYPE_ENTITY = 1;
-    const MODELTYPE_VALUEOBJECT = 2;
+    private $bitSet;
+
+    /**
+     * @var array
+     */
+    private static $propertyObjects = [];
+
+    /**
+     * @var array
+     */
+    private static $methodObjects = [];
 
     /**
      * Name of the class this schema is referring to
@@ -37,27 +85,6 @@ class ClassSchema
     protected $className;
 
     /**
-     * Model type of the class this schema is referring to
-     *
-     * @var int
-     */
-    protected $modelType = self::MODELTYPE_ENTITY;
-
-    /**
-     * Whether a repository exists for the class this schema is referring to
-     *
-     * @var bool
-     */
-    protected $aggregateRoot = false;
-
-    /**
-     * The name of the property holding the uuid of an entity, if any.
-     *
-     * @var string
-     */
-    protected $uuidPropertyName;
-
-    /**
      * Properties of the class which need to be persisted
      *
      * @var array
@@ -65,20 +92,369 @@ class ClassSchema
     protected $properties = [];
 
     /**
-     * The properties forming the identity of an object
-     *
      * @var array
      */
-    protected $identityProperties = [];
+    private $methods = [];
+
+    /**
+     * @var array
+     */
+    private $injectMethods = [];
+
+    /**
+     * @var PropertyInfoExtractor
+     */
+    private static $propertyInfoExtractor;
+
+    /**
+     * @var DocBlockFactory
+     */
+    private static $docBlockFactory;
 
     /**
      * Constructs this class schema
      *
      * @param string $className Name of the class this schema is referring to
+     * @throws InvalidTypeHintException
+     * @throws InvalidValidationConfigurationException
+     * @throws \ReflectionException
      */
-    public function __construct($className)
+    public function __construct(string $className)
     {
         $this->className = $className;
+        $this->bitSet = new BitSet();
+
+        $reflectionClass = new \ReflectionClass($className);
+
+        if ($reflectionClass->implementsInterface(SingletonInterface::class)) {
+            $this->bitSet->set(self::BIT_CLASS_IS_SINGLETON);
+        }
+
+        if ($reflectionClass->implementsInterface(ControllerInterface::class)) {
+            $this->bitSet->set(self::BIT_CLASS_IS_CONTROLLER);
+        }
+
+        if ($reflectionClass->isSubclassOf(AbstractEntity::class)) {
+            $this->bitSet->set(self::BIT_CLASS_IS_ENTITY);
+
+            $possibleRepositoryClassName = ClassNamingUtility::translateModelNameToRepositoryName($className);
+            if (class_exists($possibleRepositoryClassName)) {
+                $this->bitSet->set(self::BIT_CLASS_IS_AGGREGATE_ROOT);
+            }
+        }
+
+        if ($reflectionClass->isSubclassOf(AbstractValueObject::class)) {
+            $this->bitSet->set(self::BIT_CLASS_IS_VALUE_OBJECT);
+        }
+
+        if (self::$propertyInfoExtractor === null) {
+            $docBlockFactory = DocBlockFactory::createInstance();
+            $phpDocExtractor = new PhpDocExtractor($docBlockFactory);
+
+            $reflectionExtractor = new ReflectionExtractor();
+
+            self::$propertyInfoExtractor = new PropertyInfoExtractor(
+                [],
+                [$phpDocExtractor, $reflectionExtractor]
+            );
+        }
+
+        if (self::$docBlockFactory === null) {
+            self::$docBlockFactory = DocBlockFactory::createInstance();
+            self::$docBlockFactory->registerTagHandler('author', Null_::class);
+            self::$docBlockFactory->registerTagHandler('covers', Null_::class);
+            self::$docBlockFactory->registerTagHandler('deprecated', Null_::class);
+            self::$docBlockFactory->registerTagHandler('link', Null_::class);
+            self::$docBlockFactory->registerTagHandler('method', Null_::class);
+            self::$docBlockFactory->registerTagHandler('property-read', Null_::class);
+            self::$docBlockFactory->registerTagHandler('property', Null_::class);
+            self::$docBlockFactory->registerTagHandler('property-write', Null_::class);
+            self::$docBlockFactory->registerTagHandler('return', Null_::class);
+            self::$docBlockFactory->registerTagHandler('see', Null_::class);
+            self::$docBlockFactory->registerTagHandler('since', Null_::class);
+            self::$docBlockFactory->registerTagHandler('source', Null_::class);
+            self::$docBlockFactory->registerTagHandler('throw', Null_::class);
+            self::$docBlockFactory->registerTagHandler('throws', Null_::class);
+            self::$docBlockFactory->registerTagHandler('uses', Null_::class);
+            self::$docBlockFactory->registerTagHandler('var', Null_::class);
+            self::$docBlockFactory->registerTagHandler('version', Null_::class);
+        }
+
+        $this->reflectProperties($reflectionClass);
+        $this->reflectMethods($reflectionClass);
+    }
+
+    /**
+     * @param \ReflectionClass $reflectionClass
+     * @throws \Doctrine\Common\Annotations\AnnotationException
+     * @throws \TYPO3\CMS\Extbase\Validation\Exception\NoSuchValidatorException
+     */
+    protected function reflectProperties(\ReflectionClass $reflectionClass): void
+    {
+        $annotationReader = new AnnotationReader();
+
+        $classHasInjectProperties = false;
+        $defaultProperties = $reflectionClass->getDefaultProperties();
+
+        foreach ($reflectionClass->getProperties() as $reflectionProperty) {
+            $propertyName = $reflectionProperty->getName();
+            // according to https://www.php.net/manual/en/reflectionclass.getdefaultproperties.php
+            // > This method only works for static properties when used on internal classes. The default
+            // > value of a static class property can not be tracked when using this method on user defined classes.
+            $defaultPropertyValue = $reflectionProperty->isStatic() ? null : $defaultProperties[$propertyName] ?? null;
+
+            $propertyCharacteristicsBit = 0;
+            $propertyCharacteristicsBit += $reflectionProperty->isPrivate() ? PropertyCharacteristics::VISIBILITY_PRIVATE : 0;
+            $propertyCharacteristicsBit += $reflectionProperty->isProtected() ? PropertyCharacteristics::VISIBILITY_PROTECTED : 0;
+            $propertyCharacteristicsBit += $reflectionProperty->isPublic() ? PropertyCharacteristics::VISIBILITY_PUBLIC : 0;
+            $propertyCharacteristicsBit += $reflectionProperty->isStatic() ? PropertyCharacteristics::IS_STATIC : 0;
+
+            $this->properties[$propertyName] = [
+                'c' => null, // cascade
+                'd' => $defaultPropertyValue, // defaultValue
+                'e' => null, // elementType
+                't' => null, // type
+                'v' => [] // validators
+            ];
+
+            $annotations = $annotationReader->getPropertyAnnotations($reflectionProperty);
+
+            /** @var array|Validate[] $validateAnnotations */
+            $validateAnnotations = array_filter($annotations, function ($annotation) {
+                return $annotation instanceof Validate;
+            });
+
+            if (count($validateAnnotations) > 0) {
+                foreach ($validateAnnotations as $validateAnnotation) {
+                    $validatorObjectName = ValidatorClassNameResolver::resolve($validateAnnotation->validator);
+
+                    $this->properties[$propertyName]['v'][] = [
+                        'name' => $validateAnnotation->validator,
+                        'options' => $validateAnnotation->options,
+                        'className' => $validatorObjectName,
+                    ];
+                }
+            }
+
+            if ($annotationReader->getPropertyAnnotation($reflectionProperty, Lazy::class) instanceof Lazy) {
+                $propertyCharacteristicsBit += PropertyCharacteristics::ANNOTATED_LAZY;
+            }
+
+            if ($annotationReader->getPropertyAnnotation($reflectionProperty, Transient::class) instanceof Transient) {
+                $propertyCharacteristicsBit += PropertyCharacteristics::ANNOTATED_TRANSIENT;
+            }
+
+            $isInjectProperty = $propertyName !== 'settings' && $reflectionProperty->isPublic()
+                && ($annotationReader->getPropertyAnnotation($reflectionProperty, Inject::class) instanceof Inject);
+
+            if ($isInjectProperty) {
+                $propertyCharacteristicsBit += PropertyCharacteristics::ANNOTATED_INJECT;
+                $classHasInjectProperties = true;
+            }
+
+            $this->properties[$propertyName]['propertyCharacteristicsBit'] = $propertyCharacteristicsBit;
+
+            /** @var Type[] $types */
+            $types = (array)self::$propertyInfoExtractor->getTypes($this->className, $propertyName, ['reflectionProperty' => $reflectionProperty]);
+            $typesCount = count($types);
+
+            if ($typesCount !== 1) {
+                continue;
+            }
+
+            if (($annotation = $annotationReader->getPropertyAnnotation($reflectionProperty, Cascade::class)) instanceof Cascade) {
+                /** @var Cascade $annotation */
+                $this->properties[$propertyName]['c'] = $annotation->value;
+            }
+
+            /** @var Type $type */
+            $type = current($types);
+
+            if ($type->isCollection()) {
+                $this->properties[$propertyName]['t'] = ltrim($type->getClassName() ?? $type->getBuiltinType(), '\\');
+
+                if (($collectionValueType = $type->getCollectionValueType()) instanceof Type) {
+                    $this->properties[$propertyName]['e'] = ltrim($collectionValueType->getClassName() ?? $type->getBuiltinType(), '\\');
+                }
+            } else {
+                $this->properties[$propertyName]['t'] = $types[0]->getClassName() ?? $types[0]->getBuiltinType();
+            }
+        }
+
+        if ($classHasInjectProperties) {
+            $this->bitSet->set(self::BIT_CLASS_HAS_INJECT_PROPERTIES);
+        }
+    }
+
+    /**
+     * @param \ReflectionClass $reflectionClass
+     * @throws InvalidTypeHintException
+     * @throws InvalidValidationConfigurationException
+     * @throws \Doctrine\Common\Annotations\AnnotationException
+     * @throws \ReflectionException
+     * @throws \TYPO3\CMS\Extbase\Validation\Exception\NoSuchValidatorException
+     */
+    protected function reflectMethods(\ReflectionClass $reflectionClass): void
+    {
+        $annotationReader = new AnnotationReader();
+
+        foreach ($reflectionClass->getMethods() as $reflectionMethod) {
+            $methodName = $reflectionMethod->getName();
+
+            $this->methods[$methodName] = [];
+            $this->methods[$methodName]['private']      = $reflectionMethod->isPrivate();
+            $this->methods[$methodName]['protected']    = $reflectionMethod->isProtected();
+            $this->methods[$methodName]['public']       = $reflectionMethod->isPublic();
+            $this->methods[$methodName]['static']       = $reflectionMethod->isStatic();
+            $this->methods[$methodName]['abstract']     = $reflectionMethod->isAbstract();
+            $this->methods[$methodName]['params']       = [];
+            $this->methods[$methodName]['tags']         = [];
+            $this->methods[$methodName]['annotations']  = [];
+            $this->methods[$methodName]['isAction']     = StringUtility::endsWith($methodName, 'Action');
+
+            $argumentValidators = [];
+
+            $annotations = $annotationReader->getMethodAnnotations($reflectionMethod);
+
+            /** @var array|Validate[] $validateAnnotations */
+            $validateAnnotations = array_filter($annotations, function ($annotation) {
+                return $annotation instanceof Validate;
+            });
+
+            if ($this->methods[$methodName]['isAction']
+                && $this->bitSet->get(self::BIT_CLASS_IS_CONTROLLER)
+                && count($validateAnnotations) > 0
+            ) {
+                foreach ($validateAnnotations as $validateAnnotation) {
+                    $validatorName = $validateAnnotation->validator;
+                    $validatorObjectName = ValidatorClassNameResolver::resolve($validatorName);
+
+                    $argumentValidators[$validateAnnotation->param][] = [
+                        'name' => $validatorName,
+                        'options' => $validateAnnotation->options,
+                        'className' => $validatorObjectName,
+                    ];
+                }
+            }
+
+            foreach ($annotations as $annotation) {
+                if ($annotation instanceof IgnoreValidation) {
+                    $this->methods[$methodName]['tags']['ignorevalidation'][] = $annotation->argumentName;
+                }
+            }
+
+            $docComment = $reflectionMethod->getDocComment();
+            $docComment = is_string($docComment) ? $docComment : '';
+
+            foreach ($reflectionMethod->getParameters() as $parameterPosition => $reflectionParameter) {
+                /* @var \ReflectionParameter $reflectionParameter */
+
+                $parameterName = $reflectionParameter->getName();
+
+                $ignoreValidationParameters = array_filter($annotations, function ($annotation) use ($parameterName) {
+                    return $annotation instanceof IgnoreValidation && $annotation->argumentName === $parameterName;
+                });
+
+                $this->methods[$methodName]['params'][$parameterName] = [];
+                $this->methods[$methodName]['params'][$parameterName]['position'] = $parameterPosition; // compat
+                $this->methods[$methodName]['params'][$parameterName]['byReference'] = $reflectionParameter->isPassedByReference(); // compat
+                $this->methods[$methodName]['params'][$parameterName]['array'] = $reflectionParameter->isArray(); // compat
+                $this->methods[$methodName]['params'][$parameterName]['optional'] = $reflectionParameter->isOptional();
+                $this->methods[$methodName]['params'][$parameterName]['allowsNull'] = $reflectionParameter->allowsNull();
+                $this->methods[$methodName]['params'][$parameterName]['class'] = null; // compat
+                $this->methods[$methodName]['params'][$parameterName]['type'] = null;
+                $this->methods[$methodName]['params'][$parameterName]['hasDefaultValue'] = $reflectionParameter->isDefaultValueAvailable();
+                $this->methods[$methodName]['params'][$parameterName]['defaultValue'] = null;
+                $this->methods[$methodName]['params'][$parameterName]['dependency'] = null; // Extbase DI
+                $this->methods[$methodName]['params'][$parameterName]['ignoreValidation'] = count($ignoreValidationParameters) === 1;
+                $this->methods[$methodName]['params'][$parameterName]['validators'] = [];
+
+                if ($reflectionParameter->isDefaultValueAvailable()) {
+                    $this->methods[$methodName]['params'][$parameterName]['defaultValue'] = $reflectionParameter->getDefaultValue();
+                }
+
+                if (($reflectionType = $reflectionParameter->getType()) instanceof \ReflectionNamedType) {
+                    $this->methods[$methodName]['params'][$parameterName]['type'] = $reflectionType->getName();
+                    $this->methods[$methodName]['params'][$parameterName]['allowsNull'] = $reflectionType->allowsNull();
+                }
+
+                if (($parameterClass = $reflectionParameter->getClass()) instanceof \ReflectionClass) {
+                    $this->methods[$methodName]['params'][$parameterName]['class'] = $parameterClass->getName();
+                    $this->methods[$methodName]['params'][$parameterName]['type'] = ltrim($parameterClass->getName(), '\\');
+                }
+
+                if ($docComment !== '' && $this->methods[$methodName]['params'][$parameterName]['type'] === null) {
+                    /*
+                     * We create (redundant) instances here in this loop due to the fact that
+                     * we do not want to analyse all doc blocks of all available methods. We
+                     * use this technique only if we couldn't grasp all necessary data via
+                     * reflection.
+                     *
+                     * Also, if we analyze all method doc blocks, we will trigger numerous errors
+                     * due to non PSR-5 compatible tags in the core and in user land code.
+                     *
+                     * Fetching the data type via doc blocks will also be deprecated and removed
+                     * in the near future.
+                     */
+                    $params = self::$docBlockFactory->create($docComment)
+                        ->getTagsByName('param');
+
+                    if (isset($params[$parameterPosition])) {
+                        /** @var Param $param */
+                        $param = $params[$parameterPosition];
+                        $this->methods[$methodName]['params'][$parameterName]['type'] = ltrim((string)$param->getType(), '\\');
+                    }
+                }
+
+                // Extbase DI
+                if ($reflectionParameter->getClass() instanceof \ReflectionClass
+                    && ($reflectionMethod->isConstructor() || $this->hasInjectMethodName($reflectionMethod))
+                ) {
+                    $this->methods[$methodName]['params'][$parameterName]['dependency'] = $reflectionParameter->getClass()->getName();
+                }
+
+                // Extbase Validation
+                if (isset($argumentValidators[$parameterName])) {
+                    if ($this->methods[$methodName]['params'][$parameterName]['type'] === null) {
+                        throw new InvalidTypeHintException(
+                            'Missing type information for parameter "$' . $parameterName . '" in ' . $this->className . '->' . $methodName . '(): Either use an @param annotation or use a type hint.',
+                            1515075192
+                        );
+                    }
+
+                    $this->methods[$methodName]['params'][$parameterName]['validators'] = $argumentValidators[$parameterName];
+                    unset($argumentValidators[$parameterName]);
+                }
+            }
+
+            // Extbase Validation
+            foreach ($argumentValidators as $parameterName => $validators) {
+                $validatorNames = array_column($validators, 'name');
+
+                throw new InvalidValidationConfigurationException(
+                    'Invalid validate annotation in ' . $this->className . '->' . $methodName . '(): The following validators have been defined for missing param "$' . $parameterName . '": ' . implode(', ', $validatorNames),
+                    1515073585
+                );
+            }
+
+            // Extbase
+            $this->methods[$methodName]['injectMethod'] = false;
+            if ($this->hasInjectMethodName($reflectionMethod)
+                && count($this->methods[$methodName]['params']) === 1
+                && reset($this->methods[$methodName]['params'])['dependency'] !== null
+            ) {
+                $this->methods[$methodName]['injectMethod'] = true;
+                $this->injectMethods[] = $methodName;
+            }
+        }
+
+        if (isset($this->methods['__construct'])) {
+            $this->bitSet->set(self::BIT_CLASS_HAS_CONSTRUCTOR);
+        }
+
+        if (count($this->injectMethods) > 0) {
+            $this->bitSet->set(self::BIT_CLASS_HAS_INJECT_METHODS);
+        }
     }
 
     /**
@@ -86,85 +462,34 @@ class ClassSchema
      *
      * @return string The class name
      */
-    public function getClassName()
+    public function getClassName(): string
     {
         return $this->className;
     }
 
     /**
-     * Adds (defines) a specific property and its type.
-     *
-     * @param string $name Name of the property
-     * @param string $type Type of the property
-     * @param bool $lazy Whether the property should be lazy-loaded when reconstituting
-     * @param string $cascade Strategy to cascade the object graph.
-     */
-    public function addProperty($name, $type, $lazy = false, $cascade = '')
-    {
-        $type = TypeHandlingUtility::parseType($type);
-        $this->properties[$name] = [
-            'type' => $type['type'],
-            'elementType' => $type['elementType'],
-            'lazy' => $lazy,
-            'cascade' => $cascade
-        ];
-    }
-
-    /**
-     * Returns the given property defined in this schema. Check with
-     * hasProperty($propertyName) before!
+     * @throws NoSuchPropertyException
      *
      * @param string $propertyName
-     * @return array
+     * @return Property
      */
-    public function getProperty($propertyName)
+    public function getProperty(string $propertyName): Property
     {
-        return is_array($this->properties[$propertyName]) ? $this->properties[$propertyName] : [];
-    }
+        $properties = $this->buildPropertyObjects();
 
-    /**
-     * Returns all properties defined in this schema
-     *
-     * @return array
-     */
-    public function getProperties()
-    {
-        return $this->properties;
-    }
-
-    /**
-     * Sets the model type of the class this schema is referring to.
-     *
-     * @param int $modelType The model type, one of the MODELTYPE_* constants.
-     * @throws \InvalidArgumentException
-     */
-    public function setModelType($modelType)
-    {
-        if ($modelType < self::MODELTYPE_ENTITY || $modelType > self::MODELTYPE_VALUEOBJECT) {
-            throw new \InvalidArgumentException('"' . $modelType . '" is an invalid model type.', 1212519195);
+        if (!isset($properties[$propertyName])) {
+            throw NoSuchPropertyException::create($this->className, $propertyName);
         }
-        $this->modelType = $modelType;
+
+        return $properties[$propertyName];
     }
 
     /**
-     * Returns the model type of the class this schema is referring to.
-     *
-     * @return int The model type, one of the MODELTYPE_* constants.
+     * @return array|Property[]
      */
-    public function getModelType()
+    public function getProperties(): array
     {
-        return $this->modelType;
-    }
-
-    /**
-     * Marks the class if it is root of an aggregate and therefore accessible
-     * through a repository - or not.
-     *
-     * @param bool $isRoot TRUE if it is the root of an aggregate
-     */
-    public function setAggregateRoot($isRoot)
-    {
-        $this->aggregateRoot = $isRoot;
+        return $this->buildPropertyObjects();
     }
 
     /**
@@ -173,9 +498,9 @@ class ClassSchema
      *
      * @return bool TRUE if it is managed
      */
-    public function isAggregateRoot()
+    public function isAggregateRoot(): bool
     {
-        return $this->aggregateRoot;
+        return $this->bitSet->get(self::BIT_CLASS_IS_AGGREGATE_ROOT);
     }
 
     /**
@@ -184,62 +509,173 @@ class ClassSchema
      * @param string $propertyName Name of the property
      * @return bool
      */
-    public function hasProperty($propertyName)
+    public function hasProperty(string $propertyName): bool
     {
         return array_key_exists($propertyName, $this->properties);
     }
 
     /**
-     * Sets the property marked as uuid of an object with @uuid
-     *
-     * @param string $propertyName
-     * @throws \InvalidArgumentException
+     * @return bool
      */
-    public function setUuidPropertyName($propertyName)
+    public function hasConstructor(): bool
     {
-        if (!array_key_exists($propertyName, $this->properties)) {
-            throw new \InvalidArgumentException('Property "' . $propertyName . '" must be added to the class schema before it can be marked as UUID property.', 1233863842);
-        }
-        $this->uuidPropertyName = $propertyName;
+        return $this->bitSet->get(self::BIT_CLASS_HAS_CONSTRUCTOR);
     }
 
     /**
-     * Gets the name of the property marked as uuid of an object
+     * @throws NoSuchMethodException
      *
-     * @return string
+     * @param string $methodName
+     * @return Method
      */
-    public function getUuidPropertyName()
+    public function getMethod(string $methodName): Method
     {
-        return $this->uuidPropertyName;
+        $methods = $this->buildMethodObjects();
+
+        if (!isset($methods[$methodName])) {
+            throw NoSuchMethodException::create($this->className, $methodName);
+        }
+
+        return $methods[$methodName];
     }
 
     /**
-     * Marks the given property as one of properties forming the identity
-     * of an object. The property must already be registered in the class
-     * schema.
-     *
-     * @param string $propertyName
-     * @throws \InvalidArgumentException
+     * @return array|Method[]
      */
-    public function markAsIdentityProperty($propertyName)
+    public function getMethods(): array
     {
-        if (!array_key_exists($propertyName, $this->properties)) {
-            throw new \InvalidArgumentException('Property "' . $propertyName . '" must be added to the class schema before it can be marked as identity property.', 1233775407);
-        }
-        if ($this->properties[$propertyName]['lazy'] === true) {
-            throw new \InvalidArgumentException('Property "' . $propertyName . '" must not be makred for lazy loading to be marked as identity property.', 1239896904);
-        }
-        $this->identityProperties[$propertyName] = $this->properties[$propertyName]['type'];
+        return $this->buildMethodObjects();
     }
 
     /**
-     * Gets the properties (names and types) forming the identity of an object.
-     *
-     * @return array
-     * @see markAsIdentityProperty()
+     * @param \ReflectionMethod $reflectionMethod
+     * @return bool
      */
-    public function getIdentityProperties()
+    protected function hasInjectMethodName(\ReflectionMethod $reflectionMethod): bool
     {
-        return $this->identityProperties;
+        $methodName = $reflectionMethod->getName();
+        if ($methodName === 'injectSettings' || !$reflectionMethod->isPublic()) {
+            return false;
+        }
+
+        if (
+            strpos($reflectionMethod->getName(), 'inject') === 0
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return bool
+     * @internal
+     */
+    public function isModel(): bool
+    {
+        return $this->isEntity() || $this->isValueObject();
+    }
+
+    /**
+     * @return bool
+     * @internal
+     */
+    public function isEntity(): bool
+    {
+        return $this->bitSet->get(self::BIT_CLASS_IS_ENTITY);
+    }
+
+    /**
+     * @return bool
+     * @internal
+     */
+    public function isValueObject(): bool
+    {
+        return $this->bitSet->get(self::BIT_CLASS_IS_VALUE_OBJECT);
+    }
+
+    /**
+     * @return bool
+     */
+    public function isSingleton(): bool
+    {
+        return $this->bitSet->get(self::BIT_CLASS_IS_SINGLETON);
+    }
+
+    /**
+     * @param string $methodName
+     * @return bool
+     */
+    public function hasMethod(string $methodName): bool
+    {
+        return isset($this->methods[$methodName]);
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasInjectProperties(): bool
+    {
+        return $this->bitSet->get(self::BIT_CLASS_HAS_INJECT_PROPERTIES);
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasInjectMethods(): bool
+    {
+        return $this->bitSet->get(self::BIT_CLASS_HAS_INJECT_METHODS);
+    }
+
+    /**
+     * @return array|Method[]
+     */
+    public function getInjectMethods(): array
+    {
+        return array_filter($this->buildMethodObjects(), function ($method) {
+            /** @var Method $method */
+            return $method->isInjectMethod();
+        });
+    }
+
+    /**
+     * @return array|Property[]
+     */
+    public function getInjectProperties(): array
+    {
+        return array_filter($this->buildPropertyObjects(), static function ($property) {
+            /** @var Property $property */
+            return $property->isInjectProperty();
+        });
+    }
+
+    /**
+     * @return array|Property[]
+     */
+    private function buildPropertyObjects(): array
+    {
+        if (!isset(static::$propertyObjects[$this->className])) {
+            static::$propertyObjects[$this->className] = [];
+            foreach ($this->properties as $propertyName => $propertyDefinition) {
+                static::$propertyObjects[$this->className][$propertyName] = new Property($propertyName, $propertyDefinition);
+            }
+        }
+
+        return static::$propertyObjects[$this->className];
+    }
+
+    /**
+     * @return array|Method[]
+     */
+    private function buildMethodObjects(): array
+    {
+        if (!isset(static::$methodObjects[$this->className])) {
+            static::$methodObjects[$this->className] = [];
+            foreach ($this->methods as $methodName => $methodDefinition) {
+                static::$methodObjects[$this->className][$methodName] = new Method($methodName, $methodDefinition, $this->className);
+            }
+        }
+
+        return static::$methodObjects[$this->className];
     }
 }

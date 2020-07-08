@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Log\Writer;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,12 +12,17 @@ namespace TYPO3\CMS\Core\Tests\Unit\Log\Writer;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Tests\Unit\Log\Writer;
+
 use TYPO3\CMS\Core\Log\Exception\InvalidLogWriterConfigurationException;
+use TYPO3\CMS\Core\Tests\Unit\Log\Fixtures\WriterFixture;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class AbstractWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractWriterTest extends UnitTestCase
 {
     /**
      * @test
@@ -31,6 +35,6 @@ class AbstractWriterTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $invalidConfiguration = [
             'foo' => 'bar'
         ];
-        $this->getMockForAbstractClass(\TYPO3\CMS\Core\Log\Writer\AbstractWriter::class, [$invalidConfiguration]);
+        new WriterFixture($invalidConfiguration);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Scheduler;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,14 @@ namespace TYPO3\CMS\Scheduler;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Scheduler;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Scheduler\CronCommand\CronCommand;
+
 /**
  * This class manages the logic of a particular execution of a task
+ * @internal
  */
 class Execution
 {
@@ -245,8 +250,8 @@ class Execution
      */
     public function getNextCronExecution()
     {
-        /** @var $cronCmd \TYPO3\CMS\Scheduler\CronCommand\CronCommand */
-        $cronCmd = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Scheduler\CronCommand\CronCommand::class, $this->getCronCmd());
+        /** @var \TYPO3\CMS\Scheduler\CronCommand\CronCommand $cronCmd */
+        $cronCmd = GeneralUtility::makeInstance(CronCommand::class, $this->getCronCmd());
         $cronCmd->calculateNextValue();
         return $cronCmd->getTimestamp();
     }

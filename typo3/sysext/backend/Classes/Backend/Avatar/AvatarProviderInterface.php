@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Backend\Avatar;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,10 @@ namespace TYPO3\CMS\Backend\Backend\Avatar;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Backend\Avatar;
+
 /**
- * Contract for avatar providers that ensure how an avater should be rendered for a given Backend User
+ * Contract for avatar providers that ensure how an avatar should be rendered for a given Backend User
  */
 interface AvatarProviderInterface
 {
@@ -24,7 +25,7 @@ interface AvatarProviderInterface
      *
      * @param array $backendUser be_users record
      * @param int $size
-     * @return Image|NULL
+     * @return Image|null
      */
     public function getImage(array $backendUser, $size);
 }

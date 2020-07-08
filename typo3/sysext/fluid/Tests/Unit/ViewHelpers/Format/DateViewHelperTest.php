@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,11 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Fluid\Core\ViewHelper\Exception;
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Format;
+
 use TYPO3\CMS\Fluid\ViewHelpers\Format\DateViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
+use TYPO3Fluid\Fluid\Core\ViewHelper\Exception;
 
 /**
  * Test case
@@ -24,7 +25,7 @@ use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 class DateViewHelperTest extends ViewHelperBaseTestcase
 {
     /**
-     * @var DateViewHelper|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var DateViewHelper|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $subject;
 
@@ -38,7 +39,9 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected $resetSingletonInstances = true;
+
+    protected function setUp(): void
     {
         parent::setUp();
         $this->timezone = @date_default_timezone_get();
@@ -47,7 +50,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
         $this->injectDependenciesIntoViewHelper($this->viewHelper);
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         date_default_timezone_set($this->timezone);
         parent::tearDown();
@@ -65,7 +68,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('1980-12-13', $actualResult);
+        self::assertEquals('1980-12-13', $actualResult);
     }
 
     /**
@@ -80,7 +83,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('1980-12-13', $actualResult);
+        self::assertEquals('1980-12-13', $actualResult);
     }
 
     /**
@@ -96,7 +99,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('01.02.1980', $actualResult);
+        self::assertEquals('01.02.1980', $actualResult);
     }
 
     /**
@@ -112,7 +115,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('01.02.1980', $actualResult);
+        self::assertEquals('01.02.1980', $actualResult);
     }
 
     /**
@@ -131,7 +134,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('', $actualResult);
+        self::assertEquals('', $actualResult);
     }
 
     /**
@@ -146,8 +149,8 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $expectedResult = (new \DateTime())->format('Y-m-d');
-        $this->assertEquals($expectedResult, $actualResult);
+        $expectedResult = date('Y-m-d', $GLOBALS['EXEC_TIME']);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -166,8 +169,8 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $expectedResult = (new \DateTime())->format('Y-m-d');
-        $this->assertEquals($expectedResult, $actualResult);
+        $expectedResult = date('Y-m-d', $GLOBALS['EXEC_TIME']);
+        self::assertEquals($expectedResult, $actualResult);
     }
 
     /**
@@ -183,7 +186,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('2014-02-08', $actualResult);
+        self::assertEquals('2014-02-08', $actualResult);
     }
 
     /**
@@ -199,7 +202,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('Saturday, 8. Feb 14', $actualResult);
+        self::assertEquals('Saturday, 8. Feb 14', $actualResult);
     }
 
     /**
@@ -235,7 +238,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('1980-12-13', $actualResult);
+        self::assertEquals('1980-12-13', $actualResult);
     }
 
     /**
@@ -254,7 +257,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('2013-02-03', $actualResult);
+        self::assertEquals('2013-02-03', $actualResult);
     }
 
     /**
@@ -269,7 +272,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('1980-12-12', $actualResult);
+        self::assertEquals('1980-12-12', $actualResult);
     }
 
     /**
@@ -285,7 +288,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals(date('Y'), $actualResult);
+        self::assertEquals(date('Y'), $actualResult);
     }
 
     /**
@@ -302,7 +305,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('2016', $actualResult);
+        self::assertEquals('2016', $actualResult);
     }
 
     /**
@@ -319,7 +322,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('2016', $actualResult);
+        self::assertEquals('2016', $actualResult);
     }
 
     /**
@@ -336,7 +339,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals('2015', $actualResult);
+        self::assertEquals('2015', $actualResult);
     }
 
     /**
@@ -376,7 +379,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expected, $actualResult);
+        self::assertEquals($expected, $actualResult);
     }
 
     /**
@@ -428,7 +431,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expected, $actualResult);
+        self::assertEquals($expected, $actualResult);
     }
 
     /**
@@ -467,7 +470,7 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             $this->setLocale(LC_MONETARY, $locale);
             $this->setLocale(LC_TIME, $locale);
         } catch (\PHPUnit\Framework\Exception $e) {
-            $this->markTestSkipped('Locale ' . $locale . ' is not available.');
+            self::markTestSkipped('Locale ' . $locale . ' is not available.');
         }
         $this->setArgumentsUnderTest(
             $this->viewHelper,
@@ -477,6 +480,6 @@ class DateViewHelperTest extends ViewHelperBaseTestcase
             ]
         );
         $actualResult = $this->viewHelper->initializeArgumentsAndRender();
-        $this->assertEquals($expected, $actualResult);
+        self::assertEquals($expected, $actualResult);
     }
 }

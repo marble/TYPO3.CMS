@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,16 @@ namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Core\Utility\GeneralUtility;
+namespace TYPO3\CMS\Extbase\Tests\Functional\Persistence;
 
-class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+use ExtbaseTeam\BlogExample\Domain\Repository\PersonRepository;
+use ExtbaseTeam\BlogExample\Domain\Repository\PostRepository;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
+
+class CountTest extends FunctionalTestCase
 {
     /**
      * @var int number of all records
@@ -56,7 +62,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
     /**
      * Sets up this test suite.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -69,9 +75,9 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/post-tag-mm.xml');
         $this->importDataSet(ORIGINAL_ROOT . 'typo3/sysext/extbase/Tests/Functional/Persistence/Fixtures/persons.xml');
 
-        $this->objectManager = GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
-        $this->persistentManager = $this->objectManager->get(\TYPO3\CMS\Extbase\Persistence\Generic\PersistenceManager::class);
-        $this->postRepository = $this->objectManager->get(\ExtbaseTeam\BlogExample\Domain\Repository\PostRepository::class);
+        $this->objectManager = GeneralUtility::makeInstance(ObjectManager::class);
+        $this->persistentManager = $this->objectManager->get(PersistenceManager::class);
+        $this->postRepository = $this->objectManager->get(PostRepository::class);
     }
 
     /**
@@ -80,7 +86,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
     public function simpleCountTest()
     {
         $query = $this->postRepository->createQuery();
-        $this->assertSame($this->numberOfRecordsInFixture, $query->count());
+        self::assertSame($this->numberOfRecordsInFixture, $query->count());
     }
 
     /**
@@ -93,7 +99,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
         $query->setLimit($this->numberOfRecordsInFixture+1);
         $query->setOffset(6);
 
-        $this->assertSame(($this->numberOfRecordsInFixture - 6), $query->count());
+        self::assertSame($this->numberOfRecordsInFixture - 6, $query->count());
     }
 
     /**
@@ -104,9 +110,9 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
         $query = $this->postRepository->createQuery();
 
         $query->setLimit($this->numberOfRecordsInFixture+1);
-        $query->setOffset(($this->numberOfRecordsInFixture + 5));
+        $query->setOffset($this->numberOfRecordsInFixture + 5);
 
-        $this->assertSame(0, $query->count());
+        self::assertSame(0, $query->count());
     }
 
     /**
@@ -118,7 +124,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
 
         $query->setLimit(4);
 
-        $this->assertSame(4, $query->count());
+        self::assertSame(4, $query->count());
     }
 
     /**
@@ -129,10 +135,10 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
         $query = $this->postRepository->createQuery();
 
         $query
-            ->setOffset(($this->numberOfRecordsInFixture - 3))
+            ->setOffset($this->numberOfRecordsInFixture - 3)
             ->setLimit(4);
 
-        $this->assertSame(3, $query->count());
+        self::assertSame(3, $query->count());
     }
 
     /**
@@ -146,7 +152,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
             $query->in('uid', [1, 2, 3])
         );
 
-        $this->assertSame(3, $query->count());
+        self::assertSame(3, $query->count());
     }
 
     /**
@@ -162,7 +168,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
             $query->equals('blog.title', 'Blog1')
         );
 
-        $this->assertSame(10, $query->count());
+        self::assertSame(10, $query->count());
     }
 
     /**
@@ -178,14 +184,13 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
             $query->equals('relatedPosts.title', 'Post2')
         );
 
-        $this->assertSame(1, $query->count());
+        self::assertSame(1, $query->count());
     }
 
     /**
      * Test if count works with subproperties in multiple left join.
      *
      * @test
-     * @group not-mssql
      */
     public function subpropertyInMultipleLeftJoinCountTest()
     {
@@ -202,7 +207,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
         $result = $query->execute();
         $result->valid();
 
-        $this->assertSame(10, $result->count());
+        self::assertSame(10, $result->count());
     }
 
     /**
@@ -211,7 +216,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
     public function queryWithAndConditionsToTheSameTableReturnExpectedCount()
     {
         /** @var \ExtbaseTeam\BlogExample\Domain\Repository\PersonRepository $personRepository */
-        $personRepository = $this->objectManager->get(\ExtbaseTeam\BlogExample\Domain\Repository\PersonRepository::class);
+        $personRepository = $this->objectManager->get(PersonRepository::class);
         $query = $personRepository->createQuery();
         $query->matching(
             $query->logicalAnd(
@@ -219,7 +224,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
                 $query->equals('tagsSpecial.name', 'SpecialTagForAuthor1')
             )
         );
-        $this->assertSame(1, $query->count());
+        self::assertSame(1, $query->count());
     }
 
     /**
@@ -228,7 +233,7 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
     public function queryWithOrConditionsToTheSameTableReturnExpectedCount()
     {
         /** @var \ExtbaseTeam\BlogExample\Domain\Repository\PersonRepository $personRepository */
-        $personRepository = $this->objectManager->get(\ExtbaseTeam\BlogExample\Domain\Repository\PersonRepository::class);
+        $personRepository = $this->objectManager->get(PersonRepository::class);
         $query = $personRepository->createQuery();
         $query->matching(
             $query->logicalOr(
@@ -236,6 +241,6 @@ class CountTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCa
                 $query->equals('tagsSpecial.name', 'SpecialTagForAuthor1')
             )
         );
-        $this->assertSame(4, $query->count());
+        self::assertSame(4, $query->count());
     }
 }

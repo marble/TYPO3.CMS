@@ -1,4 +1,5 @@
 <?php
+
 return [
     'ctrl' => [
         'label' => 'username',
@@ -20,9 +21,6 @@ return [
         'useColumnsForDefaultValues' => 'usergroup,lockToDomain,disable,starttime,endtime',
         'searchFields' => 'username,name,first_name,last_name,middle_name,address,telephone,fax,email,title,zip,city,country,company,description'
     ],
-    'interface' => [
-        'showRecordFieldList' => 'username,password,usergroup,lockToDomain,name,first_name,middle_name,last_name,title,company,address,zip,city,country,email,www,telephone,fax,disable,starttime,endtime,lastlogin,description'
-    ],
     'columns' => [
         'username' => [
             'label' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:fe_users.username',
@@ -38,9 +36,9 @@ return [
             'label' => 'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:fe_users.password',
             'config' => [
                 'type' => 'input',
-                'size' => 10,
-                'max' => 40,
-                'eval' => 'trim,required,password',
+                'size' => 20,
+                'max' => 100,
+                'eval' => 'trim,required,password,saltedPassword',
                 'autocomplete' => false,
             ]
         ],
@@ -50,8 +48,6 @@ return [
                 'type' => 'select',
                 'renderType' => 'selectMultipleSideBySide',
                 'foreign_table' => 'fe_groups',
-                'foreign_table_where' => 'ORDER BY fe_groups.title',
-                'enableMultiSelectFilterTextfield' => true,
                 'size' => 6,
                 'minitems' => 1,
                 'maxitems' => 50
@@ -70,7 +66,7 @@ return [
         ],
         'name' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.name',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.name',
             'config' => [
                 'type' => 'input',
                 'size' => 40,
@@ -80,7 +76,7 @@ return [
         ],
         'first_name' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.first_name',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.first_name',
             'config' => [
                 'type' => 'input',
                 'size' => 25,
@@ -90,7 +86,7 @@ return [
         ],
         'middle_name' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.middle_name',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.middle_name',
             'config' => [
                 'type' => 'input',
                 'size' => 25,
@@ -100,7 +96,7 @@ return [
         ],
         'last_name' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.last_name',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.last_name',
             'config' => [
                 'type' => 'input',
                 'size' => 25,
@@ -110,7 +106,7 @@ return [
         ],
         'address' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.address',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.address',
             'config' => [
                 'type' => 'text',
                 'cols' => 20,
@@ -119,7 +115,7 @@ return [
         ],
         'telephone' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.phone',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.phone',
             'config' => [
                 'type' => 'input',
                 'eval' => 'trim',
@@ -129,7 +125,7 @@ return [
         ],
         'fax' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.fax',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.fax',
             'config' => [
                 'type' => 'input',
                 'size' => 20,
@@ -139,7 +135,7 @@ return [
         ],
         'email' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.email',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.email',
             'config' => [
                 'type' => 'input',
                 'size' => 20,
@@ -149,27 +145,27 @@ return [
         ],
         'title' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.title_person',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.title_person',
             'config' => [
                 'type' => 'input',
                 'size' => 20,
                 'eval' => 'trim',
-                'max' => '40'
+                'max' => 40
             ]
         ],
         'zip' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.zip',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.zip',
             'config' => [
                 'type' => 'input',
                 'eval' => 'trim',
                 'size' => 10,
-                'max' => '10'
+                'max' => 10
             ]
         ],
         'city' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.city',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.city',
             'config' => [
                 'type' => 'input',
                 'size' => 20,
@@ -179,7 +175,7 @@ return [
         ],
         'country' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.country',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.country',
             'config' => [
                 'type' => 'input',
                 'size' => 20,
@@ -189,7 +185,7 @@ return [
         ],
         'www' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.www',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.www',
             'config' => [
                 'type' => 'input',
                 'eval' => 'trim',
@@ -199,7 +195,7 @@ return [
         ],
         'company' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.company',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.company',
             'config' => [
                 'type' => 'input',
                 'eval' => 'trim',
@@ -209,7 +205,7 @@ return [
         ],
         'image' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.image',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.image',
             'config' => \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::getFileFieldTCAConfig(
                 'image',
                 [
@@ -221,36 +217,44 @@ return [
         ],
         'disable' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.disable',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.enabled',
             'config' => [
-                'type' => 'check'
-            ]
+                'type' => 'check',
+                'renderType' => 'checkboxToggle',
+                'items' => [
+                    [
+                        0 => '',
+                        1 => '',
+                        'invertStateDisplay' => true,
+                    ],
+                ],
+            ],
         ],
         'starttime' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.starttime',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.starttime',
             'config' => [
                 'type' => 'input',
                 'renderType' => 'inputDateTime',
-                'eval' => 'datetime',
+                'eval' => 'datetime,int',
                 'default' => 0
             ]
         ],
         'endtime' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.endtime',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.endtime',
             'config' => [
                 'type' => 'input',
                 'renderType' => 'inputDateTime',
-                'eval' => 'datetime',
+                'eval' => 'datetime,int',
                 'default' => 0,
                 'range' => [
-                    'upper' => mktime(0, 0, 0, 12, 31, 2020)
+                    'upper' => mktime(0, 0, 0, 1, 1, 2038)
                 ]
             ]
         ],
         'description' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.description',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.description',
             'config' => [
                 'type' => 'text',
                 'rows' => 5,
@@ -259,7 +263,7 @@ return [
         ],
         'TSconfig' => [
             'exclude' => true,
-            'label' => 'TSconfig:',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:TSconfig',
             'config' => [
                 'type' => 'text',
                 'cols' => 40,
@@ -270,12 +274,12 @@ return [
         ],
         'lastlogin' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_general.xlf:LGL.lastlogin',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.lastlogin',
             'config' => [
                 'type' => 'input',
                 'renderType' => 'inputDateTime',
                 'readOnly' => true,
-                'eval' => 'datetime',
+                'eval' => 'datetime,int',
                 'default' => 0
             ]
         ]

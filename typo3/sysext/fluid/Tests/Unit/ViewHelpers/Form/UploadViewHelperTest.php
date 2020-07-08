@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,11 @@ namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form;
+
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form\Fixtures\EmptySyntaxTreeNode;
+use TYPO3\CMS\Fluid\ViewHelpers\Form\UploadViewHelper;
 use TYPO3\TestingFramework\Fluid\Unit\ViewHelpers\ViewHelperBaseTestcase;
 use TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder;
 
@@ -27,13 +31,12 @@ class UploadViewHelperTest extends ViewHelperBaseTestcase
      */
     protected $viewHelper;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
-        $this->viewHelper = $this->getAccessibleMock(\TYPO3\CMS\Fluid\ViewHelpers\Form\UploadViewHelper::class, ['setErrorClassAttribute', 'registerFieldNameForFormTokenGeneration']);
+        $this->viewHelper = $this->getAccessibleMock(UploadViewHelper::class, ['setErrorClassAttribute', 'registerFieldNameForFormTokenGeneration']);
         $this->arguments['name'] = '';
         $this->injectDependenciesIntoViewHelper($this->viewHelper);
-        $this->viewHelper->initializeArguments();
     }
 
     /**
@@ -41,11 +44,10 @@ class UploadViewHelperTest extends ViewHelperBaseTestcase
      */
     public function renderCorrectlySetsTagName()
     {
-        $this->tagBuilder = $this->createMock(\TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder::class);
-        $this->tagBuilder->expects($this->once())->method('setTagName')->with('input');
-        $this->viewHelper->_set('tag', $this->tagBuilder);
-        $this->viewHelper->initialize();
-        $this->viewHelper->render();
+        $this->tagBuilder = $this->createMock(TagBuilder::class);
+        $this->tagBuilder->expects(self::atLeastOnce())->method('setTagName')->with('input');
+        $this->viewHelper->setTagBuilder($this->tagBuilder);
+        $this->viewHelper->initializeArgumentsAndRender();
     }
 
     /**
@@ -57,22 +59,21 @@ class UploadViewHelperTest extends ViewHelperBaseTestcase
             ->setMethods(['addAttribute', 'setContent', 'render'])
             ->disableOriginalConstructor()
             ->getMock();
-        $mockTagBuilder->expects($this->at(0))->method('addAttribute')->with('type', 'file');
-        $mockTagBuilder->expects($this->at(1))->method('addAttribute')->with('name', 'someName');
-        $this->viewHelper->expects($this->at(0))->method('registerFieldNameForFormTokenGeneration')->with('someName[name]');
-        $this->viewHelper->expects($this->at(1))->method('registerFieldNameForFormTokenGeneration')->with('someName[type]');
-        $this->viewHelper->expects($this->at(2))->method('registerFieldNameForFormTokenGeneration')->with('someName[tmp_name]');
-        $this->viewHelper->expects($this->at(3))->method('registerFieldNameForFormTokenGeneration')->with('someName[error]');
-        $this->viewHelper->expects($this->at(4))->method('registerFieldNameForFormTokenGeneration')->with('someName[size]');
-        $mockTagBuilder->expects($this->once())->method('render');
-        $this->viewHelper->_set('tag', $mockTagBuilder);
+        $mockTagBuilder->expects(self::at(0))->method('addAttribute')->with('type', 'file');
+        $mockTagBuilder->expects(self::at(1))->method('addAttribute')->with('name', 'someName');
+        $this->viewHelper->expects(self::at(0))->method('registerFieldNameForFormTokenGeneration')->with('someName[name]');
+        $this->viewHelper->expects(self::at(1))->method('registerFieldNameForFormTokenGeneration')->with('someName[type]');
+        $this->viewHelper->expects(self::at(2))->method('registerFieldNameForFormTokenGeneration')->with('someName[tmp_name]');
+        $this->viewHelper->expects(self::at(3))->method('registerFieldNameForFormTokenGeneration')->with('someName[error]');
+        $this->viewHelper->expects(self::at(4))->method('registerFieldNameForFormTokenGeneration')->with('someName[size]');
+        $mockTagBuilder->expects(self::once())->method('render');
+        $this->viewHelper->setTagBuilder($mockTagBuilder);
         $arguments = [
             'name' => 'someName'
         ];
         $this->viewHelper->setArguments($arguments);
-        $this->viewHelper->setViewHelperNode(new \TYPO3\CMS\Fluid\Tests\Unit\ViewHelpers\Form\Fixtures\EmptySyntaxTreeNode());
-        $this->viewHelper->initialize();
-        $this->viewHelper->render();
+        $this->viewHelper->setViewHelperNode(new EmptySyntaxTreeNode());
+        $this->viewHelper->initializeArgumentsAndRender();
     }
 
     /**
@@ -80,8 +81,8 @@ class UploadViewHelperTest extends ViewHelperBaseTestcase
      */
     public function renderCallsSetErrorClassAttribute()
     {
-        $this->viewHelper->expects($this->once())->method('setErrorClassAttribute');
-        $this->viewHelper->render();
+        $this->viewHelper->expects(self::once())->method('setErrorClassAttribute');
+        $this->viewHelper->initializeArgumentsAndRender();
     }
 
     /**
@@ -90,16 +91,15 @@ class UploadViewHelperTest extends ViewHelperBaseTestcase
     public function renderSetsAttributeNameAsArrayIfMultipleIsGiven()
     {
         /** @var TagBuilder $tagBuilder */
-        $tagBuilder = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(TagBuilder::class);
+        $tagBuilder = GeneralUtility::makeInstance(TagBuilder::class);
         $tagBuilder->addAttribute('multiple', 'multiple');
-        $this->viewHelper->_set('tag', $tagBuilder);
+        $this->viewHelper->setTagBuilder($tagBuilder);
         $arguments = [
             'name' => 'someName',
             'multiple' => 'multiple'
         ];
         $this->viewHelper->setArguments($arguments);
-        $this->viewHelper->initialize();
-        $result = $this->viewHelper->render();
-        $this->assertEquals('<input multiple="multiple" type="file" name="someName[]" />', $result);
+        $result = $this->viewHelper->initializeArgumentsAndRender();
+        self::assertEquals('<input multiple="multiple" type="file" name="someName[]" />', $result);
     }
 }

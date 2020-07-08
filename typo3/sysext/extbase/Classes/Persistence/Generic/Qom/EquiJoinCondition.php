@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
+
 /**
  * Tests whether the value of a property in a first selector is equal to the value of a
  * property in a second selector.
  * A node-tuple satisfies the constraint only if: the selector1Name node has a property named property1Name, and
  * the selector2Name node has a property named property2Name, and
  * the value of property property1Name is equal to the value of property property2Name.
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class EquiJoinCondition implements EquiJoinConditionInterface
 {

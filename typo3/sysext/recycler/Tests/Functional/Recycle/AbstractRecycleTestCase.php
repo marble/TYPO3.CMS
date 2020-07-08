@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Recycler\Tests\Functional\Recycle;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,17 @@ namespace TYPO3\CMS\Recycler\Tests\Functional\Recycle;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Recycler\Tests\Functional\Recycle;
+
+use TYPO3\CMS\Core\Core\Bootstrap;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Recycler\Domain\Model\DeletedRecords;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
  * Functional test for the Export
  */
-abstract class AbstractRecycleTestCase extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+abstract class AbstractRecycleTestCase extends FunctionalTestCase
 {
     /**
      * @var array
@@ -37,11 +41,11 @@ abstract class AbstractRecycleTestCase extends \TYPO3\TestingFramework\Core\Func
      * Set up for set up the backend user, initialize the language object
      * and creating the Export instance
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->importDataSet(__DIR__ . '/../Fixtures/Database/be_groups.xml');
-        \TYPO3\CMS\Core\Core\Bootstrap::getInstance()->initializeLanguageObject();
+        Bootstrap::initializeLanguageObject();
     }
 
     /**
@@ -54,13 +58,13 @@ abstract class AbstractRecycleTestCase extends \TYPO3\TestingFramework\Core\Func
     protected function getDeletedPages($pageUid, $depth = 0)
     {
         /** @var $deletedRecords \TYPO3\CMS\Recycler\Domain\Model\DeletedRecords */
-        $deletedRecords = GeneralUtility::makeInstance(\TYPO3\CMS\Recycler\Domain\Model\DeletedRecords::class);
+        $deletedRecords = GeneralUtility::makeInstance(DeletedRecords::class);
         $deletedRecords->loadData($pageUid, 'pages', $depth);
         return $deletedRecords->getDeletedRows();
     }
 
     /**
-     * Retrieves a deleted content elment using the recycler domain model "deletedRecords" class.
+     * Retrieves a deleted content element using the recycler domain model "deletedRecords" class.
      *
      * @param int $contentUid
      * @return array Retrieved deleted records
@@ -68,7 +72,7 @@ abstract class AbstractRecycleTestCase extends \TYPO3\TestingFramework\Core\Func
     protected function getDeletedContent($contentUid)
     {
         /** @var $deletedRecords \TYPO3\CMS\Recycler\Domain\Model\DeletedRecords */
-        $deletedRecords = GeneralUtility::makeInstance(\TYPO3\CMS\Recycler\Domain\Model\DeletedRecords::class);
+        $deletedRecords = GeneralUtility::makeInstance(DeletedRecords::class);
         $deletedRecords->loadData($contentUid, 'tt_content', 0);
         return $deletedRecords->getDeletedRows();
     }

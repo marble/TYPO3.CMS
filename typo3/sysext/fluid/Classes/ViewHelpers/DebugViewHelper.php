@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,29 +13,43 @@ namespace TYPO3\CMS\Fluid\ViewHelpers;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Fluid\ViewHelpers;
+
 use TYPO3\CMS\Extbase\Utility\DebuggerUtility;
-use TYPO3\CMS\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\Rendering\RenderingContextInterface;
+use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Traits\CompileWithRenderStatic;
 
 /**
  * This ViewHelper generates a HTML dump of the tagged variable.
  *
- * = Examples =
+ * Examples
+ * ========
  *
- * <code title="Simple">
- * <f:debug>{testVariables.array}</f:debug>
- * </code>
- * <output>
+ * Simple
+ * ------
+ *
+ * ::
+ *
+ *    <f:debug>{testVariables.array}</f:debug>
+ *
  * foobarbazfoo
- * </output>
  *
- * <code title="All Features">
- * <f:debug title="My Title" maxDepth="5" blacklistedClassNames="{0:'Tx_BlogExample_Domain_Model_Administrator'}" plainText="true" ansiColors="false" inline="true" blacklistedPropertyNames="{0:'posts'}">{blogs}</f:debug>
- * </code>
- * <output>
+ * All Features
+ * ------------
+ *
+ * ::
+ *
+ *    <f:debug title="My Title" maxDepth="5"
+ *        blacklistedClassNames="{0:'Tx_BlogExample_Domain_Model_Administrator'}"
+ *        blacklistedPropertyNames="{0:'posts'}"
+ *        plainText="true" ansiColors="false"
+ *        inline="true"
+ *        >
+ *            {blogs}
+ *        </f:debug>
+ *
  * [A HTML view of the var_dump]
- * </output>
  */
 class DebugViewHelper extends AbstractViewHelper
 {
@@ -63,7 +76,6 @@ class DebugViewHelper extends AbstractViewHelper
      */
     public function initializeArguments()
     {
-        parent::initializeArguments();
         $this->registerArgument('title', 'string', 'optional custom title for the debug output');
         $this->registerArgument('maxDepth', 'int', 'Sets the max recursion depth of the dump (defaults to 8). De- or increase the number according to your needs and memory limit.', false, 8);
         $this->registerArgument('plainText', 'bool', 'If TRUE, the dump is in plain text, if FALSE the debug output is in HTML format.', false, false);

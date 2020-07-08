@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Form\Tests\Unit\Controller;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,11 @@ namespace TYPO3\CMS\Form\Tests\Unit\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Tests\Unit\Controller;
+
 use Prophecy\Argument;
+use TYPO3\CMS\Core\Imaging\Icon;
+use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -23,40 +28,24 @@ use TYPO3\CMS\Extbase\Mvc\Web\Routing\UriBuilder;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Form\Controller\FormManagerController;
 use TYPO3\CMS\Form\Mvc\Persistence\FormPersistenceManager;
+use TYPO3\CMS\Form\Service\DatabaseService;
 use TYPO3\CMS\Form\Service\TranslationService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FormManagerControllerTest extends UnitTestCase
 {
-
     /**
-     * @var array A backup of registered singleton instances
+     * @var bool Reset singletons created by subject
      */
-    protected $singletonInstances = [];
-
-    /**
-     * Set up
-     */
-    public function setUp()
-    {
-        $this->singletonInstances = GeneralUtility::getSingletonInstances();
-    }
-
-    /**
-     * Tear down
-     */
-    public function tearDown()
-    {
-        GeneralUtility::resetSingletonInstances($this->singletonInstances);
-        parent::tearDown();
-    }
+    protected $resetSingletonInstances = true;
 
     /**
      * @test
      */
-    public function getAccessibleFormStorageFoldersReturnsProcessedArray()
+    public function getAccessibleFormStorageFoldersReturnsProcessedArray(): void
     {
         $mockController = $this->getAccessibleMock(FormManagerController::class, [
             'dummy'
@@ -107,27 +96,27 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             ],
         ];
 
-        $this->assertSame($expected, $mockController->_call('getAccessibleFormStorageFolders'));
+        self::assertSame($expected, $mockController->_call('getAccessibleFormStorageFolders'));
     }
 
     /**
      * @test
      */
-    public function getFormManagerAppInitialDataReturnsProcessedArray()
+    public function getFormManagerAppInitialDataReturnsProcessedArray(): void
     {
-        $objectMangerProphecy = $this->prophesize(ObjectManager::class);
-        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectMangerProphecy->reveal());
+        $objectManagerProphecy = $this->prophesize(ObjectManager::class);
+        GeneralUtility::setSingletonInstance(ObjectManager::class, $objectManagerProphecy->reveal());
 
         $mockTranslationService = $this->getAccessibleMock(TranslationService::class, [
             'translateValuesRecursive'
         ], [], '', false);
 
         $mockTranslationService
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('translateValuesRecursive')
             ->willReturnArgument(0);
 
-        $objectMangerProphecy
+        $objectManagerProphecy
             ->get(TranslationService::class)
             ->willReturn($mockTranslationService);
 
@@ -138,9 +127,9 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
         $mockUriBuilder = $this->createMock(UriBuilder::class);
         $mockControllerContext = $this->createMock(ControllerContext::class);
         $mockControllerContext
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getUriBuilder')
-            ->will($this->returnValue($mockUriBuilder));
+            ->willReturn($mockUriBuilder);
 
         $mockController->_set('controllerContext', $mockControllerContext);
 
@@ -150,12 +139,12 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             ],
         ]);
 
-        $mockUriBuilder->expects($this->any())->method('uriFor')->willReturn(
+        $mockUriBuilder->expects(self::any())->method('uriFor')->willReturn(
             '/typo3/index.php?some=param'
         );
 
         $mockController
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getAccessibleFormStorageFolders')
             ->willReturn([
                 0 => [
@@ -180,20 +169,23 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             ],
         ];
 
-        $this->assertSame(json_encode($expected), $mockController->_call('getFormManagerAppInitialData'));
+        self::assertSame(json_encode($expected), $mockController->_call('getFormManagerAppInitialData'));
     }
 
     /**
      * @test
      */
-    public function getAvailableFormDefinitionsReturnsProcessedArray()
+    public function getAvailableFormDefinitionsReturnsProcessedArray(): void
     {
         $mockController = $this->getAccessibleMock(FormManagerController::class, [
-            'getReferences'
+            'dummy'
         ], [], '', false);
 
         $formPersistenceManagerProphecy = $this->prophesize(FormPersistenceManager::class);
         $mockController->_set('formPersistenceManager', $formPersistenceManagerProphecy->reveal());
+
+        $databaseService = $this->prophesize(DatabaseService::class);
+        $mockController->_set('databaseService', $databaseService->reveal());
 
         $formPersistenceManagerProphecy->listForms(Argument::cetera())->willReturn([
             0 => [
@@ -207,13 +199,13 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             ],
         ]);
 
-        $mockController
-            ->expects($this->any())
-            ->method('getReferences')
-            ->willReturn([
-                'someRow',
-                'anotherRow',
-            ]);
+        $databaseService->getAllReferencesForFileUid(Argument::cetera())->willReturn([
+            0 => 0,
+        ]);
+
+        $databaseService->getAllReferencesForPersistenceIdentifier(Argument::cetera())->willReturn([
+            '1:/user_uploads/someFormName.yaml' => 2,
+        ]);
 
         $expected = [
             0 => [
@@ -228,13 +220,13 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             ],
         ];
 
-        $this->assertSame($expected, $mockController->_call('getAvailableFormDefinitions'));
+        self::assertSame($expected, $mockController->_call('getAvailableFormDefinitions'));
     }
 
     /**
      * @test
      */
-    public function getProcessedReferencesRowsThrowsExceptionIfPersistenceIdentifierIsEmpty()
+    public function getProcessedReferencesRowsThrowsExceptionIfPersistenceIdentifierIsEmpty(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1477071939);
@@ -251,61 +243,60 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
      */
     public function getProcessedReferencesRowsReturnsProcessedArray()
     {
+        $iconFactoryProphecy = $this->prophesize(IconFactory::class);
+        GeneralUtility::addInstance(IconFactory::class, $iconFactoryProphecy->reveal());
+        $iconProphecy = $this->prophesize(Icon::class);
+        $iconFactoryProphecy->getIconForRecord(Argument::cetera())->willReturn($iconProphecy->reveal());
+        $iconProphecy->render()->shouldBeCalled()->willReturn('');
+
         $mockController = $this->getAccessibleMock(FormManagerController::class, [
             'getModuleUrl',
             'getRecord',
             'getRecordTitle',
-            'getReferences',
         ], [], '', false);
 
+        $databaseService = $this->prophesize(DatabaseService::class);
+        $mockController->_set('databaseService', $databaseService->reveal());
+
+        $databaseService->getReferencesByPersistenceIdentifier(Argument::cetera())->willReturn([
+            0 => [
+                'tablename' => 'tt_content',
+                'recuid' => -1,
+            ],
+        ]);
+
         $mockController
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getModuleUrl')
             ->willReturn('/typo3/index.php?some=param');
 
         $mockController
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getRecord')
             ->willReturn([ 'uid' => 1, 'pid' => 0 ]);
 
         $mockController
-            ->expects($this->any())
+            ->expects(self::any())
             ->method('getRecordTitle')
             ->willReturn('record title');
-
-        $mockController
-            ->expects($this->any())
-            ->method('getReferences')
-            ->willReturn([
-                0 => [
-                    'tablename' => 'tt_content',
-                    'recuid' => -1,
-                ],
-            ]);
 
         $expected = [
             0 => [
                 'recordPageTitle' => 'record title',
                 'recordTitle' => 'record title',
-                'recordIcon' =>
-'<span class="t3js-icon icon icon-size-small icon-state-default icon-default-not-found" data-identifier="default-not-found">
-	<span class="icon-markup">
-<img src="typo3/sysext/core/Resources/Public/Icons/T3Icons/default/default-not-found.svg" width="16" height="16" />
-	</span>
-	
-</span>',
+                'recordIcon' => '',
                 'recordUid' => -1,
                 'recordEditUrl' => '/typo3/index.php?some=param',
             ],
         ];
 
-        $this->assertSame($expected, $mockController->_call('getProcessedReferencesRows', 'fake'));
+        self::assertSame($expected, $mockController->_call('getProcessedReferencesRows', 'fake'));
     }
 
     /**
      * @test
      */
-    public function isValidTemplatePathReturnsTrueIfTemplateIsDefinedAndExists()
+    public function isValidTemplatePathReturnsTrueIfTemplateIsDefinedAndExists(): void
     {
         $mockController = $this->getAccessibleMock(FormManagerController::class, [
             'dummy'
@@ -332,13 +323,13 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             ],
         ]);
 
-        $this->assertTrue($mockController->_call('isValidTemplatePath', 'standard', 'EXT:form/Tests/Unit/Controller/Fixtures/SimpleContactForm.yaml'));
+        self::assertTrue($mockController->_call('isValidTemplatePath', 'standard', 'EXT:form/Tests/Unit/Controller/Fixtures/SimpleContactForm.yaml'));
     }
 
     /**
      * @test
      */
-    public function isValidTemplatePathReturnsFalseIfTemplateIsDefinedButNotExists()
+    public function isValidTemplatePathReturnsFalseIfTemplateIsDefinedButNotExists(): void
     {
         $mockController = $this->getAccessibleMock(FormManagerController::class, [
             'dummy'
@@ -365,13 +356,13 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             ],
         ]);
 
-        $this->assertFalse($mockController->_call('isValidTemplatePath', 'standard', 'EXT:form/Tests/Unit/Controller/Fixtures/NonExistingForm.yaml'));
+        self::assertFalse($mockController->_call('isValidTemplatePath', 'standard', 'EXT:form/Tests/Unit/Controller/Fixtures/NonExistingForm.yaml'));
     }
 
     /**
      * @test
      */
-    public function isValidTemplatePathReturnsFalseIfTemplateIsNotDefinedAndExists()
+    public function isValidTemplatePathReturnsFalseIfTemplateIsNotDefinedAndExists(): void
     {
         $mockController = $this->getAccessibleMock(FormManagerController::class, [
             'dummy'
@@ -408,13 +399,13 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             ],
         ]);
 
-        $this->assertFalse($mockController->_call('isValidTemplatePath', 'other', 'EXT:form/Tests/Unit/Controller/Fixtures/SimpleContactForm.yaml'));
+        self::assertFalse($mockController->_call('isValidTemplatePath', 'other', 'EXT:form/Tests/Unit/Controller/Fixtures/SimpleContactForm.yaml'));
     }
 
     /**
      * @test
      */
-    public function convertFormNameToIdentifierRemoveSpaces()
+    public function convertFormNameToIdentifierRemoveSpaces(): void
     {
         $mockController = $this->getAccessibleMock(FormManagerController::class, [
             'dummy'
@@ -422,20 +413,34 @@ class FormManagerControllerTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
 
         $input = 'test form';
         $expected = 'testform';
-        $this->assertSame($expected, $mockController->_call('convertFormNameToIdentifier', $input));
+        self::assertSame($expected, $mockController->_call('convertFormNameToIdentifier', $input));
     }
 
     /**
      * @test
      */
-    public function convertFormNameToIdentifierRemoveSpecialChars()
+    public function convertFormNameToIdentifierConvertAccentedCharacters(): void
+    {
+        $mockController = $this->getAccessibleMock(FormManagerController::class, [
+            'dummy'
+        ], [], '', false);
+
+        $input = 'téstform';
+        $expected = 'testform';
+        self::assertSame($expected, $mockController->_call('convertFormNameToIdentifier', $input));
+    }
+
+    /**
+     * @test
+     */
+    public function convertFormNameToIdentifierRemoveSpecialChars(): void
     {
         $mockController = $this->getAccessibleMock(FormManagerController::class, [
             'dummy'
         ], [], '', false);
 
         $input = 'test form ä#!_-01';
-        $expected = 'testform_-01';
-        $this->assertSame($expected, $mockController->_call('convertFormNameToIdentifier', $input));
+        $expected = 'testformae_-01';
+        self::assertSame($expected, $mockController->_call('convertFormNameToIdentifier', $input));
     }
 }

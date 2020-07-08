@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\DataHandling;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\DataHandling;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\DataHandling;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\Connection;
@@ -73,12 +74,12 @@ class PlainDataResolver
     /**
      * @param string $tableName
      * @param int[] $liveIds
-     * @param NULL|array $sortingStatement
+     * @param array|null $sortingStatement
      */
     public function __construct($tableName, array $liveIds, array $sortingStatement = null)
     {
         $this->tableName = $tableName;
-        $this->liveIds = $this->reindex($liveIds);
+        $this->liveIds = $this->reindex($this->sanitizeIds($liveIds));
         $this->sortingStatement = $sortingStatement;
     }
 
@@ -164,6 +165,7 @@ class PlainDataResolver
      */
     public function processVersionOverlays(array $ids)
     {
+        $ids = $this->sanitizeIds($ids);
         if (empty($this->workspaceId) || !$this->isWorkspaceEnabled() || empty($ids)) {
             return $ids;
         }
@@ -180,7 +182,6 @@ class PlainDataResolver
             ->select('uid', 't3ver_oid', 't3ver_state')
             ->from($this->tableName)
             ->where(
-                $queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter(-1, \PDO::PARAM_INT)),
                 $queryBuilder->expr()->in(
                     't3ver_oid',
                     $queryBuilder->createNamedParameter($ids, Connection::PARAM_INT_ARRAY)
@@ -218,6 +219,7 @@ class PlainDataResolver
      */
     public function processVersionMovePlaceholders(array $ids)
     {
+        $ids = $this->sanitizeIds($ids);
         // Early return on insufficient data-set
         if (empty($this->workspaceId) || !$this->isWorkspaceEnabled() || empty($ids)) {
             return $ids;
@@ -232,7 +234,6 @@ class PlainDataResolver
             ->select('uid', 't3ver_move_id')
             ->from($this->tableName)
             ->where(
-                $queryBuilder->expr()->neq('pid', $queryBuilder->createNamedParameter(-1, \PDO::PARAM_INT)),
                 $queryBuilder->expr()->eq(
                     't3ver_state',
                     $queryBuilder->createNamedParameter((string)VersionState::MOVE_PLACEHOLDER, \PDO::PARAM_INT)
@@ -255,8 +256,8 @@ class PlainDataResolver
             if (isset($ids[$movePlaceholderId])) {
                 $ids[$movePlaceholderId] = $liveReferenceId;
                 unset($ids[$liveReferenceId]);
-            // Just purge live reference
             } elseif (!$this->keepMovePlaceholder) {
+                // Just purge live reference
                 unset($ids[$liveReferenceId]);
             }
         }
@@ -274,6 +275,7 @@ class PlainDataResolver
      */
     public function processSorting(array $ids)
     {
+        $ids = $this->sanitizeIds($ids);
         // Early return on missing sorting statement or insufficient data-set
         if (empty($this->sortingStatement) || count($ids) < 2) {
             return $ids;
@@ -290,7 +292,8 @@ class PlainDataResolver
             ->where(
                 $queryBuilder->expr()->in(
                     'uid',
-                    $queryBuilder->createNamedParameter($ids, Connection::PARAM_INT_ARRAY)
+                    // do not use named parameter here as the list can get too long
+                    array_map('intval', $ids)
                 )
             );
 
@@ -302,7 +305,7 @@ class PlainDataResolver
 
         $sortedIds = $queryBuilder->execute()->fetchAll();
 
-        return array_column($sortedIds, 'uid');
+        return array_map('intval', array_column($sortedIds, 'uid'));
     }
 
     /**
@@ -316,6 +319,7 @@ class PlainDataResolver
      */
     public function applyLiveIds(array $ids)
     {
+        $ids = $this->sanitizeIds($ids);
         if (!$this->keepLiveIds || !$this->isWorkspaceEnabled() || empty($ids)) {
             return $ids;
         }
@@ -368,21 +372,24 @@ class PlainDataResolver
     }
 
     /**
-     * @return bool
+     * Removes empty values (null, '0', 0, false).
+     *
+     * @param int[] $ids
+     * @return array
      */
-    protected function isWorkspaceEnabled()
+    protected function sanitizeIds(array $ids): array
     {
-        if (ExtensionManagementUtility::isLoaded('version')) {
-            return BackendUtility::isTableWorkspaceEnabled($this->tableName);
-        }
-        return false;
+        return array_filter($ids);
     }
 
     /**
      * @return bool
      */
-    protected function isLocalizationEnabled()
+    protected function isWorkspaceEnabled()
     {
-        return BackendUtility::isTableLocalizable($this->tableName);
+        if (ExtensionManagementUtility::isLoaded('workspaces')) {
+            return BackendUtility::isTableWorkspaceEnabled($this->tableName);
+        }
+        return false;
     }
 }

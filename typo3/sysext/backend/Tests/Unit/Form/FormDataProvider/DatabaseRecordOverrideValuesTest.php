@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,22 @@ namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tests\Unit\Form\FormDataProvider;
+
 use TYPO3\CMS\Backend\Form\FormDataProvider\DatabaseRecordOverrideValues;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test case
  */
-class DatabaseRecordOverrideValuesTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class DatabaseRecordOverrideValuesTest extends UnitTestCase
 {
     /**
      * @var DatabaseRecordOverrideValues
      */
     protected $subject;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         $this->subject = new DatabaseRecordOverrideValues();
     }
@@ -55,7 +57,7 @@ class DatabaseRecordOverrideValuesTest extends \TYPO3\TestingFramework\Core\Unit
             ]
         ];
 
-        $this->assertSame($input, $this->subject->addData($input));
+        self::assertSame($input, $this->subject->addData($input));
     }
 
     /**
@@ -100,6 +102,6 @@ class DatabaseRecordOverrideValuesTest extends \TYPO3\TestingFramework\Core\Unit
             'renderType' => 'hidden',
         ];
 
-        $this->assertSame($expected, $this->subject->addData($input));
+        self::assertSame($expected, $this->subject->addData($input));
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\FormProtection;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,36 +13,41 @@ namespace TYPO3\CMS\Core\Tests\Unit\FormProtection;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\FormProtection;
+
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\FormProtection\BackendFormProtection;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase
  */
-class BackendFormProtectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class BackendFormProtectionTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Core\FormProtection\BackendFormProtection|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var \TYPO3\CMS\Core\FormProtection\BackendFormProtection|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $subject;
 
     /**
-     * @var BackendUserAuthentication|\PHPUnit_Framework_MockObject_MockObject
+     * @var BackendUserAuthentication|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $backendUserMock;
 
     /**
-     * @var Registry|\PHPUnit_Framework_MockObject_MockObject
+     * @var Registry|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $registryMock;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->backendUserMock = $this->createMock(\TYPO3\CMS\Core\Authentication\BackendUserAuthentication::class);
+        parent::setUp();
+        $this->backendUserMock = $this->createMock(BackendUserAuthentication::class);
         $this->backendUserMock->user['uid'] = 1;
         $this->registryMock = $this->createMock(Registry::class);
         $this->subject = new BackendFormProtection(
@@ -61,10 +65,10 @@ class BackendFormProtectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
     public function generateTokenReadsTokenFromSessionData()
     {
         $this->backendUserMock
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('getSessionData')
             ->with('formProtectionSessionToken')
-            ->will($this->returnValue([]));
+            ->willReturn([]);
         $this->subject->generateToken('foo');
     }
 
@@ -78,17 +82,17 @@ class BackendFormProtectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
         $action = 'edit';
         $formInstanceName = '42';
 
-        $tokenId = \TYPO3\CMS\Core\Utility\GeneralUtility::hmac(
+        $tokenId = GeneralUtility::hmac(
             $formName . $action . $formInstanceName . $sessionToken
         );
 
         $this->backendUserMock
-            ->expects($this->atLeastOnce())
+            ->expects(self::atLeastOnce())
             ->method('getSessionData')
             ->with('formProtectionSessionToken')
-            ->will($this->returnValue($sessionToken));
+            ->willReturn($sessionToken);
 
-        $this->assertTrue(
+        self::assertTrue(
             $this->subject->validateToken($tokenId, $formName, $action, $formInstanceName)
         );
     }
@@ -110,7 +114,7 @@ class BackendFormProtectionTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
     public function persistSessionTokenWritesTokenToSession()
     {
         $this->backendUserMock
-            ->expects($this->once())
+            ->expects(self::once())
             ->method('setAndSaveSessionData');
         $this->subject->persistSessionToken();
     }

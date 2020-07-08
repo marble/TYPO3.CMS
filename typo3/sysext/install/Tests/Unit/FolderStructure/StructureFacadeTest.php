@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Tests\Unit\FolderStructure;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,23 +13,31 @@ namespace TYPO3\CMS\Install\Tests\Unit\FolderStructure;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Tests\Unit\FolderStructure;
+
+use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
+use TYPO3\CMS\Install\FolderStructure\RootNode;
+use TYPO3\CMS\Install\FolderStructure\StructureFacade;
+use TYPO3\TestingFramework\Core\AccessibleObjectInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class StructureFacadeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class StructureFacadeTest extends UnitTestCase
 {
     /**
      * @test
      */
     public function getStatusReturnsStatusOfStructureAndReturnsItsResult()
     {
-        /** @var $facade \TYPO3\CMS\Install\FolderStructure\StructureFacade|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $facade = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\StructureFacade::class, ['dummy'], [], '', false);
-        $root = $this->createMock(\TYPO3\CMS\Install\FolderStructure\RootNode::class);
-        $root->expects($this->once())->method('getStatus')->will($this->returnValue([]));
+        /** @var $facade StructureFacade|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $facade = $this->getAccessibleMock(StructureFacade::class, ['dummy'], [], '', false);
+        $root = $this->createMock(RootNode::class);
+        $root->expects(self::once())->method('getStatus')->willReturn([]);
         $facade->_set('structure', $root);
         $status = $facade->getStatus();
-        $this->assertInternalType('array', $status);
+        self::assertInstanceOf(FlashMessageQueue::class, $status);
     }
 
     /**
@@ -38,12 +45,12 @@ class StructureFacadeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function fixCallsFixOfStructureAndReturnsItsResult()
     {
-        /** @var $facade \TYPO3\CMS\Install\FolderStructure\StructureFacade|\TYPO3\TestingFramework\Core\AccessibleObjectInterface|\PHPUnit_Framework_MockObject_MockObject */
-        $facade = $this->getAccessibleMock(\TYPO3\CMS\Install\FolderStructure\StructureFacade::class, ['dummy'], [], '', false);
-        $root = $this->createMock(\TYPO3\CMS\Install\FolderStructure\RootNode::class);
-        $root->expects($this->once())->method('fix')->will($this->returnValue([]));
+        /** @var $facade StructureFacade|AccessibleObjectInterface|\PHPUnit\Framework\MockObject\MockObject */
+        $facade = $this->getAccessibleMock(StructureFacade::class, ['dummy'], [], '', false);
+        $root = $this->createMock(RootNode::class);
+        $root->expects(self::once())->method('fix')->willReturn([]);
         $facade->_set('structure', $root);
         $status = $facade->fix();
-        $this->assertInternalType('array', $status);
+        self::assertInstanceOf(FlashMessageQueue::class, $status);
     }
 }

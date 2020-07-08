@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,14 +13,17 @@ namespace TYPO3\CMS\Core\Tests\Functional;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional;
+
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
 
 /**
  * Test case
  */
-class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class RegistryTest extends FunctionalTestCase
 {
 
     /**
@@ -29,7 +31,7 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
      */
     public function getReturnsNullIfEntryIsNotInDatabase()
     {
-        $this->assertNull((new Registry())->get('myExtension', 'myKey'));
+        self::assertNull((new Registry())->get('myExtension', 'myKey'));
     }
 
     /**
@@ -37,7 +39,7 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
      */
     public function getReturnsDefaultValueIfEntryIsNotInDatabase()
     {
-        $this->assertSame('myDefault', (new Registry())->get('myExtension', 'myKey', 'myDefault'));
+        self::assertSame('myDefault', (new Registry())->get('myExtension', 'myKey', 'myDefault'));
     }
 
     /**
@@ -57,7 +59,7 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
                     'entry_value' => Connection::PARAM_LOB,
                 ]
             );
-        $this->assertSame('myValue', (new Registry())->get('myExtension', 'myKey'));
+        self::assertSame('myValue', (new Registry())->get('myExtension', 'myKey'));
     }
 
     /**
@@ -73,7 +75,7 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
                 ['entry_namespace' => 'myExtension', 'entry_key' => 'myKey']
             )
             ->fetch();
-        $this->assertSame('myValue', unserialize($valueInDatabase['entry_value']));
+        self::assertSame('myValue', unserialize($valueInDatabase['entry_value']));
     }
 
     /**
@@ -101,7 +103,7 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
                 ['entry_namespace' => 'myExtension', 'entry_key' => 'myKey']
             )
             ->fetch();
-        $this->assertSame('myNewValue', unserialize($valueInDatabase['entry_value']));
+        self::assertSame('myNewValue', unserialize($valueInDatabase['entry_value']));
     }
 
     /**
@@ -111,23 +113,23 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
     {
         $connection = (new ConnectionPool())->getConnectionForTable('sys_registry');
         $connection->bulkInsert(
-                'sys_registry',
-                [
+            'sys_registry',
+            [
                     ['ns1', 'k1', serialize('v1')],
                     ['ns1', 'k2', serialize('v2')],
                     ['ns2', 'k1', serialize('v1')],
                 ],
-                ['entry_namespace', 'entry_key', 'entry_value'],
-                [
+            ['entry_namespace', 'entry_key', 'entry_value'],
+            [
                     'entry_value' => Connection::PARAM_LOB,
                 ]
-            );
+        );
 
         (new Registry())->remove('ns1', 'k1');
 
-        $this->assertSame(0, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns1', 'entry_key' => 'k1']));
-        $this->assertSame(1, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns1', 'entry_key' => 'k2']));
-        $this->assertSame(1, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns2', 'entry_key' => 'k1']));
+        self::assertSame(0, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns1', 'entry_key' => 'k1']));
+        self::assertSame(1, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns1', 'entry_key' => 'k2']));
+        self::assertSame(1, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns2', 'entry_key' => 'k1']));
     }
 
     /**
@@ -151,9 +153,9 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
 
         (new Registry())->removeAllByNamespace('ns1');
 
-        $this->assertSame(0, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns1', 'entry_key' => 'k1']));
-        $this->assertSame(0, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns1', 'entry_key' => 'k2']));
-        $this->assertSame(1, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns2', 'entry_key' => 'k1']));
+        self::assertSame(0, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns1', 'entry_key' => 'k1']));
+        self::assertSame(0, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns1', 'entry_key' => 'k2']));
+        self::assertSame(1, $connection->count('*', 'sys_registry', ['entry_namespace' => 'ns2', 'entry_key' => 'k1']));
     }
 
     /**
@@ -163,7 +165,7 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
     {
         $registry = new Registry();
         $registry->set('ns1', 'key1', 'value1');
-        $this->assertSame('value1', $registry->get('ns1', 'key1'));
+        self::assertSame('value1', $registry->get('ns1', 'key1'));
     }
 
     /**
@@ -174,7 +176,7 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
         $registry = new Registry();
         $registry->set('ns1', 'key1', 'value1');
         $registry->set('ns1', 'key1', 'value2');
-        $this->assertSame('value2', $registry->get('ns1', 'key1'));
+        self::assertSame('value2', $registry->get('ns1', 'key1'));
     }
 
     /**
@@ -185,7 +187,7 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
         $registry = new Registry();
         $registry->set('ns1', 'key1', 'value1');
         $registry->remove('ns1', 'key1');
-        $this->assertNull($registry->get('ns1', 'key1'));
+        self::assertNull($registry->get('ns1', 'key1'));
     }
 
     /**
@@ -196,6 +198,6 @@ class RegistryTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTes
         $registry = new Registry();
         $registry->set('ns1', 'key1', 'value1');
         $registry->removeAllByNamespace('ns1');
-        $this->assertNull($registry->get('ns1', 'key1'));
+        self::assertNull($registry->get('ns1', 'key1'));
     }
 }

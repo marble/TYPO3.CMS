@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Renderer;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,11 +15,16 @@ namespace TYPO3\CMS\Form\Domain\Renderer;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Renderer;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Fluid\View\TemplateView;
 use TYPO3\CMS\Form\Domain\Exception\RenderingException;
-use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
 use TYPO3\CMS\Form\ViewHelpers\RenderRenderableViewHelper;
 
 /**
@@ -121,7 +124,7 @@ use TYPO3\CMS\Form\ViewHelpers\RenderRenderableViewHelper;
  * **This class is NOT meant to be sub classed by developers.**
  * @internal
  */
-class FluidFormRenderer extends AbstractElementRenderer implements RendererInterface
+class FluidFormRenderer extends AbstractElementRenderer
 {
 
     /**
@@ -175,18 +178,13 @@ class FluidFormRenderer extends AbstractElementRenderer implements RendererInter
         // from the renderable
         $view->getTemplatePaths()->fillFromConfigurationArray($renderingOptions);
 
-        if (
-            isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRendering'])
-            && is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRendering'])
-        ) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRendering'] as $className) {
-                $hookObj = GeneralUtility::makeInstance($className);
-                if (method_exists($hookObj, 'beforeRendering')) {
-                    $hookObj->beforeRendering(
-                        $this->formRuntime,
-                        $this->formRuntime->getFormDefinition()
-                    );
-                }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRendering'] ?? [] as $className) {
+            $hookObj = GeneralUtility::makeInstance($className);
+            if (method_exists($hookObj, 'beforeRendering')) {
+                $hookObj->beforeRendering(
+                    $this->formRuntime,
+                    $this->formRuntime->getFormDefinition()
+                );
             }
         }
 

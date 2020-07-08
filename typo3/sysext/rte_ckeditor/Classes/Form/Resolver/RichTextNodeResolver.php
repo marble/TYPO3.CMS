@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\RteCKEditor\Form\Resolver;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\RteCKEditor\Form\Resolver;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\RteCKEditor\Form\Resolver;
+
 use TYPO3\CMS\Backend\Form\NodeFactory;
 use TYPO3\CMS\Backend\Form\NodeResolverInterface;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
@@ -21,6 +22,7 @@ use TYPO3\CMS\RteCKEditor\Form\Element\RichTextElement;
 
 /**
  * This resolver will return the RichTextElement render class if RTE is enabled for this field.
+ * @internal This is a specific Backend FormEngine implementation and is not considered part of the Public TYPO3 API.
  */
 class RichTextNodeResolver implements NodeResolverInterface
 {

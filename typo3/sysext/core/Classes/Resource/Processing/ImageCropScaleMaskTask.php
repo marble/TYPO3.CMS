@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Processing;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Resource\Processing;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource\Processing;
 
 /**
  * A task that takes care of cropping, scaling and/or masking an image.
@@ -42,7 +43,6 @@ class ImageCropScaleMaskTask extends AbstractGraphicalTask
      * are given, within the boundaries and don't conflict with each other.
      *
      * @param array $configuration
-     * @return bool
      */
     protected function isValidConfiguration(array $configuration)
     {

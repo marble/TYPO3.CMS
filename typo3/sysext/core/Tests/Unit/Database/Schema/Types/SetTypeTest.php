@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,20 +15,23 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Types;
+
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Types\Type;
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Database\Schema\Types\SetType;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for SetType
  */
-class SetTypeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class SetTypeTest extends UnitTestCase
 {
     /**
      * Set up the test subject
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         if (!Type::hasType(SetType::TYPE)) {
@@ -43,7 +45,7 @@ class SetTypeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getNameReturnsTypeIdentifier()
     {
         $subject = Type::getType(SetType::TYPE);
-        $this->assertSame(SetType::TYPE, $subject->getName());
+        self::assertSame(SetType::TYPE, $subject->getName());
     }
 
     /**
@@ -63,7 +65,7 @@ class SetTypeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         );
 
         $subject = Type::getType(SetType::TYPE);
-        $this->assertSame(
+        self::assertSame(
             "SET('aValue', 'anotherValue')",
             $subject->getSQLDeclaration($fieldDeclaration, $databaseProphet->reveal())
         );

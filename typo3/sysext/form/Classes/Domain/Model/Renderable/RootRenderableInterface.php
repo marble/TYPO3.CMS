@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Model\Renderable;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\Domain\Model\Renderable;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Model\Renderable;
 
 /**
  * Base interface which all parts of a form must adhere to.
@@ -32,7 +36,6 @@ interface RootRenderableInterface
      * the particular element.
      *
      * @return string
-     * @api
      */
     public function getType(): string;
 
@@ -40,7 +43,6 @@ interface RootRenderableInterface
      * The identifier of this renderable
      *
      * @return string
-     * @api
      */
     public function getIdentifier(): string;
 
@@ -48,7 +50,6 @@ interface RootRenderableInterface
      * Get the label which shall be displayed next to the form element
      *
      * @return string
-     * @api
      */
     public function getLabel(): string;
 
@@ -57,7 +58,6 @@ interface RootRenderableInterface
      * must implement RendererInterface
      *
      * @return string the renderer class name
-     * @api
      */
     public function getRendererClassName(): string;
 
@@ -65,7 +65,6 @@ interface RootRenderableInterface
      * Get all rendering options
      *
      * @return array associative array of rendering options
-     * @api
      */
     public function getRenderingOptions(): array;
 }

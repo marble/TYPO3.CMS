@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Frontend\Tests\Unit\Processor;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,26 +14,31 @@ namespace TYPO3\CMS\Frontend\Tests\Unit\Processor;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\Tests\Unit\Processor;
+
 use TYPO3\CMS\Core\Resource\FileReference;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 use TYPO3\CMS\Frontend\ContentObject\Exception\ContentRenderingException;
 use TYPO3\CMS\Frontend\DataProcessing\GalleryProcessor;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Tests for  GalleryProcessor
  */
-class GalleryProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class GalleryProcessorTest extends UnitTestCase
 {
     /**
-     * @var ContentObjectRenderer|\PHPUnit_Framework_MockObject_MockObject
+     * @var ContentObjectRenderer|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $contentObjectRenderer;
 
     /**
      * Set up
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->contentObjectRenderer = $this->getMockBuilder(ContentObjectRenderer::class)
             ->setMethods(['dummy'])
             ->getMock();
@@ -158,7 +164,7 @@ class GalleryProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
             ['files' => []]
         );
 
-        $this->assertEquals($expected, $processedData['gallery']['position']);
+        self::assertEquals($expected, $processedData['gallery']['position']);
     }
 
     /**
@@ -174,7 +180,7 @@ class GalleryProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
             ['files' => []]
         );
 
-        $this->assertEquals(200, $processedData['gallery']['width']);
+        self::assertEquals(200, $processedData['gallery']['width']);
     }
 
     /**
@@ -190,7 +196,7 @@ class GalleryProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
             ['files' => []]
         );
 
-        $this->assertEquals(100, $processedData['gallery']['width']);
+        self::assertEquals(100, $processedData['gallery']['width']);
     }
 
     /**
@@ -264,7 +270,7 @@ class GalleryProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
             ['files' => $files]
         );
 
-        $this->assertEquals($expected, $processedData['gallery']['count']);
+        self::assertEquals($expected, $processedData['gallery']['count']);
     }
 
     /**
@@ -441,12 +447,12 @@ class GalleryProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
         $files = [];
         foreach ($testFiles as $fileConfig) {
             $fileReference = $this->createMock(FileReference::class);
-            $fileReference->expects($this->any())
+            $fileReference->expects(self::any())
                 ->method('getProperty')
-                ->will($this->returnValueMap([
+                ->willReturnMap([
                     ['width', $fileConfig[0]],
                     ['height', $fileConfig[1]]
-                ]));
+                ]);
             $files[] = $fileReference;
         }
 
@@ -459,10 +465,10 @@ class GalleryProcessorTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCas
         );
 
         foreach ($expected as $row => $columns) {
-            $this->assertArrayHasKey($row, $processedData['gallery']['rows'], 'Row exists');
+            self::assertArrayHasKey($row, $processedData['gallery']['rows'], 'Row exists');
             foreach ($columns as $column => $dimensions) {
-                $this->assertArrayHasKey($column, $processedData['gallery']['rows'][$row]['columns'], 'Column exists');
-                $this->assertEquals($dimensions, $processedData['gallery']['rows'][$row]['columns'][$column]['dimensions'], 'Dimensions match');
+                self::assertArrayHasKey($column, $processedData['gallery']['rows'][$row]['columns'], 'Column exists');
+                self::assertEquals($dimensions, $processedData['gallery']['rows'][$row]['columns'][$column]['dimensions'], 'Dimensions match');
             }
         }
     }

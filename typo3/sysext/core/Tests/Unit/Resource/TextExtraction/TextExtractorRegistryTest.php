@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource\TextExtraction;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,23 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource\TextExtraction;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Resource\TextExtraction;
+
 use TYPO3\CMS\Core\Resource\TextExtraction\TextExtractorInterface;
 use TYPO3\CMS\Core\Resource\TextExtraction\TextExtractorRegistry;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test cases for TextExtractorRegistry
  */
-class TextExtractorRegistryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class TextExtractorRegistryTest extends UnitTestCase
 {
     /**
      * Initialize a TextExtractorRegistry and mock createTextExtractorInstance()
      *
      * @param array $createsTextExtractorInstances
-     * @return \PHPUnit_Framework_MockObject_MockObject|TextExtractorRegistry
+     * @return \PHPUnit\Framework\MockObject\MockObject|TextExtractorRegistry
      */
     protected function getTextExtractorRegistry(array $createsTextExtractorInstances = [])
     {
@@ -35,9 +38,9 @@ class TextExtractorRegistryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
             ->getMock();
 
         if (!empty($createsTextExtractorInstances)) {
-            $textExtractorRegistry->expects($this->any())
+            $textExtractorRegistry->expects(self::any())
                 ->method('createTextExtractorInstance')
-                ->will($this->returnValueMap($createsTextExtractorInstances));
+                ->willReturnMap($createsTextExtractorInstances);
         }
 
         return $textExtractorRegistry;
@@ -48,7 +51,7 @@ class TextExtractorRegistryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
      */
     public function registeredTextExtractorClassCanBeRetrieved()
     {
-        $textExtractorClass = $this->getUniqueId('myTextExtractor');
+        $textExtractorClass = StringUtility::getUniqueId('myTextExtractor');
         $textExtractorInstance = $this->getMockBuilder(TextExtractorInterface::class)
             ->setMockClassName($textExtractorClass)
             ->getMock();
@@ -56,7 +59,7 @@ class TextExtractorRegistryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
         $textExtractorRegistry = $this->getTextExtractorRegistry([[$textExtractorClass, $textExtractorInstance]]);
 
         $textExtractorRegistry->registerTextExtractor($textExtractorClass);
-        $this->assertContains($textExtractorInstance, $textExtractorRegistry->getTextExtractorInstances(), '', false, false);
+        self::assertContains($textExtractorInstance, $textExtractorRegistry->getTextExtractorInstances());
     }
 
     /**
@@ -68,7 +71,7 @@ class TextExtractorRegistryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
         $this->expectExceptionCode(1422906893);
 
         $textExtractorRegistry = $this->getTextExtractorRegistry();
-        $textExtractorRegistry->registerTextExtractor($this->getUniqueId());
+        $textExtractorRegistry->registerTextExtractor(StringUtility::getUniqueId());
     }
 
     /**

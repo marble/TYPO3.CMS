@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Http;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +13,28 @@ namespace TYPO3\CMS\Core\Tests\Unit\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Http;
+
 use TYPO3\CMS\Core\Http\Request;
 use TYPO3\CMS\Core\Http\Stream;
 use TYPO3\CMS\Core\Http\Uri;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for \TYPO3\CMS\Core\Http\Request
  *
  * Adapted from https://github.com/phly/http/
  */
-class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class RequestTest extends UnitTestCase
 {
     /**
      * @var Request
      */
     protected $request;
 
-    protected function setUp()
+    protected function setUp(): void
     {
+        parent::setUp();
         $this->request = new Request();
     }
 
@@ -40,7 +43,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getMethodIsGetByDefault()
     {
-        $this->assertEquals('GET', $this->request->getMethod());
+        self::assertEquals('GET', $this->request->getMethod());
     }
 
     /**
@@ -49,8 +52,8 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getMethodMutatorReturnsCloneWithChangedMethod()
     {
         $request = $this->request->withMethod('GET');
-        $this->assertNotSame($this->request, $request);
-        $this->assertEquals('GET', $request->getMethod());
+        self::assertNotSame($this->request, $request);
+        self::assertEquals('GET', $request->getMethod());
     }
 
     /**
@@ -58,7 +61,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getUriIsNullByDefault()
     {
-        $this->assertNull($this->request->getUri());
+        self::assertNull($this->request->getUri());
     }
 
     /**
@@ -76,11 +79,11 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function withUriReturnsNewInstanceWithNewUri()
     {
         $request = $this->request->withUri(new Uri('https://example.com:10082/foo/bar?baz=bat'));
-        $this->assertNotSame($this->request, $request);
+        self::assertNotSame($this->request, $request);
         $request2 = $request->withUri(new Uri('/baz/bat?foo=bar'));
-        $this->assertNotSame($this->request, $request2);
-        $this->assertNotSame($request, $request2);
-        $this->assertEquals('/baz/bat?foo=bar', (string) $request2->getUri());
+        self::assertNotSame($this->request, $request2);
+        self::assertNotSame($request, $request2);
+        self::assertEquals('/baz/bat?foo=bar', (string)$request2->getUri());
     }
 
     /**
@@ -100,13 +103,13 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             $headers
         );
 
-        $this->assertSame($uri, $request->getUri());
-        $this->assertEquals('POST', $request->getMethod());
-        $this->assertSame($body, $request->getBody());
+        self::assertSame($uri, $request->getUri());
+        self::assertEquals('POST', $request->getMethod());
+        self::assertSame($body, $request->getBody());
         $testHeaders = $request->getHeaders();
         foreach ($headers as $key => $value) {
-            $this->assertArrayHasKey($key, $testHeaders);
-            $this->assertEquals($value, $testHeaders[$key]);
+            self::assertArrayHasKey($key, $testHeaders);
+            self::assertEquals($value, $testHeaders[$key]);
         }
     }
 
@@ -121,7 +124,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'int'      => [1],
             'float'    => [1.1],
             'array'    => [['http://example.com']],
-            'stdClass' => [(object) ['href' => 'http://example.com']],
+            'stdClass' => [(object)['href' => 'http://example.com']],
         ];
     }
 
@@ -147,7 +150,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'int'        => [1],
             'float'      => [1.1],
             'array'      => [['POST']],
-            'stdClass'   => [(object) ['method' => 'POST']],
+            'stdClass'   => [(object)['method' => 'POST']],
         ];
     }
 
@@ -183,7 +186,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'int'      => [1],
             'float'    => [1.1],
             'array'    => [['BODY']],
-            'stdClass' => [(object) ['body' => 'BODY']],
+            'stdClass' => [(object)['body' => 'BODY']],
         ];
     }
 
@@ -209,7 +212,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'x-invalid-true'   => true,
             'x-invalid-false'  => false,
             'x-invalid-int'    => 1,
-            'x-invalid-object' => (object) ['INVALID'],
+            'x-invalid-object' => (object)['INVALID'],
             'x-valid-string'   => 'VALID',
             'x-valid-array'    => ['VALID'],
         ];
@@ -218,7 +221,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             'x-valid-array'  => ['VALID'],
         ];
         $request = new Request(null, null, 'php://memory', $headers);
-        $this->assertEquals($expected, $request->getHeaders());
+        self::assertEquals($expected, $request->getHeaders());
     }
 
     /**
@@ -227,7 +230,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getRequestTargetIsSlashWhenNoUriPresent()
     {
         $request = new Request();
-        $this->assertEquals('/', $request->getRequestTarget());
+        self::assertEquals('/', $request->getRequestTarget());
     }
 
     /**
@@ -237,7 +240,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $request = (new Request())
             ->withUri(new Uri('http://example.com'));
-        $this->assertEquals('/', $request->getRequestTarget());
+        self::assertEquals('/', $request->getRequestTarget());
     }
 
     /**
@@ -279,7 +282,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function getRequestTargetWhenUriIsPresent($request, $expected)
     {
-        $this->assertEquals($expected, $request->getRequestTarget());
+        self::assertEquals($expected, $request->getRequestTarget());
     }
 
     /**
@@ -304,7 +307,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getRequestTargetCanProvideARequestTarget($requestTarget)
     {
         $request = (new Request())->withRequestTarget($requestTarget);
-        $this->assertEquals($requestTarget, $request->getRequestTarget());
+        self::assertEquals($requestTarget, $request->getRequestTarget());
     }
 
     /**
@@ -326,7 +329,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $request = (new Request())->withUri(new Uri('https://example.com/foo/bar'));
         $original = $request->getRequestTarget();
         $newRequest = $request->withUri(new Uri('http://mwop.net/bar/baz'));
-        $this->assertNotEquals($original, $newRequest->getRequestTarget());
+        self::assertNotEquals($original, $newRequest->getRequestTarget());
     }
 
     /**
@@ -346,8 +349,8 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $request = new Request('http://example.com');
         $headers = $request->getHeaders();
-        $this->assertArrayHasKey('host', $headers);
-        $this->assertContains('example.com', $headers['host']);
+        self::assertArrayHasKey('host', $headers);
+        self::assertTrue(in_array('example.com', $headers['host']));
     }
 
     /**
@@ -357,7 +360,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $request = new Request();
         $headers = $request->getHeaders();
-        $this->assertArrayNotHasKey('host', $headers);
+        self::assertArrayNotHasKey('host', $headers);
     }
 
     /**
@@ -367,7 +370,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $request = new Request(new Uri());
         $headers = $request->getHeaders();
-        $this->assertArrayNotHasKey('host', $headers);
+        self::assertArrayNotHasKey('host', $headers);
     }
 
     /**
@@ -377,7 +380,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $request = new Request('http://example.com');
         $header = $request->getHeader('host');
-        $this->assertEquals(['example.com'], $header);
+        self::assertEquals(['example.com'], $header);
     }
 
     /**
@@ -386,7 +389,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getHeaderWithHostReturnsEmptyArrayIfNoUriPresent()
     {
         $request = new Request();
-        $this->assertSame([], $request->getHeader('host'));
+        self::assertSame([], $request->getHeader('host'));
     }
 
     /**
@@ -395,7 +398,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getHeaderWithHostReturnsEmptyArrayIfUriDoesNotContainHost()
     {
         $request = new Request(new Uri());
-        $this->assertSame([], $request->getHeader('host'));
+        self::assertSame([], $request->getHeader('host'));
     }
 
     /**
@@ -405,7 +408,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $request = new Request('http://example.com');
         $header = $request->getHeaderLine('host');
-        $this->assertContains('example.com', $header);
+        self::assertStringContainsString('example.com', $header);
     }
 
     /**
@@ -414,7 +417,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getHeaderLineWithHostReturnsEmptyStringIfNoUriPresent()
     {
         $request = new Request();
-        $this->assertSame('', $request->getHeaderLine('host'));
+        self::assertSame('', $request->getHeaderLine('host'));
     }
 
     /**
@@ -423,7 +426,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getHeaderLineWithHostReturnsEmptyStringIfUriDoesNotContainHost()
     {
         $request = new Request(new Uri());
-        $this->assertSame('', $request->getHeaderLine('host'));
+        self::assertSame('', $request->getHeaderLine('host'));
     }
 
     /**
@@ -437,7 +440,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $uri = (new Uri())->withHost('www.example.com');
         $new = $request->withUri($uri, true);
 
-        $this->assertEquals('example.com', $new->getHeaderLine('Host'));
+        self::assertEquals('example.com', $new->getHeaderLine('Host'));
     }
 
     /**
@@ -451,7 +454,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         $uri = new Uri();
         $new = $request->withUri($uri);
 
-        $this->assertEquals('example.com', $new->getHeaderLine('Host'));
+        self::assertEquals('example.com', $new->getHeaderLine('Host'));
     }
 
     /**
@@ -467,7 +470,7 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
             ->withPort(10081);
         $new = $request->withUri($uri);
 
-        $this->assertEquals('www.example.com:10081', $new->getHeaderLine('Host'));
+        self::assertEquals('www.example.com:10081', $new->getHeaderLine('Host'));
     }
 
     /**
@@ -491,8 +494,8 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function headerCanBeRetrieved($header, $value, $expected)
     {
         $request = new Request(null, null, 'php://memory', [$header => $value]);
-        $this->assertEquals([$expected], $request->getHeader(strtolower($header)));
-        $this->assertEquals([$expected], $request->getHeader(strtoupper($header)));
+        self::assertEquals([$expected], $request->getHeader(strtolower($header)));
+        self::assertEquals([$expected], $request->getHeader(strtoupper($header)));
     }
 
     /**
@@ -524,5 +527,23 @@ class RequestTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         new Request(null, null, 'php://memory', [$name => $value]);
+    }
+
+    /**
+     * @test
+     */
+    public function supportedRequestMethodsWork(): void
+    {
+        $request = new Request('some-uri', 'PURGE');
+        self::assertEquals('PURGE', $request->getMethod());
+    }
+
+    /**
+     * @test
+     */
+    public function nonSupportedRequestMethodsRaisesException(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new Request('some-uri', 'UNSUPPORTED');
     }
 }

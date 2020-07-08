@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Linkvalidator\Linktype;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,15 @@ namespace TYPO3\CMS\Linkvalidator\Linktype;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Linkvalidator\Linktype;
+
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\TooManyRedirectsException;
 use TYPO3\CMS\Core\Http\RequestFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\HttpUtility;
 
 /**
  * This class provides Check External Links plugin implementation
@@ -27,80 +31,177 @@ class ExternalLinktype extends AbstractLinktype
     /**
      * Cached list of the URLs, which were already checked for the current processing
      *
-     * @var array $urlReports
+     * @var array
      */
     protected $urlReports = [];
 
     /**
      * Cached list of all error parameters of the URLs, which were already checked for the current processing
      *
-     * @var array $urlErrorParams
+     * @var array
      */
     protected $urlErrorParams = [];
 
     /**
-     * List of headers to be used for matching an URL for the current processing
+     * List of HTTP request headers to use for checking a URL
      *
-     * @var array $additionalHeaders
+     * @var array
      */
-    protected $additionalHeaders = [];
+    protected $headers = [
+        'User-Agent'      => 'TYPO3 linkvalidator',
+        'Accept'          => '*/*',
+        'Accept-Language' => '*',
+        'Accept-Encoding' => '*',
+    ];
+
+    /**
+     * Preferred method of fetching (HEAD | GET).
+     * If HEAD is used, we fallback to GET
+     *
+     * @var string
+     */
+    protected $method = 'HEAD';
+
+    /**
+     * For GET method, set number of bytes returned.
+     *
+     * This limits the payload, but may fail for some sites.
+     *
+     * @var string
+     */
+    protected $range = '0-4048';
+
+    /**
+     * @var RequestFactory
+     */
+    protected $requestFactory;
+
+    /**
+     * @var array
+     */
+    protected $errorParams = [];
+
+    public function __construct(RequestFactory $requestFactory = null)
+    {
+        $this->requestFactory = $requestFactory ?: GeneralUtility::makeInstance(RequestFactory::class);
+    }
+
+    public function setAdditionalConfig(array $config): void
+    {
+        if ($config['headers.'] ?? false) {
+            $this->headers = array_merge($this->headers, $config['headers.']);
+        }
+
+        if ($config['httpAgentName'] ?? false) {
+            $this->headers['User-Agent'] = $config['httpAgentName'];
+        }
+
+        if ($config['httpAgentUrl'] ?? false) {
+            $this->headers['User-Agent'] .= ' ' . $config['httpAgentUrl'];
+        }
+
+        $email = '';
+        if ($config['httpAgentEmail'] ?? false) {
+            $email = $config['httpAgentEmail'];
+        } elseif ($GLOBALS['TYPO3_CONF_VARS']['MAIL']['defaultMailFromAddress'] ?? false) {
+            $email = $GLOBALS['TYPO3_CONF_VARS']['MAIL']['defaultMailFromAddress'];
+        }
+        if ($email) {
+            $this->headers['User-Agent'] .= ';' . $email;
+        }
+
+        if ($config['method'] ?? false) {
+            $this->method = $config['method'];
+        }
+        if ($config['range'] ?? false) {
+            $this->range = $config['range'];
+        }
+    }
 
     /**
      * Checks a given URL for validity
      *
-     * @param string $url The URL to check
+     * @param string $origUrl The URL to check
      * @param array $softRefEntry The soft reference entry which builds the context of that URL
      * @param \TYPO3\CMS\Linkvalidator\LinkAnalyzer $reference Parent instance
      * @return bool TRUE on success or FALSE on error
+     * @throws \InvalidArgumentException
      */
-    public function checkLink($url, $softRefEntry, $reference)
+    public function checkLink($origUrl, $softRefEntry, $reference)
     {
-        $errorParams = [];
-        $isValidUrl = true;
-        if (isset($this->urlReports[$url])) {
-            if (!$this->urlReports[$url]) {
-                if (is_array($this->urlErrorParams[$url])) {
-                    $this->setErrorParams($this->urlErrorParams[$url]);
-                }
-            }
-            return $this->urlReports[$url];
+        $isValidUrl = false;
+        // use URL from cache, if available
+        if (isset($this->urlReports[$origUrl])) {
+            $this->setErrorParams($this->urlErrorParams[$origUrl]);
+            return $this->urlReports[$origUrl];
         }
-
         $options = [
             'cookies' => GeneralUtility::makeInstance(CookieJar::class),
-            'allow_redirects' => ['strict' => true]
+            'allow_redirects' => ['strict' => true],
+            'headers'         => $this->headers
         ];
-
-        /** @var RequestFactory $requestFactory */
-        $requestFactory = GeneralUtility::makeInstance(RequestFactory::class);
-        try {
-            $response = $requestFactory->request($url, 'HEAD', $options);
-            // HEAD was not allowed or threw an error, now trying GET
-            if ($response->getStatusCode() >= 400) {
-                $options['headers']['Range'] = 'bytes = 0 - 4048';
-                $response = $requestFactory->request($url, 'GET', $options);
+        $url = $this->preprocessUrl($origUrl);
+        if (!empty($url)) {
+            if ($this->method === 'HEAD') {
+                $isValidUrl = $this->requestUrl($url, 'HEAD', $options);
             }
+            if (!$isValidUrl) {
+                // HEAD was not allowed or threw an error, now trying GET
+                if ($this->range) {
+                    $options['headers']['Range'] = 'bytes=' . $this->range;
+                }
+                $isValidUrl = $this->requestUrl($url, 'GET', $options);
+            }
+        }
+        $this->urlReports[$origUrl] = $isValidUrl;
+        $this->urlErrorParams[$origUrl] = $this->errorParams;
+        return $isValidUrl;
+    }
+
+    /**
+     * Check URL using the specified request methods
+     *
+     * @param string $url
+     * @param string $method
+     * @param array $options
+     * @return bool
+     */
+    protected function requestUrl(string $url, string $method, array $options): bool
+    {
+        $this->errorParams = [];
+        $isValidUrl = false;
+        try {
+            $response = $this->requestFactory->request($url, $method, $options);
             if ($response->getStatusCode() >= 300) {
-                $isValidUrl = false;
-                $errorParams['errorType'] = $response->getStatusCode();
-                $errorParams['message'] = $response->getReasonPhrase();
+                $this->errorParams['errorType'] = $response->getStatusCode();
+                $this->errorParams['message'] = $this->getErrorMessage($this->errorParams);
+            } else {
+                $isValidUrl = true;
             }
         } catch (TooManyRedirectsException $e) {
-            $lastRequest = $e->getRequest();
-            $response = $e->getResponse();
-            $errorParams['errorType'] = 'loop';
-            $errorParams['location'] = (string)$lastRequest->getUri();
-            $errorParams['errorCode'] = $response->getStatusCode();
+            // redirect loop or too many redirects
+            // todo: change errorType to 'redirect' (breaking change)
+            $this->errorParams['errorType'] = 'loop';
+            $this->errorParams['exception'] = $e->getMessage();
+            $this->errorParams['message'] = $this->getErrorMessage($this->errorParams);
+        } catch (ClientException $e) {
+            if ($e->hasResponse()) {
+                $this->errorParams['errorType'] = $e->getResponse()->getStatusCode();
+            } else {
+                $this->errorParams['errorType'] = 'unknown';
+            }
+            $this->errorParams['exception'] = $e->getMessage();
+            $this->errorParams['message'] = $this->getErrorMessage($this->errorParams);
+        } catch (RequestException $e) {
+            $this->errorParams['errorType'] = 'network';
+            $this->errorParams['exception'] = $e->getMessage();
+            $this->errorParams['message'] = $this->getErrorMessage($this->errorParams);
         } catch (\Exception $e) {
-            $isValidUrl = false;
-            $errorParams['errorType'] = 'exception';
-            $errorParams['message'] = $e->getMessage();
+            // Generic catch for anything else that may go wrong
+            $this->errorParams['errorType'] = 'exception';
+            $this->errorParams['exception'] = $e->getMessage();
+            $this->errorParams['message'] = $this->getErrorMessage($this->errorParams);
         }
-        if (!$isValidUrl) {
-            $this->setErrorParams($errorParams);
-        }
-        $this->urlReports[$url] = $isValidUrl;
-        $this->urlErrorParams[$url] = $errorParams;
         return $isValidUrl;
     }
 
@@ -116,27 +217,38 @@ class ExternalLinktype extends AbstractLinktype
         $errorType = $errorParams['errorType'];
         switch ($errorType) {
             case 300:
-                $response = sprintf($lang->getLL('list.report.externalerror'), $errorType);
+                $message = sprintf($lang->getLL('list.report.externalerror'), $errorType);
                 break;
             case 403:
-                $response = $lang->getLL('list.report.pageforbidden403');
+                $message = $lang->getLL('list.report.pageforbidden403');
                 break;
             case 404:
-                $response = $lang->getLL('list.report.pagenotfound404');
+                $message = $lang->getLL('list.report.pagenotfound404');
                 break;
             case 500:
-                $response = $lang->getLL('list.report.internalerror500');
+                $message = $lang->getLL('list.report.internalerror500');
                 break;
             case 'loop':
-                $response = sprintf($lang->getLL('list.report.redirectloop'), $errorParams['errorCode'], $errorParams['location']);
+                $message = sprintf(
+                    $lang->getLL('list.report.redirectloop'),
+                    $errorParams['exception'],
+                    ''
+                );
                 break;
             case 'exception':
-                $response = sprintf($lang->getLL('list.report.httpexception'), $errorParams['message']);
+                $message = sprintf($lang->getLL('list.report.httpexception'), $errorParams['exception']);
+                break;
+            case 'network':
+                $message = $lang->getLL('list.report.networkexception');
+                if ($errorParams['exception']) {
+                    $message .= ':' . $errorParams['exception'];
+                }
                 break;
             default:
-                $response = sprintf($lang->getLL('list.report.otherhttpcode'), $errorType, $errorParams['message']);
+                $message = sprintf($lang->getLL('list.report.otherhttpcode'), $errorType, $errorParams['exception']);
         }
-        return $response;
+
+        return $message;
     }
 
     /**
@@ -154,5 +266,23 @@ class ExternalLinktype extends AbstractLinktype
             $type = 'external';
         }
         return $type;
+    }
+
+    /**
+     * Convert domain to punycode to handle domains with non-ASCII characters
+     *
+     * @param string $url
+     * @return string
+     */
+    protected function preprocessUrl(string $url): string
+    {
+        $url = html_entity_decode($url);
+        $parts = parse_url($url);
+        $newDomain = (string)HttpUtility::idn_to_ascii($parts['host']);
+        if (strcmp($parts['host'], $newDomain) !== 0) {
+            $parts['host'] = $newDomain;
+            $url = HttpUtility::buildUrl($parts);
+        }
+        return $url;
     }
 }

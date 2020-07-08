@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Localization;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,17 +13,21 @@ namespace TYPO3\CMS\Core\Localization;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Localization;
+
 use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\Localization\Exception\FileNotFoundException;
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Provides a language parser factory.
  */
-class LocalizationFactory implements \TYPO3\CMS\Core\SingletonInterface
+class LocalizationFactory implements SingletonInterface
 {
     /**
-     * @var \TYPO3\CMS\Core\Cache\Frontend\StringFrontend
+     * @var \TYPO3\CMS\Core\Cache\Frontend\FrontendInterface
      */
     protected $cacheInstance;
 
@@ -33,21 +36,10 @@ class LocalizationFactory implements \TYPO3\CMS\Core\SingletonInterface
      */
     public $store;
 
-    /**
-     * Class constructor
-     */
-    public function __construct()
+    public function __construct(LanguageStore $languageStore, CacheManager $cacheManager)
     {
-        $this->store = GeneralUtility::makeInstance(LanguageStore::class);
-        $this->initializeCache();
-    }
-
-    /**
-     * Initialize cache instance to be ready to use
-     */
-    protected function initializeCache()
-    {
-        $this->cacheInstance = GeneralUtility::makeInstance(CacheManager::class)->getCache('l10n');
+        $this->store = $languageStore;
+        $this->cacheInstance = $cacheManager->getCache('l10n');
     }
 
     /**
@@ -55,12 +47,12 @@ class LocalizationFactory implements \TYPO3\CMS\Core\SingletonInterface
      *
      * @param string $fileReference Input is a file-reference (see \TYPO3\CMS\Core\Utility\GeneralUtility::getFileAbsFileName). That file is expected to be a supported locallang file format
      * @param string $languageKey Language key
-     * @param string $charset Character set (option); not in use anymore
-     * @param int $errorMode Error mode (when file could not be found): not in use anymore
+     * @param null $_ unused
+     * @param null $__ unused
      * @param bool $isLocalizationOverride TRUE if $fileReference is a localization override
      * @return array|bool
      */
-    public function getParsedData($fileReference, $languageKey, $charset = '', $errorMode = null, $isLocalizationOverride = false)
+    public function getParsedData($fileReference, $languageKey, $_ = null, $__ = null, $isLocalizationOverride = false)
     {
         $hash = md5($fileReference . $languageKey);
 
@@ -82,11 +74,11 @@ class LocalizationFactory implements \TYPO3\CMS\Core\SingletonInterface
 
         try {
             $this->store->setConfiguration($fileReference, $languageKey);
-            /** @var $parser \TYPO3\CMS\Core\Localization\Parser\LocalizationParserInterface */
+            /** @var \TYPO3\CMS\Core\Localization\Parser\LocalizationParserInterface $parser */
             $parser = $this->store->getParserInstance($fileReference);
             // Get parsed data
             $LOCAL_LANG = $parser->getParsedData($this->store->getAbsoluteFileReference($fileReference), $languageKey);
-        } catch (Exception\FileNotFoundException $exception) {
+        } catch (FileNotFoundException $exception) {
             // Source localization file not found, set empty data as there could be an override
             $this->store->setData($fileReference, $languageKey, []);
             $LOCAL_LANG = $this->store->getData($fileReference);

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Reflection\Exception;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +15,13 @@ namespace TYPO3\CMS\Extbase\Reflection\Exception;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Reflection\Exception;
+
+use TYPO3\CMS\Extbase\Reflection\Exception;
+
 /**
  * An "Property not accessible" exception
- *
- * @license http://www.gnu.org/licenses/lgpl.html GNU Lesser General Public License, version 3 or later
  */
-class PropertyNotAccessibleException extends \TYPO3\CMS\Extbase\Reflection\Exception
+class PropertyNotAccessibleException extends Exception
 {
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Cache\Fixtures;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Core\Tests\Unit\Cache\Fixtures;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Cache\Fixtures;
+
 /**
  * Backend fixture for CacheManager test getCacheCreatesBackendWithGivenConfiguration()
  */
@@ -22,7 +23,7 @@ class BackendConfigurationOptionFixture extends BackendFixture
     /**
      * Test if constructor receives backend options
      *
-     * @param string $context FLOW3's application context
+     * @param string $context Unused, for backward compatibility only
      * @param array $options Configuration options - depends on the actual backend
      */
     public function __construct($context, array $options = [])

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,16 @@ namespace TYPO3\CMS\Extbase\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Domain\Model;
+
+use TYPO3\CMS\Extbase\Annotation as Extbase;
+use TYPO3\CMS\Extbase\DomainObject\AbstractEntity;
+use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+
 /**
  * This model represents a backend usergroup.
- *
- * @api
  */
-class BackendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
+class BackendUserGroup extends AbstractEntity
 {
     const FILE_OPPERATIONS = 1;
     const DIRECTORY_OPPERATIONS = 4;
@@ -28,7 +31,7 @@ class BackendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
 
     /**
      * @var string
-     * @validate notEmpty
+     * @Extbase\Validate("NotEmpty")
      */
     protected $title = '';
 
@@ -98,11 +101,6 @@ class BackendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     protected $lockToDomain = '';
 
     /**
-     * @var bool
-     */
-    protected $hideInList = false;
-
-    /**
      * @var string
      */
     protected $tsConfig = '';
@@ -112,7 +110,7 @@ class BackendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      */
     public function __construct()
     {
-        $this->subGroups = new \TYPO3\CMS\Extbase\Persistence\ObjectStorage();
+        $this->subGroups = new ObjectStorage();
     }
 
     /**
@@ -160,7 +158,7 @@ class BackendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
      *
      * @param \TYPO3\CMS\Extbase\Persistence\ObjectStorage $subGroups
      */
-    public function setSubGroups(\TYPO3\CMS\Extbase\Persistence\ObjectStorage $subGroups)
+    public function setSubGroups(ObjectStorage $subGroups)
     {
         $this->subGroups = $subGroups;
     }
@@ -506,26 +504,6 @@ class BackendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     }
 
     /**
-     * Setter for hide in list
-     *
-     * @param bool $hideInList
-     */
-    public function setHideInList($hideInList)
-    {
-        $this->hideInList = $hideInList;
-    }
-
-    /**
-     * Getter for hide in list
-     *
-     * @return bool
-     */
-    public function getHideInList()
-    {
-        return $this->hideInList;
-    }
-
-    /**
      * Setter for ts config
      *
      * @param string $tsConfig
@@ -557,7 +535,7 @@ class BackendUserGroup extends \TYPO3\CMS\Extbase\DomainObject\AbstractEntity
     }
 
     /**
-     * Helper method for settung permissions bitwise.
+     * Helper method for setting permissions bitwise.
      *
      * @param int $permission
      * @param bool $value

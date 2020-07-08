@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Configuration\Image;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,17 @@ namespace TYPO3\CMS\Install\Configuration\Image;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Configuration\Image;
+
 use TYPO3\CMS\Install\Configuration;
+use TYPO3\CMS\Install\Configuration\AbstractCustomPreset;
+use TYPO3\CMS\Install\Configuration\CustomPresetInterface;
 
 /**
  * Custom preset is a fallback if no other preset fits
+ * @internal only to be used within EXT:install
  */
-class CustomPreset extends Configuration\AbstractCustomPreset implements Configuration\CustomPresetInterface
+class CustomPreset extends AbstractCustomPreset implements CustomPresetInterface
 {
     /**
      * @var array Configuration values handled by this preset
@@ -29,7 +33,7 @@ class CustomPreset extends Configuration\AbstractCustomPreset implements Configu
         'GFX/processor_path' => '',
         'GFX/processor_path_lzw' => '',
         'GFX/processor' => '',
-        'GFX/processor_effects' => 0,
+        'GFX/processor_effects' => false,
         'GFX/processor_allowTemporaryMasksAsPng' => true,
         'GFX/processor_colorspace' => '',
     ];

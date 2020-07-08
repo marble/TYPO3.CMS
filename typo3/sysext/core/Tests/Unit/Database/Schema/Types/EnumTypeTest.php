@@ -1,7 +1,6 @@
 <?php
-declare(strict_types=1);
 
-namespace TYPO3\CMS\Core\Tests\Unit\Database;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,20 +15,23 @@ namespace TYPO3\CMS\Core\Tests\Unit\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Database\Schema\Types;
+
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Types\Type;
 use Prophecy\Argument;
 use TYPO3\CMS\Core\Database\Schema\Types\EnumType;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Test for EnumType
  */
-class EnumTypeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class EnumTypeTest extends UnitTestCase
 {
     /**
      * Set up the test subject
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         if (!Type::hasType(EnumType::TYPE)) {
@@ -43,7 +45,7 @@ class EnumTypeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     public function getNameReturnsTypeIdentifier()
     {
         $subject = Type::getType(EnumType::TYPE);
-        $this->assertSame(EnumType::TYPE, $subject->getName());
+        self::assertSame(EnumType::TYPE, $subject->getName());
     }
 
     /**
@@ -63,7 +65,7 @@ class EnumTypeTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
         );
 
         $subject = Type::getType(EnumType::TYPE);
-        $this->assertSame(
+        self::assertSame(
             "ENUM('aValue', 'anotherValue')",
             $subject->getSQLDeclaration($fieldDeclaration, $databaseProphet->reveal())
         );

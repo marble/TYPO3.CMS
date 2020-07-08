@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Linkvalidator\Task;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,10 @@ namespace TYPO3\CMS\Linkvalidator\Task;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Linkvalidator\Task;
+
+use Symfony\Component\Mime\Address;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
-use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Mail\MailMessage;
 use TYPO3\CMS\Core\Service\MarkerBasedTemplateService;
 use TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser;
@@ -23,10 +24,12 @@ use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MailUtility;
 use TYPO3\CMS\Linkvalidator\LinkAnalyzer;
+use TYPO3\CMS\Linkvalidator\Repository\BrokenLinkRepository;
 use TYPO3\CMS\Scheduler\Task\AbstractTask;
 
 /**
  * This class provides Scheduler plugin implementation
+ * @internal This class is a specific Scheduler task implementation and is not part of the TYPO3's Core API.
  */
 class ValidatorTask extends AbstractTask
 {
@@ -126,6 +129,9 @@ class ValidatorTask extends AbstractTask
      * @var string
      */
     protected $languageFile = 'LLL:EXT:linkvalidator/Resources/Private/Language/locallang.xlf';
+
+    /** @var BrokenLinkRepository */
+    protected $brokenLinkRepository;
 
     /**
      * Get the value of the protected property email
@@ -255,10 +261,11 @@ class ValidatorTask extends AbstractTask
      */
     public function execute()
     {
+        $this->brokenLinkRepository = GeneralUtility::makeInstance(BrokenLinkRepository::class);
         $this->setCliArguments();
         $this->templateService = GeneralUtility::makeInstance(MarkerBasedTemplateService::class);
         $successfullyExecuted = true;
-        if (!file_exists(($file = GeneralUtility::getFileAbsFileName($this->emailTemplateFile)))
+        if (!file_exists($file = GeneralUtility::getFileAbsFileName($this->emailTemplateFile))
             && !empty($this->email)
         ) {
             if ($this->emailTemplateFile === 'EXT:linkvalidator/res/mailtemplate.html') {
@@ -305,9 +312,11 @@ class ValidatorTask extends AbstractTask
      *
      * @param int $page Uid of the page to parse
      * @return string $pageSections Content of page section
+     * @throws \InvalidArgumentException
      */
     protected function checkPageLinks($page)
     {
+        $pageRow = null;
         $page = (int)$page;
         $pageSections = '';
         $pageIds = '';
@@ -315,12 +324,18 @@ class ValidatorTask extends AbstractTask
         $modTs = $this->loadModTsConfig($page);
         $searchFields = $this->getSearchField($modTs);
         $linkTypes = $this->getLinkTypes($modTs);
-        /** @var $processor LinkAnalyzer */
+        /** @var LinkAnalyzer $processor */
         $processor = GeneralUtility::makeInstance(LinkAnalyzer::class);
         if ($page === 0) {
             $rootLineHidden = false;
         } else {
             $pageRow = BackendUtility::getRecord('pages', $page, '*', '', false);
+            if ($pageRow === null) {
+                throw new \InvalidArgumentException(
+                    sprintf($this->getLanguageService()->sL($this->languageFile . ':tasks.error.invalidPageUid'), $page),
+                    1502800555
+                );
+            }
             $rootLineHidden = $processor->getRootLineIsHidden($pageRow);
         }
         if (!$rootLineHidden || $modTs['checkhidden'] == 1) {
@@ -333,13 +348,13 @@ class ValidatorTask extends AbstractTask
         if (!empty($pageIds)) {
             $processor->init($searchFields, $pageIds, $modTs);
             if (!empty($this->email)) {
-                $oldLinkCounts = $processor->getLinkCounts($page);
-                $this->oldTotalBrokenLink += $oldLinkCounts['brokenlinkCount'];
+                $oldLinkCounts = $processor->getLinkCounts();
+                $this->oldTotalBrokenLink += $oldLinkCounts['total'];
             }
             $processor->getLinkStatistics($linkTypes, $modTs['checkhidden']);
             if (!empty($this->email)) {
-                $linkCounts = $processor->getLinkCounts($page);
-                $this->totalBrokenLink += $linkCounts['brokenlinkCount'];
+                $linkCounts = $processor->getLinkCounts();
+                $this->totalBrokenLink += $linkCounts['total'];
                 $pageSections = $this->buildMail($page, $pageIds, $linkCounts, $oldLinkCounts);
             }
         }
@@ -355,7 +370,6 @@ class ValidatorTask extends AbstractTask
      */
     protected function loadModTsConfig($page)
     {
-        $modTs = BackendUtility::getModTSconfig($page, 'mod.linkvalidator');
         $parseObj = GeneralUtility::makeInstance(TypoScriptParser::class);
         $parseObj->parse($this->configuration);
         if (!empty($parseObj->errors)) {
@@ -367,8 +381,8 @@ class ValidatorTask extends AbstractTask
             }
             throw new \Exception($parseErrorMessage, '1295476989');
         }
+        $modTs = BackendUtility::getPagesTSconfig($page)['mod.']['linkvalidator.'] ?? [];
         $tsConfig = $parseObj->setup;
-        $modTs = $modTs['properties'];
         $overrideTs = $tsConfig['mod.']['linkvalidator.'];
         if (is_array($overrideTs)) {
             ArrayUtility::mergeRecursiveWithOverrule($modTs, $overrideTs);
@@ -384,6 +398,7 @@ class ValidatorTask extends AbstractTask
      */
     protected function getSearchField(array $modTS)
     {
+        $searchFields = [];
         // Get the searchFields from TypoScript
         foreach ($modTS['searchFields.'] as $table => $fieldList) {
             $fields = GeneralUtility::trimExplode(',', $fieldList);
@@ -391,7 +406,7 @@ class ValidatorTask extends AbstractTask
                 $searchFields[$table][] = $field;
             }
         }
-        return isset($searchFields) ? $searchFields : [];
+        return $searchFields;
     }
 
     /**
@@ -404,15 +419,9 @@ class ValidatorTask extends AbstractTask
     {
         $linkTypes = [];
         $typesTmp = GeneralUtility::trimExplode(',', $modTS['linktypes'], true);
-        if (is_array($typesTmp)) {
-            if (!empty($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'])
-                && is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'])
-            ) {
-                foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'] as $type => $value) {
-                    if (in_array($type, $typesTmp)) {
-                        $linkTypes[$type] = 1;
-                    }
-                }
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['checkLinks'] ?? [] as $type => $value) {
+            if (in_array($type, $typesTmp)) {
+                $linkTypes[$type] = 1;
             }
         }
         return $linkTypes;
@@ -430,31 +439,24 @@ class ValidatorTask extends AbstractTask
     {
         $lang = $this->getLanguageService();
         $content = $this->templateService->substituteSubpart($this->templateMail, '###PAGE_SECTION###', $pageSections);
-        /** @var array $markerArray */
         $markerArray = [];
-        /** @var array $validEmailList */
         $validEmailList = [];
-        /** @var bool $sendEmail */
-        $sendEmail = true;
         $markerArray['totalBrokenLink'] = $this->totalBrokenLink;
         $markerArray['totalBrokenLink_old'] = $this->oldTotalBrokenLink;
 
-        // Hook
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['reportEmailMarkers'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['reportEmailMarkers'] as $userFunc) {
-                $params = [
-                    'pObj' => &$this,
-                    'markerArray' => $markerArray
-                ];
-                $newMarkers = GeneralUtility::callUserFunction($userFunc, $params, $this);
-                if (is_array($newMarkers)) {
-                    $markerArray = $newMarkers + $markerArray;
-                }
-                unset($params);
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['reportEmailMarkers'] ?? [] as $userFunc) {
+            $params = [
+                'pObj' => &$this,
+                'markerArray' => $markerArray
+            ];
+            $ref = $this; // introduced for phpstan to not lose type information when passing $this into callUserFunction
+            $newMarkers = GeneralUtility::callUserFunction($userFunc, $params, $ref);
+            if (is_array($newMarkers)) {
+                $markerArray = $newMarkers + $markerArray;
             }
+            unset($params);
         }
         $content = $this->templateService->substituteMarkerArray($content, $markerArray, '###|###', true, true);
-        /** @var $mail MailMessage */
         $mail = GeneralUtility::makeInstance(MailMessage::class);
         if (empty($modTsConfig['mail.']['fromemail'])) {
             $modTsConfig['mail.']['fromemail'] = MailUtility::getSystemFromAddress();
@@ -463,7 +465,7 @@ class ValidatorTask extends AbstractTask
             $modTsConfig['mail.']['fromname'] = MailUtility::getSystemFromName();
         }
         if (GeneralUtility::validEmail($modTsConfig['mail.']['fromemail'])) {
-            $mail->setFrom([$modTsConfig['mail.']['fromemail'] => $modTsConfig['mail.']['fromname']]);
+            $mail->from(new Address($modTsConfig['mail.']['fromemail'], $modTsConfig['mail.']['fromname']));
         } else {
             throw new \Exception(
                 $lang->sL($this->languageFile . ':tasks.error.invalidFromEmail'),
@@ -471,10 +473,10 @@ class ValidatorTask extends AbstractTask
             );
         }
         if (GeneralUtility::validEmail($modTsConfig['mail.']['replytoemail'])) {
-            $mail->setReplyTo([$modTsConfig['mail.']['replytoemail'] => $modTsConfig['mail.']['replytoname']]);
+            $mail->replyTo(new Address($modTsConfig['mail.']['replytoemail'], $modTsConfig['mail.']['replytoname']));
         }
         if (!empty($modTsConfig['mail.']['subject'])) {
-            $mail->setSubject($modTsConfig['mail.']['subject']);
+            $mail->subject($modTsConfig['mail.']['subject']);
         } else {
             throw new \Exception(
                 $lang->sL($this->languageFile . ':tasks.error.noSubject'),
@@ -497,21 +499,18 @@ class ValidatorTask extends AbstractTask
                         $lang->sL($this->languageFile . ':tasks.error.invalidToEmail'),
                         '1295476821'
                     );
-                } else {
-                    $validEmailList[] = $emailAdd;
                 }
+                $validEmailList[] = $emailAdd;
             }
         }
         if (is_array($validEmailList) && !empty($validEmailList)) {
-            $mail->setTo($validEmailList);
-        } else {
-            $sendEmail = false;
+            $mail
+                ->to(...$validEmailList)
+                ->html($content)
+                ->send();
+            return true;
         }
-        if ($sendEmail) {
-            $mail->setBody($content, 'text/html');
-            $mail->send();
-        }
-        return $sendEmail;
+        return false;
     }
 
     /**
@@ -526,40 +525,35 @@ class ValidatorTask extends AbstractTask
     protected function buildMail($curPage, $pageList, array $markerArray, array $oldBrokenLink)
     {
         $pageSectionHtml = $this->templateService->getSubpart($this->templateMail, '###PAGE_SECTION###');
-        // Hook
-        if (is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['buildMailMarkers'])) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['buildMailMarkers'] as $userFunc) {
-                $params = [
-                    'curPage' => $curPage,
-                    'pageList' => $pageList,
-                    'markerArray' => $markerArray,
-                    'oldBrokenLink' => $oldBrokenLink,
-                    'pObj' => &$this
-                ];
-                $newMarkers = GeneralUtility::callUserFunction($userFunc, $params, $this);
-                if (is_array($newMarkers)) {
-                    $markerArray = $newMarkers + $markerArray;
-                }
-                unset($params);
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['linkvalidator']['buildMailMarkers'] ?? [] as $userFunc) {
+            $params = [
+                'curPage' => $curPage,
+                'pageList' => $pageList,
+                'markerArray' => $markerArray,
+                'oldBrokenLink' => $oldBrokenLink,
+                'pObj' => &$this
+            ];
+            $newMarkers = GeneralUtility::callUserFunction($userFunc, $params, $this);
+            if (is_array($newMarkers)) {
+                $markerArray = $newMarkers + $markerArray;
             }
+            unset($params);
         }
-        if (is_array($markerArray)) {
-            foreach ($markerArray as $markerKey => $markerValue) {
-                if (empty($oldBrokenLink[$markerKey])) {
-                    $oldBrokenLink[$markerKey] = 0;
-                }
-                if ($markerValue != $oldBrokenLink[$markerKey]) {
-                    $this->isDifferentToLastRun = true;
-                }
-                $markerArray[$markerKey . '_old'] = $oldBrokenLink[$markerKey];
+        foreach ($markerArray as $markerKey => $markerValue) {
+            if (empty($oldBrokenLink[$markerKey])) {
+                $oldBrokenLink[$markerKey] = 0;
             }
+            if ($markerValue != $oldBrokenLink[$markerKey]) {
+                $this->isDifferentToLastRun = true;
+            }
+            $markerArray[$markerKey . '_old'] = $oldBrokenLink[$markerKey];
         }
         $markerArray['title'] = BackendUtility::getRecordTitle(
             'pages',
             BackendUtility::getRecord('pages', $curPage)
         );
         $content = '';
-        if ($markerArray['brokenlinkCount'] > 0) {
+        if ($markerArray['total'] > 0) {
             $content = $this->templateService->substituteMarkerArray(
                 $pageSectionHtml,
                 $markerArray,
@@ -594,7 +588,7 @@ class ValidatorTask extends AbstractTask
         $depth = (int)$this->getDepth();
         $additionalInformation[] = $lang->sL($this->languageFile . ':tasks.validate.page') . ': ' . $pageLabel;
         $additionalInformation[] = $lang->sL($this->languageFile . ':tasks.validate.depth') . ': '
-            . $lang->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.depth_' . ($depth === 999 ? 'infi' : $depth));
+            . $lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.depth_' . ($depth === 999 ? 'infi' : $depth));
         $additionalInformation[] = $lang->sL($this->languageFile . ':tasks.validate.email') . ': '
             . $this->getEmail();
 
@@ -618,13 +612,5 @@ class ValidatorTask extends AbstractTask
             '--countInARun',
             $this->countInARun
         ];
-    }
-
-    /**
-     * @return LanguageService
-     */
-    protected function getLanguageService()
-    {
-        return $GLOBALS['LANG'];
     }
 }

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Resource;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,43 +15,46 @@ namespace TYPO3\CMS\Core\Tests\Unit\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Resource;
+
 use TYPO3\CMS\Core\Resource\AbstractFile;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase for the abstract file class of the TYPO3 FAL
  */
-class AbstractFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class AbstractFileTest extends UnitTestCase
 {
     /**
      * @test
      */
-    public function getParentFolderGetsParentFolderFromStorage()
+    public function getParentFolderGetsParentFolderFromStorage(): void
     {
         $parentIdentifier = '/parent/';
         $currentIdentifier = '/parent/current/';
 
-        /** @var ResourceStorage|\PHPUnit_Framework_MockObject_MockObject $mockedStorageForParent */
+        /** @var ResourceStorage|\PHPUnit\Framework\MockObject\MockObject $mockedStorageForParent */
         $mockedStorageForParent = $this->createMock(ResourceStorage::class);
 
         /** @var AbstractFile $parentFolderFixture */
         $parentFolderFixture = $this->getMockForAbstractClass(AbstractFile::class);
         $parentFolderFixture->setIdentifier($parentIdentifier)->setStorage($mockedStorageForParent);
 
-        /** @var ResourceStorage|\PHPUnit_Framework_MockObject_MockObject $mockedStorage */
+        /** @var ResourceStorage|\PHPUnit\Framework\MockObject\MockObject $mockedStorage */
         $mockedStorage = $this->getMockBuilder(ResourceStorage::class)
             ->setMethods(['getFolderIdentifierFromFileIdentifier', 'getFolder'])
             ->disableOriginalConstructor()
             ->getMock();
-        $mockedStorage->expects($this->once())->method('getFolderIdentifierFromFileIdentifier')->with($currentIdentifier)->will($this->returnValue($parentIdentifier));
-        $mockedStorage->expects($this->once())->method('getFolder')->with($parentIdentifier)->will($this->returnValue($parentFolderFixture));
+        $mockedStorage->expects(self::once())->method('getFolderIdentifierFromFileIdentifier')->with($currentIdentifier)->willReturn($parentIdentifier);
+        $mockedStorage->expects(self::once())->method('getFolder')->with($parentIdentifier)->willReturn($parentFolderFixture);
 
         /** @var AbstractFile $currentFolderFixture */
         $currentFolderFixture = $this->getMockForAbstractClass(AbstractFile::class);
         $currentFolderFixture->setIdentifier($currentIdentifier)->setStorage($mockedStorage);
 
-        $this->assertSame($parentFolderFixture, $currentFolderFixture->getParentFolder());
+        self::assertSame($parentFolderFixture, $currentFolderFixture->getParentFolder());
     }
 
     /**
@@ -61,13 +65,13 @@ class AbstractFileTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      *
      * @test
      */
-    public function storageIsNotAskedForMimeTypeForPersistedRecord()
+    public function storageIsNotAskedForMimeTypeForPersistedRecord(): void
     {
-        /** @var ResourceStorage|\PHPUnit_Framework_MockObject_MockObject $mockedStorage */
+        /** @var ResourceStorage|\PHPUnit\Framework\MockObject\MockObject $mockedStorage */
         $mockedStorage = $this->getMockBuilder(ResourceStorage::class)->disableOriginalConstructor()->getMock();
-        $mockedStorage->expects($this->never())->method('getFileInfoByIdentifier')->with('/foo', 'mimetype');
+        $mockedStorage->expects(self::never())->method('getFileInfoByIdentifier')->with('/foo', 'mimetype');
         $subject = new File(['identifier' => '/foo', 'mime_type' => 'my/mime-type'], $mockedStorage);
 
-        $this->assertEquals('my/mime-type', $subject->getMimeType());
+        self::assertEquals('my/mime-type', $subject->getMimeType());
     }
 }

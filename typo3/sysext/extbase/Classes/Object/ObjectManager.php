@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Object;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,11 @@ namespace TYPO3\CMS\Extbase\Object;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Extbase\Object\Container\Container;
+namespace TYPO3\CMS\Extbase\Object;
+
+use Psr\Container\ContainerInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Object\Container\Container as ExtbaseContainer;
 
 /**
  * Implementation of the default Extbase Object Manager
@@ -22,16 +27,25 @@ use TYPO3\CMS\Extbase\Object\Container\Container;
 class ObjectManager implements ObjectManagerInterface
 {
     /**
-     * @var \TYPO3\CMS\Extbase\Object\Container\Container
+     * @var ContainerInterface
+     */
+    private $container;
+
+    /**
+     * @var ExtbaseContainer
      */
     protected $objectContainer;
 
     /**
      * Constructs a new Object Manager
+     *
+     * @param ContainerInterface $container
+     * @param ExtbaseContainer $objectContainer
      */
-    public function __construct()
+    public function __construct(ContainerInterface $container, ExtbaseContainer $objectContainer)
     {
-        $this->objectContainer = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\Container\Container::class);
+        $this->container = $container;
+        $this->objectContainer = $objectContainer;
     }
 
     /**
@@ -44,16 +58,13 @@ class ObjectManager implements ObjectManagerInterface
      * since elements will be recreated and are just a local cache,
      * but not required for runtime logic and behaviour.
      *
-     * @see http://forge.typo3.org/issues/36820
+     * @see https://forge.typo3.org/issues/36820
      * @return array Names of the properties to be serialized
+     * @internal only to be used within Extbase, not part of TYPO3 Core API.
      */
-    public function __sleep()
+    public function __sleep(): array
     {
-        // Use get_objects_vars() instead of
-        // a much more expensive Reflection:
-        $properties = get_object_vars($this);
-        unset($properties['objectContainer']);
-        return array_keys($properties);
+        return [];
     }
 
     /**
@@ -62,58 +73,45 @@ class ObjectManager implements ObjectManagerInterface
      * Initializes the properties again that have been removed by
      * a call to the __sleep() method on serialization before.
      *
-     * @see http://forge.typo3.org/issues/36820
+     * @see https://forge.typo3.org/issues/36820
+     * @internal only to be used within Extbase, not part of TYPO3 Core API.
      */
     public function __wakeup()
     {
-        $this->__construct();
-    }
-
-    /**
-     * Returns TRUE if an object with the given name is registered
-     *
-     * @param string $objectName Name of the object
-     * @return bool TRUE if the object has been registered, otherwise FALSE
-     */
-    public function isRegistered($objectName)
-    {
-        return class_exists($objectName, true);
+        $this->__construct(
+            GeneralUtility::getContainer(),
+            GeneralUtility::getContainer()->get(ExtbaseContainer::class)
+        );
     }
 
     /**
      * Returns a fresh or existing instance of the object specified by $objectName.
      *
      * @param string $objectName The name of the object to return an instance of
+     * @param array<int,mixed> $constructorArguments
      * @return object The object instance
-     * @api
+     * @deprecated since TYPO3 10.4, will be removed in version 12.0
      */
-    public function get($objectName)
+    public function get(string $objectName, ...$constructorArguments): object
     {
-        $arguments = func_get_args();
-        array_shift($arguments);
-        if ($objectName === 'DateTime') {
-            array_unshift($arguments, $objectName);
-            $instance = call_user_func_array([\TYPO3\CMS\Core\Utility\GeneralUtility::class, 'makeInstance'], $arguments);
-        } else {
-            $instance = $this->objectContainer->getInstance($objectName, $arguments);
-        }
-        return $instance;
-    }
+        // todo: This method needs to trigger a deprecation error as soon as the core does not use this method any more.
 
-    /**
-     * Returns the scope of the specified object.
-     *
-     * @param string $objectName The object name
-     * @return int One of the Container::SCOPE_ constants
-     * @throws \TYPO3\CMS\Extbase\Object\Container\Exception\UnknownObjectException
-     * @api
-     */
-    public function getScope($objectName)
-    {
-        if (!$this->isRegistered($objectName)) {
-            throw new \TYPO3\CMS\Extbase\Object\Container\Exception\UnknownObjectException('Object "' . $objectName . '" is not registered.', 1265367590);
+        if ($objectName === \DateTime::class) {
+            return GeneralUtility::makeInstance($objectName, ...$constructorArguments);
         }
-        return $this->objectContainer->isSingleton($objectName) ? Container::SCOPE_SINGLETON : Container::SCOPE_PROTOTYPE;
+
+        if ($this->container->has($objectName)) {
+            if ($constructorArguments === []) {
+                $instance = $this->container->get($objectName);
+                if (!is_object($instance)) {
+                    throw new Exception('Invalid object name "' . $objectName . '". The PSR-11 container entry resolves to a non object.', 1562357346);
+                }
+                return $instance;
+            }
+            trigger_error($objectName . ' is available in the PSR-11 container. That means you should not try to instanciate it using constructor arguments. Falling back to legacy extbase based injection.', E_USER_DEPRECATED);
+        }
+
+        return $this->objectContainer->getInstance($objectName, $constructorArguments);
     }
 
     /**
@@ -121,9 +119,8 @@ class ObjectManager implements ObjectManagerInterface
      *
      * @param string $className
      * @return object
-     * @api
      */
-    public function getEmptyObject($className)
+    public function getEmptyObject(string $className): object
     {
         return $this->objectContainer->getEmptyObject($className);
     }

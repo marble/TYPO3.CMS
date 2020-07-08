@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\Messaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,35 +13,33 @@ namespace TYPO3\CMS\Core\Tests\Unit\Messaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\Messaging;
+
+use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class FlashMessageServiceTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FlashMessageServiceTest extends UnitTestCase
 {
     /**
-     * @var \TYPO3\CMS\Core\Messaging\FlashMessageService|\PHPUnit_Framework_MockObject_MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
+     * @var \TYPO3\CMS\Core\Messaging\FlashMessageService|\PHPUnit\Framework\MockObject\MockObject|\TYPO3\TestingFramework\Core\AccessibleObjectInterface
      */
     protected $flashMessageService;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->flashMessageService = $this->getAccessibleMock(\TYPO3\CMS\Core\Messaging\FlashMessageService::class, ['dummy']);
+        parent::setUp();
+        $this->flashMessageService = new FlashMessageService();
     }
 
     /**
      * @test
      */
-    public function flashMessageServiceInitiallyIsEmpty()
+    public function getMessageQueueByIdentifierRegistersNewFlashmessageQueuesOnlyOnce(): void
     {
-        $this->assertSame([], $this->flashMessageService->_get('flashMessageQueues'));
-    }
-
-    /**
-     * @test
-     */
-    public function getMessageQueueByIdentifierRegistersNewFlashmessageQueuesOnlyOnce()
-    {
-        $this->assertSame(
+        self::assertSame(
             $this->flashMessageService->getMessageQueueByIdentifier('core.template.flashMessages'),
             $this->flashMessageService->getMessageQueueByIdentifier('core.template.flashMessages')
         );

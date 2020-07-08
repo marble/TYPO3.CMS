@@ -1,12 +1,13 @@
 <?php
+
 return [
     'ctrl' => [
-        'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file',
+        'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file',
         'label' => 'name',
         'tstamp' => 'tstamp',
         'type' => 'type',
         'hideTable' => true,
-        'rootLevel' => true,
+        'rootLevel' => 1,
         'default_sortby' => 'name ASC',
         'typeicon_column' => 'type',
         'typeicon_classes' => [
@@ -23,9 +24,6 @@ return [
         ],
         'searchFields' => 'name, type, mime_type, sha1'
     ],
-    'interface' => [
-        'showRecordFieldList' => 'storage, name, type, mime_type, size, sha1, missing'
-    ],
     'columns' => [
         'fileinfo' => [
             'config' => [
@@ -34,7 +32,7 @@ return [
             ]
         ],
         'storage' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.storage',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.storage',
             'config' => [
                 'readOnly' => true,
                 'type' => 'select',
@@ -43,14 +41,13 @@ return [
                     ['', 0]
                 ],
                 'foreign_table' => 'sys_file_storage',
-                'foreign_table_where' => 'ORDER BY sys_file_storage.name',
                 'size' => 1,
                 'minitems' => 0,
                 'maxitems' => 1
             ]
         ],
         'identifier' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.identifier',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.identifier',
             'config' => [
                 'readOnly' => true,
                 'type' => 'input',
@@ -58,7 +55,7 @@ return [
             ]
         ],
         'name' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.name',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.name',
             'config' => [
                 'readOnly' => true,
                 'type' => 'input',
@@ -67,24 +64,24 @@ return [
             ]
         ],
         'type' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.type',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.type',
             'config' => [
                 'readOnly' => true,
                 'type' => 'select',
                 'renderType' => 'selectSingle',
                 'size' => 1,
                 'items' => [
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.type.unknown', 0],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.type.text', 1],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.type.image', 2],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.type.audio', 3],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.type.video', 4],
-                    ['LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.type.software', 5]
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.type.unknown', 0],
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.type.text', 1],
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.type.image', 2],
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.type.audio', 3],
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.type.video', 4],
+                    ['LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.type.software', 5]
                 ]
             ]
         ],
         'mime_type' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.mime_type',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.mime_type',
             'config' => [
                 'readOnly' => true,
                 'type' => 'input',
@@ -92,7 +89,7 @@ return [
             ]
         ],
         'sha1' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.sha1',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.sha1',
             'config' => [
                 'readOnly' => true,
                 'type' => 'input',
@@ -100,7 +97,7 @@ return [
             ]
         ],
         'size' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.size',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.size',
             'config' => [
                 'readOnly' => true,
                 'type' => 'input',
@@ -111,7 +108,7 @@ return [
             ]
         ],
         'missing' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.missing',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.missing',
             'config' => [
                 'readOnly' => true,
                 'type' => 'check',
@@ -119,7 +116,7 @@ return [
             ]
         ],
         'metadata' => [
-            'label' => 'LLL:EXT:lang/Resources/Private/Language/locallang_tca.xlf:sys_file.metadata',
+            'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.metadata',
             'config' => [
                 'readOnly' => true,
                 'type' => 'inline',

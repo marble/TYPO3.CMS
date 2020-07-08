@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Backend\ToolbarItems;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,22 @@ namespace TYPO3\CMS\Backend\Backend\ToolbarItems;
  * The TYPO3 project - inspiring people to share!
  */
 
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
+namespace TYPO3\CMS\Backend\Backend\ToolbarItems;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Toolbar\Enumeration\InformationStatus;
 use TYPO3\CMS\Backend\Toolbar\ToolbarItemInterface;
-use TYPO3\CMS\Backend\Utility\BackendUtility;
-use TYPO3\CMS\Core\Core\Bootstrap;
-use TYPO3\CMS\Core\Core\SystemEnvironmentBuilder;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Information\Typo3Version;
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Routing\RouteNotFoundException;
 use TYPO3\CMS\Core\Utility\CommandUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
-use TYPO3\CMS\Core\Utility\VersionNumberUtility;
 use TYPO3\CMS\Fluid\View\StandaloneView;
 
 /**
@@ -66,9 +68,9 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
     protected $systemMessages = [];
 
     /**
-     * @var \TYPO3\CMS\Extbase\SignalSlot\Dispatcher
+     * @var EventDispatcherInterface
      */
-    protected $signalSlotDispatcher = null;
+    protected $eventDispatcher;
 
     /**
      * @var int
@@ -76,194 +78,16 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
     protected $maximumCountInBadge = 99;
 
     /**
-     * Constructor
+     * @var Typo3Version
      */
-    public function __construct()
+    protected $typo3Version;
+
+    public function __construct(EventDispatcherInterface $eventDispatcher = null)
     {
+        $this->eventDispatcher = $eventDispatcher ?? GeneralUtility::getContainer()->get(EventDispatcherInterface::class);
+        $this->typo3Version = GeneralUtility::makeInstance(Typo3Version::class);
         $this->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/Toolbar/SystemInformationMenu');
         $this->highestSeverity = InformationStatus::cast(InformationStatus::STATUS_INFO);
-    }
-
-    /**
-     * Collect the information for the menu
-     */
-    protected function collectInformation()
-    {
-        $this->getTypo3Version();
-        $this->getWebServer();
-        $this->getPhpVersion();
-        $this->getDatabase();
-        $this->getApplicationContext();
-        $this->getComposerMode();
-        $this->getGitRevision();
-        $this->getOperatingSystem();
-
-        $this->emitGetSystemInformation();
-        $this->emitLoadMessages();
-
-        $this->severityBadgeClass = !$this->highestSeverity->equals(InformationStatus::STATUS_NOTICE) ? 'badge-' . (string)$this->highestSeverity : '';
-    }
-
-    /**
-     * Renders the menu for AJAX calls
-     *
-     * @param ServerRequestInterface $request
-     * @param ResponseInterface $response
-     * @return ResponseInterface
-     */
-    public function renderMenuAction(ServerRequestInterface $request, ResponseInterface $response)
-    {
-        $this->collectInformation();
-        $response->getBody()->write($this->getDropDown());
-        return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
-    }
-
-    /**
-     * Gets the PHP version
-     */
-    protected function getPhpVersion()
-    {
-        $this->systemInformation[] = [
-            'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.phpversion',
-            'value' => PHP_VERSION,
-            'iconIdentifier' => 'sysinfo-php-version'
-        ];
-    }
-
-    /**
-     * Get the database info
-     */
-    protected function getDatabase()
-    {
-        foreach (GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionNames() as $connectionName) {
-            $this->systemInformation[] = [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.database',
-                'titleAddition' => $connectionName,
-                'value' => GeneralUtility::makeInstance(ConnectionPool::class)
-                    ->getConnectionByName($connectionName)
-                    ->getServerVersion(),
-                'iconIdentifier' => 'sysinfo-database'
-            ];
-        }
-    }
-
-    /**
-     * Gets the application context
-     */
-    protected function getApplicationContext()
-    {
-        $applicationContext = GeneralUtility::getApplicationContext();
-        $this->systemInformation[] = [
-            'title'  => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.applicationcontext',
-            'value'  => (string)$applicationContext,
-            'status' => $applicationContext->isProduction() ? InformationStatus::STATUS_OK : InformationStatus::STATUS_WARNING,
-            'iconIdentifier' => 'sysinfo-application-context'
-        ];
-    }
-
-    /**
-     * Adds the information if the Composer mode is enabled or disabled to the displayed system information
-     */
-    protected function getComposerMode()
-    {
-        if (!Bootstrap::usesComposerClassLoading()) {
-            return;
-        }
-
-        $this->systemInformation[] = [
-            'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.composerMode',
-            'value' => $GLOBALS['LANG']->sL('LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:labels.enabled'),
-            'iconIdentifier' => 'sysinfo-composer-mode'
-        ];
-    }
-
-    /**
-     * Gets the current GIT revision and branch
-     */
-    protected function getGitRevision()
-    {
-        if (!StringUtility::endsWith(TYPO3_version, '-dev') || SystemEnvironmentBuilder::isFunctionDisabled('exec')) {
-            return;
-        }
-        // check if git exists
-        CommandUtility::exec('git --version', $_, $returnCode);
-        if ((int)$returnCode !== 0) {
-            // git is not available
-            return;
-        }
-
-        $revision = trim(CommandUtility::exec('git rev-parse --short HEAD'));
-        $branch = trim(CommandUtility::exec('git rev-parse --abbrev-ref HEAD'));
-        if (!empty($revision) && !empty($branch)) {
-            $this->systemInformation[] = [
-                'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.gitrevision',
-                'value' => sprintf('%s [%s]', $revision, $branch),
-                'iconIdentifier' => 'sysinfo-git'
-            ];
-        }
-    }
-
-    /**
-     * Gets the system kernel and version
-     */
-    protected function getOperatingSystem()
-    {
-        $kernelName = php_uname('s');
-        switch (strtolower($kernelName)) {
-            case 'linux':
-                $icon = 'linux';
-                break;
-            case 'darwin':
-                $icon = 'apple';
-                break;
-            default:
-                $icon = 'windows';
-        }
-        $this->systemInformation[] = [
-            'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.operatingsystem',
-            'value' => $kernelName . ' ' . php_uname('r'),
-            'iconIdentifier' => 'sysinfo-os-' . $icon
-        ];
-    }
-
-    /**
-     * Gets the webserver software
-     */
-    protected function getWebServer()
-    {
-        $this->systemInformation[] = [
-            'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.webserver',
-            'value' => $_SERVER['SERVER_SOFTWARE'],
-            'iconIdentifier' => 'sysinfo-webserver'
-        ];
-    }
-
-    /**
-     * Gets the TYPO3 version
-     */
-    protected function getTypo3Version()
-    {
-        $this->systemInformation[] = [
-            'title' => 'LLL:EXT:lang/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.typo3-version',
-            'value' => VersionNumberUtility::getCurrentTypo3Version(),
-            'iconIdentifier' => 'sysinfo-typo3-version'
-        ];
-    }
-
-    /**
-     * Emits the "getSystemInformation" signal
-     */
-    protected function emitGetSystemInformation()
-    {
-        $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'getSystemInformation', [$this]);
-    }
-
-    /**
-     * Emits the "loadMessages" signal
-     */
-    protected function emitLoadMessages()
-    {
-        $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'loadMessages', [$this]);
     }
 
     /**
@@ -274,8 +98,9 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
      * @param string $status The status of this system message
      * @param int $count Will be added to the total count
      * @param string $module The associated module
+     * @param string $params Query string with additional parameters
      */
-    public function addSystemMessage($text, $status = InformationStatus::STATUS_OK, $count = 0, $module = '')
+    public function addSystemMessage($text, $status = InformationStatus::STATUS_OK, $count = 0, $module = '', $params = '')
     {
         $this->totalCount += (int)$count;
 
@@ -288,6 +113,7 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
 
         $this->systemMessages[] = [
             'module' => $module,
+            'params' => $params,
             'count' => (int)$count,
             'status' => $messageSeverity,
             'text' => $text
@@ -344,9 +170,19 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
             return '';
         }
 
+        $this->collectInformation();
+
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         $view = $this->getFluidTemplateObject('SystemInformationDropDown.html');
+
+        try {
+            $environmentToolUrl = (string)$uriBuilder->buildUriFromRoute('tools_toolsenvironment');
+        } catch (RouteNotFoundException $e) {
+            $environmentToolUrl = '';
+        }
+
         $view->assignMultiple([
-            'installToolUrl' => BackendUtility::getModuleUrl('system_extinstall'),
+            'environmentToolUrl' => $environmentToolUrl,
             'messages' => $this->systemMessages,
             'count' => $this->totalCount > $this->maximumCountInBadge ? $this->maximumCountInBadge . '+' : $this->totalCount,
             'severityBadgeClass' => $this->severityBadgeClass,
@@ -386,37 +222,164 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
     }
 
     /**
-     * Returns the current BE user.
-     *
-     * @return \TYPO3\CMS\Core\Authentication\BackendUserAuthentication
+     * Collect the information for the menu
      */
-    protected function getBackendUserAuthentication()
+    protected function collectInformation()
     {
-        return $GLOBALS['BE_USER'];
+        $this->getTypo3Version();
+        $this->getWebServer();
+        $this->getPhpVersion();
+        $this->getDatabase();
+        $this->getApplicationContext();
+        $this->getComposerMode();
+        $this->getGitRevision();
+        $this->getOperatingSystem();
+
+        $this->eventDispatcher->dispatch(new SystemInformationToolbarCollectorEvent($this));
+
+        $this->severityBadgeClass = !$this->highestSeverity->equals(InformationStatus::STATUS_NOTICE) ? 'badge-' . (string)$this->highestSeverity : '';
     }
 
     /**
-     * Returns current PageRenderer
-     *
-     * @return PageRenderer
+     * Gets the TYPO3 version
      */
-    protected function getPageRenderer()
+    protected function getTypo3Version()
     {
-        return GeneralUtility::makeInstance(PageRenderer::class);
+        $this->systemInformation[] = [
+            'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.typo3-version',
+            'value' => $this->typo3Version->getVersion(),
+            'iconIdentifier' => 'information-typo3-version'
+        ];
     }
 
     /**
-     * Get the SignalSlot dispatcher
-     *
-     * @return \TYPO3\CMS\Extbase\SignalSlot\Dispatcher
+     * Gets the webserver software
      */
-    protected function getSignalSlotDispatcher()
+    protected function getWebServer()
     {
-        if (!isset($this->signalSlotDispatcher)) {
-            $this->signalSlotDispatcher = GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class)
-                ->get(\TYPO3\CMS\Extbase\SignalSlot\Dispatcher::class);
+        $this->systemInformation[] = [
+            'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.webserver',
+            'value' => $_SERVER['SERVER_SOFTWARE'],
+            'iconIdentifier' => 'information-webserver'
+        ];
+    }
+
+    /**
+     * Gets the PHP version
+     */
+    protected function getPhpVersion()
+    {
+        $this->systemInformation[] = [
+            'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.phpversion',
+            'value' => PHP_VERSION,
+            'iconIdentifier' => 'information-php-version'
+        ];
+    }
+
+    /**
+     * Get the database info
+     */
+    protected function getDatabase()
+    {
+        foreach (GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionNames() as $connectionName) {
+            $serverVersion = '[' . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.database.offline') . ']';
+            $success = true;
+            try {
+                $serverVersion = GeneralUtility::makeInstance(ConnectionPool::class)
+                    ->getConnectionByName($connectionName)
+                    ->getServerVersion();
+            } catch (\Exception $exception) {
+                $success = false;
+            }
+            $this->systemInformation[] = [
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.database',
+                'titleAddition' => $connectionName,
+                'value' => $serverVersion,
+                'status' => $success ?: InformationStatus::STATUS_WARNING,
+                'iconIdentifier' => 'information-database'
+            ];
         }
-        return $this->signalSlotDispatcher;
+    }
+
+    /**
+     * Gets the application context
+     */
+    protected function getApplicationContext()
+    {
+        $applicationContext = Environment::getContext();
+        $this->systemInformation[] = [
+            'title'  => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.applicationcontext',
+            'value'  => (string)$applicationContext,
+            'status' => $applicationContext->isProduction() ? InformationStatus::STATUS_OK : InformationStatus::STATUS_WARNING,
+            'iconIdentifier' => 'information-application-context'
+        ];
+    }
+
+    /**
+     * Adds the information if the Composer mode is enabled or disabled to the displayed system information
+     */
+    protected function getComposerMode()
+    {
+        if (!Environment::isComposerMode()) {
+            return;
+        }
+
+        $this->systemInformation[] = [
+            'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.composerMode',
+            'value' => $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.enabled'),
+            'iconIdentifier' => 'information-composer-mode'
+        ];
+    }
+
+    /**
+     * Gets the current GIT revision and branch
+     */
+    protected function getGitRevision()
+    {
+        if (!StringUtility::endsWith($this->typo3Version->getVersion(), '-dev') || $this->isFunctionDisabled('exec')) {
+            return;
+        }
+        // check if git exists
+        CommandUtility::exec('git --version', $_, $returnCode);
+        if ((int)$returnCode !== 0) {
+            // git is not available
+            return;
+        }
+
+        $revision = trim(CommandUtility::exec('git rev-parse --short HEAD'));
+        $branch = trim(CommandUtility::exec('git rev-parse --abbrev-ref HEAD'));
+        if (!empty($revision) && !empty($branch)) {
+            $this->systemInformation[] = [
+                'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.gitrevision',
+                'value' => sprintf('%s [%s]', $revision, $branch),
+                'iconIdentifier' => 'information-git'
+            ];
+        }
+    }
+
+    /**
+     * Gets the system kernel and version
+     */
+    protected function getOperatingSystem()
+    {
+        switch (PHP_OS_FAMILY) {
+            case 'Linux':
+                $icon = 'linux';
+                break;
+            case 'Darwin':
+                $icon = 'apple';
+                break;
+            case 'Windows':
+                $icon = 'windows';
+                break;
+            default:
+                $icon = 'unknown';
+        }
+        $this->systemInformation[] = [
+            'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.operatingsystem',
+            'value' => PHP_OS . ' ' . php_uname('r'),
+            'iconIdentifier' => 'information-os-' . $icon
+        ];
     }
 
     /**
@@ -436,5 +399,48 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
 
         $view->getRequest()->setControllerExtensionName('Backend');
         return $view;
+    }
+
+    /**
+     * Check if the given PHP function is disabled in the system
+     *
+     * @param string $functionName
+     * @return bool
+     */
+    protected function isFunctionDisabled(string $functionName): bool
+    {
+        $disabledFunctions = GeneralUtility::trimExplode(',', ini_get('disable_functions'));
+        if (!empty($disabledFunctions)) {
+            return in_array($functionName, $disabledFunctions, true);
+        }
+        return false;
+    }
+
+    /**
+     * Returns the current BE user.
+     *
+     * @return \TYPO3\CMS\Core\Authentication\BackendUserAuthentication
+     */
+    protected function getBackendUserAuthentication()
+    {
+        return $GLOBALS['BE_USER'];
+    }
+
+    /**
+     * @return LanguageService|null
+     */
+    protected function getLanguageService(): ?LanguageService
+    {
+        return $GLOBALS['LANG'] ?? null;
+    }
+
+    /**
+     * Returns current PageRenderer
+     *
+     * @return PageRenderer
+     */
+    protected function getPageRenderer()
+    {
+        return GeneralUtility::makeInstance(PageRenderer::class);
     }
 }

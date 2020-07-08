@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Finishers;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\Domain\Finishers;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Finishers;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext;
@@ -73,7 +77,7 @@ class FinisherContext
     }
 
     /**
-     * @api
+     * Sets up the FinisherVariableProvider
      */
     public function initializeObject()
     {
@@ -83,8 +87,6 @@ class FinisherContext
 
     /**
      * Cancels the finisher invocation after the current finisher
-     *
-     * @api
      */
     public function cancel()
     {
@@ -106,7 +108,6 @@ class FinisherContext
      * The Form Runtime that is associated with the current finisher
      *
      * @return FormRuntime
-     * @api
      */
     public function getFormRuntime(): FormRuntime
     {
@@ -117,7 +118,6 @@ class FinisherContext
      * The values of the submitted form (after validation and property mapping)
      *
      * @return array
-     * @api
      */
     public function getFormValues(): array
     {
@@ -126,7 +126,6 @@ class FinisherContext
 
     /**
      * @return ControllerContext
-     * @api
      */
     public function getControllerContext(): ControllerContext
     {
@@ -135,7 +134,6 @@ class FinisherContext
 
     /**
      * @return FinisherVariableProvider
-     * @api
      */
     public function getFinisherVariableProvider(): FinisherVariableProvider
     {

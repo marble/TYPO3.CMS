@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Unit\FormProtection;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,15 +13,23 @@ namespace TYPO3\CMS\Core\Tests\Unit\FormProtection;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Unit\FormProtection;
+
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\FormProtection\BackendFormProtection;
+use TYPO3\CMS\Core\FormProtection\DisabledFormProtection;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
+use TYPO3\CMS\Core\FormProtection\InstallToolFormProtection;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Tests\Unit\FormProtection\Fixtures\FormProtectionTesting;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 /**
  * Testcase
  */
-class FormProtectionFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class FormProtectionFactoryTest extends UnitTestCase
 {
-    protected function tearDown()
+    protected function tearDown(): void
     {
         FormProtectionFactory::purgeInstances();
         parent::tearDown();
@@ -50,7 +57,7 @@ class FormProtectionFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionCode(1285353026);
 
-        FormProtectionFactory::get(\TYPO3\CMS\Core\Tests\Unit\FormProtection\FormProtectionFactoryTest::class);
+        FormProtectionFactory::get(self::class);
     }
 
     /**
@@ -58,12 +65,12 @@ class FormProtectionFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
      */
     public function getForTypeBackEndWithExistingBackEndReturnsBackEndFormProtection()
     {
-        $userMock = $this->createMock(\TYPO3\CMS\Core\Authentication\BackendUserAuthentication::class);
-        $userMock->user = ['uid' => $this->getUniqueId()];
-        $this->assertInstanceOf(
-            \TYPO3\CMS\Core\FormProtection\BackendFormProtection::class,
+        $userMock = $this->createMock(BackendUserAuthentication::class);
+        $userMock->user = ['uid' => 4711];
+        self::assertInstanceOf(
+            BackendFormProtection::class,
             FormProtectionFactory::get(
-                \TYPO3\CMS\Core\FormProtection\BackendFormProtection::class,
+                BackendFormProtection::class,
                 $userMock,
                 $this->createMock(Registry::class)
             )
@@ -75,14 +82,14 @@ class FormProtectionFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
      */
     public function getForTypeBackEndCalledTwoTimesReturnsTheSameInstance()
     {
-        $userMock = $this->createMock(\TYPO3\CMS\Core\Authentication\BackendUserAuthentication::class);
-        $userMock->user = ['uid' => $this->getUniqueId()];
+        $userMock = $this->createMock(BackendUserAuthentication::class);
+        $userMock->user = ['uid' => 4711];
         $arguments = [
-            \TYPO3\CMS\Core\FormProtection\BackendFormProtection::class,
+            BackendFormProtection::class,
             $userMock,
             $this->createMock(Registry::class)
         ];
-        $this->assertSame(
+        self::assertSame(
             call_user_func_array([FormProtectionFactory::class, 'get'], $arguments),
             call_user_func_array([FormProtectionFactory::class, 'get'], $arguments)
         );
@@ -93,7 +100,7 @@ class FormProtectionFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
      */
     public function getForTypeInstallToolReturnsInstallToolFormProtection()
     {
-        $this->assertTrue(FormProtectionFactory::get(\TYPO3\CMS\Core\FormProtection\InstallToolFormProtection::class) instanceof \TYPO3\CMS\Core\FormProtection\InstallToolFormProtection);
+        self::assertTrue(FormProtectionFactory::get(InstallToolFormProtection::class) instanceof InstallToolFormProtection);
     }
 
     /**
@@ -101,7 +108,7 @@ class FormProtectionFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
      */
     public function getForTypeInstallToolCalledTwoTimesReturnsTheSameInstance()
     {
-        $this->assertSame(FormProtectionFactory::get(\TYPO3\CMS\Core\FormProtection\InstallToolFormProtection::class), FormProtectionFactory::get(\TYPO3\CMS\Core\FormProtection\InstallToolFormProtection::class));
+        self::assertSame(FormProtectionFactory::get(InstallToolFormProtection::class), FormProtectionFactory::get(InstallToolFormProtection::class));
     }
 
     /**
@@ -109,7 +116,7 @@ class FormProtectionFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
      */
     public function getForTypesInstallToolAndDisabledReturnsDifferentInstances()
     {
-        $this->assertNotSame(FormProtectionFactory::get(\TYPO3\CMS\Core\FormProtection\InstallToolFormProtection::class), FormProtectionFactory::get(\TYPO3\CMS\Core\FormProtection\DisabledFormProtection::class));
+        self::assertNotSame(FormProtectionFactory::get(InstallToolFormProtection::class), FormProtectionFactory::get(DisabledFormProtection::class));
     }
 
     /////////////////////////
@@ -120,9 +127,9 @@ class FormProtectionFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
      */
     public function setSetsInstanceForType()
     {
-        $instance = new \TYPO3\CMS\Core\Tests\Unit\FormProtection\Fixtures\FormProtectionTesting();
-        FormProtectionFactory::set(\TYPO3\CMS\Core\FormProtection\BackendFormProtection::class, $instance);
-        $this->assertSame($instance, FormProtectionFactory::get(\TYPO3\CMS\Core\FormProtection\BackendFormProtection::class));
+        $instance = new FormProtectionTesting();
+        FormProtectionFactory::set(BackendFormProtection::class, $instance);
+        self::assertSame($instance, FormProtectionFactory::get(BackendFormProtection::class));
     }
 
     /**
@@ -130,33 +137,8 @@ class FormProtectionFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTe
      */
     public function setNotSetsInstanceForOtherType()
     {
-        $instance = new \TYPO3\CMS\Core\Tests\Unit\FormProtection\Fixtures\FormProtectionTesting();
-        FormProtectionFactory::set(\TYPO3\CMS\Core\FormProtection\BackendFormProtection::class, $instance);
-        $this->assertNotSame($instance, FormProtectionFactory::get(\TYPO3\CMS\Core\FormProtection\InstallToolFormProtection::class));
-    }
-
-    /**
-     * @test
-     */
-    public function createValidationErrorMessageAddsErrorFlashMessageButNotInSessionInAjaxRequest()
-    {
-        $flashMessageQueueMock = $this->createMock(\TYPO3\CMS\Core\Messaging\FlashMessageQueue::class);
-        $flashMessageQueueMock
-            ->expects($this->once())
-            ->method('enqueue')
-            ->with($this->isInstanceOf(\TYPO3\CMS\Core\Messaging\FlashMessage::class))
-            ->will($this->returnCallback([$this, 'enqueueAjaxFlashMessageCallback']));
-        $languageServiceMock = $this->createMock(\TYPO3\CMS\Core\Localization\LanguageService::class);
-        $languageServiceMock->expects($this->once())->method('sL')->will($this->returnValue('foo'));
-
-        FormProtectionFactory::getMessageClosure($languageServiceMock, $flashMessageQueueMock, true)->__invoke();
-    }
-
-    /**
-     * @param \TYPO3\CMS\Core\Messaging\FlashMessage $flashMessage
-     */
-    public function enqueueAjaxFlashMessageCallback(\TYPO3\CMS\Core\Messaging\FlashMessage $flashMessage)
-    {
-        $this->assertFalse($flashMessage->isSessionMessage());
+        $instance = new FormProtectionTesting();
+        FormProtectionFactory::set(BackendFormProtection::class, $instance);
+        self::assertNotSame($instance, FormProtectionFactory::get(InstallToolFormProtection::class));
     }
 }

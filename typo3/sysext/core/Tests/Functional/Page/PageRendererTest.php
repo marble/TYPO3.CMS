@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tests\Functional\Page;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,24 +13,34 @@ namespace TYPO3\CMS\Core\Tests\Functional\Page;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tests\Functional\Page;
+
+use Psr\Log\NullLogger;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Localization\LanguageService;
+use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Session\Backend\DatabaseSessionBackend;
+use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\TestingFramework\Core\Functional\FunctionalTestCase;
+
 /**
  * Test case
  */
-class PageRendererTest extends \TYPO3\TestingFramework\Core\Functional\FunctionalTestCase
+class PageRendererTest extends FunctionalTestCase
 {
     /**
      * @test
      */
     public function pageRendererRendersInsertsMainContentStringsInOutput()
     {
-        $subject = new \TYPO3\CMS\Core\Page\PageRenderer();
+        $subject = new PageRenderer();
         $subject->setCharSet('utf-8');
         $subject->setLanguage('default');
 
         $prologueString = $expectedPrologueString = '<?xml version="1.0" encoding="utf-8" ?>';
         $subject->setXmlPrologAndDocType($prologueString);
 
-        $title = $this->getUniqueId('aTitle-');
+        $title = StringUtility::getUniqueId('aTitle-');
         $subject->setTitle($title);
         $expectedTitleString = '<title>' . $title . '</title>';
 
@@ -47,31 +56,47 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Functional\Functiona
         $subject->setBaseUrl($baseUrl);
         $expectedBaseUrlString = '<base href="' . $baseUrl . '" />';
 
-        $metaTag = $expectedMetaTagString = '<meta name="author" content="Anna Lyse">';
-        $subject->addMetaTag($metaTag);
+        $subject->setMetaTag('property', 'og:type', 'foobar');
+        $subject->setMetaTag('name', 'author', 'husel');
+        $subject->setMetaTag('name', 'author', 'foobar');
+        $subject->setMetaTag('http-equiv', 'refresh', '5');
+        $subject->setMetaTag('name', 'DC.Author', '<evil tag>');
+        $subject->setMetaTag('property', 'og:image', '/path/to/image1.jpg', [], false);
+        $subject->setMetaTag('property', 'og:image', '/path/to/image2.jpg', [], false);
 
-        $inlineComment = $this->getUniqueId('comment');
+        // Unset meta tag
+        $subject->setMetaTag('NaMe', 'randomTag', 'foobar');
+        $subject->removeMetaTag('name', 'RanDoMtAg');
+
+        $inlineComment = StringUtility::getUniqueId('comment');
         $subject->addInlineComment($inlineComment);
         $expectedInlineCommentString = '<!-- ' . LF . $inlineComment . '-->';
 
         $headerData = $expectedHeaderData = '<tag method="private" name="test" />';
         $subject->addHeaderData($headerData);
 
-        $subject->addJsLibrary('test', 'fileadmin/test.js', 'text/javascript', false, false, 'wrapBeforeXwrapAfter', false, 'X');
+        $subject->addJsLibrary(
+            'test',
+            'fileadmin/test.js',
+            'text/javascript',
+            false,
+            false,
+            'wrapBeforeXwrapAfter',
+            false,
+            'X'
+        );
         $expectedJsLibraryRegExp = '#wrapBefore<script src="fileadmin/test\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>wrapAfter#';
 
         $subject->addJsFile('fileadmin/test.js', 'text/javascript', false, false, 'wrapBeforeXwrapAfter', false, 'X');
         $expectedJsFileRegExp = '#wrapBefore<script src="fileadmin/test\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>wrapAfter#';
 
-        $jsInlineCode = $expectedJsInlineCodeString = 'var x = "' . $this->getUniqueId('jsInline-') . '"';
-        $subject->addJsInlineCode($this->getUniqueId(), $jsInlineCode);
+        $subject->addJsFile('fileadmin/test-plain.js', '', false, false, 'wrapBeforeXwrapAfter', false, 'X');
+        $expectedJsFileWithoutTypeRegExp = '#wrapBefore<script src="fileadmin/test-plain\\.(js|\\d+\\.js|js\\?\\d+)"></script>wrapAfter#';
 
-        $extOnReadyCode = $expectedExtOnReadyCodePartOne = $this->getUniqueId('extOnReady-');
-        $expectedExtOnReadyCodePartTwo = 'Ext.onReady(function() {';
-        $subject->loadExtJS();
-        $subject->addExtOnReadyCode($extOnReadyCode);
+        $jsInlineCode = $expectedJsInlineCodeString = 'var x = "' . StringUtility::getUniqueId('jsInline-') . '"';
+        $subject->addJsInlineCode(StringUtility::getUniqueId(), $jsInlineCode);
 
-        $cssFile = $this->getUniqueId('cssFile-');
+        $cssFile = StringUtility::getUniqueId('cssFile-');
         $expectedCssFileString = 'wrapBefore<link rel="stylesheet" type="text/css" href="' . $cssFile . '" media="print" />wrapAfter';
         $subject->addCssFile($cssFile, 'stylesheet', 'print', '', true, false, 'wrapBeforeXwrapAfter', false, 'X');
 
@@ -79,33 +104,34 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Functional\Functiona
         $subject->addCssInlineBlock('general2', 'body {margin:20px;}');
         $subject->addCssInlineBlock('general3', 'h1 {margin:20px;}', null, true);
 
-        $subject->loadJquery();
-        $expectedJqueryRegExp = '#<script src="typo3/sysext/core/Resources/Public/JavaScript/Contrib/jquery/jquery-' . \TYPO3\CMS\Core\Page\PageRenderer::JQUERY_VERSION_LATEST . '\\.min\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>#';
-        $expectedJqueryStatement = 'var TYPO3 = TYPO3 || {}; TYPO3.jQuery = jQuery.noConflict(true);';
-
-        $expectedBodyContent = $this->getUniqueId('ABCDE-');
+        $expectedBodyContent = StringUtility::getUniqueId('ABCDE-');
         $subject->setBodyContent($expectedBodyContent);
 
         $renderedString = $subject->render();
 
-        $this->assertContains($expectedPrologueString, $renderedString);
-        $this->assertContains($expectedTitleString, $renderedString);
-        $this->assertContains($expectedCharsetString, $renderedString);
-        $this->assertContains($expectedFavouriteIconPartOne, $renderedString);
-        $this->assertContains($expectedBaseUrlString, $renderedString);
-        $this->assertContains($expectedMetaTagString, $renderedString);
-        $this->assertContains($expectedInlineCommentString, $renderedString);
-        $this->assertContains($expectedHeaderData, $renderedString);
-        $this->assertRegExp($expectedJsLibraryRegExp, $renderedString);
-        $this->assertRegExp($expectedJsFileRegExp, $renderedString);
-        $this->assertContains($expectedJsInlineCodeString, $renderedString);
-        $this->assertContains($expectedExtOnReadyCodePartOne, $renderedString);
-        $this->assertContains($expectedExtOnReadyCodePartTwo, $renderedString);
-        $this->assertContains($expectedCssFileString, $renderedString);
-        $this->assertContains($expectedCssInlineBlockOnTopString, $renderedString);
-        $this->assertRegExp($expectedJqueryRegExp, $renderedString);
-        $this->assertContains($expectedJqueryStatement, $renderedString);
-        $this->assertContains($expectedBodyContent, $renderedString);
+        self::assertStringContainsString($expectedPrologueString, $renderedString);
+        self::assertStringContainsString($expectedTitleString, $renderedString);
+        self::assertStringContainsString($expectedCharsetString, $renderedString);
+        self::assertStringContainsString($expectedFavouriteIconPartOne, $renderedString);
+        self::assertStringContainsString($expectedBaseUrlString, $renderedString);
+        self::assertStringContainsString($expectedInlineCommentString, $renderedString);
+        self::assertStringContainsString($expectedHeaderData, $renderedString);
+        self::assertRegExp($expectedJsLibraryRegExp, $renderedString);
+        self::assertRegExp($expectedJsFileRegExp, $renderedString);
+        self::assertRegExp($expectedJsFileWithoutTypeRegExp, $renderedString);
+        self::assertStringContainsString($expectedJsInlineCodeString, $renderedString);
+        self::assertStringContainsString($expectedCssFileString, $renderedString);
+        self::assertStringContainsString($expectedCssInlineBlockOnTopString, $renderedString);
+        self::assertStringContainsString($expectedBodyContent, $renderedString);
+        self::assertStringContainsString('<meta property="og:type" content="foobar" />', $renderedString);
+        self::assertStringContainsString('<meta name="author" content="foobar" />', $renderedString);
+        self::assertStringContainsString('<meta http-equiv="refresh" content="5" />', $renderedString);
+        self::assertStringContainsString('<meta name="dc.author" content="&lt;evil tag&gt;" />', $renderedString);
+        self::assertStringNotContainsString('<meta name="randomtag" content="foobar">', $renderedString);
+        self::assertStringNotContainsString('<meta name="randomtag" content="foobar" />', $renderedString);
+        self::assertStringContainsString('<meta name="generator" content="TYPO3 CMS" />', $renderedString);
+        self::assertStringContainsString('<meta property="og:image" content="/path/to/image1.jpg" />', $renderedString);
+        self::assertStringContainsString('<meta property="og:image" content="/path/to/image2.jpg" />', $renderedString);
     }
 
     /**
@@ -113,7 +139,7 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Functional\Functiona
      */
     public function pageRendererRendersFooterValues()
     {
-        $subject = new \TYPO3\CMS\Core\Page\PageRenderer();
+        $subject = new PageRenderer();
         $subject->setCharSet('utf-8');
         $subject->setLanguage('default');
 
@@ -123,16 +149,32 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Functional\Functiona
         $subject->addFooterData($footerData);
 
         $expectedJsFooterLibraryRegExp = '#wrapBefore<script src="fileadmin/test\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>wrapAfter#';
-        $subject->addJsFooterLibrary('test', 'fileadmin/test.js', 'text/javascript', false, false, 'wrapBeforeXwrapAfter', false, 'X');
+        $subject->addJsFooterLibrary(
+            'test',
+            'fileadmin/test.js',
+            'text/javascript',
+            false,
+            false,
+            'wrapBeforeXwrapAfter',
+            false,
+            'X'
+        );
 
         $expectedJsFooterRegExp = '#wrapBefore<script src="fileadmin/test\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>wrapAfter#';
-        $subject->addJsFooterFile('fileadmin/test.js', 'text/javascript', false, false, 'wrapBeforeXwrapAfter', false, 'X');
+        $subject->addJsFooterFile(
+            'fileadmin/test.js',
+            'text/javascript',
+            false,
+            false,
+            'wrapBeforeXwrapAfter',
+            false,
+            'X'
+        );
 
-        $jsFooterInlineCode = $expectedJsFooterInlineCodeString = 'var x = "' . $this->getUniqueId('jsFooterInline-') . '"';
-        $subject->addJsFooterInlineCode($this->getUniqueId(), $jsFooterInlineCode);
+        $jsFooterInlineCode = $expectedJsFooterInlineCodeString = 'var x = "' . StringUtility::getUniqueId('jsFooterInline-') . '"';
+        $subject->addJsFooterInlineCode(StringUtility::getUniqueId(), $jsFooterInlineCode);
 
         // Bunch of label tests
-        $subject->loadExtJS();
         $subject->addInlineLanguageLabel('myKey', 'myValue');
         $subject->addInlineLanguageLabelArray([
             'myKeyArray1' => 'myValueArray1',
@@ -143,7 +185,7 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Functional\Functiona
         ]);
         $expectedInlineLabelReturnValue = 'TYPO3.lang = {"myKey":"myValue","myKeyArray1":"myValueArray1","myKeyArray2":"myValueArray2","myKeyArray3":"myValueArray3"';
 
-        $subject->addInlineLanguageLabelFile('EXT:lang/Resources/Private/Language/locallang_core.xlf');
+        $subject->addInlineLanguageLabelFile('EXT:core/Resources/Private/Language/locallang_core.xlf');
         $expectedLanguageLabel1 = 'labels.beUser';
         $expectedLanguageLabel2 = 'labels.feUser';
 
@@ -158,146 +200,147 @@ class PageRendererTest extends \TYPO3\TestingFramework\Core\Functional\Functiona
         ]);
         $expectedInlineSettingsReturnValue = 'TYPO3.settings = {"myApp":{"myKey":"myValue","myKey1":"myValue1","myKey2":"myValue2","myKey3":"myValue3"}';
 
-        $renderedString = $subject->render(\TYPO3\CMS\Core\Page\PageRenderer::PART_FOOTER);
+        $renderedString = $subject->render(PageRenderer::PART_FOOTER);
 
-        $this->assertContains($expectedFooterData, $renderedString);
-        $this->assertRegExp($expectedJsFooterLibraryRegExp, $renderedString);
-        $this->assertRegExp($expectedJsFooterRegExp, $renderedString);
-        $this->assertContains($expectedJsFooterInlineCodeString, $renderedString);
-        $this->assertContains($expectedInlineLabelReturnValue, $renderedString);
-        $this->assertContains($expectedLanguageLabel1, $renderedString);
-        $this->assertContains($expectedLanguageLabel2, $renderedString);
-        $this->assertContains($expectedInlineSettingsReturnValue, $renderedString);
+        self::assertStringContainsString($expectedFooterData, $renderedString);
+        self::assertRegExp($expectedJsFooterLibraryRegExp, $renderedString);
+        self::assertRegExp($expectedJsFooterRegExp, $renderedString);
+        self::assertStringContainsString($expectedJsFooterInlineCodeString, $renderedString);
+        self::assertStringContainsString($expectedInlineLabelReturnValue, $renderedString);
+        self::assertStringContainsString($expectedLanguageLabel1, $renderedString);
+        self::assertStringContainsString($expectedLanguageLabel2, $renderedString);
+        self::assertStringContainsString($expectedInlineSettingsReturnValue, $renderedString);
     }
 
     /**
      * @test
      */
-    public function loadJqueryRespectsGivenNamespace()
+    public function pageRendererRendersNomoduleJavascript()
     {
-        $subject = new \TYPO3\CMS\Core\Page\PageRenderer();
+        $subject = new PageRenderer();
+        $subject->setCharSet('utf-8');
+        $subject->setLanguage('default');
 
-        $expectedRegExp = '#<script src="typo3/sysext/core/Resources/Public/JavaScript/Contrib/jquery/jquery-' . \TYPO3\CMS\Core\Page\PageRenderer::JQUERY_VERSION_LATEST . '\\.min\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>#';
-        $expectedStatement = 'var TYPO3 = TYPO3 || {}; TYPO3.MyNameSpace = jQuery.noConflict(true);';
-        $subject->loadJquery(null, null, 'MyNameSpace');
-        $out = $subject->render();
-        $this->assertRegExp($expectedRegExp, $out);
-        $this->assertContains($expectedStatement, $out);
+        $subject->addJsFooterLibrary(
+            'test',
+            'fileadmin/test.js',
+            'text/javascript',
+            false,
+            false,
+            '',
+            false,
+            '|',
+            false,
+            '',
+            false,
+            '',
+            true
+        );
+        $expectedJsFooterLibrary = '<script src="fileadmin/test.js" type="text/javascript" nomodule="nomodule"></script>';
+
+        $subject->addJsLibrary(
+            'test2',
+            'fileadmin/test2.js',
+            'text/javascript',
+            false,
+            false,
+            '',
+            false,
+            '|',
+            false,
+            '',
+            false,
+            '',
+            true
+        );
+        $expectedJsLibrary = '<script src="fileadmin/test2.js" type="text/javascript" nomodule="nomodule"></script>';
+
+        $subject->addJsFile(
+            'fileadmin/test3.js',
+            'text/javascript',
+            false,
+            false,
+            '',
+            false,
+            '|',
+            false,
+            '',
+            false,
+            '',
+            true
+        );
+        $expectedJsFile = '<script src="fileadmin/test3.js" type="text/javascript" nomodule="nomodule"></script>';
+
+        $subject->addJsFooterFile(
+            'fileadmin/test4.js',
+            'text/javascript',
+            false,
+            false,
+            '',
+            false,
+            '|',
+            false,
+            '',
+            false,
+            '',
+            true
+        );
+        $expectedJsFooter = '<script src="fileadmin/test4.js" type="text/javascript" nomodule="nomodule"></script>';
+
+        $renderedString = $subject->render();
+
+        self::assertStringContainsString($expectedJsFooterLibrary, $renderedString);
+        self::assertStringContainsString($expectedJsLibrary, $renderedString);
+        self::assertStringContainsString($expectedJsFile, $renderedString);
+        self::assertStringContainsString($expectedJsFooter, $renderedString);
     }
 
     /**
      * @test
      */
-    public function loadJqueryWithDefaultNoConflictModeDoesNotSetNamespace()
+    public function pageRendererMergesRequireJsPackagesOnConsecutiveCalls(): void
     {
-        $subject = new \TYPO3\CMS\Core\Page\PageRenderer();
-
-        $expectedRegExp = '#<script src="typo3/sysext/core/Resources/Public/JavaScript/Contrib/jquery/jquery-' . \TYPO3\CMS\Core\Page\PageRenderer::JQUERY_VERSION_LATEST . '\\.min\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>#';
-        $expectedStatement = 'jQuery.noConflict();';
-        $subject->loadJquery(null, null, \TYPO3\CMS\Core\Page\PageRenderer::JQUERY_NAMESPACE_DEFAULT_NOCONFLICT);
-        $out = $subject->render();
-        $this->assertRegExp($expectedRegExp, $out);
-        $this->assertContains($expectedStatement, $out);
-        $this->assertNotContains('var TYPO3 = TYPO3 || {}; TYPO3.', $out);
-    }
-
-    /**
-     * @test
-     */
-    public function loadJqueryWithNamespaceNoneDoesNotIncludeNoConflictHandling()
-    {
-        $subject = new \TYPO3\CMS\Core\Page\PageRenderer();
-
-        $expectedRegExp = '#<script src="typo3/sysext/core/Resources/Public/JavaScript/Contrib/jquery/jquery-' . \TYPO3\CMS\Core\Page\PageRenderer::JQUERY_VERSION_LATEST . '\\.min\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>#';
-        $subject->loadJquery(null, null, \TYPO3\CMS\Core\Page\PageRenderer::JQUERY_NAMESPACE_NONE);
-        $out = $subject->render();
-        $this->assertRegExp($expectedRegExp, $out);
-        $this->assertNotContains('jQuery.noConflict', $out);
-    }
-
-    /**
-     * @test
-     */
-    public function loadJqueryLoadsTheLatestJqueryVersionInNoConflictModeUncompressedInDebugMode()
-    {
-        $subject = new \TYPO3\CMS\Core\Page\PageRenderer();
-
-        $expectedRegExp = '#<script src="typo3/sysext/core/Resources/Public/JavaScript/Contrib/jquery/jquery-' . \TYPO3\CMS\Core\Page\PageRenderer::JQUERY_VERSION_LATEST . '\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>#';
-        $expectedStatement = 'var TYPO3 = TYPO3 || {}; TYPO3.jQuery = jQuery.noConflict(true);';
-        $subject->loadJquery();
-        $subject->enableDebugMode();
-        $out = $subject->render();
-        $this->assertRegExp($expectedRegExp, $out);
-        $this->assertContains($expectedStatement, $out);
-    }
-
-    /**
-     * @return array
-     */
-    public function loadJqueryFromSourceDataProvider()
-    {
-        return [
-            'google with version number' => [
-                '1.6.3',
-                'google',
-                '#<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.3/jquery.js" type="text/javascript"></script>#'
-            ],
-            'msn with version number' => [
-                '1.6.3',
-                'msn',
-                '#<script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.6.3.js" type="text/javascript"></script>#'
-            ],
-            'jquery with version number' => [
-                '1.6.3',
-                'jquery',
-                '#<script src="https://code.jquery.com/jquery-1.6.3.js" type="text/javascript"></script>#'
-            ],
-            'jquery with custom URL' => [
-                '1.6.3',
-                'https://my.cool.cdn/foo/jquery.js',
-                '#<script src="https://my.cool.cdn/foo/jquery.js" type="text/javascript"></script>#'
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['session']['BE'] = [
+            'backend'  => DatabaseSessionBackend::class,
+            'options' => [
+                'table' => 'be_sessions',
             ],
         ];
-    }
+        $GLOBALS['BE_USER'] = new BackendUserAuthentication();
+        $GLOBALS['BE_USER']->id = md5('abc');
+        $GLOBALS['BE_USER']->user = ['uid' => 1];
+        $GLOBALS['BE_USER']->setLogger(new NullLogger());
 
-    /**
-     * @dataProvider loadJqueryFromSourceDataProvider
-     * @test
-     */
-    public function isJqueryLoadedFromSourceUncompressedIfDebugModeIsEnabled($version, $source, $regex)
-    {
-        $subject = new \TYPO3\CMS\Core\Page\PageRenderer();
+        $GLOBALS['LANG'] = LanguageService::createFromUserPreferences($GLOBALS['BE_USER']);
 
-        $subject->loadJquery($version, $source);
-        $subject->enableDebugMode();
-        $out = $subject->render();
-        $this->assertRegExp($regex, $out);
-    }
+        $subject = new PageRenderer();
+        $subject->setCharSet('utf-8');
+        $subject->setLanguage('default');
 
-    /**
-     * @test
-     */
-    public function isJqueryLoadedMinifiedFromGoogleByDefault()
-    {
-        $subject = new \TYPO3\CMS\Core\Page\PageRenderer();
+        $packages = [
+            [
+                'name' => 'foo',
+                'location' => '/typo3conf/ext/foo/Resources/Public/JavaScript/Contrib/foo',
+                'main' => 'lib/foo'
+            ],
+            [
+                'name' => 'bar',
+                'location' => '/typo3conf/ext/bar/Resources/Public/JavaScript/Contrib/bar',
+                'main' => 'lib/bar'
+            ]
+        ];
 
-        $expectedRegex = '#<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.3/jquery.min.js" type="text/javascript"></script>#';
-        $subject->loadJquery('1.6.3', 'google');
-        $out = $subject->render();
-        $this->assertRegExp($expectedRegex, $out);
-    }
+        foreach ($packages as $package) {
+            $subject->addRequireJsConfiguration([
+                'packages' => [$package]
+            ]);
+        }
 
-    /**
-     * @test
-     */
-    public function loadExtJsInDebugLoadsDebugExtJs()
-    {
-        $subject = new \TYPO3\CMS\Core\Page\PageRenderer();
+        $expectedConfiguration = json_encode(['packages' => $packages]);
+        // Remove surrounding brackets as the expectation is a substring of a larger JSON string
+        $expectedConfiguration = trim($expectedConfiguration, '{}');
 
-        $expectedRegExp = '#<script src="typo3/sysext/core/Resources/Public/JavaScript/Contrib/extjs/ext-all-debug\\.(js|\\d+\\.js|js\\?\\d+)" type="text/javascript"></script>#';
-        $subject->loadExtJS(true, true);
-        $subject->enableExtJsDebug();
-        $out = $subject->render();
-        $this->assertRegExp($expectedRegExp, $out);
+        $renderedString = $subject->render();
+        self::assertStringContainsString($expectedConfiguration, $renderedString);
     }
 }

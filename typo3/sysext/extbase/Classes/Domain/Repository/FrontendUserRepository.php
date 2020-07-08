@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Domain\Repository;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +15,13 @@ namespace TYPO3\CMS\Extbase\Domain\Repository;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Domain\Repository;
+
+use TYPO3\CMS\Extbase\Persistence\Repository;
+
 /**
  * A Frontend User repository
- *
- * @api
  */
-class FrontendUserRepository extends \TYPO3\CMS\Extbase\Persistence\Repository
+class FrontendUserRepository extends Repository
 {
 }

@@ -1,11 +1,9 @@
 <?php
+
 declare(strict_types=1);
-namespace TYPO3\CMS\Form\Domain\Renderer;
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\Domain\Renderer;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Renderer;
 
 use TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext;
 use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
@@ -34,7 +38,6 @@ interface RendererInterface
      * Set the controller context which should be used
      *
      * @param ControllerContext $controllerContext
-     * @api
      */
     public function setControllerContext(ControllerContext $controllerContext);
 
@@ -43,19 +46,16 @@ interface RendererInterface
      * on each $renderable
      *
      * @return string the rendered $formRuntime
-     * @api
      */
     public function render(): string;
 
     /**
      * @param FormRuntime $formRuntime
-     * @api
      */
     public function setFormRuntime(FormRuntime $formRuntime);
 
     /**
      * @return FormRuntime
-     * @api
      */
     public function getFormRuntime(): FormRuntime;
 }

@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Extbase\Reflection;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +15,15 @@ namespace TYPO3\CMS\Extbase\Reflection;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Reflection;
+
+use Symfony\Component\PropertyAccess\PropertyAccess;
+use Symfony\Component\PropertyAccess\PropertyAccessor;
+use Symfony\Component\PropertyAccess\PropertyPath;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
+use TYPO3\CMS\Extbase\Reflection\Exception\PropertyNotAccessibleException;
 
 /**
  * Provides methods to call appropriate getter/setter on an object given the
@@ -23,14 +32,14 @@ use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
  * - if public getter/setter method exists, call it.
  * - if public property exists, return/set the value of it.
  * - else, throw exception
+ * @internal only to be used within Extbase, not part of TYPO3 Core API.
  */
 class ObjectAccess
 {
-    const ACCESS_GET = 0;
-
-    const ACCESS_SET = 1;
-
-    const ACCESS_PUBLIC = 2;
+    /**
+     * @var PropertyAccessor
+     */
+    private static $propertyAccessor;
 
     /**
      * Get a property of a given object.
@@ -48,16 +57,18 @@ class ObjectAccess
      * @param bool $forceDirectAccess directly access property using reflection(!)
      *
      * @throws \InvalidArgumentException in case $subject was not an object or $propertyName was not a string
+     * @throws Exception\PropertyNotAccessibleException
      * @return mixed Value of the property
      */
-    public static function getProperty($subject, $propertyName, $forceDirectAccess = false)
+    public static function getProperty($subject, string $propertyName, bool $forceDirectAccess = false)
     {
         if (!is_object($subject) && !is_array($subject)) {
-            throw new \InvalidArgumentException('$subject must be an object or array, ' . gettype($subject) . ' given.', 1237301367);
+            throw new \InvalidArgumentException(
+                '$subject must be an object or array, ' . gettype($subject) . ' given.',
+                1237301367
+            );
         }
-        if (!is_string($propertyName) && (!is_array($subject) && !$subject instanceof \ArrayAccess)) {
-            throw new \InvalidArgumentException('Given property name is not of type string.', 1231178303);
-        }
+
         return self::getPropertyInternal($subject, $propertyName, $forceDirectAccess);
     }
 
@@ -76,49 +87,38 @@ class ObjectAccess
      * @return mixed Value of the property
      * @internal
      */
-    public static function getPropertyInternal($subject, $propertyName, $forceDirectAccess = false)
+    public static function getPropertyInternal($subject, string $propertyName, bool $forceDirectAccess = false)
     {
-        // type check and conversion of iterator to numerically indexed array
-        if ($subject === null || is_scalar($subject)) {
-            return null;
-        } elseif (!$forceDirectAccess && ($subject instanceof \SplObjectStorage || $subject instanceof ObjectStorage)) {
-            $subject = iterator_to_array($subject, false);
+        if ($forceDirectAccess === true) {
+            trigger_error('Argument $forceDirectAccess will be removed in TYPO3 11.0', E_USER_DEPRECATED);
         }
 
-        // value get based on data type of $subject (possibly converted above)
-        if (($subject instanceof \ArrayAccess && $subject->offsetExists($propertyName)) || is_array($subject)) {
-            // isset() is safe; array_key_exists would only be needed to determine
-            // if the value is NULL - and that's already what we return as fallback.
-            if (isset($subject[$propertyName])) {
-                return $subject[$propertyName];
+        if (!$forceDirectAccess && ($subject instanceof \SplObjectStorage || $subject instanceof ObjectStorage)) {
+            $subject = iterator_to_array(clone $subject, false);
+        }
+
+        $propertyPath = new PropertyPath($propertyName);
+
+        if ($subject instanceof \ArrayAccess) {
+            $accessor = self::createAccessor();
+
+            // Check if $subject is an instance of \ArrayAccess and therefore maybe has actual accessible properties.
+            if ($accessor->isReadable($subject, $propertyPath)) {
+                return $accessor->getValue($subject, $propertyPath);
             }
-        } elseif (is_object($subject)) {
-            if ($forceDirectAccess) {
-                if (property_exists($subject, $propertyName)) {
-                    $propertyReflection = new PropertyReflection($subject, $propertyName);
-                    return $propertyReflection->getValue($subject);
-                } else {
-                    throw new Exception\PropertyNotAccessibleException('The property "' . $propertyName . '" on the subject does not exist.', 1302855001);
-                }
-            }
-            $upperCasePropertyName = ucfirst($propertyName);
-            $getterMethodName = 'get' . $upperCasePropertyName;
-            if (is_callable([$subject, $getterMethodName])) {
-                return $subject->{$getterMethodName}();
-            }
-            $getterMethodName = 'is' . $upperCasePropertyName;
-            if (is_callable([$subject, $getterMethodName])) {
-                return $subject->{$getterMethodName}();
-            }
-            $getterMethodName = 'has' . $upperCasePropertyName;
-            if (is_callable([$subject, $getterMethodName])) {
-                return $subject->{$getterMethodName}();
-            }
-            if (property_exists($subject, $propertyName)) {
-                return $subject->{$propertyName};
-            } else {
-                throw new Exception\PropertyNotAccessibleException('The property "' . $propertyName . '" on the subject does not exist.', 1476109666);
-            }
+
+            // Use array style property path for instances of \ArrayAccess
+            // https://symfony.com/doc/current/components/property_access.html#reading-from-arrays
+
+            $propertyPath = self::convertToArrayPropertyPath($propertyPath);
+        }
+
+        if (is_object($subject)) {
+            return self::getObjectPropertyValue($subject, $propertyPath, $forceDirectAccess);
+        }
+
+        if (is_array($subject)) {
+            return self::getArrayIndexValue($subject, self::convertToArrayPropertyPath($propertyPath));
         }
 
         return null;
@@ -137,14 +137,13 @@ class ObjectAccess
      *
      * @return mixed Value of the property
      */
-    public static function getPropertyPath($subject, $propertyPath)
+    public static function getPropertyPath($subject, string $propertyPath)
     {
-        $propertyPathSegments = explode('.', $propertyPath);
         try {
-            foreach ($propertyPathSegments as $pathSegment) {
+            foreach (new PropertyPath($propertyPath) as $pathSegment) {
                 $subject = self::getPropertyInternal($subject, $pathSegment);
             }
-        } catch (Exception\PropertyNotAccessibleException $error) {
+        } catch (PropertyNotAccessibleException $error) {
             return null;
         }
         return $subject;
@@ -161,7 +160,7 @@ class ObjectAccess
      * on it without checking if it existed.
      * - else, return FALSE
      *
-     * @param mixed &$subject The target object or array
+     * @param mixed $subject The target object or array
      * @param string $propertyName Name of the property to set
      * @param mixed $propertyValue Value of the property
      * @param bool $forceDirectAccess directly access property using reflection(!)
@@ -169,8 +168,12 @@ class ObjectAccess
      * @throws \InvalidArgumentException in case $object was not an object or $propertyName was not a string
      * @return bool TRUE if the property could be set, FALSE otherwise
      */
-    public static function setProperty(&$subject, $propertyName, $propertyValue, $forceDirectAccess = false)
+    public static function setProperty(&$subject, string $propertyName, $propertyValue, bool $forceDirectAccess = false): bool
     {
+        if ($forceDirectAccess === true) {
+            trigger_error('Argument $forceDirectAccess will be removed in TYPO3 11.0', E_USER_DEPRECATED);
+        }
+
         if (is_array($subject) || ($subject instanceof \ArrayAccess && !$forceDirectAccess)) {
             $subject[$propertyName] = $propertyValue;
             return true;
@@ -178,34 +181,26 @@ class ObjectAccess
         if (!is_object($subject)) {
             throw new \InvalidArgumentException('subject must be an object or array, ' . gettype($subject) . ' given.', 1237301368);
         }
-        if (!is_string($propertyName)) {
-            throw new \InvalidArgumentException('Given property name is not of type string.', 1231178878);
+
+        $accessor = self::createAccessor();
+        if ($accessor->isWritable($subject, $propertyName)) {
+            $accessor->setValue($subject, $propertyName, $propertyValue);
+            return true;
         }
-        $result = true;
+
         if ($forceDirectAccess) {
             if (property_exists($subject, $propertyName)) {
-                $propertyReflection = new PropertyReflection($subject, $propertyName);
+                $propertyReflection = new \ReflectionProperty($subject, $propertyName);
                 $propertyReflection->setAccessible(true);
                 $propertyReflection->setValue($subject, $propertyValue);
             } else {
                 $subject->{$propertyName} = $propertyValue;
             }
-            return $result;
+
+            return true;
         }
-        $setterMethodName = self::buildSetterMethodName($propertyName);
-        if (is_callable([$subject, $setterMethodName])) {
-            $subject->{$setterMethodName}($propertyValue);
-        } elseif (property_exists($subject, $propertyName)) {
-            $reflection = new PropertyReflection($subject, $propertyName);
-            if ($reflection->isPublic()) {
-                $subject->{$propertyName} = $propertyValue;
-            } else {
-                $result = false;
-            }
-        } else {
-            $result = false;
-        }
-        return $result;
+
+        return false;
     }
 
     /**
@@ -217,51 +212,55 @@ class ObjectAccess
      *
      * @param object $object Object to receive property names for
      *
-     * @throws \InvalidArgumentException
      * @return array Array of all gettable property names
+     * @throws Exception\UnknownClassException
      */
-    public static function getGettablePropertyNames($object)
+    public static function getGettablePropertyNames(object $object): array
     {
-        if (!is_object($object)) {
-            throw new \InvalidArgumentException('$object must be an object, ' . gettype($object) . ' given.', 1237301369);
-        }
         if ($object instanceof \stdClass) {
             $properties = array_keys((array)$object);
             sort($properties);
             return $properties;
         }
 
-        $reflection = new \ReflectionClass($object);
-        $declaredPropertyNames = array_map(
-            function (\ReflectionProperty $property) {
-                return $property->getName();
-            },
-            $reflection->getProperties(\ReflectionProperty::IS_PUBLIC)
-        );
-        foreach ($reflection->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
-            $methodParameters = $method->getParameters();
-            if (!empty($methodParameters)) {
-                foreach ($methodParameters as $parameter) {
-                    if (!$parameter->isOptional()) {
-                        continue 2;
-                    }
+        $classSchema = GeneralUtility::makeInstance(ReflectionService::class)
+            ->getClassSchema($object);
+
+        $accessor = self::createAccessor();
+        $propertyNames = array_keys($classSchema->getProperties());
+        $accessiblePropertyNames = array_filter($propertyNames, function ($propertyName) use ($accessor, $object) {
+            return $accessor->isReadable($object, $propertyName);
+        });
+
+        foreach ($classSchema->getMethods() as $methodName => $methodDefinition) {
+            if (!$methodDefinition->isPublic()) {
+                continue;
+            }
+
+            foreach ($methodDefinition->getParameters() as $methodParam) {
+                if (!$methodParam->isOptional()) {
+                    continue 2;
                 }
             }
-            $methodName = $method->getName();
-            if (substr($methodName, 0, 2) === 'is') {
-                $declaredPropertyNames[] = lcfirst(substr($methodName, 2));
+
+            if (StringUtility::beginsWith($methodName, 'get')) {
+                $accessiblePropertyNames[] = lcfirst(substr($methodName, 3));
+                continue;
             }
-            if (substr($methodName, 0, 3) === 'get') {
-                $declaredPropertyNames[] = lcfirst(substr($methodName, 3));
+
+            if (StringUtility::beginsWith($methodName, 'has')) {
+                $accessiblePropertyNames[] = lcfirst(substr($methodName, 3));
+                continue;
             }
-            if (substr($methodName, 0, 3) === 'has') {
-                $declaredPropertyNames[] = lcfirst(substr($methodName, 3));
+
+            if (StringUtility::beginsWith($methodName, 'is')) {
+                $accessiblePropertyNames[] = lcfirst(substr($methodName, 2));
             }
         }
-        $propertyNames = array_unique($declaredPropertyNames);
-        sort($propertyNames);
 
-        return $propertyNames;
+        $accessiblePropertyNames = array_unique($accessiblePropertyNames);
+        sort($accessiblePropertyNames);
+        return $accessiblePropertyNames;
     }
 
     /**
@@ -276,22 +275,29 @@ class ObjectAccess
      * @throws \InvalidArgumentException
      * @return array Array of all settable property names
      */
-    public static function getSettablePropertyNames($object)
+    public static function getSettablePropertyNames(object $object): array
     {
-        if (!is_object($object)) {
-            throw new \InvalidArgumentException('$object must be an object, ' . gettype($object) . ' given.', 1264022994);
-        }
-        if ($object instanceof \stdClass) {
-            $declaredPropertyNames = array_keys((array)$object);
+        $accessor = self::createAccessor();
+
+        if ($object instanceof \stdClass || $object instanceof \ArrayAccess) {
+            $propertyNames = array_keys((array)$object);
         } else {
-            $declaredPropertyNames = array_keys(get_class_vars(get_class($object)));
-        }
-        foreach (get_class_methods($object) as $methodName) {
-            if (substr($methodName, 0, 3) === 'set' && is_callable([$object, $methodName])) {
-                $declaredPropertyNames[] = lcfirst(substr($methodName, 3));
+            $classSchema = GeneralUtility::makeInstance(ReflectionService::class)->getClassSchema($object);
+
+            $propertyNames = array_filter(array_keys($classSchema->getProperties()), function ($methodName) use ($accessor, $object) {
+                return $accessor->isWritable($object, $methodName);
+            });
+
+            $setters = array_filter(array_keys($classSchema->getMethods()), function ($methodName) use ($object) {
+                return StringUtility::beginsWith($methodName, 'set') && is_callable([$object, $methodName]);
+            });
+
+            foreach ($setters as $setter) {
+                $propertyNames[] = lcfirst(substr($setter, 3));
             }
         }
-        $propertyNames = array_unique($declaredPropertyNames);
+
+        $propertyNames = array_unique($propertyNames);
         sort($propertyNames);
         return $propertyNames;
     }
@@ -299,58 +305,43 @@ class ObjectAccess
     /**
      * Tells if the value of the specified property can be set by this Object Accessor.
      *
-     * @param object $object Object containting the property
+     * @param object $object Object containing the property
      * @param string $propertyName Name of the property to check
      *
      * @throws \InvalidArgumentException
      * @return bool
      */
-    public static function isPropertySettable($object, $propertyName)
+    public static function isPropertySettable(object $object, $propertyName): bool
     {
-        if (!is_object($object)) {
-            throw new \InvalidArgumentException('$object must be an object, ' . gettype($object) . ' given.', 1259828920);
-        }
-        if ($object instanceof \stdClass && array_search($propertyName, array_keys(get_object_vars($object))) !== false) {
-            return true;
-        } elseif (array_search($propertyName, array_keys(get_class_vars(get_class($object)))) !== false) {
+        if ($object instanceof \stdClass && array_key_exists($propertyName, get_object_vars($object))) {
             return true;
         }
-        return is_callable([$object, self::buildSetterMethodName($propertyName)]);
+        if (array_key_exists($propertyName, get_class_vars(get_class($object)))) {
+            return true;
+        }
+        return is_callable([$object, 'set' . ucfirst($propertyName)]);
     }
 
     /**
      * Tells if the value of the specified property can be retrieved by this Object Accessor.
      *
-     * @param object $object Object containting the property
+     * @param object $object Object containing the property
      * @param string $propertyName Name of the property to check
      *
      * @throws \InvalidArgumentException
      * @return bool
      */
-    public static function isPropertyGettable($object, $propertyName)
+    public static function isPropertyGettable($object, $propertyName): bool
     {
-        if (!is_object($object)) {
-            throw new \InvalidArgumentException('$object must be an object, ' . gettype($object) . ' given.', 1259828921);
+        if (($object instanceof \ArrayAccess) && !$object->offsetExists($propertyName)) {
+            return false;
         }
-        if ($object instanceof \ArrayAccess && isset($object[$propertyName])) {
-            return true;
-        } elseif ($object instanceof \stdClass && isset($object->$propertyName)) {
-            return true;
+
+        if (is_array($object) || $object instanceof \ArrayAccess) {
+            $propertyName = self::wrap($propertyName);
         }
-        if (is_callable([$object, 'get' . ucfirst($propertyName)])) {
-            return true;
-        }
-        if (is_callable([$object, 'has' . ucfirst($propertyName)])) {
-            return true;
-        }
-        if (is_callable([$object, 'is' . ucfirst($propertyName)])) {
-            return true;
-        }
-        if (property_exists($object, $propertyName)) {
-            $propertyReflection = new PropertyReflection($object, $propertyName);
-            return $propertyReflection->isPublic();
-        }
-        return false;
+
+        return self::createAccessor()->isReadable($object, $propertyName);
     }
 
     /**
@@ -363,11 +354,8 @@ class ObjectAccess
      * @return array Associative array of all properties.
      * @todo What to do with ArrayAccess
      */
-    public static function getGettableProperties($object)
+    public static function getGettableProperties(object $object): array
     {
-        if (!is_object($object)) {
-            throw new \InvalidArgumentException('$object must be an object, ' . gettype($object) . ' given.', 1237301370);
-        }
         $properties = [];
         foreach (self::getGettablePropertyNames($object) as $propertyName) {
             $properties[$propertyName] = self::getPropertyInternal($object, $propertyName);
@@ -376,15 +364,78 @@ class ObjectAccess
     }
 
     /**
-     * Build the setter method name for a given property by capitalizing the
-     * first letter of the property, and prepending it with "set".
-     *
-     * @param string $propertyName Name of the property
-     *
-     * @return string Name of the setter method name
+     * @return PropertyAccessor
      */
-    public static function buildSetterMethodName($propertyName)
+    private static function createAccessor(): PropertyAccessor
     {
-        return 'set' . ucfirst($propertyName);
+        if (static::$propertyAccessor === null) {
+            static::$propertyAccessor = PropertyAccess::createPropertyAccessorBuilder()
+                ->getPropertyAccessor();
+        }
+
+        return static::$propertyAccessor;
+    }
+
+    /**
+     * @param object $subject
+     * @param PropertyPath $propertyPath
+     * @param bool $forceDirectAccess
+     * @return mixed
+     * @throws Exception\PropertyNotAccessibleException
+     * @throws \ReflectionException
+     */
+    private static function getObjectPropertyValue(object $subject, PropertyPath $propertyPath, bool $forceDirectAccess)
+    {
+        $accessor = self::createAccessor();
+
+        if ($accessor->isReadable($subject, $propertyPath)) {
+            return $accessor->getValue($subject, $propertyPath);
+        }
+
+        $propertyName = (string)$propertyPath;
+
+        if (!$forceDirectAccess) {
+            throw new PropertyNotAccessibleException('The property "' . $propertyName . '" on the subject does not exist.', 1476109666);
+        }
+
+        if (!property_exists($subject, $propertyName)) {
+            throw new PropertyNotAccessibleException('The property "' . $propertyName . '" on the subject does not exist.', 1302855001);
+        }
+
+        $propertyReflection = new \ReflectionProperty($subject, $propertyName);
+        $propertyReflection->setAccessible(true);
+        return $propertyReflection->getValue($subject);
+    }
+
+    /**
+     * @param array $subject
+     * @param PropertyPath $propertyPath
+     * @return mixed
+     */
+    private static function getArrayIndexValue(array $subject, PropertyPath $propertyPath)
+    {
+        return self::createAccessor()->getValue($subject, $propertyPath);
+    }
+
+    /**
+     * @param PropertyPath $propertyPath
+     * @return PropertyPath
+     */
+    private static function convertToArrayPropertyPath(PropertyPath $propertyPath): PropertyPath
+    {
+        $segments = array_map(function ($segment) {
+            return static::wrap($segment);
+        }, $propertyPath->getElements());
+
+        return new PropertyPath(implode('.', $segments));
+    }
+
+    /**
+     * @param string $segment
+     * @return string
+     */
+    private static function wrap(string $segment): string
+    {
+        return '[' . $segment . ']';
     }
 }

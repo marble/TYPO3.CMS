@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Mvc\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,12 @@ namespace TYPO3\CMS\Extbase\Mvc\View;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Mvc\View;
+
+use TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext;
+
 /**
  * Interface of a view
- *
- * @api
  */
 interface ViewInterface
 {
@@ -25,8 +26,9 @@ interface ViewInterface
      * Sets the current controller context
      *
      * @param \TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext
+     * @internal
      */
-    public function setControllerContext(\TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext);
+    public function setControllerContext(ControllerContext $controllerContext);
 
     /**
      * Add a variable to the view data collection.
@@ -35,7 +37,6 @@ interface ViewInterface
      * @param string $key Key of variable
      * @param mixed $value Value of object
      * @return \TYPO3\CMS\Extbase\Mvc\View\ViewInterface an instance of $this, to enable chaining
-     * @api
      */
     public function assign($key, $value);
 
@@ -44,7 +45,6 @@ interface ViewInterface
      *
      * @param array $values array in the format array(key1 => value1, key2 => value2)
      * @return \TYPO3\CMS\Extbase\Mvc\View\ViewInterface an instance of $this, to enable chaining
-     * @api
      */
     public function assignMultiple(array $values);
 
@@ -53,22 +53,18 @@ interface ViewInterface
      *
      * @param \TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext
      * @return bool TRUE if the view has something useful to display, otherwise FALSE
-     * @api
      */
-    public function canRender(\TYPO3\CMS\Extbase\Mvc\Controller\ControllerContext $controllerContext);
+    public function canRender(ControllerContext $controllerContext);
 
     /**
      * Renders the view
      *
      * @return string The rendered view
-     * @api
      */
     public function render();
 
     /**
      * Initializes this view.
-     *
-     * @api
      */
     public function initializeView();
 }

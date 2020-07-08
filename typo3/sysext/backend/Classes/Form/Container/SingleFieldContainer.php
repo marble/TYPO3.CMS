@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Container;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Container;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Container;
 
 use TYPO3\CMS\Backend\Form\InlineStackProcessor;
 use TYPO3\CMS\Backend\Form\Utility\FormEngineUtility;
@@ -65,8 +66,8 @@ class SingleFieldContainer extends AbstractContainer
                 $isOverlay = !empty($parentValue) ? (bool)$parentValue[0] : false;
             } else {
                 throw new \InvalidArgumentException(
-                    'The given value for the original language field ' . $this->data['processedTca']['ctrl']['transOrigPointerField']
-                    . ' of table ' . $table . ' contains an invalid value.',
+                    'The given value "' . $parentValue . '" for the original language field ' . $this->data['processedTca']['ctrl']['transOrigPointerField']
+                    . ' of table ' . $table . ' is invalid.',
                     1470742770
                 );
             }
@@ -76,7 +77,6 @@ class SingleFieldContainer extends AbstractContainer
         // Check if this field is configured and editable according to exclude fields and other configuration
         if (// Return if BE-user has no access rights to this field, @todo: another user access rights check!
             $parameterArray['fieldConf']['exclude'] && !$backendUser->check('non_exclude_fields', $table . ':' . $fieldName)
-            || $parameterArray['fieldConf']['config']['type'] === 'passthrough'
             // Return if field should not be rendered in translated records
             || $isOverlay && empty($parameterArray['fieldConf']['l10n_display']) && $parameterArray['fieldConf']['l10n_mode'] === 'exclude'
             || $this->inlineFieldShouldBeSkipped()
@@ -122,16 +122,16 @@ class SingleFieldContainer extends AbstractContainer
             || isset($parameterArray['fieldConf']['onChange']) && $parameterArray['fieldConf']['onChange'] === 'reload'
         ) {
             if ($backendUser->jsConfirmation(JsConfirmation::TYPE_CHANGE)) {
-                $alertMsgOnChange = 'top.TYPO3.Modal.confirm('
-                        . 'TYPO3.lang["FormEngine.refreshRequiredTitle"],'
-                        . ' TYPO3.lang["FormEngine.refreshRequiredContent"]'
+                $alertMsgOnChange = 'Modal.confirm('
+                    . 'TYPO3.lang["FormEngine.refreshRequiredTitle"],'
+                    . ' TYPO3.lang["FormEngine.refreshRequiredContent"]'
                     . ')'
                     . '.on('
-                        . '"button.clicked",'
-                        . ' function(e) { if (e.target.name == "ok" && TBE_EDITOR.checkSubmit(-1)) { TBE_EDITOR.submitForm() } top.TYPO3.Modal.dismiss(); }'
+                    . '"button.clicked",'
+                    . ' function(e) { if (e.target.name == "ok") { FormEngine.saveDocument(); } Modal.dismiss(); }'
                     . ');';
             } else {
-                $alertMsgOnChange = 'if (TBE_EDITOR.checkSubmit(-1)){ TBE_EDITOR.submitForm() };';
+                $alertMsgOnChange = 'FormEngine.saveDocument();';
             }
         } else {
             $alertMsgOnChange = '';
@@ -140,32 +140,13 @@ class SingleFieldContainer extends AbstractContainer
         // JavaScript code for event handlers:
         $parameterArray['fieldChangeFunc'] = [];
         $parameterArray['fieldChangeFunc']['TBE_EDITOR_fieldChanged'] = 'TBE_EDITOR.fieldChanged('
-                . GeneralUtility::quoteJSvalue($table) . ','
-                . GeneralUtility::quoteJSvalue($row['uid']) . ','
-                . GeneralUtility::quoteJSvalue($fieldName) . ','
-                . GeneralUtility::quoteJSvalue($parameterArray['itemFormElName'])
+            . GeneralUtility::quoteJSvalue($table) . ','
+            . GeneralUtility::quoteJSvalue($row['uid']) . ','
+            . GeneralUtility::quoteJSvalue($fieldName) . ','
+            . GeneralUtility::quoteJSvalue($parameterArray['itemFormElName'])
             . ');';
         if ($alertMsgOnChange) {
-            $parameterArray['fieldChangeFunc']['alert'] = $alertMsgOnChange;
-        }
-
-        // If this is the child of an inline type and it is the field creating the label
-        if ($this->isInlineChildAndLabelField($table, $fieldName)) {
-            $inlineStackProcessor = GeneralUtility::makeInstance(InlineStackProcessor::class);
-            $inlineStackProcessor->initializeByGivenStructure($this->data['inlineStructure']);
-            $inlineDomObjectId = $inlineStackProcessor->getCurrentStructureDomObjectIdPrefix($this->data['inlineFirstPid']);
-            $inlineObjectId = implode(
-                '-',
-                [
-                    $inlineDomObjectId,
-                    $table,
-                    $row['uid']
-                ]
-            );
-            $parameterArray['fieldChangeFunc']['inline'] = 'inline.handleChangedField('
-                    . GeneralUtility::quoteJSvalue($parameterArray['itemFormElName']) . ','
-                    . GeneralUtility::quoteJSvalue($inlineObjectId)
-                . ');';
+            $parameterArray['fieldChangeFunc']['alert'] = 'require([\'TYPO3/CMS/Backend/FormEngine\', \'TYPO3/CMS/Backend/Modal\'], function (FormEngine, Modal) {' . $alertMsgOnChange . '});';
         }
 
         // Based on the type of the item, call a render function on a child element

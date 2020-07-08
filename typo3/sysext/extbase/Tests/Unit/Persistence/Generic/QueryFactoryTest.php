@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Tests\Unit\Persistence\Generic;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,22 @@ namespace TYPO3\CMS\Extbase\Tests\Unit\Persistence\Generic;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Tests\Unit\Persistence\Generic;
+
+use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
+use TYPO3\CMS\Extbase\Object\ObjectManager;
+use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap;
+use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapFactory;
+use TYPO3\CMS\Extbase\Persistence\Generic\QueryFactory;
+use TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface;
+use TYPO3\CMS\Extbase\Persistence\Generic\Typo3QuerySettings;
+use TYPO3\CMS\Extbase\Persistence\QueryInterface;
+use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
+
 /**
  * Test case
  */
-class QueryFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
+class QueryFactoryTest extends UnitTestCase
 {
     /**
      * @var string
@@ -27,35 +38,45 @@ class QueryFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
     /**
      * @var \TYPO3\CMS\Extbase\Persistence\Generic\QueryFactory
      */
-    protected $queryFactory = null;
+    protected $queryFactory;
 
     /**
-     * @var \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper|\PHPUnit_Framework_MockObject_MockObject
+     * @var \TYPO3\CMS\Extbase\Object\ObjectManagerInterface|\PHPUnit\Framework\MockObject\MockObject
      */
-    protected $dataMapper = null;
+    protected $objectManager;
 
     /**
-     * @var \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap|\PHPUnit_Framework_MockObject_MockObject
+     * @var \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapFactory|\PHPUnit\Framework\MockObject\MockObject
+     */
+    protected $dataMapFactory;
+
+    /**
+     * @var \TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap|\PHPUnit\Framework\MockObject\MockObject
      */
     protected $dataMap;
 
-    protected function setUp()
+    protected function setUp(): void
     {
-        $this->dataMap = $this->getMockBuilder(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMap::class)
+        parent::setUp();
+        /** @var \TYPO3\CMS\Extbase\Object\ObjectManagerInterface|\PHPUnit\Framework\MockObject\MockObject $objectManager */
+        $this->objectManager = $this->createMock(ObjectManager::class);
+
+        $this->dataMap = $this->getMockBuilder(DataMap::class)
             ->setMethods(['getIsStatic', 'getRootLevel'])
             ->setConstructorArgs(['Vendor\\Ext\\Domain\\Model\\ClubMate', 'tx_ext_domain_model_clubmate'])
             ->getMock();
 
-        $this->queryFactory = $this->getAccessibleMock(\TYPO3\CMS\Extbase\Persistence\Generic\QueryFactory::class, ['dummy']);
-        $this->queryFactory->_set('configurationManager',
-            $this->createMock(\TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface::class)
-        );
-
-        $this->dataMapper = $this->getMockBuilder(\TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper::class)
-            ->setMethods(['getDataMap', 'convertClassNameToTableName'])
+        $this->dataMapFactory = $this->getMockBuilder(DataMapFactory::class)
+            ->disableOriginalConstructor()
+            ->setMethods(['buildDataMap', 'convertClassNameToTableName'])
             ->getMock();
-        $this->dataMapper->expects($this->any())->method('getDataMap')->will($this->returnValue($this->dataMap));
-        $this->queryFactory->_set('dataMapper', $this->dataMapper);
+        $this->dataMapFactory->expects(self::any())->method('buildDataMap')->willReturn($this->dataMap);
+
+        $this->queryFactory = new QueryFactory(
+            $this->objectManager,
+            $this->createMock(ConfigurationManagerInterface::class),
+            $this->dataMapFactory
+        );
     }
 
     public function getStaticAndRootLevelAndExpectedResult()
@@ -78,26 +99,22 @@ class QueryFactoryTest extends \TYPO3\TestingFramework\Core\Unit\UnitTestCase
      */
     public function createDoesNotRespectStoragePageIfStaticOrRootLevelIsTrue($static, $rootLevel, $expectedResult)
     {
-        /** @var \TYPO3\CMS\Extbase\Object\ObjectManagerInterface|\PHPUnit_Framework_MockObject_MockObject $objectManager */
-        $objectManager = $this->createMock(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
-        $this->queryFactory->_set('objectManager', $objectManager);
+        $this->dataMap->expects(self::any())->method('getIsStatic')->willReturn($static);
+        $this->dataMap->expects(self::any())->method('getRootLevel')->willReturn($rootLevel);
 
-        $this->dataMap->expects($this->any())->method('getIsStatic')->will($this->returnValue($static));
-        $this->dataMap->expects($this->any())->method('getRootLevel')->will($this->returnValue($rootLevel));
+        $query = $this->createMock(QueryInterface::class);
+        $this->objectManager->expects(self::at(0))->method('get')
+            ->with(QueryInterface::class)
+            ->willReturn($query);
 
-        $query = $this->createMock(\TYPO3\CMS\Extbase\Persistence\QueryInterface::class);
-        $objectManager->expects($this->at(0))->method('get')
-            ->with(\TYPO3\CMS\Extbase\Persistence\QueryInterface::class)
-            ->will($this->returnValue($query));
-
-        $querySettings = new \TYPO3\CMS\Extbase\Persistence\Generic\Typo3QuerySettings();
-        $objectManager->expects($this->at(1))->method('get')
-            ->with(\TYPO3\CMS\Extbase\Persistence\Generic\QuerySettingsInterface::class)
-            ->will($this->returnValue($querySettings));
-        $query->expects($this->once())->method('setQuerySettings')->with($querySettings);
+        $querySettings = new Typo3QuerySettings();
+        $this->objectManager->expects(self::at(1))->method('get')
+            ->with(QuerySettingsInterface::class)
+            ->willReturn($querySettings);
+        $query->expects(self::once())->method('setQuerySettings')->with($querySettings);
         $this->queryFactory->create($this->className);
 
-        $this->assertSame(
+        self::assertSame(
             $expectedResult,
             $querySettings->getRespectStoragePage()
         );
